@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: oaklycare_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://postgres.ljrcyoonkqpbdsddqmwk:Oaklycarehealth@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - SMTP_TLS=True
+      - SMTP_PORT=465
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - EMAILS_FROM_EMAIL=${EMAILS_FROM_EMAIL}
+      - PROJECT_NAME=Oaklycare
+      - OTP_EXPIRE_MINUTES=15
+      - EMAIL_RESET_TOKEN_EXPIRE_HOURS=24
+      - ENVIRONMENT=production
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000"]
+    depends_on:
+      - db
+    networks:
+      - oaklycare-network
+
+  # db:
+  #   image: postgres:15-alpine
+  #   container_name: oaklycare_db
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=oaklycare
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data/
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - oaklycare-network
+
+networks:
+  oaklycare-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

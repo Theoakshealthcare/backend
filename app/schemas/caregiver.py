@@ -1,0 +1,92 @@
+from datetime import datetime, date
+from typing import Optional, List, Literal
+from pydantic import BaseModel, EmailStr, validator
+import uuid
+
+
+# Caregiver Profile Schemas
+class CaregiverProfileStep1(BaseModel):
+    date_of_birth: Optional[date] = None
+    gender: Optional[Literal["male", "female", "other"]] = None
+    state: Optional[str] = None
+    house_address: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+
+
+class CaregiverProfileStep2(BaseModel):
+    specialization: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    preferred_work_hours: Optional[str] = None
+    service_areas: Optional[List[str]] = None
+
+
+class CaregiverConsentData(BaseModel):
+    terms_accepted: bool
+    privacy_policy_accepted: bool
+    background_check_consent: bool
+
+
+# Document Upload Schemas
+class DocumentUploadResponse(BaseModel):
+    id: uuid.UUID
+    document_type: str
+    document_name: str
+    file_path: str
+    verification_status: str
+    uploaded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Identity Verification Schemas
+class IdentityVerificationRequest(BaseModel):
+    document_type: Literal["passport", "driving_licence", "national_identity_card"]
+
+
+class IdentityVerificationResponse(BaseModel):
+    applicant_id: str
+    sdk_token: str
+    check_id: Optional[str] = None
+
+
+class FaceVerificationRequest(BaseModel):
+    applicant_id: str
+
+
+# Complete Caregiver Profile Response
+class CaregiverProfile(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    email: str
+    full_name: str
+    phone_number: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    gender: Optional[str] = None
+    state: Optional[str] = None
+    house_address: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    specialization: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    preferred_work_hours: Optional[str] = None
+    service_areas: Optional[List[str]] = None
+    profile_completion_step: int
+    identity_verification_status: str
+    background_check_status: str
+    profile_status: str
+    terms_accepted: bool
+    privacy_policy_accepted: bool
+    background_check_consent: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Specialization and Service Area Options
+class SpecializationOptions(BaseModel):
+    specializations: List[str]
+    service_areas: List[str]
+    work_hours: List[str]
+    states: List[str]
