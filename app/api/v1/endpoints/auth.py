@@ -12,6 +12,7 @@ from app.core.security import (
     verify_password_reset_token,
 )
 from app.db.session import get_db
+from app.api.deps import get_current_user
 from app.schemas.user import (
     User,
     UserCreate,
@@ -33,15 +34,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 
 def get_user_service(db: Session = Depends(get_db)) -> UserService:
     return UserService(db)
-
-# Helper function to get current user (you'll need to implement this)
-async def get_current_user(
-    db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
-) -> User:
-    # Implementation depends on your JWT token verification logic
-    # This is a placeholder - you'll need to implement JWT token verification
-    pass
 
 
 @router.post("/register", response_model=User)

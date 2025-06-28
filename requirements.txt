@@ -34,3 +34,6 @@ httpx>=0.24.0
 tenacity>=8.2.2
 certifi==2025.4.26
 google-generativeai
+
+# Additional dependencies for Docker
+python-multipart>=0.0.6
