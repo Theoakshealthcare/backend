@@ -1,8 +1,10 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, caregiver, booking
+from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 api_router.include_router(caregiver.router, prefix="/caregiver", tags=["caregiver"])
 api_router.include_router(booking.router, prefix="/booking", tags=["booking"])
+api_router.include_router(booking_settings.router, prefix="/booking-settings", tags=["booking_settings"])
+api_router.include_router(payment.router, prefix="/payment", tags=["payment"])

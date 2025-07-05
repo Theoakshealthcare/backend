@@ -10,6 +10,7 @@ from app.db.models.booking import (
     Booking, BookingNotification, ChatMessage, BookingNote,
     BookingStatus, PaymentStatus
 )
+from app.db.models.booking_settings import BookingSettings
 from app.schemas.booking import BookingCreate, BookingActionRequest
 from app.services.location import LocationService
 from app.services.gemini import gemini_service
@@ -34,9 +35,28 @@ class BookingService:
         # Calculate end time
         scheduled_end = booking_data.scheduled_date + timedelta(hours=booking_data.duration_hours)
         
-        # Calculate pricing (this would be more complex in real implementation)
-        service_fee = booking_data.duration_hours * 5000  # ₦5,000 per hour base rate
-        platform_fee = service_fee * 0.1  # 10% platform fee
+        # Fetch latest booking settings
+        settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+        if not settings:
+            raise Exception("Booking settings not configured.")
+        
+        # Calculate service fee
+        base_fee = settings.base_fee
+        multiplier = 1.0
+        if settings.multipliers and booking_data.service_type in settings.multipliers:
+            multiplier = settings.multipliers[booking_data.service_type]
+        service_fee = booking_data.duration_hours * base_fee * multiplier
+        
+        # Apply surge pricing if active
+        if settings.surge_pricing and settings.surge_multiplier:
+            service_fee *= settings.surge_multiplier
+        
+        # Apply discount if any
+        if settings.discount:
+            service_fee *= (1 - settings.discount / 100)
+        
+        # Platform fee
+        platform_fee = service_fee * (settings.platform_fee_percent / 100)
         total_amount = service_fee + platform_fee
         
         booking = Booking(
@@ -246,3 +266,16 @@ class BookingService:
         return self.db.query(BookingNote).filter(
             BookingNote.booking_id == booking_id
         ).order_by(BookingNote.created_at.desc()).all()
+
+    def auto_cancel_unpaid_bookings(self):
+        """Auto-cancel unpaid bookings older than 7 days"""
+        threshold = datetime.utcnow() - timedelta(days=7)
+        unpaid_bookings = self.db.query(Booking).filter(
+            Booking.payment_status == PaymentStatus.PENDING,
+            Booking.status == BookingStatus.PENDING,
+            Booking.created_at < threshold
+        ).all()
+        for booking in unpaid_bookings:
+            booking.status = BookingStatus.CANCELLED
+        self.db.commit()
+        return len(unpaid_bookings)

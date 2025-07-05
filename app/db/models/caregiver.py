@@ -47,6 +47,11 @@ class Caregiver(Base):
     background_check_consent = Column(Boolean, default=False)
     consent_date = Column(DateTime, nullable=True)
     
+    # Prembly Verification Results
+    document_verification_result = Column(JSON, nullable=True)
+    face_verification_result = Column(JSON, nullable=True)
+    face_verification_status = Column(String, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -90,3 +90,9 @@ class SpecializationOptions(BaseModel):
     service_areas: List[str]
     work_hours: List[str]
     states: List[str]
+
+
+# Verification Result Schema
+class VerificationResultRequest(BaseModel):
+    type: Literal["document", "face"]
+    result: dict

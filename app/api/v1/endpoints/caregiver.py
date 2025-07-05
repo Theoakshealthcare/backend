@@ -14,7 +14,8 @@ from app.schemas.caregiver import (
     CaregiverConsentData,
     DocumentUploadResponse,
     IdentityVerificationResponse,
-    SpecializationOptions
+    SpecializationOptions,
+    VerificationResultRequest,
 )
 from app.services.caregiver import CaregiverService
 
@@ -132,60 +133,6 @@ def upload_document(
         )
 
 
-@router.post("/identity-verification/initiate", response_model=IdentityVerificationResponse)
-def initiate_identity_verification(
-    current_user: User = Depends(get_current_user),
-    caregiver_service: CaregiverService = Depends(get_caregiver_service),
-) -> Any:
-    """Initiate identity verification process with Onfido"""
-    if current_user.user_type != "caregiver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Caregiver account required."
-        )
-    
-    try:
-        result = caregiver_service.initiate_identity_verification(current_user.id)
-        return result
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-@router.post("/identity-verification/complete", response_model=dict)
-def complete_identity_verification(
-    current_user: User = Depends(get_current_user),
-    caregiver_service: CaregiverService = Depends(get_caregiver_service),
-) -> Any:
-    """Complete identity verification and create check"""
-    if current_user.user_type != "caregiver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Caregiver account required."
-        )
-    
-    try:
-        result = caregiver_service.complete_identity_verification(current_user.id)
-        return {"message": "Identity verification completed", "data": result}
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
 @router.put("/consent", response_model=CaregiverProfile)
 def update_consent(
     consent_data: CaregiverConsentData,
@@ -235,3 +182,25 @@ def get_verification_status(
 def get_form_options() -> Any:
     """Get form options for dropdowns (specializations, service areas, etc.)"""
     return CaregiverService.get_form_options()
+
+
+@router.post("/identity-verification/result", response_model=dict)
+def receive_verification_result(
+    payload: VerificationResultRequest,
+    current_user: User = Depends(get_current_user),
+    caregiver_service: CaregiverService = Depends(get_caregiver_service),
+) -> Any:
+    """Receive and store verification result from mobile app (Prembly)"""
+    if current_user.user_type != "caregiver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Caregiver account required."
+        )
+    try:
+        caregiver_service.process_verification_result(current_user.id, payload.type, payload.result)
+        return {"message": "Verification result received and stored."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )

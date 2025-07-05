@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import ALGORITHM
 from app.db.session import SessionLocal
-from app.db.models.user import User
+from app.db.models.user import User, Admin
 from app.services.user import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -81,5 +81,18 @@ async def get_current_patient(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied. Patient account required."
+        )
+    return current_user
+
+
+async def get_current_admin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    admin = db.query(Admin).filter(Admin.user_id == current_user.id).first()
+    if not admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Admin account required."
         )
     return current_user
