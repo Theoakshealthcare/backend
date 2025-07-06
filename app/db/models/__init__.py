@@ -2,6 +2,10 @@ import os
 import importlib
 import pkgutil
 from app.db.session import Base
+from .prescription import Prescription
+from .prescription_settings import PrescriptionSettings
+from .patient_vital import PatientVital
+from .patient_caregiver_access import PatientCaregiverAccess
 
 # Automatically import all models in this directory
 models_dir = os.path.dirname(__file__)

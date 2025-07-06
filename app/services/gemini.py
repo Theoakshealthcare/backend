@@ -145,6 +145,39 @@ class GeminiService:
                 "recommendations": []
             }
 
+    async def analyze_vitals(self, vitals: list) -> dict:
+        """Analyze patient vitals and return insights, trends, and recommendations."""
+        prompt = f"""
+        You are a medical AI assistant. Analyze the following patient vitals history and provide:
+        1. A summary of the patient's health trends.
+        2. Any concerning patterns or out-of-range values.
+        3. Recommendations for the patient or caregiver.
+        4. A list of key vitals that should be monitored closely.
+        
+        Vitals data (JSON):
+        {vitals}
+        
+        Respond in JSON with keys: summary, concerns, recommendations, key_vitals.
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                self.executor,
+                self._generate_content,
+                prompt
+            )
+            # Parse the JSON response
+            result = json.loads(response.text)
+            return result
+        except Exception as e:
+            print(f"Error analyzing vitals: {e}")
+            return {
+                "summary": "Unable to analyze vitals.",
+                "concerns": [],
+                "recommendations": [],
+                "key_vitals": []
+            }
+
 
 # Initialize service
 gemini_service = GeminiService()

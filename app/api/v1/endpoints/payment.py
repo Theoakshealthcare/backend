@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from app.db.models.booking import Booking, PaymentStatus
+from app.db.models.prescription import Prescription
 from app.api.deps import get_db
 import hmac
 import hashlib
@@ -27,5 +28,10 @@ async def paystack_webhook(request: Request, db: Session = Depends(get_db)):
         booking = db.query(Booking).filter(Booking.paystack_reference == reference).first()
         if booking:
             booking.payment_status = PaymentStatus.PAID
+            db.commit()
+        # Find prescription by paystack_reference
+        prescription = db.query(Prescription).filter(Prescription.paystack_reference == reference).first()
+        if prescription:
+            prescription.payment_status = "paid"
             db.commit()
     return {"status": True} 

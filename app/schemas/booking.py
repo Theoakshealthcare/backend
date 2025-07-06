@@ -8,7 +8,7 @@ from app.db.models.booking import BookingStatus, PaymentStatus
 
 # Booking Creation
 class BookingCreate(BaseModel):
-    service_type: Literal["nurse", "doctor", "physiotherapist", "caregiver"]
+    service_type: Literal["nurse", "doctor", "physiotherapist", "caregiver", "nutritionist"]
     assistance_type: str
     condition: Optional[str] = None
     duration_hours: int
