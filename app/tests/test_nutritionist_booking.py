@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timedelta
 
 BASE_URL = "http://localhost:8000/api/v1/booking"
-PATIENT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4MTU4NTMsInN1YiI6IjI2ZTA4YTBmLThkMmQtNGI4Ni05NTQ2LTJlMzk0MTI0ZGQwNiJ9.vSFVEnEe3_MFcFtzlT4M4tng4biYi74nWbb3eMlbYHU"
-HEADERS = {"Authorization": f"Bearer {PATIENT_TOKEN}"}
-
+PATIENT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4NzM1MDcsInN1YiI6IjI2ZTA4YTBmLThkMmQtNGI4Ni05NTQ2LTJlMzk0MTI0ZGQwNiJ9.3el6L5t3_8q8JhE_kfWkk5CVuNftSZanAf26J6721Kk"
 PATIENT_ID = "a1982f60-fffb-4372-8dbf-b62b418b903b"
+HEADERS = {"Authorization": f"Bearer {PATIENT_TOKEN}"}
+REAL_BOOKING_ID = "3888e9f9-a024-4ebf-8b3b-55a4a0b18901"
 
 @pytest.fixture(scope="module")
 def booking_data():
@@ -38,9 +38,9 @@ def test_create_nutritionist_booking(created_booking):
     assert created_booking is not None
     assert isinstance(created_booking, str)
 
-def test_get_nutritionist_booking(created_booking):
-    resp = requests.get(f"{BASE_URL}/{created_booking}", headers=HEADERS)
+def test_get_nutritionist_booking():
+    resp = requests.get(f"{BASE_URL}/booking/{REAL_BOOKING_ID}", headers=HEADERS)
     assert resp.status_code == 200, resp.text
     data = resp.json()
-    assert data["id"] == created_booking
+    assert data["id"] == REAL_BOOKING_ID
     assert data["service_type"] == "nutritionist" 

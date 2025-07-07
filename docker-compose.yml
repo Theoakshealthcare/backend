@@ -29,6 +29,12 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAILS_FROM_EMAIL=${EMAILS_FROM_EMAIL}
+
+      # Gemini AI Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # Encryption Key
+      - VITALS_ENCRYPTION_KEY=${VITALS_ENCRYPTION_KEY}
       
       # Application Configuration
       - PROJECT_NAME=Oaklycare

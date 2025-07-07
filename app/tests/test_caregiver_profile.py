@@ -6,8 +6,8 @@ client = TestClient(app)
 
 # Helper to get a valid caregiver token (replace with your fixture or logic)
 def get_caregiver_token():
-    # This should be replaced with a real token retrieval or fixture
-    return "test_caregiver_token"
+    # Use the real caregiver token
+    return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4NzM1NTYsInN1YiI6ImZhYjNlNzg4LWUzNTMtNGE0ZS1iM2MxLWM3YWIxMTRhMDk2MSJ9.SHbw2W5temzyVZNmTeb8gpeyXtoiF55KVNsQFDYSPVs"
 
 def auth_headers(token=None):
     return {"Authorization": f"Bearer {token or get_caregiver_token()}"}

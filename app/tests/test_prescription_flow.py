@@ -6,8 +6,24 @@ import requests
 BASE_URL = "http://localhost:8000/api/v1"
 PATIENT_ID = "a1982f60-fffb-4372-8dbf-b62b418b903b"
 USER_ID = "26e08a0f-8d2d-4b86-9546-2e394124dd06"
-BEARER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4MDM3NDIsInN1YiI6IjI2ZTA4YTBmLThkMmQtNGI4Ni05NTQ2LTJlMzk0MTI0ZGQwNiJ9.qXc5IGZq13paedYOo98DlpOultPfCKuPa54Cxp-dQlw"
+BEARER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4NzM1MDcsInN1YiI6IjI2ZTA4YTBmLThkMmQtNGI4Ni05NTQ2LTJlMzk0MTI0ZGQwNiJ9.3el6L5t3_8q8JhE_kfWkk5CVuNftSZanAf26J6721Kk"
 HEADERS = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4NzM2NTQsInN1YiI6IjlkOGJhMjNhLTgzOTItNDk3OC04OTVlLTVjMDgzMGMwNTg5MyJ9.BnavsmHKuIDhzfF5H8TIf_Uki1UqdsetiNByXoEKsgo"
+ADMIN_HEADERS = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+
+@pytest.fixture(scope="module", autouse=True)
+def ensure_prescription_settings():
+    settings_url = f"{BASE_URL}/prescription/settings"
+    settings_data = {
+        "base_fee": 10000,
+        "multipliers": {"urgent": 2.0, "regular": 1.0, "Home Delivery": 1.0},
+        "surge_pricing": True,
+        "surge_multiplier": 1.5,
+        "discount": 10.0
+    }
+    resp = requests.post(settings_url, json=settings_data, headers=ADMIN_HEADERS)
+    # Accept 201 (created) or 409 (already exists)
+    assert resp.status_code in (201, 409), resp.text
 
 @pytest.fixture(scope="module")
 def prescription_data():

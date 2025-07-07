@@ -83,7 +83,10 @@ class Settings(BaseSettings):
     PAYSTACK_WEBHOOK_SECRET: str = ""
 
     # Gemini AI Configuration
-    GEMINI_API_KEY: str = ""
+    GEMINI_API_KEY: Optional[str] = None
+    
+    # Encryption Key
+    VITALS_ENCRYPTION_KEY: Optional[str] = None
 
     # Push Notifications
     FCM_SERVER_KEY: Optional[str] = None

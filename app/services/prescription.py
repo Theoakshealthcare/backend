@@ -23,7 +23,7 @@ class PrescriptionService:
             total_cost *= settings.surge_multiplier
         if settings.discount:
             total_cost *= (1 - settings.discount / 100)
-        prescription = Prescription(**data.dict(), total_cost=total_cost)
+        prescription = Prescription(**data.dict(exclude={'total_cost'}), total_cost=total_cost)
         self.db.add(prescription)
         self.db.commit()
         self.db.refresh(prescription)

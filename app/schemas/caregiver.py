@@ -6,18 +6,18 @@ import uuid
 
 # Caregiver Profile Schemas
 class CaregiverProfileStep1(BaseModel):
-    date_of_birth: Optional[date] = None
-    gender: Optional[Literal["male", "female", "other"]] = None
-    state: Optional[str] = None
-    house_address: Optional[str] = None
-    emergency_contact_phone: Optional[str] = None
+    date_of_birth: date
+    gender: Literal["male", "female", "other"]
+    state: str
+    house_address: str
+    emergency_contact_phone: str
 
 
 class CaregiverProfileStep2(BaseModel):
-    specialization: Optional[str] = None
-    years_of_experience: Optional[int] = None
-    preferred_work_hours: Optional[str] = None
-    service_areas: Optional[List[str]] = None
+    specialization: str
+    years_of_experience: int
+    preferred_work_hours: str
+    service_areas: List[str]
 
 
 class CaregiverConsentData(BaseModel):

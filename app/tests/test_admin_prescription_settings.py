@@ -3,7 +3,7 @@ import requests
 import uuid
 
 BASE_URL = "http://localhost:8000/api/v1/prescription/settings"
-ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4MTUzMTgsInN1YiI6IjlkOGJhMjNhLTgzOTItNDk3OC04OTVlLTVjMDgzMGMwNTg5MyJ9.qAsIUR3Qw51Or1Sh7S7LM-ubOmWUdlvhGPbMlenIivU"
+ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTE4NzM2NTQsInN1YiI6IjlkOGJhMjNhLTgzOTItNDk3OC04OTVlLTVjMDgzMGMwNTg5MyJ9.BnavsmHKuIDhzfF5H8TIf_Uki1UqdsetiNByXoEKsgo"
 HEADERS = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
 
 @pytest.fixture(scope="module")
