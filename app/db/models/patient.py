@@ -32,6 +32,7 @@ class Patient(Base):
     emergency_contact_name = Column(String, nullable=True)
     emergency_contact_phone = Column(String, nullable=True)
     emergency_contact_relationship = Column(String, nullable=True)
+    emergency_contact_address = Column(String, nullable=True)
     
     # Medical Information
     blood_group = Column(String, nullable=True)

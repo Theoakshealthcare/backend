@@ -20,7 +20,7 @@ def test_update_profile_step1_success():
             "date_of_birth": "1990-01-01",
             "gender": "male",
             "state": "Lagos",
-            "house_address": "123 Main Street",
+            "address": "123 Main Street",
             "emergency_contact_phone": "+2348012345678"
         }
     )

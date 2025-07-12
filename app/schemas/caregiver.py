@@ -9,7 +9,7 @@ class CaregiverProfileStep1(BaseModel):
     date_of_birth: date
     gender: Literal["male", "female", "other"]
     state: str
-    house_address: str
+    address: str
     emergency_contact_phone: str
 
 
@@ -64,7 +64,7 @@ class CaregiverProfile(BaseModel):
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None
     state: Optional[str] = None
-    house_address: Optional[str] = None
+    address: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
     specialization: Optional[str] = None
     years_of_experience: Optional[int] = None
@@ -96,3 +96,46 @@ class SpecializationOptions(BaseModel):
 class VerificationResultRequest(BaseModel):
     type: Literal["document", "face"]
     result: dict
+
+
+class CaregiverWalletSummary(BaseModel):
+    balance: int  # in kobo
+    total_earned: int  # in kobo
+    total_withdrawn: int  # in kobo
+    currency: str = "NGN"
+
+
+class CaregiverTransactionOut(BaseModel):
+    id: str
+    type: Literal['earning', 'withdrawal']
+    amount: int  # in kobo
+    status: str
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_name: Optional[str] = None
+    reference: Optional[str] = None
+    narration: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CaregiverBankAccountOut(BaseModel):
+    bank_name: str
+    account_number: str
+    account_name: str
+    created_at: datetime
+    updated_at: datetime
+
+class CaregiverBankAccountUpdate(BaseModel):
+    bank_name: str
+    account_number: str
+    account_name: str
+
+class CaregiverWithdrawalRequest(BaseModel):
+    amount: int  # in kobo
+    narration: Optional[str] = None
+
+class CaregiverWithdrawalResponse(BaseModel):
+    transaction_id: str
+    status: str
+    message: str
