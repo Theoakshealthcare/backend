@@ -87,24 +87,20 @@ class BookingService:
         return booking
 
     def notify_nearby_caregivers(self, booking: Booking) -> List[BookingNotification]:
-        """Send notifications to nearby caregivers"""
+        """Send notifications to nearby caregivers using smart matching algorithm"""
         
-        # Find nearby caregivers
-        nearby_caregivers = self.location_service.find_nearby_caregivers(
-            booking.patient_latitude,
-            booking.patient_longitude,
-            radius_km=15,  # 15km radius
-            service_type=booking.service_type
-        )
+        # Use enhanced smart matching to find best caregivers
+        smart_matched_caregivers = self.smart_caregiver_matching(booking)
         
         notifications = []
         
-        for caregiver in nearby_caregivers[:10]:  # Limit to 10 nearest caregivers
+        # Notify top 8 best-matched caregivers (reduced from 10 for better matching)
+        for caregiver in smart_matched_caregivers[:8]:
             notification = BookingNotification(
                 booking_id=booking.id,
                 caregiver_id=caregiver['caregiver_id'],
                 title="New Booking Request",
-                message=f"New {booking.service_type} request for {booking.assistance_type} - {caregiver['distance_km']}km away",
+                message=f"New {booking.service_type} request - {caregiver['distance_km']}km away, ETA {caregiver.get('estimated_arrival_minutes', 'N/A')} min",
                 notification_type="new_booking"
             )
             
@@ -113,6 +109,97 @@ class BookingService:
         
         self.db.commit()
         return notifications
+
+    def smart_caregiver_matching(self, booking: Booking) -> List[Dict[str, Any]]:
+        """Uber-like smart matching algorithm considering multiple factors"""
+        
+        # Get enhanced caregivers with ETA and scoring
+        base_caregivers = self.location_service.get_nearby_active_caregivers_with_eta(
+            booking.patient_latitude, booking.patient_longitude,
+            radius_km=20,  # Increased radius for better matching
+            service_type=booking.service_type
+        )
+        
+        if not base_caregivers:
+            return []
+        
+        # Enhanced scoring with additional factors
+        scored_caregivers = []
+        
+        for caregiver in base_caregivers:
+            # Start with base match score from location service
+            score = caregiver.get('match_score', 100)
+            
+            # Time-based bonus (better availability during certain hours)
+            current_hour = datetime.now().hour
+            if 8 <= current_hour <= 20:  # Regular working hours
+                score += 10
+            elif 6 <= current_hour <= 22:  # Extended hours
+                score += 5
+            
+            # Service type specialization bonus
+            specialization = caregiver.get('specialization', '').lower()
+            service_type = booking.service_type.lower()
+            if service_type in specialization:
+                score += 20  # Perfect match
+            elif any(keyword in specialization for keyword in [service_type[:4], 'general', 'all']):
+                score += 10  # Partial match
+            
+            # Urgency factor (for future implementation)
+            # if booking has urgent flag, prioritize closer caregivers more heavily
+            
+            # Recent activity bonus (caregivers who updated location recently)
+            if caregiver.get('last_location_update'):
+                # This would need to be calculated in the location service
+                pass
+            
+            # Update caregiver with final score
+            caregiver_copy = caregiver.copy()
+            caregiver_copy['final_match_score'] = round(score, 2)
+            scored_caregivers.append(caregiver_copy)
+        
+        # Sort by final match score (highest first)
+        scored_caregivers.sort(key=lambda x: x['final_match_score'], reverse=True)
+        
+        return scored_caregivers
+
+    def get_booking_demand_surge_multiplier(self, patient_city: str, service_type: str) -> float:
+        """Calculate surge pricing multiplier based on current demand (Uber-like)"""
+        
+        # Check recent bookings in the area (last 2 hours)
+        recent_bookings = self.db.query(Booking).filter(
+            and_(
+                Booking.patient_city == patient_city,
+                Booking.service_type == service_type,
+                Booking.created_at >= datetime.utcnow() - timedelta(hours=2)
+            )
+        ).count()
+        
+        # Check available caregivers in the area
+        available_caregivers = len(self.location_service.find_nearby_caregivers(
+            # We would need patient coordinates here - this is simplified
+            0, 0,  # Placeholder coordinates
+            radius_km=15,
+            service_type=service_type
+        ))
+        
+        if available_caregivers == 0:
+            return 2.5  # Maximum surge when no caregivers available
+        
+        # Calculate demand-to-supply ratio
+        demand_ratio = recent_bookings / max(1, available_caregivers)
+        
+        # Surge multiplier based on demand ratio
+        if demand_ratio > 4:
+            return 2.5  # 2.5x surge (very high demand)
+        elif demand_ratio > 3:
+            return 2.0  # 2x surge
+        elif demand_ratio > 2:
+            return 1.5  # 1.5x surge
+        elif demand_ratio > 1:
+            return 1.25  # 1.25x surge
+        else:
+            return 1.0  # No surge
 
     def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID, 
                             action_data: BookingActionRequest) -> Booking:

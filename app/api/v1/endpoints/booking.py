@@ -1,13 +1,12 @@
-from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient
-from app.db.models.booking import Booking
+from app.db.models.booking import Booking, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.user import User
@@ -16,8 +15,8 @@ from app.schemas.booking import (
     CaregiverLocationUpdate, CaregiverLocationResponse,
     ChatMessageCreate, ChatMessageResponse,
     BookingNoteCreate, BookingNoteResponse,
-    BookingNotificationResponse, NearbyCaregiverResponse,
-    CaregiverDetails
+    BookingNotificationResponse,
+    LiveTrackingResponse
 )
 from app.services.booking import BookingService
 from app.services.location import LocationService
@@ -181,7 +180,7 @@ def get_patient_bookings(
     
     bookings = query.order_by(Booking.created_at.desc()).all()
     
-    # Enrich bookings with caregiver details
+    # Enrich bookings with caregiver details including location
     enriched_bookings = []
     for booking in bookings:
         booking_dict = booking.__dict__.copy()
@@ -192,12 +191,41 @@ def get_patient_bookings(
                 Caregiver.id == booking.caregiver_id
             ).first()
             
+            # Get caregiver's current location
+            caregiver_location = booking_service.db.query(CaregiverLocation).filter(
+                CaregiverLocation.caregiver_id == booking.caregiver_id
+            ).first()
+            
             if caregiver:
-                booking_dict['caregiver_details'] = {
+                caregiver_details = {
                     'caregiver_id': caregiver.id,
                     'full_name': caregiver.full_name,
-                    'specialization': caregiver.specialization
+                    'specialization': caregiver.specialization,
+                    'current_latitude': caregiver_location.latitude if caregiver_location else None,
+                    'current_longitude': caregiver_location.longitude if caregiver_location else None,
+                    'is_online': caregiver_location.is_active if caregiver_location else False,
+                    'last_location_update': caregiver_location.updated_at if caregiver_location else None,
+                    'distance_from_patient': None,
+                    'estimated_arrival_time': None
                 }
+                
+                # Calculate distance and ETA if both locations are available
+                if (caregiver_location and booking.patient_latitude and booking.patient_longitude):
+                    from app.services.location import LocationService
+                    location_service = LocationService(booking_service.db)
+                    
+                    distance = location_service.calculate_distance(
+                        booking.patient_latitude, booking.patient_longitude,
+                        caregiver_location.latitude, caregiver_location.longitude
+                    )
+                    caregiver_details['distance_from_patient'] = round(distance, 2)
+                    
+                    # Calculate ETA (assuming 25 km/h average speed in urban areas)
+                    # Minimum 5 minutes for very close distances
+                    eta_minutes = max(5, int((distance / 25) * 60))
+                    caregiver_details['estimated_arrival_time'] = eta_minutes
+                
+                booking_dict['caregiver_details'] = caregiver_details
         
         enriched_bookings.append(booking_dict)
     
@@ -316,13 +344,58 @@ def get_booking_details(
 
 
 # Location Endpoints
-@router.post("/caregiver/location", response_model=CaregiverLocationResponse)
+@router.post(
+    "/caregiver/location", 
+    response_model=CaregiverLocationResponse,
+    summary="Update caregiver's real-time location",
+    description="Update caregiver's current GPS location for real-time tracking and matching. This endpoint should be called periodically by the caregiver mobile app.",
+    responses={
+        200: {
+            "description": "Location updated successfully",
+            "model": CaregiverLocationResponse
+        },
+        404: {
+            "description": "Caregiver profile not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Caregiver profile not found"}
+                }
+            }
+        }
+    },
+    tags=["Caregiver Location"]
+)
 def update_caregiver_location(
     location_data: CaregiverLocationUpdate,
     current_user: User = Depends(get_current_caregiver),
     location_service: LocationService = Depends(get_location_service),
 ) -> Any:
-    """Update caregiver's current location"""
+    """
+    Update caregiver's current GPS location for real-time tracking.
+    
+    **Required Data from Frontend:**
+    - **latitude**: GPS latitude coordinate (-90 to 90)
+    - **longitude**: GPS longitude coordinate (-180 to 180)
+    - **is_available**: Whether caregiver is available for new bookings
+    
+    **Optional Data from Frontend:**
+    - **accuracy**: GPS accuracy in meters (helps determine location reliability)
+    - **heading**: Direction of movement in degrees (0-360, where 0 is North)
+    - **speed**: Movement speed in meters per second (used for movement detection)
+    
+    **Update Frequency:**
+    - **Active booking**: Every 10-15 seconds for real-time tracking
+    - **Available but no booking**: Every 30-60 seconds for matching
+    - **Offline**: Stop sending updates and set is_available to false
+    
+    **Frontend Implementation Notes:**
+    - Use background location services for continuous tracking
+    - Handle GPS permission requests gracefully
+    - Implement exponential backoff for failed requests
+    - Cache last known location for offline scenarios
+    
+    **Authentication:** Requires caregiver authentication token.
+    """
     caregiver = location_service.db.query(Caregiver).filter(
         Caregiver.user_id == current_user.id
     ).first()
@@ -346,12 +419,50 @@ def update_caregiver_location(
     return location
 
 
-@router.get("/caregiver/location", response_model=CaregiverLocationResponse)
+@router.get(
+    "/caregiver/location", 
+    response_model=CaregiverLocationResponse,
+    summary="Get caregiver's current location",
+    description="Retrieve the current GPS location and status of the authenticated caregiver.",
+    responses={
+        200: {
+            "description": "Current location retrieved successfully",
+            "model": CaregiverLocationResponse
+        },
+        404: {
+            "description": "Caregiver profile or location not found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "no_profile": {"value": {"detail": "Caregiver profile not found"}},
+                        "no_location": {"value": {"detail": "Location not found"}}
+                    }
+                }
+            }
+        }
+    },
+    tags=["Caregiver Location"]
+)
 def get_caregiver_location(
     current_user: User = Depends(get_current_caregiver),
     location_service: LocationService = Depends(get_location_service),
 ) -> Any:
-    """Get caregiver's current location"""
+    """
+    Get caregiver's current GPS location and status.
+    
+    **Returns:**
+    - Current GPS coordinates
+    - Availability status
+    - Location accuracy and timestamp
+    - Additional GPS metadata (heading, speed if available)
+    
+    **Use Cases:**
+    - Caregiver app checking own location status
+    - Debugging location tracking issues
+    - Verifying successful location updates
+    
+    **Authentication:** Requires caregiver authentication token.
+    """
     caregiver = location_service.db.query(Caregiver).filter(
         Caregiver.user_id == current_user.id
     ).first()
@@ -371,6 +482,132 @@ def get_caregiver_location(
         )
     
     return location
+
+
+# Real-time Tracking Endpoints
+@router.get(
+    "/booking/{booking_id}/live-tracking",
+    response_model=LiveTrackingResponse,
+    summary="Get live caregiver tracking",
+    description="Get real-time caregiver location and ETA for active booking",
+    responses={
+        200: {
+            "description": "Live tracking data retrieved successfully",
+            "model": LiveTrackingResponse
+        },
+        404: {
+            "description": "Booking not found or no tracking data available",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No tracking data available"}
+                }
+            }
+        },
+        403: {
+            "description": "Access denied",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Access denied"}
+                }
+            }
+        }
+    },
+    tags=["Live Tracking"]
+)
+def get_live_booking_tracking(
+    booking_id: UUID,
+    current_user: User = Depends(get_current_user),
+    booking_service: BookingService = Depends(get_booking_service),
+    location_service: LocationService = Depends(get_location_service),
+) -> Any:
+    """
+    Get real-time caregiver tracking for an active booking.
+    
+    **Features:**
+    - Real-time caregiver location
+    - Live distance calculation
+    - Dynamic ETA updates
+    - Movement detection
+    - Booking status tracking
+    
+    **Access:** Both patients and caregivers can access their booking tracking data.
+    
+    **Authentication:** Requires user authentication token.
+    """
+    # Get booking and verify access
+    booking = booking_service.db.query(Booking).filter(Booking.id == booking_id).first()
+    
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found"
+        )
+    
+    # Verify user has access to this booking
+    has_access = False
+    if current_user.user_type == "patient":
+        patient = booking_service.db.query(Patient).filter(
+            Patient.user_id == current_user.id
+        ).first()
+        has_access = patient and booking.patient_id == patient.id
+    elif current_user.user_type == "caregiver":
+        caregiver = booking_service.db.query(Caregiver).filter(
+            Caregiver.user_id == current_user.id
+        ).first()
+        has_access = caregiver and booking.caregiver_id == caregiver.id
+    
+    if not has_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    # Check if booking has assigned caregiver
+    if not booking.caregiver_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No caregiver assigned to this booking yet"
+        )
+    
+    # Get caregiver and location data
+    caregiver = booking_service.db.query(Caregiver).filter(
+        Caregiver.id == booking.caregiver_id
+    ).first()
+    
+    caregiver_location = booking_service.db.query(CaregiverLocation).filter(
+        CaregiverLocation.caregiver_id == booking.caregiver_id
+    ).first()
+    
+    if not caregiver_location:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No tracking data available"
+        )
+    
+    # Calculate distance and ETA
+    distance = location_service.calculate_distance(
+        booking.patient_latitude, booking.patient_longitude,
+        caregiver_location.latitude, caregiver_location.longitude
+    )
+    
+    # Calculate ETA (25 km/h average speed, minimum 5 minutes)
+    eta_minutes = max(5, int((distance / 25) * 60))
+    
+    # Determine if caregiver is moving (speed > 0.5 m/s)
+    is_moving = caregiver_location.speed and caregiver_location.speed > 0.5
+    
+    return LiveTrackingResponse(
+        booking_id=booking.id,
+        caregiver_id=caregiver.id,
+        caregiver_name=caregiver.full_name,
+        current_latitude=caregiver_location.latitude,
+        current_longitude=caregiver_location.longitude,
+        distance_km=round(distance, 2),
+        estimated_arrival_minutes=eta_minutes,
+        last_updated=caregiver_location.updated_at,
+        is_moving=is_moving,
+        booking_status=booking.status
+    )
 
 
 # Chat Endpoints
