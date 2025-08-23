@@ -46,7 +46,7 @@ class Settings(BaseSettings):
         return "postgresql://postgres.ljrcyoonkqpbdsddqmwk:Oaklycarehealth@aws-0-eu-north-1.pooler.supabase.com:6543/postgres"
 
     # Email
-    SMTP_TLS: bool = False
+    SMTP_TLS: bool = True
     SMTP_PORT: Optional[int] = None
     SMTP_HOST: Optional[str] = None
     SMTP_USER: Optional[str] = None
