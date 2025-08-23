@@ -1,3 +1,4 @@
+import os
 import random
 import string
 from datetime import datetime, timedelta
@@ -5,12 +6,24 @@ from typing import Any, Optional, Union
 
 from jose import jwt
 from passlib.context import CryptContext
+from cryptography.fernet import Fernet
 
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
+
+FERNET_KEY = os.environ.get("VITALS_ENCRYPTION_KEY")
+if not FERNET_KEY:
+    raise RuntimeError("VITALS_ENCRYPTION_KEY environment variable not set.")
+fernet = Fernet(FERNET_KEY)
+
+def encrypt(value: str) -> str:
+    return fernet.encrypt(value.encode()).decode()
+
+def decrypt(value: str) -> str:
+    return fernet.decrypt(value.encode()).decode()
 
 def create_access_token(
     subject: Union[str, Any], expires_delta: Optional[timedelta] = None

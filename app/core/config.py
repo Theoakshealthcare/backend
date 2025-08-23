@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
     PAYSTACK_WEBHOOK_SECRET: str = ""
+    PAYMENT_CALLBACK_URL: str = "https://www.oaklycare.com/payment/callback"
+    PAYMENT_CURRENCY: str = "NGN"
+    MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
+    MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
 
     # Gemini AI Configuration
     GEMINI_API_KEY: Optional[str] = None

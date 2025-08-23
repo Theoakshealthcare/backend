@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, validator
 import uuid
@@ -18,6 +19,7 @@ class PatientBase(BaseModel):
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
     emergency_contact_relationship: Optional[str] = None
+    emergency_contact_address: Optional[str] = None
     blood_group: Optional[str] = None
     allergies: Optional[str] = None
     medical_conditions: Optional[str] = None
@@ -49,6 +51,7 @@ class PatientUpdate(BaseModel):
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
     emergency_contact_relationship: Optional[str] = None
+    emergency_contact_address: Optional[str] = None
     blood_group: Optional[str] = None
     allergies: Optional[str] = None
     medical_conditions: Optional[str] = None
@@ -152,17 +155,17 @@ class PatientMedicalRecord(PatientMedicalRecordBase):
 # Patient Family Member Schemas
 class PatientFamilyMemberBase(BaseModel):
     full_name: str
-    relationship: str
+    relation_type: str
     phone_number: Optional[str] = None
     email: Optional[EmailStr] = None
     is_emergency_contact: bool = False
     can_make_medical_decisions: bool = False
 
-    @validator('relationship')
-    def validate_relationship(cls, v):
+    @validator('relation_type')
+    def validate_relation_type(cls, v):
         valid_relationships = ['spouse', 'child', 'parent', 'sibling', 'grandparent', 'other']
         if v not in valid_relationships:
-            raise ValueError(f'relationship must be one of {valid_relationships}')
+            raise ValueError(f'relation_type must be one of {valid_relationships}')
         return v
 
 
@@ -172,18 +175,18 @@ class PatientFamilyMemberCreate(PatientFamilyMemberBase):
 
 class PatientFamilyMemberUpdate(BaseModel):
     full_name: Optional[str] = None
-    relationship: Optional[str] = None
+    relation_type: Optional[str] = None
     phone_number: Optional[str] = None
     email: Optional[EmailStr] = None
     is_emergency_contact: Optional[bool] = None
     can_make_medical_decisions: Optional[bool] = None
 
-    @validator('relationship')
-    def validate_relationship(cls, v):
+    @validator('relation_type')
+    def validate_relation_type(cls, v):
         if v:
             valid_relationships = ['spouse', 'child', 'parent', 'sibling', 'grandparent', 'other']
             if v not in valid_relationships:
-                raise ValueError(f'relationship must be one of {valid_relationships}')
+                raise ValueError(f'relation_type must be one of {valid_relationships}')
         return v
 
 
@@ -213,3 +216,160 @@ class PatientProfileCompletion(BaseModel):
         if v < 0 or v > 3:
             raise ValueError('profile_completion_step must be between 0 and 3')
         return v 
+    
+
+# Patient Wallet Schemas
+class PatientWalletSummary(BaseModel):
+    balance: Decimal
+    total_deposited: Decimal
+    total_spent: Decimal
+    total_refunded: Decimal
+    currency: str = "NGN"
+
+    class Config:
+        from_attributes = True
+
+
+# Patient Transaction Schemas
+class PatientTransactionOut(BaseModel):
+    id: str
+    type: str
+    amount: Decimal
+    status: str
+    paystack_reference: Optional[str] = None
+    payment_method: Optional[str] = None
+    description: Optional[str] = None
+    booking_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PatientDepositRequest(BaseModel):
+    amount: Decimal  # Amount in Naira (will be converted to kobo for Paystack)
+    description: Optional[str] = None
+
+    @validator('amount')
+    def validate_amount(cls, v):
+        if v <= 0:
+            raise ValueError('Amount must be greater than 0')
+        if v > 1000000:  # 1 million Naira limit
+            raise ValueError('Amount cannot exceed 1,000,000 NGN')
+        return v
+
+
+class PatientDepositResponse(BaseModel):
+    transaction_id: str
+    paystack_reference: str
+    authorization_url: str
+    access_code: str
+    amount: Decimal
+    currency: str = "NGN"
+
+
+class PatientPaymentRequest(BaseModel):
+    amount: Decimal
+    booking_id: Optional[uuid.UUID] = None
+    description: Optional[str] = None
+
+    @validator('amount')
+    def validate_amount(cls, v):
+        if v <= 0:
+            raise ValueError('Amount must be greater than 0')
+        return v
+
+
+class PatientPaymentResponse(BaseModel):
+    transaction_id: str
+    status: str
+    message: str
+    remaining_balance: Decimal
+
+
+# Refund Request Schemas
+class PatientRefundRequestCreate(BaseModel):
+    transaction_id: uuid.UUID
+    amount: Decimal
+    reason: str
+
+    @validator('amount')
+    def validate_amount(cls, v):
+        if v <= 0:
+            raise ValueError('Refund amount must be greater than 0')
+        return v
+
+    @validator('reason')
+    def validate_reason(cls, v):
+        if len(v.strip()) < 10:
+            raise ValueError('Refund reason must be at least 10 characters long')
+        return v.strip()
+
+
+class PatientRefundRequestOut(BaseModel):
+    id: str
+    transaction_id: str
+    amount: Decimal
+    reason: str
+    status: str
+    admin_notes: Optional[str] = None
+    created_at: datetime
+    processed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PatientRefundRequestResponse(BaseModel):
+    request_id: str
+    status: str
+    message: str
+
+
+# Paystack Webhook Schemas
+class PaystackWebhookEvent(BaseModel):
+    event: str
+    data: dict
+
+
+class PaystackTransactionData(BaseModel):
+    id: int
+    domain: str
+    status: str
+    reference: str
+    amount: int  # Amount in kobo
+    message: Optional[str] = None
+    gateway_response: str
+    paid_at: Optional[str] = None
+    created_at: str
+    channel: str
+    currency: str
+    ip_address: Optional[str] = None
+    metadata: dict
+    customer: dict
+    authorization: dict
+
+
+# Payment Verification Schema
+class PaymentVerificationRequest(BaseModel):
+    reference: str
+
+
+class PaymentVerificationResponse(BaseModel):
+    status: str
+    message: str
+    transaction_id: Optional[str] = None
+    amount: Optional[Decimal] = None
+
+
+# Admin Schemas for Refund Management
+class AdminRefundAction(BaseModel):
+    action: str  # 'approve' or 'reject'
+    admin_notes: Optional[str] = None
+
+    @validator('action')
+    def validate_action(cls, v):
+        if v not in ['approve', 'reject']:
+            raise ValueError('Action must be either "approve" or "reject"')
+        return v

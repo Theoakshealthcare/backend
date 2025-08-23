@@ -5,13 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 import enum
-import os
-from cryptography.fernet import Fernet, InvalidToken
-
-FERNET_KEY = os.environ.get("VITALS_ENCRYPTION_KEY")
-if not FERNET_KEY:
-    raise RuntimeError("VITALS_ENCRYPTION_KEY environment variable not set.")
-fernet = Fernet(FERNET_KEY)
+from app.core.security import encrypt, decrypt
 
 class VitalSource(enum.Enum):
     manual = "manual"
@@ -36,20 +30,20 @@ class PatientVital(Base):
     @property
     def value(self):
         try:
-            return fernet.decrypt(self._value.encode()).decode()
+            return decrypt(self._value)
         except Exception:
             return self._value  # fallback for legacy/plaintext
 
     @value.setter
     def value(self, val):
-        self._value = fernet.encrypt(val.encode()).decode()
+        self._value = encrypt(val)
 
     @property
     def notes(self):
         if self._notes is None:
             return None
         try:
-            return fernet.decrypt(self._notes.encode()).decode()
+            return decrypt(self._notes)
         except Exception:
             return self._notes
 
@@ -58,4 +52,4 @@ class PatientVital(Base):
         if val is None:
             self._notes = None
         else:
-            self._notes = fernet.encrypt(val.encode()).decode() 
+            self._notes = encrypt(val) 

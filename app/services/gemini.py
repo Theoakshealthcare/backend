@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 import json
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import re
 
 from app.core.config import settings
 
@@ -10,7 +11,7 @@ from app.core.config import settings
 class GeminiService:
     def __init__(self):
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
         self.executor = ThreadPoolExecutor(max_workers=3)
 
     async def transcribe_and_analyze_audio(self, audio_transcript: str, 
@@ -74,15 +75,19 @@ class GeminiService:
         """Synchronous method to generate content"""
         return self.model.generate_content(prompt)
 
+    def _extract_json_from_markdown(self, text):
+        match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+        if match:
+            return match.group(1)
+        return text
+
     async def generate_care_recommendations(self, booking_history: List[Dict[str, Any]], 
                                           current_condition: str) -> str:
         """Generate personalized care recommendations based on history"""
-        
         history_text = "\n".join([
             f"Session {i+1}: {session.get('summary', 'N/A')}" 
             for i, session in enumerate(booking_history[-5:])  # Last 5 sessions
         ])
-        
         prompt = f"""
         Based on the patient's care history and current condition, provide personalized recommendations:
         
@@ -93,7 +98,6 @@ class GeminiService:
         
         Please provide specific, actionable care recommendations for the caregiver.
         """
-        
         try:
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
@@ -101,19 +105,19 @@ class GeminiService:
                 self._generate_content, 
                 prompt
             )
-            return response.text
+            raw_text = response.text
+            json_text = self._extract_json_from_markdown(raw_text)
+            return json_text  # Return the extracted JSON or text
         except Exception as e:
             print(f"Error generating recommendations: {e}")
             return "Unable to generate recommendations at this time."
 
     async def analyze_care_patterns(self, notes: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze patterns in care notes to identify trends"""
-        
         notes_text = "\n".join([
             f"Date: {note.get('created_at', 'N/A')}\nContent: {note.get('content', 'N/A')}\n---"
             for note in notes
         ])
-        
         prompt = f"""
         Analyze these care notes to identify patterns, trends, and insights:
         
@@ -127,7 +131,6 @@ class GeminiService:
             "recommendations": ["rec 1", "rec 2"]
         }}
         """
-        
         try:
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
@@ -135,7 +138,9 @@ class GeminiService:
                 self._generate_content, 
                 prompt
             )
-            return json.loads(response.text)
+            raw_text = response.text
+            json_text = self._extract_json_from_markdown(raw_text)
+            return json.loads(json_text)
         except Exception as e:
             print(f"Error analyzing care patterns: {e}")
             return {
@@ -166,8 +171,9 @@ class GeminiService:
                 self._generate_content,
                 prompt
             )
-            # Parse the JSON response
-            result = json.loads(response.text)
+            raw_text = response.text
+            json_text = self._extract_json_from_markdown(raw_text)
+            result = json.loads(json_text)
             return result
         except Exception as e:
             print(f"Error analyzing vitals: {e}")
@@ -177,6 +183,36 @@ class GeminiService:
                 "recommendations": [],
                 "key_vitals": []
             }
+
+    async def analyze_fallguard_assessment(self, answers: list, total_score: int) -> dict:
+        """Analyze FallGuard answers and score, return summary and recommendations"""
+        prompt = f"""
+        You are a medical AI assistant. Analyze the following fall risk assessment answers and total score. 
+        Provide a brief risk summary and personalized recommendations for fall prevention.
+        
+        Answers: {json.dumps(answers, indent=2)}
+        Total Score: {total_score}
+        
+        Respond in JSON with:
+        {{
+            "summary": "...",
+            "recommendations": ["...", "..."]
+        }}
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                self.executor,
+                self._generate_content,
+                prompt
+            )
+            raw_text = response.text
+            json_text = self._extract_json_from_markdown(raw_text)
+            result = json.loads(json_text)
+            return result
+        except Exception as e:
+            print(f"Error analyzing fallguard assessment: {e}")
+            return {"summary": "Unable to analyze", "recommendations": []}
 
 
 # Initialize service

@@ -6,6 +6,7 @@ from .prescription import Prescription
 from .prescription_settings import PrescriptionSettings
 from .patient_vital import PatientVital
 from .patient_caregiver_access import PatientCaregiverAccess
+from .fallguard import FallGuardQuestion, FallGuardAssessment, FallGuardAnswer
 
 # Automatically import all models in this directory
 models_dir = os.path.dirname(__file__)
