@@ -16,7 +16,8 @@ from app.schemas.booking import (
     CaregiverLocationUpdate, CaregiverLocationResponse,
     ChatMessageCreate, ChatMessageResponse,
     BookingNoteCreate, BookingNoteResponse,
-    BookingNotificationResponse, NearbyCaregiverResponse
+    BookingNotificationResponse, NearbyCaregiverResponse,
+    CaregiverDetails
 )
 from app.services.booking import BookingService
 from app.services.location import LocationService
@@ -33,13 +34,67 @@ def get_location_service(db: Session = Depends(get_db)) -> LocationService:
 
 
 # Patient Endpoints
-@router.post("/create", response_model=BookingResponse)
+@router.post(
+    "/create", 
+    response_model=BookingResponse,
+    summary="Create a new booking",
+    description="Create a new healthcare service booking. This endpoint allows patients to book various healthcare services including nurses, doctors, physiotherapists, caregivers, and nutritionists.",
+    responses={
+        200: {
+            "description": "Booking created successfully",
+            "model": BookingResponse
+        },
+        404: {
+            "description": "Patient profile not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Patient profile not found"}
+                }
+            }
+        },
+        500: {
+            "description": "Internal server error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error creating booking"}
+                }
+            }
+        }
+    },
+    tags=["Patient Bookings"]
+)
 async def create_booking(
     booking_data: BookingCreate,
     current_user: User = Depends(get_current_patient),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Create a new booking (Patient)"""
+    """
+    Create a new healthcare service booking.
+    
+    **Required Fields:**
+    - **service_type**: Type of healthcare service (nurse, doctor, physiotherapist, caregiver, nutritionist)
+    - **assistance_type**: Specific type of assistance needed
+    - **duration_hours**: Duration of service (1-24 hours)
+    - **scheduled_date**: When the service should be provided (ISO 8601 format)
+    - **patient_address**: Full address where service will be provided
+    - **patient_latitude**: Latitude coordinate of service location
+    - **patient_longitude**: Longitude coordinate of service location
+    - **patient_city**: City where service will be provided
+    - **patient_state**: State where service will be provided
+    - **booking_for**: Who the booking is for
+    
+    **Optional Fields:**
+    - **condition**: Medical condition or specific needs
+    - **special_instructions**: Additional instructions for the caregiver
+    
+    **Process:**
+    1. Validates patient profile exists
+    2. Creates booking with calculated pricing
+    3. Notifies nearby available caregivers
+    4. Returns booking details with unique booking code
+    
+    **Authentication:** Requires patient authentication token.
+    """
     try:
         # Get patient record
         patient = booking_service.db.query(Patient).filter(
@@ -67,13 +122,48 @@ async def create_booking(
         )
 
 
-@router.get("/patient/bookings", response_model=List[BookingResponse])
+@router.get(
+    "/patient/bookings", 
+    response_model=List[BookingResponse],
+    summary="Get patient's bookings",
+    description="Retrieve all bookings for the authenticated patient with optional status filtering and detailed caregiver information.",
+    responses={
+        200: {
+            "description": "List of patient bookings retrieved successfully",
+            "model": List[BookingResponse]
+        },
+        404: {
+            "description": "Patient profile not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Patient profile not found"}
+                }
+            }
+        }
+    },
+    tags=["Patient Bookings"]
+)
 def get_patient_bookings(
     status: Optional[str] = None,
     current_user: User = Depends(get_current_patient),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Get patient's bookings"""
+    """
+    Get patient's bookings with detailed caregiver information.
+    
+    **Query Parameters:**
+    - **status** (optional): Filter bookings by status
+      - Available options: "pending", "accepted", "in_progress", "completed", "cancelled", "declined"
+      - If not provided, returns all bookings
+    
+    **Response includes:**
+    - Complete booking details
+    - Caregiver information (name and specialization) when assigned
+    - Payment and status information
+    - Scheduling details
+    
+    **Authentication:** Requires patient authentication token.
+    """
     patient = booking_service.db.query(Patient).filter(
         Patient.user_id == current_user.id
     ).first()
@@ -90,7 +180,28 @@ def get_patient_bookings(
         query = query.filter(Booking.status == status)
     
     bookings = query.order_by(Booking.created_at.desc()).all()
-    return bookings
+    
+    # Enrich bookings with caregiver details
+    enriched_bookings = []
+    for booking in bookings:
+        booking_dict = booking.__dict__.copy()
+        
+        # Add caregiver details if caregiver is assigned
+        if booking.caregiver_id:
+            caregiver = booking_service.db.query(Caregiver).filter(
+                Caregiver.id == booking.caregiver_id
+            ).first()
+            
+            if caregiver:
+                booking_dict['caregiver_details'] = {
+                    'caregiver_id': caregiver.id,
+                    'full_name': caregiver.full_name,
+                    'specialization': caregiver.specialization
+                }
+        
+        enriched_bookings.append(booking_dict)
+    
+    return enriched_bookings
 
 
 # Caregiver Endpoints

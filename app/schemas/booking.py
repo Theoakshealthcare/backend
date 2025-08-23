@@ -28,12 +28,23 @@ class BookingCreate(BaseModel):
         return v
 
 
+# Caregiver details for booking response
+class CaregiverDetails(BaseModel):
+    caregiver_id: uuid.UUID
+    full_name: str
+    specialization: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 # Booking Response
 class BookingResponse(BaseModel):
     id: uuid.UUID
     booking_code: str
     patient_id: uuid.UUID
     caregiver_id: Optional[uuid.UUID] = None
+    caregiver_details: Optional[CaregiverDetails] = None
     service_type: str
     assistance_type: str
     condition: Optional[str] = None
