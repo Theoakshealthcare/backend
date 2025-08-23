@@ -41,7 +41,7 @@ services:
       - OTP_EXPIRE_MINUTES=15
       - EMAIL_RESET_TOKEN_EXPIRE_HOURS=24
       - ENVIRONMENT=${ENVIRONMENT:-development}
-      - BACKEND_CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000", "http://localhost:19006", "http://127.0.0.1:3000", "http://127.0.0.1:8000", "http://127.0.0.1:19006", "http://10.0.2.2:8000", "http://10.0.2.2:19006", "http://192.168.135.210:8000", "http://192.168.135.210:19006", "http://192.168.94.210:8000", "http://192.168.94.210:19006"]
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000", "https://backend-y5r0.onrender.com"]
       
       # API Configuration
       - API_V1_STR=/api/v1
@@ -53,7 +53,7 @@ services:
       - oaklycare-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "https://backend-y5r0.onrender.com/health"]
       interval: 30s
       timeout: 10s
       retries: 3
