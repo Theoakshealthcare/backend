@@ -14,7 +14,7 @@ ENV PYTHONPATH=/app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    netcat \
+    netcat-traditional \
     libpq-dev \
     libjpeg-dev \
     libcairo2 \
@@ -25,15 +25,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /app
 
-# Copy and install requirements
+# Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY ./app /app
+COPY ./app /app/app
+
+# Copy alembic configuration
+COPY ./alembic.ini /app/alembic.ini
 
 # Copy run script
 COPY ./boot/docker-run.sh /opt/run.sh
 RUN chmod +x /opt/run.sh
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
+USER app
+
+# Expose port
+EXPOSE 8000
 
 CMD ["/opt/run.sh"]

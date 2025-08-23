@@ -1,4 +1,5 @@
 import secrets
+import json
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, validator
@@ -17,9 +18,15 @@ class Settings(BaseSettings):
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
+        if isinstance(v, str):
+            if v.startswith("["):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    return [i.strip() for i in v.split(",")]
+            else:
+                return [i.strip() for i in v.split(",")]
+        elif isinstance(v, list):
             return v
         raise ValueError(v)
 
@@ -39,7 +46,7 @@ class Settings(BaseSettings):
         return "postgresql://postgres.ljrcyoonkqpbdsddqmwk:Oaklycarehealth@aws-0-eu-north-1.pooler.supabase.com:6543/postgres"
 
     # Email
-    SMTP_TLS: bool = False
+    SMTP_TLS: bool = True
     SMTP_PORT: Optional[int] = None
     SMTP_HOST: Optional[str] = None
     SMTP_USER: Optional[str] = None
@@ -74,9 +81,16 @@ class Settings(BaseSettings):
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
     PAYSTACK_WEBHOOK_SECRET: str = ""
+    PAYMENT_CALLBACK_URL: str = "https://www.oaklycare.com/payment/callback"
+    PAYMENT_CURRENCY: str = "NGN"
+    MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
+    MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
 
     # Gemini AI Configuration
-    GEMINI_API_KEY: str = ""
+    GEMINI_API_KEY: Optional[str] = None
+    
+    # Encryption Key
+    VITALS_ENCRYPTION_KEY: Optional[str] = None
 
     # Push Notifications
     FCM_SERVER_KEY: Optional[str] = None

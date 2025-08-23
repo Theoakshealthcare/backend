@@ -22,8 +22,10 @@ class Caregiver(Base):
     date_of_birth = Column(Date, nullable=True)
     gender = Column(String, nullable=True)  # 'male', 'female', 'other'
     state = Column(String, nullable=True)
-    house_address = Column(Text, nullable=True)
+    address = Column(Text, nullable=True)
     emergency_contact_phone = Column(String, nullable=True)
+    emergency_contact_name = Column(String, nullable=True)
+    emergency_contact_address = Column(String, nullable=True)
     
     # Professional Information
     specialization = Column(String, nullable=True)
@@ -46,6 +48,11 @@ class Caregiver(Base):
     privacy_policy_accepted = Column(Boolean, default=False)
     background_check_consent = Column(Boolean, default=False)
     consent_date = Column(DateTime, nullable=True)
+    
+    # Prembly Verification Results
+    document_verification_result = Column(JSON, nullable=True)
+    face_verification_result = Column(JSON, nullable=True)
+    face_verification_status = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -102,3 +109,40 @@ class CaregiverCertification(Base):
 
     # Relationship
     caregiver = relationship("Caregiver", back_populates="certifications")
+
+
+class CaregiverWallet(Base):
+    __tablename__ = "caregiver_wallets"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False, unique=True)
+    balance = Column(Integer, default=0)  # Store in kobo for accuracy
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    caregiver = relationship("Caregiver", backref="wallet")
+
+class CaregiverTransaction(Base):
+    __tablename__ = "caregiver_transactions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
+    type = Column(String, nullable=False)  # 'earning' or 'withdrawal'
+    amount = Column(Integer, nullable=False)  # Store in kobo
+    status = Column(String, nullable=False, default='pending')  # 'pending', 'successful', 'failed'
+    bank_name = Column(String, nullable=True)
+    account_number = Column(String, nullable=True)
+    account_name = Column(String, nullable=True)
+    reference = Column(String, nullable=True)
+    narration = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    caregiver = relationship("Caregiver", backref="transactions")
+
+class CaregiverBankAccount(Base):
+    __tablename__ = "caregiver_bank_accounts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False, unique=True)
+    bank_name = Column(String, nullable=False)
+    account_number = Column(String, nullable=False)
+    account_name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    caregiver = relationship("Caregiver", backref="bank_account")

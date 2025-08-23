@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build: .
@@ -7,27 +5,59 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - ./app:/app/app:ro  # Read-only for app code
+      - ./alembic.ini:/app/alembic.ini:ro  # Read-only for alembic config
+    env_file:
+      - .env
     environment:
+      # Database Configuration
       - DATABASE_URL=postgresql://postgres.ljrcyoonkqpbdsddqmwk:Oaklycarehealth@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
-      - SECRET_KEY=${SECRET_KEY}
+      - POSTGRES_SERVER=aws-0-eu-north-1.pooler.supabase.com
+      - POSTGRES_USER=postgres.ljrcyoonkqpbdsddqmwk
+      - POSTGRES_PASSWORD=Oaklycarehealth
+      - POSTGRES_DB=postgres
+      
+      # Security
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      
+      # Email Configuration
       - SMTP_TLS=True
       - SMTP_PORT=465
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAILS_FROM_EMAIL=${EMAILS_FROM_EMAIL}
+
+      # Gemini AI Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # Encryption Key
+      - VITALS_ENCRYPTION_KEY=${VITALS_ENCRYPTION_KEY}
+      
+      # Application Configuration
       - PROJECT_NAME=Oaklycare
       - OTP_EXPIRE_MINUTES=15
       - EMAIL_RESET_TOKEN_EXPIRE_HOURS=24
-      - ENVIRONMENT=production
-      - BACKEND_CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000"]
-    depends_on:
-      - db
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000", "http://localhost:19006", "http://127.0.0.1:3000", "http://127.0.0.1:8000", "http://127.0.0.1:19006", "http://10.0.2.2:8000", "http://10.0.2.2:19006", "http://192.168.135.210:8000", "http://192.168.135.210:19006", "http://192.168.94.210:8000", "http://192.168.94.210:19006"]
+      
+      # API Configuration
+      - API_V1_STR=/api/v1
+      
+      # Server Configuration
+      - HOST=0.0.0.0
+      - PORT=8000
     networks:
       - oaklycare-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # db:
   #   image: postgres:15-alpine

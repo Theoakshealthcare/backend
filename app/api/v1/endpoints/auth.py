@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.core.security import (
     verify_password_reset_token,
 )
 from app.db.session import get_db
+from app.api.deps import get_current_user
 from app.schemas.user import (
     User,
     UserCreate,
@@ -22,9 +23,18 @@ from app.schemas.user import (
     EmailVerificationRequest,
     EmailVerification,
     UserWithTypeData,
+    UserProfileUpdate,
+    UserProfileResponse,
 )
 from app.services.email import send_verification_email, send_password_reset_email
 from app.services.user import UserService
+from app.db.models.patient import Patient
+from app.db.models.caregiver import Caregiver
+from app.core.security import get_password_hash
+import os
+from uuid import uuid4
+from app.db.models.user import User
+from app.schemas.user import User as UserSchema
 
 router = APIRouter()
 
@@ -34,17 +44,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 def get_user_service(db: Session = Depends(get_db)) -> UserService:
     return UserService(db)
 
-# Helper function to get current user (you'll need to implement this)
-async def get_current_user(
-    db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
-) -> User:
-    # Implementation depends on your JWT token verification logic
-    # This is a placeholder - you'll need to implement JWT token verification
-    pass
 
-
-@router.post("/register", response_model=User)
+@router.post("/register", response_model=UserSchema)
 def register(
     user_in: UserCreate,
     user_service: UserService = Depends(get_user_service),
@@ -245,5 +246,123 @@ def reset_password_route(
         )
     
     return {"message": "Password updated successfully"}
+
+
+@router.put("/profile", response_model=UserProfileResponse)
+def update_profile(
+    update_data: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Update User fields
+    if update_data.full_name:
+        current_user.full_name = update_data.full_name
+    if update_data.email:
+        current_user.email = update_data.email
+    if update_data.phone_number:
+        current_user.phone_number = update_data.phone_number
+    if update_data.profile_image_url:
+        current_user.profile_image_url = update_data.profile_image_url
+    if update_data.password:
+        current_user.hashed_password = get_password_hash(update_data.password)
+    db.commit()
+    # Update Patient or Caregiver fields
+    patient = None
+    caregiver = None
+    if current_user.user_type == "patient":
+        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+        if patient:
+            if update_data.address:
+                patient.address = update_data.address
+            if update_data.gender:
+                patient.gender = update_data.gender
+            if update_data.date_of_birth:
+                patient.date_of_birth = update_data.date_of_birth
+            if update_data.emergency_contact_name:
+                patient.emergency_contact_name = update_data.emergency_contact_name
+            if update_data.emergency_contact_phone:
+                patient.emergency_contact_phone = update_data.emergency_contact_phone
+            if update_data.emergency_contact_address:
+                patient.emergency_contact_address = update_data.emergency_contact_address
+            db.commit()
+    elif current_user.user_type == "caregiver":
+        caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
+        if caregiver:
+            if update_data.address:
+                caregiver.address = update_data.address
+            if update_data.gender:
+                caregiver.gender = update_data.gender
+            if update_data.date_of_birth:
+                caregiver.date_of_birth = update_data.date_of_birth
+            if update_data.emergency_contact_name:
+                caregiver.emergency_contact_name = update_data.emergency_contact_name
+            if update_data.emergency_contact_phone:
+                caregiver.emergency_contact_phone = update_data.emergency_contact_phone
+            if update_data.emergency_contact_address:
+                caregiver.emergency_contact_address = update_data.emergency_contact_address
+            db.commit()
+    # Re-query the user to ensure it is attached to the session
+    user = db.query(User).filter(User.id == current_user.id).first()
+    return UserProfileResponse(
+        id=user.id,
+        full_name=user.full_name,
+        email=user.email,
+        phone_number=user.phone_number,
+        profile_image_url=user.profile_image_url,
+        user_type=user.user_type,
+        address=getattr(caregiver if user.user_type == 'caregiver' else patient, 'address', None),
+        gender=getattr(caregiver if user.user_type == 'caregiver' else patient, 'gender', None),
+        date_of_birth=getattr(caregiver if user.user_type == 'caregiver' else patient, 'date_of_birth', None),
+        emergency_contact_name=getattr(caregiver if user.user_type == 'caregiver' else patient, 'emergency_contact_name', None),
+        emergency_contact_phone=getattr(caregiver if user.user_type == 'caregiver' else patient, 'emergency_contact_phone', None),
+        emergency_contact_address=getattr(caregiver if user.user_type == 'caregiver' else patient, 'emergency_contact_address', None),
+        created_at=str(user.created_at),
+        updated_at=str(user.updated_at),
+    )
+
+@router.delete("/profile", response_model=dict)
+def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Delete Patient or Caregiver record
+    if current_user.user_type == "patient":
+        db.query(Patient).filter(Patient.user_id == current_user.id).delete()
+    elif current_user.user_type == "caregiver":
+        db.query(Caregiver).filter(Caregiver.user_id == current_user.id).delete()
+    # Delete User record
+    db.delete(current_user)
+    db.commit()
+    return {"detail": "Account deleted successfully."}
+
+
+@router.post("/profile/upload-image", response_model=dict)
+def upload_profile_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/jpg"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG and PNG are allowed.")
+    # Save file
+    upload_dir = "uploads/profile_images"
+    os.makedirs(upload_dir, exist_ok=True)
+    ext = file.filename.split(".")[-1]
+    filename = f"{uuid4()}.{ext}"
+    file_path = os.path.join(upload_dir, filename)
+    with open(file_path, "wb") as f:
+        f.write(file.file.read())
+    # Set the URL (absolute for frontend access)
+    url = f"/uploads/profile_images/{filename}"
+    print(f"Saving profile image to: {file_path}")
+    print(f"Setting profile_image_url to: {url}")
+    current_user.profile_image_url = url
+    print(f"Before commit: {current_user.profile_image_url}")
+    db.commit()
+    user = db.query(User).filter(User.id == current_user.id).first()
+    print(f"After commit: {user.profile_image_url}")
+    return {"profile_image_url": user.profile_image_url}
 
 

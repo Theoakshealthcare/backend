@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, String, Text, ForeignKey, Date, Integer
+from sqlalchemy import Boolean, Column, DateTime, Numeric, String, Text, ForeignKey, Date, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -32,6 +32,7 @@ class Patient(Base):
     emergency_contact_name = Column(String, nullable=True)
     emergency_contact_phone = Column(String, nullable=True)
     emergency_contact_relationship = Column(String, nullable=True)
+    emergency_contact_address = Column(String, nullable=True)
     
     # Medical Information
     blood_group = Column(String, nullable=True)
@@ -55,6 +56,7 @@ class Patient(Base):
     bookings = relationship("Booking", back_populates="patient")
     medical_records = relationship("PatientMedicalRecord", back_populates="patient_record")
     family_members = relationship("PatientFamilyMember", back_populates="patient_record")
+    wallet = relationship("PatientWallet", back_populates="patient", uselist=False)
 
 
 class PatientMedicalRecord(Base):
@@ -106,3 +108,99 @@ class PatientFamilyMember(Base):
 
     # Relationship
     patient_record = relationship("Patient", back_populates="family_members") 
+    
+
+class PatientWallet(Base):
+    __tablename__ = "patient_wallets"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, unique=True)
+    
+    # Wallet Details
+    balance = Column(Numeric(10, 2), default=0.00, nullable=False)  # Current available balance
+    total_deposited = Column(Numeric(10, 2), default=0.00, nullable=False)  # Total amount deposited
+    total_spent = Column(Numeric(10, 2), default=0.00, nullable=False)  # Total amount spent on services
+    total_refunded = Column(Numeric(10, 2), default=0.00, nullable=False)  # Total amount refunded
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    patient = relationship("Patient", back_populates="wallet")
+    transactions = relationship("PatientTransaction", back_populates="wallet")
+
+
+class PatientTransaction(Base):
+    __tablename__ = "patient_transactions"
+    __table_args__ = (
+        Index('idx_patient_transactions_patient_id', 'patient_id'),
+        Index('idx_patient_transactions_paystack_reference', 'paystack_reference'),
+        Index('idx_patient_transactions_status', 'status'),
+        Index('idx_patient_transactions_created_at', 'created_at'),
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    wallet_id = Column(UUID(as_uuid=True), ForeignKey("patient_wallets.id"), nullable=False)
+    
+    # Transaction Details
+    type = Column(String, nullable=False)  # 'deposit', 'payment', 'refund'
+    amount = Column(Numeric(10, 2), nullable=False)  # Amount in kobo (multiply by 100 for Paystack)
+    status = Column(String, nullable=False)  # 'pending', 'successful', 'failed', 'cancelled'
+    
+    # Payment Gateway Details (Paystack)
+    paystack_reference = Column(String, nullable=True, unique=True)  # Paystack transaction reference - must be unique
+    paystack_status = Column(String, nullable=True)  # Paystack transaction status
+    payment_method = Column(String, nullable=True)  # 'card', 'bank_transfer', 'ussd'
+    
+    # Transaction Meta
+    description = Column(Text, nullable=True)  # Description of the transaction
+    booking_id = Column(UUID(as_uuid=True), nullable=True)  # Related booking if payment for service
+    
+    # Refund Details (if type is refund)
+    refund_reason = Column(Text, nullable=True)
+    admin_approved = Column(Boolean, default=False)
+    admin_id = Column(UUID(as_uuid=True), nullable=True)  # Admin who approved refund
+    approved_at = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    patient = relationship("Patient")
+    wallet = relationship("PatientWallet", back_populates="transactions")
+
+
+class PatientRefundRequest(Base):
+    __tablename__ = "patient_refund_requests"
+    __table_args__ = (
+        Index('idx_patient_refund_requests_patient_id', 'patient_id'),
+        Index('idx_patient_refund_requests_status', 'status'),
+        Index('idx_patient_refund_requests_created_at', 'created_at'),
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    transaction_id = Column(UUID(as_uuid=True), ForeignKey("patient_transactions.id"), nullable=False)
+    
+    # Refund Details
+    amount = Column(Numeric(10, 2), nullable=False)  # Amount to refund
+    reason = Column(Text, nullable=False)  # Reason for refund request
+    
+    # Status
+    status = Column(String, default="pending")  # 'pending', 'approved', 'rejected'
+    
+    # Admin Action
+    admin_id = Column(UUID(as_uuid=True), nullable=True)  # Admin who processed the request
+    admin_notes = Column(Text, nullable=True)  # Admin notes for approval/rejection
+    processed_at = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    patient = relationship("Patient")
+    transaction = relationship("PatientTransaction")

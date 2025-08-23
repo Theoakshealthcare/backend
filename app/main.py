@@ -1,3 +1,5 @@
+import os
+os.makedirs("uploads/profile_images", exist_ok=True)
 from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +29,9 @@ if settings.BACKEND_CORS_ORIGINS:
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Mount the uploads directory as a static files route so uploaded profile images can be served via FastAPI. Use '/uploads' as the URL path.
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # @app.on_event("startup")
 # async def startup_event():

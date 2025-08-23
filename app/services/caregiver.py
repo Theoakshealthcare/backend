@@ -12,7 +12,6 @@ from app.schemas.caregiver import (
     CaregiverProfileStep2, 
     CaregiverConsentData
 )
-from app.services.onfido import onfido_service
 from app.core.config import settings
 
 
@@ -89,82 +88,6 @@ class CaregiverService:
         self.db.refresh(document)
         return document
 
-    def initiate_identity_verification(self, user_id: UUID) -> Dict[str, Any]:
-        caregiver = self.get_caregiver_by_user_id(user_id)
-        if not caregiver:
-            raise ValueError("Caregiver not found")
-
-        try:
-            # Create Onfido applicant if not exists
-            if not caregiver.onfido_applicant_id:
-                name_parts = caregiver.full_name.split(' ', 1)
-                first_name = name_parts[0]
-                last_name = name_parts[1] if len(name_parts) > 1 else ""
-
-                address_data = None
-                if caregiver.house_address and caregiver.state:
-                    address_data = {
-                        "flat_number": "",
-                        "building_name": "",
-                        "building_number": "",
-                        "street": caregiver.house_address,
-                        "sub_street": "",
-                        "town": "",
-                        "state": caregiver.state,
-                        "postcode": "",
-                        "country": "USA"
-                    }
-
-                applicant = onfido_service.create_applicant(
-                    first_name=first_name,
-                    last_name=last_name,
-                    email=caregiver.email,
-                    phone=caregiver.phone_number,
-                    dob=caregiver.date_of_birth.isoformat() if caregiver.date_of_birth else None,
-                    address=address_data
-                )
-
-                caregiver.onfido_applicant_id = applicant["id"]
-                self.db.commit()
-
-            # Generate SDK token
-            sdk_token = onfido_service.generate_sdk_token(caregiver.onfido_applicant_id)
-
-            # Update verification status
-            caregiver.identity_verification_status = "in_progress"
-            self.db.commit()
-
-            return {
-                "applicant_id": caregiver.onfido_applicant_id,
-                "sdk_token": sdk_token
-            }
-
-        except Exception as e:
-            raise Exception(f"Failed to initiate identity verification: {str(e)}")
-
-    def complete_identity_verification(self, user_id: UUID) -> Dict[str, Any]:
-        caregiver = self.get_caregiver_by_user_id(user_id)
-        if not caregiver or not caregiver.onfido_applicant_id:
-            raise ValueError("Caregiver or applicant not found")
-
-        try:
-            # Create verification check
-            check = onfido_service.create_check(caregiver.onfido_applicant_id)
-            
-            caregiver.onfido_check_id = check["id"]
-            caregiver.profile_completion_step = max(caregiver.profile_completion_step, 3)
-            caregiver.updated_at = datetime.utcnow()
-            
-            self.db.commit()
-
-            return {
-                "check_id": check["id"],
-                "status": check["status"]
-            }
-
-        except Exception as e:
-            raise Exception(f"Failed to complete identity verification: {str(e)}")
-
     def update_consent(self, user_id: UUID, consent_data: CaregiverConsentData) -> Caregiver:
         caregiver = self.get_caregiver_by_user_id(user_id)
         if not caregiver:
@@ -216,6 +139,25 @@ class CaregiverService:
                 print(f"Error checking Onfido status: {e}")
 
         return status
+
+    def process_verification_result(self, user_id: UUID, verification_type: str, result: dict) -> None:
+        caregiver = self.get_caregiver_by_user_id(user_id)
+        if not caregiver:
+            raise ValueError("Caregiver not found")
+
+        # Store the result (could be expanded to store in a separate table if needed)
+        if verification_type == "document":
+            caregiver.identity_verification_status = result.get("status", "pending")
+            caregiver.document_verification_result = result
+        elif verification_type == "face":
+            caregiver.face_verification_status = result.get("status", "pending")
+            caregiver.face_verification_result = result
+        else:
+            raise ValueError("Invalid verification type")
+
+        caregiver.profile_completion_step = max(caregiver.profile_completion_step, 3)
+        caregiver.updated_at = datetime.utcnow()
+        self.db.commit()
 
     @staticmethod
     def get_form_options() -> Dict[str, List[str]]:

@@ -6,18 +6,18 @@ import uuid
 
 # Caregiver Profile Schemas
 class CaregiverProfileStep1(BaseModel):
-    date_of_birth: Optional[date] = None
-    gender: Optional[Literal["male", "female", "other"]] = None
-    state: Optional[str] = None
-    house_address: Optional[str] = None
-    emergency_contact_phone: Optional[str] = None
+    date_of_birth: date
+    gender: Literal["male", "female", "other"]
+    state: str
+    address: str
+    emergency_contact_phone: str
 
 
 class CaregiverProfileStep2(BaseModel):
-    specialization: Optional[str] = None
-    years_of_experience: Optional[int] = None
-    preferred_work_hours: Optional[str] = None
-    service_areas: Optional[List[str]] = None
+    specialization: str
+    years_of_experience: int
+    preferred_work_hours: str
+    service_areas: List[str]
 
 
 class CaregiverConsentData(BaseModel):
@@ -64,7 +64,7 @@ class CaregiverProfile(BaseModel):
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None
     state: Optional[str] = None
-    house_address: Optional[str] = None
+    address: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
     specialization: Optional[str] = None
     years_of_experience: Optional[int] = None
@@ -90,3 +90,52 @@ class SpecializationOptions(BaseModel):
     service_areas: List[str]
     work_hours: List[str]
     states: List[str]
+
+
+# Verification Result Schema
+class VerificationResultRequest(BaseModel):
+    type: Literal["document", "face"]
+    result: dict
+
+
+class CaregiverWalletSummary(BaseModel):
+    balance: int  # in kobo
+    total_earned: int  # in kobo
+    total_withdrawn: int  # in kobo
+    currency: str = "NGN"
+
+
+class CaregiverTransactionOut(BaseModel):
+    id: str
+    type: Literal['earning', 'withdrawal']
+    amount: int  # in kobo
+    status: str
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_name: Optional[str] = None
+    reference: Optional[str] = None
+    narration: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CaregiverBankAccountOut(BaseModel):
+    bank_name: str
+    account_number: str
+    account_name: str
+    created_at: datetime
+    updated_at: datetime
+
+class CaregiverBankAccountUpdate(BaseModel):
+    bank_name: str
+    account_number: str
+    account_name: str
+
+class CaregiverWithdrawalRequest(BaseModel):
+    amount: int  # in kobo
+    narration: Optional[str] = None
+
+class CaregiverWithdrawalResponse(BaseModel):
+    transaction_id: str
+    status: str
+    message: str

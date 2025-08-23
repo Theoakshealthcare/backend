@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Literal
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, validator, Field
 import uuid
 
 # Import patient schemas from the new patient.py file
 from app.schemas.patient import Patient
+from uuid import UUID
 
 
 # Base User Schemas
@@ -136,3 +137,38 @@ class EmailVerification(BaseModel):
 class UserWithTypeData(User):
     patient: Optional[Patient] = None
     caregiver: Optional[Caregiver] = None
+
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    address: Optional[str] = None
+    gender: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    age: Optional[int] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_address: Optional[str] = None
+    password: Optional[str] = None
+
+class UserProfileResponse(BaseModel):
+    id: UUID
+    full_name: str
+    email: EmailStr
+    phone_number: Optional[str]
+    profile_image_url: Optional[str]
+    user_type: str
+    # Patient/Caregiver specific fields
+    address: Optional[str]
+    gender: Optional[str]
+    date_of_birth: Optional[date]
+    emergency_contact_name: Optional[str]
+    emergency_contact_phone: Optional[str]
+    emergency_contact_address: Optional[str]
+    created_at: Optional[str]
+    updated_at: Optional[str]
+
+    class Config:
+        from_attributes = True
