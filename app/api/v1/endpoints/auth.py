@@ -342,30 +342,76 @@ def upload_profile_image(
     db: Session = Depends(get_db),
 ):
     try:
+        print(f"=== UPLOAD DEBUG START ===")
+        print(f"User ID: {current_user.id}")
+        print(f"File name: {file.filename}")
+        print(f"File content type: {file.content_type}")
+        print(f"Current profile image URL: {current_user.profile_image_url}")
+        
         # Delete old profile image from Cloudinary if exists
         if current_user.profile_image_url:
             old_public_id = cloudinary_service.get_public_id_from_url(current_user.profile_image_url)
+            print(f"Old public ID: {old_public_id}")
             if old_public_id:
-                cloudinary_service.delete_image(old_public_id)
+                deleted = cloudinary_service.delete_image(old_public_id)
+                print(f"Old image deleted: {deleted}")
         
         # Upload new image to Cloudinary
+        print("Starting Cloudinary upload...")
         image_url = cloudinary_service.upload_image(file, folder="oaklycare/profile_images")
+        print(f"Cloudinary returned URL: {image_url}")
         
         # Update user's profile image URL
+        print(f"Setting profile_image_url to: {image_url}")
         current_user.profile_image_url = image_url
+        print(f"Before commit - user.profile_image_url: {current_user.profile_image_url}")
         db.commit()
+        print("Database commit completed")
+        
+        # Refresh the current user object
+        db.refresh(current_user)
+        print(f"After refresh - current_user.profile_image_url: {current_user.profile_image_url}")
         
         # Re-query user to ensure we have the latest data
         user = db.query(User).filter(User.id == current_user.id).first()
+        print(f"After re-query - user.profile_image_url: {user.profile_image_url}")
+        print(f"=== UPLOAD DEBUG END ===")
         
         return {"profile_image_url": user.profile_image_url}
     
     except HTTPException:
         raise
     except Exception as e:
+        print(f"=== UPLOAD ERROR ===")
+        print(f"Error: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"=== ERROR END ===")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to upload profile image: {str(e)}"
         )
+
+
+@router.get("/test-cloudinary", response_model=dict)
+def test_cloudinary():
+    """Test endpoint to verify Cloudinary configuration"""
+    try:
+        from app.core.config import settings
+        cloudinary_service._ensure_configured()
+        return {
+            "status": "success",
+            "cloud_name": settings.CLOUDINARY_CLOUD_NAME,
+            "api_key_present": bool(settings.CLOUDINARY_API_KEY),
+            "api_secret_present": bool(settings.CLOUDINARY_API_SECRET),
+            "configured": True
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "configured": False
+        }
 
 

@@ -7,17 +7,27 @@ from app.core.config import settings
 
 class CloudinaryService:
     def __init__(self):
-        if not all([settings.CLOUDINARY_CLOUD_NAME, settings.CLOUDINARY_API_KEY, settings.CLOUDINARY_API_SECRET]):
-            raise ValueError("Cloudinary credentials are not properly configured")
-        
-        cloudinary.config(
-            cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-            api_key=settings.CLOUDINARY_API_KEY,
-            api_secret=settings.CLOUDINARY_API_SECRET
-        )
+        self._configured = False
+    
+    def _ensure_configured(self):
+        if not self._configured:
+            if not all([settings.CLOUDINARY_CLOUD_NAME, settings.CLOUDINARY_API_KEY, settings.CLOUDINARY_API_SECRET]):
+                raise ValueError(f"Cloudinary credentials are not properly configured. "
+                               f"CLOUD_NAME: {'✓' if settings.CLOUDINARY_CLOUD_NAME else '✗'}, "
+                               f"API_KEY: {'✓' if settings.CLOUDINARY_API_KEY else '✗'}, "
+                               f"API_SECRET: {'✓' if settings.CLOUDINARY_API_SECRET else '✗'}")
+            
+            cloudinary.config(
+                cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+                api_key=settings.CLOUDINARY_API_KEY,
+                api_secret=settings.CLOUDINARY_API_SECRET
+            )
+            self._configured = True
     
     def upload_image(self, file: UploadFile, folder: str = "profile_images") -> str:
         try:
+            self._ensure_configured()
+            
             allowed_types = ["image/jpeg", "image/png", "image/jpg"]
             if file.content_type not in allowed_types:
                 raise HTTPException(
@@ -37,8 +47,14 @@ class CloudinaryService:
                 fetch_format="auto"
             )
             
-            return result.get("secure_url")
+            secure_url = result.get("secure_url")
+            if not secure_url:
+                raise ValueError(f"Upload succeeded but no secure_url in response: {result}")
+            
+            return secure_url
         
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -47,6 +63,7 @@ class CloudinaryService:
     
     def delete_image(self, public_id: str) -> bool:
         try:
+            self._ensure_configured()
             result = cloudinary.uploader.destroy(public_id)
             return result.get("result") == "ok"
         except Exception as e:
