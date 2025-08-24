@@ -14,6 +14,7 @@ class UserBase(BaseModel):
     phone_number: Optional[str] = None
     full_name: str
     user_type: Literal["patient", "caregiver"]
+    profile_image_url: Optional[str] = None
 
 
 class UserCreate(UserBase):
