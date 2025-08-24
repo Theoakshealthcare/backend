@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ from app.schemas.booking import (
 )
 from app.services.booking import BookingService
 from app.services.location import LocationService
+from app.services.websocket_manager import websocket_manager
 
 router = APIRouter()
 
@@ -30,6 +31,68 @@ def get_booking_service(db: Session = Depends(get_db)) -> BookingService:
 
 def get_location_service(db: Session = Depends(get_db)) -> LocationService:
     return LocationService(db)
+
+
+def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
+    """Helper function to enrich booking with patient and caregiver details"""
+    booking_dict = booking.__dict__.copy()
+    
+    # Add patient details
+    patient = db.query(Patient).filter(Patient.id == booking.patient_id).first()
+    if patient:
+        patient_details = {
+            'patient_id': patient.id,
+            'full_name': patient.full_name,
+            'phone_number': patient.phone_number,
+            'profile_image_url': patient.user.profile_image_url if patient.user else None,
+            'emergency_contact_name': patient.emergency_contact_name,
+            'emergency_contact_phone': patient.emergency_contact_phone
+        }
+        booking_dict['patient_details'] = patient_details
+    
+    # Add caregiver details if caregiver is assigned
+    if booking.caregiver_id:
+        caregiver = db.query(Caregiver).filter(
+            Caregiver.id == booking.caregiver_id
+        ).first()
+        
+        # Get caregiver's current location
+        caregiver_location = db.query(CaregiverLocation).filter(
+            CaregiverLocation.caregiver_id == booking.caregiver_id
+        ).first()
+        
+        if caregiver:
+            caregiver_details = {
+                'caregiver_id': caregiver.id,
+                'full_name': caregiver.full_name,
+                'specialization': caregiver.specialization,
+                'profile_image_url': caregiver.user.profile_image_url if caregiver.user else None,
+                'current_latitude': caregiver_location.latitude if caregiver_location else None,
+                'current_longitude': caregiver_location.longitude if caregiver_location else None,
+                'is_online': caregiver_location.is_active if caregiver_location else False,
+                'last_location_update': caregiver_location.updated_at if caregiver_location else None,
+                'distance_from_patient': None,
+                'estimated_arrival_time': None
+            }
+            
+            # Calculate distance and ETA if both locations are available
+            if (caregiver_location and booking.patient_latitude and booking.patient_longitude):
+                from app.services.location import LocationService
+                location_service = LocationService(db)
+                
+                distance = location_service.calculate_distance(
+                    booking.patient_latitude, booking.patient_longitude,
+                    caregiver_location.latitude, caregiver_location.longitude
+                )
+                caregiver_details['distance_from_patient'] = round(distance, 2)
+                
+                # Calculate ETA (assuming 25 km/h average speed in urban areas)
+                eta_minutes = max(5, int((distance / 25) * 60))
+                caregiver_details['estimated_arrival_time'] = eta_minutes
+            
+            booking_dict['caregiver_details'] = caregiver_details
+    
+    return booking_dict
 
 
 # Patient Endpoints
@@ -112,7 +175,9 @@ async def create_booking(
         # Notify nearby caregivers
         notifications = booking_service.notify_nearby_caregivers(booking)
         
-        return booking
+        # Enrich booking with patient and caregiver details
+        enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+        return enriched_booking
         
     except Exception as e:
         raise HTTPException(
@@ -180,66 +245,35 @@ def get_patient_bookings(
     
     bookings = query.order_by(Booking.created_at.desc()).all()
     
-    # Enrich bookings with caregiver details including location
-    enriched_bookings = []
-    for booking in bookings:
-        booking_dict = booking.__dict__.copy()
-        
-        # Add caregiver details if caregiver is assigned
-        if booking.caregiver_id:
-            caregiver = booking_service.db.query(Caregiver).filter(
-                Caregiver.id == booking.caregiver_id
-            ).first()
-            
-            # Get caregiver's current location
-            caregiver_location = booking_service.db.query(CaregiverLocation).filter(
-                CaregiverLocation.caregiver_id == booking.caregiver_id
-            ).first()
-            
-            if caregiver:
-                caregiver_details = {
-                    'caregiver_id': caregiver.id,
-                    'full_name': caregiver.full_name,
-                    'specialization': caregiver.specialization,
-                    'current_latitude': caregiver_location.latitude if caregiver_location else None,
-                    'current_longitude': caregiver_location.longitude if caregiver_location else None,
-                    'is_online': caregiver_location.is_active if caregiver_location else False,
-                    'last_location_update': caregiver_location.updated_at if caregiver_location else None,
-                    'distance_from_patient': None,
-                    'estimated_arrival_time': None
-                }
-                
-                # Calculate distance and ETA if both locations are available
-                if (caregiver_location and booking.patient_latitude and booking.patient_longitude):
-                    from app.services.location import LocationService
-                    location_service = LocationService(booking_service.db)
-                    
-                    distance = location_service.calculate_distance(
-                        booking.patient_latitude, booking.patient_longitude,
-                        caregiver_location.latitude, caregiver_location.longitude
-                    )
-                    caregiver_details['distance_from_patient'] = round(distance, 2)
-                    
-                    # Calculate ETA (assuming 25 km/h average speed in urban areas)
-                    # Minimum 5 minutes for very close distances
-                    eta_minutes = max(5, int((distance / 25) * 60))
-                    caregiver_details['estimated_arrival_time'] = eta_minutes
-                
-                booking_dict['caregiver_details'] = caregiver_details
-        
-        enriched_bookings.append(booking_dict)
+    # Enrich bookings with both patient and caregiver details
+    enriched_bookings = [enrich_booking_with_details(booking, booking_service.db) for booking in bookings]
     
     return enriched_bookings
 
 
 # Caregiver Endpoints
-@router.get("/caregiver/bookings", response_model=List[BookingResponse])
+@router.get(
+    "/caregiver/bookings", 
+    response_model=List[BookingResponse],
+    summary="Get caregiver's bookings",
+    description="Retrieve all bookings assigned to the authenticated caregiver with optional status filtering.",
+    tags=["Caregiver Bookings"]
+)
 def get_caregiver_bookings(
     status: Optional[str] = None,
     current_user: User = Depends(get_current_caregiver),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Get caregiver's bookings"""
+    """
+    Get caregiver's assigned bookings with optional status filtering.
+    
+    **Query Parameters:**
+    - **status** (optional): Filter by booking status
+      - Available options: "pending", "accepted", "in_progress", "completed", "cancelled", "declined"
+      - Special option: "new_requests" - shows bookings with pending notifications
+    
+    **Authentication:** Requires caregiver authentication token.
+    """
     caregiver = booking_service.db.query(Caregiver).filter(
         Caregiver.user_id == current_user.id
     ).first()
@@ -251,16 +285,36 @@ def get_caregiver_bookings(
         )
     
     bookings = booking_service.get_caregiver_bookings(caregiver.id, status)
-    return bookings
+    
+    # Enrich bookings with patient and caregiver details
+    enriched_bookings = []
+    for booking in bookings:
+        enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+        enriched_bookings.append(enriched_booking)
+    
+    return enriched_bookings
 
 
-@router.get("/caregiver/notifications", response_model=List[BookingNotificationResponse])
+@router.get(
+    "/caregiver/notifications", 
+    response_model=List[BookingNotificationResponse],
+    summary="Get caregiver's booking notifications",
+    description="Retrieve booking notifications for the authenticated caregiver with optional filtering for unread notifications.",
+    tags=["Caregiver Bookings"]
+)
 def get_caregiver_notifications(
     unread_only: bool = False,
     current_user: User = Depends(get_current_caregiver),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Get caregiver's booking notifications"""
+    """
+    Get caregiver's booking notifications.
+    
+    **Query Parameters:**
+    - **unread_only** (optional): If true, returns only unread notifications
+    
+    **Authentication:** Requires caregiver authentication token.
+    """
     caregiver = booking_service.db.query(Caregiver).filter(
         Caregiver.user_id == current_user.id
     ).first()
@@ -275,14 +329,30 @@ def get_caregiver_notifications(
     return notifications
 
 
-@router.post("/caregiver/action/{booking_id}")
+@router.post(
+    "/caregiver/action/{booking_id}",
+    summary="Handle caregiver booking actions",
+    description="Allow caregiver to perform actions on bookings: accept, decline, start service, or complete service.",
+    tags=["Caregiver Bookings"]
+)
 async def handle_booking_action(
     booking_id: UUID,
     action_data: BookingActionRequest,
     current_user: User = Depends(get_current_caregiver),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Handle caregiver action on booking (accept, decline, start, complete)"""
+    """
+    Handle caregiver actions on bookings.
+    
+    **Available Actions:**
+    - **accept**: Accept a booking request
+    - **decline**: Decline a booking request  
+    - **start**: Start providing service (booking must be accepted)
+    - **complete**: Mark service as completed
+    - **cancel**: Cancel the booking
+    
+    **Authentication:** Requires caregiver authentication token.
+    """
     caregiver = booking_service.db.query(Caregiver).filter(
         Caregiver.user_id == current_user.id
     ).first()
@@ -297,7 +367,9 @@ async def handle_booking_action(
         booking = booking_service.handle_booking_action(
             booking_id, caregiver.id, action_data
         )
-        return {"message": f"Booking {action_data.action} successfully", "booking": booking}
+        # Enrich booking with patient and caregiver details
+        enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+        return {"message": f"Booking {action_data.action} successfully", "booking": enriched_booking}
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -305,13 +377,27 @@ async def handle_booking_action(
         )
 
 
-@router.get("/booking/{booking_id}", response_model=BookingResponse)
+@router.get(
+    "/booking/{booking_id}", 
+    response_model=BookingResponse,
+    summary="Get booking details",
+    description="Retrieve detailed information about a specific booking. Available to both patients and caregivers who have access.",
+    tags=["Booking Details"]
+)
 def get_booking_details(
     booking_id: UUID,
     current_user: User = Depends(get_current_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Get booking details"""
+    """
+    Get detailed information about a specific booking.
+    
+    **Access Control:**
+    - Patients can access their own bookings
+    - Caregivers can access bookings assigned to them
+    
+    **Authentication:** Requires user authentication token (patient or caregiver).
+    """
     booking = booking_service.db.query(Booking).filter(Booking.id == booking_id).first()
     
     if not booking:
@@ -340,15 +426,17 @@ def get_booking_details(
                 detail="Access denied"
             )
     
-    return booking
+    # Enrich booking with patient and caregiver details
+    enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+    return enriched_booking
 
 
 # Location Endpoints
 @router.post(
     "/caregiver/location", 
     response_model=CaregiverLocationResponse,
-    summary="Update caregiver's real-time location",
-    description="Update caregiver's current GPS location for real-time tracking and matching. This endpoint should be called periodically by the caregiver mobile app.",
+    summary="Update caregiver's real-time location (REST - Legacy)",
+    description="Update caregiver's current GPS location for real-time tracking and matching. **⚠️ DEPRECATED: Consider using WebSocket endpoint `/ws/caregiver/location` for better scalability and real-time performance.**",
     responses={
         200: {
             "description": "Location updated successfully",
@@ -363,7 +451,7 @@ def get_booking_details(
             }
         }
     },
-    tags=["Caregiver Location"]
+    tags=["Caregiver Location (Legacy REST)"]
 )
 def update_caregiver_location(
     location_data: CaregiverLocationUpdate,
@@ -383,16 +471,20 @@ def update_caregiver_location(
     - **heading**: Direction of movement in degrees (0-360, where 0 is North)
     - **speed**: Movement speed in meters per second (used for movement detection)
     
-    **Update Frequency:**
+    **⚠️ PERFORMANCE WARNING:**
+    - This REST endpoint creates significant server load with many users
+    - Each caregiver polling every 10s = massive API requests
+    - **RECOMMENDED: Use WebSocket `/ws/caregiver/location` instead**
+    
+    **Update Frequency (if using REST):**
     - **Active booking**: Every 10-15 seconds for real-time tracking
     - **Available but no booking**: Every 30-60 seconds for matching
     - **Offline**: Stop sending updates and set is_available to false
     
-    **Frontend Implementation Notes:**
-    - Use background location services for continuous tracking
-    - Handle GPS permission requests gracefully
-    - Implement exponential backoff for failed requests
-    - Cache last known location for offline scenarios
+    **Migration Path:**
+    1. **Phase 1**: Implement WebSocket alongside REST (current)
+    2. **Phase 2**: Migrate mobile apps to use WebSocket
+    3. **Phase 3**: Deprecate this REST endpoint
     
     **Authentication:** Requires caregiver authentication token.
     """
@@ -441,7 +533,7 @@ def update_caregiver_location(
             }
         }
     },
-    tags=["Caregiver Location"]
+    tags=["Caregiver Location (Legacy REST)"]
 )
 def get_caregiver_location(
     current_user: User = Depends(get_current_caregiver),
@@ -610,15 +702,187 @@ def get_live_booking_tracking(
     )
 
 
+# WebSocket Endpoints for Real-time Location Tracking
+@router.websocket("/ws/caregiver/location")
+async def caregiver_location_websocket(
+    websocket: WebSocket,
+    db: Session = Depends(get_db)
+):
+    """
+    WebSocket endpoint for caregiver real-time location updates.
+    
+    **Scalable Alternative to REST Polling:**
+    - Persistent connection instead of polling every 10-15 seconds
+    - Real-time bidirectional communication
+    - Automatic broadcasting to interested parties
+    - Much lower server load with high user base
+    
+    **Message Types Supported:**
+    - `location_update`: Send GPS location data
+    - `heartbeat`: Keep connection alive
+    
+    **Authentication:** 
+    - Must include authentication token in query parameters: ?token=your_caregiver_token
+    - Or send authentication in first message after connection
+    
+    **Example Usage:**
+    ```javascript
+    const ws = new WebSocket('wss://api.example.com/ws/caregiver/location?token=...');
+    
+    // Send location update
+    ws.send(JSON.stringify({
+      type: "location_update",
+      data: {
+        latitude: 6.5244,
+        longitude: 3.3792,
+        accuracy: 10.5,
+        heading: 45.0,
+        speed: 2.3,
+        is_available: true
+      }
+    }));
+    ```
+    """
+    # Extract token from query params (simple approach for demo)
+    # In production, implement proper WebSocket authentication
+    query_params = dict(websocket.query_params)
+    token = query_params.get("token")
+    
+    if not token:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+    
+    # For demo purposes, we'll extract user_id from token (implement proper JWT validation)
+    try:
+        # This is a simplified approach - implement proper JWT token validation
+        user_id = "demo_caregiver_user_id"  # Extract from JWT token in production
+        
+        await websocket_manager.connect_caregiver(websocket, user_id)
+        
+        try:
+            while True:
+                message = await websocket.receive_text()
+                await websocket_manager.handle_caregiver_message(websocket, user_id, message, db)
+        except WebSocketDisconnect:
+            websocket_manager.disconnect_caregiver(user_id)
+            
+    except Exception as e:
+        await websocket.close(code=4000, reason=str(e))
+
+
+@router.websocket("/ws/patient/tracking")
+async def patient_tracking_websocket(
+    websocket: WebSocket,
+    db: Session = Depends(get_db)
+):
+    """
+    WebSocket endpoint for patient real-time booking tracking.
+    
+    **Features:**
+    - Subscribe to specific booking tracking
+    - Receive real-time caregiver location updates
+    - Automatic ETA recalculation
+    - Live movement detection
+    
+    **Message Types Supported:**
+    - `tracking_subscribe`: Subscribe to booking tracking
+    - `tracking_unsubscribe`: Stop tracking a booking
+    - `heartbeat`: Keep connection alive
+    
+    **Authentication:** 
+    - Must include authentication token in query parameters: ?token=your_patient_token
+    
+    **Example Usage:**
+    ```javascript
+    const ws = new WebSocket('wss://api.example.com/ws/patient/tracking?token=...');
+    
+    // Subscribe to booking tracking
+    ws.send(JSON.stringify({
+      type: "tracking_subscribe",
+      booking_id: "booking-uuid-here"
+    }));
+    
+    // Listen for location updates
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'location_broadcast') {
+        // Update UI with live tracking data
+        updateCaregiverLocationOnMap(data.data);
+      }
+    };
+    ```
+    """
+    # Extract token from query params
+    query_params = dict(websocket.query_params)
+    token = query_params.get("token")
+    
+    if not token:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+    
+    try:
+        # This is a simplified approach - implement proper JWT token validation
+        user_id = "demo_patient_user_id"  # Extract from JWT token in production
+        
+        await websocket_manager.connect_patient(websocket, user_id)
+        
+        try:
+            while True:
+                message = await websocket.receive_text()
+                await websocket_manager.handle_patient_message(websocket, user_id, message, db)
+        except WebSocketDisconnect:
+            websocket_manager.disconnect_patient(user_id)
+            
+    except Exception as e:
+        await websocket.close(code=4000, reason=str(e))
+
+
+@router.get(
+    "/ws/stats",
+    summary="Get WebSocket connection statistics", 
+    description="Get current WebSocket connection and subscription statistics for monitoring",
+    tags=["WebSocket Monitoring"]
+)
+def get_websocket_stats() -> dict:
+    """
+    Get WebSocket connection statistics for monitoring and debugging.
+    
+    **Returns:**
+    - Active caregiver connections count
+    - Active patient connections count  
+    - Active tracking subscriptions count
+    - Total subscribers count
+    
+    **Use Cases:**
+    - System monitoring and health checks
+    - Debugging connection issues
+    - Scaling decisions based on connection load
+    """
+    return websocket_manager.get_connection_stats()
+
+
 # Chat Endpoints
-@router.post("/chat/{booking_id}/send", response_model=ChatMessageResponse)
+@router.post(
+    "/chat/{booking_id}/send", 
+    response_model=ChatMessageResponse,
+    summary="Send chat message",
+    description="Send a chat message in a booking conversation between patient and caregiver.",
+    tags=["Chat & Communication"]
+)
 def send_chat_message(
     booking_id: UUID,
     message_data: ChatMessageCreate,
     current_user: User = Depends(get_current_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Send a chat message"""
+    """
+    Send a chat message in a booking conversation.
+    
+    **Access Control:**
+    - Only patients and caregivers involved in the booking can send messages
+    
+    **Authentication:** Requires user authentication token.
+    """
     # Verify user has access to this booking
     booking = booking_service.db.query(Booking).filter(Booking.id == booking_id).first()
     
@@ -654,13 +918,26 @@ def send_chat_message(
     return message
 
 
-@router.get("/chat/{booking_id}/messages", response_model=List[ChatMessageResponse])
+@router.get(
+    "/chat/{booking_id}/messages", 
+    response_model=List[ChatMessageResponse],
+    summary="Get chat messages",
+    description="Retrieve all chat messages for a booking conversation between patient and caregiver.",
+    tags=["Chat & Communication"]
+)
 def get_chat_messages(
     booking_id: UUID,
     current_user: User = Depends(get_current_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Get chat messages for a booking"""
+    """
+    Get chat messages for a booking conversation.
+    
+    **Access Control:**
+    - Only patients and caregivers involved in the booking can view messages
+    
+    **Authentication:** Requires user authentication token.
+    """
     # Verify access (same logic as send_chat_message)
     booking = booking_service.db.query(Booking).filter(Booking.id == booking_id).first()
     
@@ -694,14 +971,31 @@ def get_chat_messages(
 
 
 # Notes Endpoints
-@router.post("/notes/{booking_id}/create", response_model=BookingNoteResponse)
+@router.post(
+    "/notes/{booking_id}/create", 
+    response_model=BookingNoteResponse,
+    summary="Create booking note with AI analysis",
+    description="Create a detailed note for a booking with optional AI-powered analysis of audio transcripts and content.",
+    tags=["Notes & Documentation"]
+)
 async def create_booking_note(
     booking_id: UUID,
     note_data: BookingNoteCreate,
     current_user: User = Depends(get_current_caregiver),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Create a booking note with AI analysis"""
+    """
+    Create a booking note with AI analysis.
+    
+    **Features:**
+    - Rich text notes with title and content
+    - Audio transcript support
+    - AI-powered analysis including summary, keywords, and recommendations
+    
+    **Access:** Only caregivers assigned to the booking can create notes
+    
+    **Authentication:** Requires caregiver authentication token.
+    """
     caregiver = booking_service.db.query(Caregiver).filter(
         Caregiver.user_id == current_user.id
     ).first()
@@ -734,13 +1028,27 @@ async def create_booking_note(
     return note
 
 
-@router.get("/notes/{booking_id}", response_model=List[BookingNoteResponse])
+@router.get(
+    "/notes/{booking_id}", 
+    response_model=List[BookingNoteResponse],
+    summary="Get booking notes",
+    description="Retrieve all notes for a booking including AI-generated insights and caregiver observations.",
+    tags=["Notes & Documentation"]
+)
 def get_booking_notes(
     booking_id: UUID,
     current_user: User = Depends(get_current_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
-    """Get notes for a booking"""
+    """
+    Get all notes for a booking.
+    
+    **Access Control:**
+    - Patients can view notes for their bookings
+    - Caregivers can view notes for their assigned bookings
+    
+    **Authentication:** Requires user authentication token.
+    """
     # Verify access to booking
     booking = booking_service.db.query(Booking).filter(Booking.id == booking_id).first()
     

@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     APNS_KEY_ID: Optional[str] = None
     APNS_TEAM_ID: Optional[str] = None
 
+    # Cloudinary Configuration
+    CLOUDINARY_CLOUD_NAME: Optional[str] = None
+    CLOUDINARY_API_KEY: Optional[str] = None
+    CLOUDINARY_API_SECRET: Optional[str] = None
+
     class Config:
         case_sensitive = True
         env_file = ".env"
