@@ -361,26 +361,29 @@ def upload_profile_image(
         image_url = cloudinary_service.upload_image(file, folder="oaklycare/profile_images")
         print(f"Cloudinary returned URL: {image_url}")
         
+        # Get user from database using the current session
+        user_id = current_user.id
+        print(f"Getting user from database with ID: {user_id}")
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if not user:
+            print("ERROR: User not found in database!")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        print(f"Current profile image URL from DB: {user.profile_image_url}")
+        
         # Update user's profile image URL
         print(f"Setting profile_image_url to: {image_url}")
-        current_user.profile_image_url = image_url
-        print(f"Before commit - user.profile_image_url: {current_user.profile_image_url}")
+        user.profile_image_url = image_url
+        print(f"Before commit - user.profile_image_url: {user.profile_image_url}")
         
-        # Flush to push changes to database but keep the session open
-        db.flush()
-        print("Database flush completed")
-        
-        # Refresh the current user object while still in session
-        db.refresh(current_user)
-        print(f"After refresh - current_user.profile_image_url: {current_user.profile_image_url}")
-        
-        # Now commit the transaction
+        # Commit the transaction
         db.commit()
         print("Database commit completed")
         
-        # Re-query user to ensure we have the latest data
-        user = db.query(User).filter(User.id == current_user.id).first()
-        print(f"After re-query - user.profile_image_url: {user.profile_image_url}")
+        # Refresh the user object to get the latest data
+        db.refresh(user)
+        print(f"After refresh - user.profile_image_url: {user.profile_image_url}")
         print(f"=== UPLOAD DEBUG END ===")
         
         return {"profile_image_url": user.profile_image_url}
