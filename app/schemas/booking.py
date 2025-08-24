@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Union
 from pydantic import BaseModel, validator, Field
 import uuid
 
@@ -74,6 +74,11 @@ class CaregiverDetails(BaseModel):
     caregiver_id: uuid.UUID = Field(description="Unique caregiver identifier")
     full_name: str = Field(description="Caregiver's full name", example="Dr. John Smith")
     specialization: Optional[str] = Field(None, description="Caregiver's specialization", example="Registered Nurse")
+    profile_image_url: Optional[str] = Field(
+        None, 
+        description="Caregiver's profile image URL", 
+        example="https://cdn.example.com/profiles/caregiver123.jpg"
+    )
     # Location data
     current_latitude: Optional[float] = Field(
         None, 
@@ -114,11 +119,29 @@ class CaregiverDetails(BaseModel):
         from_attributes = True
 
 
+# Patient details for booking response
+class PatientDetails(BaseModel):
+    patient_id: uuid.UUID = Field(description="Unique patient identifier")
+    full_name: str = Field(description="Patient's full name", example="Jane Doe")
+    phone_number: Optional[str] = Field(None, description="Patient's phone number", example="+234123456789")
+    profile_image_url: Optional[str] = Field(
+        None, 
+        description="Patient's profile image URL", 
+        example="https://cdn.example.com/profiles/patient123.jpg"
+    )
+    emergency_contact_name: Optional[str] = Field(None, description="Emergency contact name", example="John Doe")
+    emergency_contact_phone: Optional[str] = Field(None, description="Emergency contact phone", example="+234987654321")
+
+    class Config:
+        from_attributes = True
+
+
 # Booking Response
 class BookingResponse(BaseModel):
     id: uuid.UUID
     booking_code: str
     patient_id: uuid.UUID
+    patient_details: Optional[PatientDetails] = None
     caregiver_id: Optional[uuid.UUID] = None
     caregiver_details: Optional[CaregiverDetails] = None
     service_type: str
@@ -315,3 +338,64 @@ class LiveTrackingResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# WebSocket Message Schemas
+class WebSocketMessageType:
+    LOCATION_UPDATE = "location_update"
+    TRACKING_SUBSCRIBE = "tracking_subscribe"
+    TRACKING_UNSUBSCRIBE = "tracking_unsubscribe"
+    LOCATION_BROADCAST = "location_broadcast"
+    CONNECTION_STATUS = "connection_status"
+    ERROR = "error"
+    HEARTBEAT = "heartbeat"
+
+
+class WebSocketLocationUpdate(BaseModel):
+    type: Literal["location_update"] = Field("location_update", description="Message type")
+    data: CaregiverLocationUpdate = Field(description="Location update data")
+
+
+class WebSocketTrackingSubscribe(BaseModel):
+    type: Literal["tracking_subscribe"] = Field("tracking_subscribe", description="Message type")
+    booking_id: str = Field(description="Booking ID to track")
+
+
+class WebSocketTrackingUnsubscribe(BaseModel):
+    type: Literal["tracking_unsubscribe"] = Field("tracking_unsubscribe", description="Message type") 
+    booking_id: str = Field(description="Booking ID to stop tracking")
+
+
+class WebSocketLocationBroadcast(BaseModel):
+    type: Literal["location_broadcast"] = Field("location_broadcast", description="Message type")
+    booking_id: str = Field(description="Booking being tracked")
+    data: LiveTrackingResponse = Field(description="Live tracking data")
+
+
+class WebSocketConnectionStatus(BaseModel):
+    type: Literal["connection_status"] = Field("connection_status", description="Message type")
+    status: Literal["connected", "disconnected", "reconnected"] = Field(description="Connection status")
+    message: str = Field(description="Status message")
+
+
+class WebSocketError(BaseModel):
+    type: Literal["error"] = Field("error", description="Message type")
+    error: str = Field(description="Error message")
+    code: Optional[str] = Field(None, description="Error code")
+
+
+class WebSocketHeartbeat(BaseModel):
+    type: Literal["heartbeat"] = Field("heartbeat", description="Message type")
+    timestamp: str = Field(description="Heartbeat timestamp")
+
+
+# Union type for all WebSocket messages
+WebSocketMessage = Union[
+    WebSocketLocationUpdate,
+    WebSocketTrackingSubscribe, 
+    WebSocketTrackingUnsubscribe,
+    WebSocketLocationBroadcast,
+    WebSocketConnectionStatus,
+    WebSocketError,
+    WebSocketHeartbeat
+]

@@ -28,11 +28,10 @@ from app.schemas.user import (
 )
 from app.services.email import send_verification_email, send_password_reset_email
 from app.services.user import UserService
+from app.services.cloudinary_service import cloudinary_service
 from app.db.models.patient import Patient
 from app.db.models.caregiver import Caregiver
 from app.core.security import get_password_hash
-import os
-from uuid import uuid4
 from app.db.models.user import User
 from app.schemas.user import User as UserSchema
 
@@ -342,27 +341,31 @@ def upload_profile_image(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Validate file type
-    allowed_types = ["image/jpeg", "image/png", "image/jpg"]
-    if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG and PNG are allowed.")
-    # Save file
-    upload_dir = "uploads/profile_images"
-    os.makedirs(upload_dir, exist_ok=True)
-    ext = file.filename.split(".")[-1]
-    filename = f"{uuid4()}.{ext}"
-    file_path = os.path.join(upload_dir, filename)
-    with open(file_path, "wb") as f:
-        f.write(file.file.read())
-    # Set the URL (absolute for frontend access)
-    url = f"/uploads/profile_images/{filename}"
-    print(f"Saving profile image to: {file_path}")
-    print(f"Setting profile_image_url to: {url}")
-    current_user.profile_image_url = url
-    print(f"Before commit: {current_user.profile_image_url}")
-    db.commit()
-    user = db.query(User).filter(User.id == current_user.id).first()
-    print(f"After commit: {user.profile_image_url}")
-    return {"profile_image_url": user.profile_image_url}
+    try:
+        # Delete old profile image from Cloudinary if exists
+        if current_user.profile_image_url:
+            old_public_id = cloudinary_service.get_public_id_from_url(current_user.profile_image_url)
+            if old_public_id:
+                cloudinary_service.delete_image(old_public_id)
+        
+        # Upload new image to Cloudinary
+        image_url = cloudinary_service.upload_image(file, folder="oaklycare/profile_images")
+        
+        # Update user's profile image URL
+        current_user.profile_image_url = image_url
+        db.commit()
+        
+        # Re-query user to ensure we have the latest data
+        user = db.query(User).filter(User.id == current_user.id).first()
+        
+        return {"profile_image_url": user.profile_image_url}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload profile image: {str(e)}"
+        )
 
 
