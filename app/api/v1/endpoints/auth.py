@@ -365,12 +365,18 @@ def upload_profile_image(
         print(f"Setting profile_image_url to: {image_url}")
         current_user.profile_image_url = image_url
         print(f"Before commit - user.profile_image_url: {current_user.profile_image_url}")
-        db.commit()
-        print("Database commit completed")
         
-        # Refresh the current user object
+        # Flush to push changes to database but keep the session open
+        db.flush()
+        print("Database flush completed")
+        
+        # Refresh the current user object while still in session
         db.refresh(current_user)
         print(f"After refresh - current_user.profile_image_url: {current_user.profile_image_url}")
+        
+        # Now commit the transaction
+        db.commit()
+        print("Database commit completed")
         
         # Re-query user to ensure we have the latest data
         user = db.query(User).filter(User.id == current_user.id).first()
