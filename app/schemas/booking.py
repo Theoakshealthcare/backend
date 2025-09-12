@@ -164,6 +164,22 @@ class BookingResponse(BaseModel):
     booking_for: str
     created_at: datetime
     updated_at: datetime
+    # Payment fields for booking creation response
+    payment_url: Optional[str] = Field(
+        None,
+        description="Paystack payment URL to complete the booking payment",
+        example="https://checkout.paystack.com/abcd1234"
+    )
+    payment_access_code: Optional[str] = Field(
+        None,
+        description="Paystack access code for the payment",
+        example="abc123xyz"
+    )
+    payment_error: Optional[str] = Field(
+        None,
+        description="Error message if payment initialization failed",
+        example="Payment gateway temporarily unavailable"
+    )
 
     class Config:
         from_attributes = True

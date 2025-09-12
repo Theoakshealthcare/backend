@@ -6,7 +6,7 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient
-from app.db.models.booking import Booking, CaregiverLocation
+from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.user import User
@@ -21,6 +21,7 @@ from app.schemas.booking import (
 from app.services.booking import BookingService
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
+from app.services.paystack import PaystackService
 
 router = APIRouter()
 
@@ -169,14 +170,26 @@ async def create_booking(
                 detail="Patient profile not found"
             )
         
-        # Create booking
-        booking = booking_service.create_booking(patient.id, booking_data)
+        # Create booking with payment initiation
+        booking_result = booking_service.create_booking(patient.id, booking_data)
+        booking = booking_result["booking"]
         
-        # Notify nearby caregivers
-        notifications = booking_service.notify_nearby_caregivers(booking)
+        # DO NOT notify caregivers yet - wait for payment confirmation
+        # Notifications will be sent after successful payment via webhook
         
         # Enrich booking with patient and caregiver details
         enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+        
+        # Add payment information to response
+        enriched_booking["payment_url"] = booking_result.get("payment_url")
+        enriched_booking["payment_access_code"] = booking_result.get("access_code")
+        
+        # If payment initialization failed, mark booking as failed
+        if booking_result.get("payment_error"):
+            enriched_booking["payment_error"] = booking_result.get("payment_error")
+            enriched_booking["status"] = BookingStatus.CANCELLED
+            enriched_booking["payment_status"] = PaymentStatus.FAILED
+        
         return enriched_booking
         
     except Exception as e:
@@ -429,6 +442,84 @@ def get_booking_details(
     # Enrich booking with patient and caregiver details
     enriched_booking = enrich_booking_with_details(booking, booking_service.db)
     return enriched_booking
+
+
+@router.post(
+    "/booking/{booking_id}/verify-payment",
+    summary="Verify booking payment",
+    description="Verify the payment status of a booking and update the booking accordingly.",
+    tags=["Booking Payments"]
+)
+def verify_booking_payment(
+    booking_id: UUID,
+    current_user: User = Depends(get_current_patient),
+    booking_service: BookingService = Depends(get_booking_service),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Verify payment status for a booking.
+    
+    **Process:**
+    1. Retrieves booking by ID
+    2. Verifies payment with Paystack
+    3. Updates booking payment status
+    4. Returns payment verification result
+    
+    **Authentication:** Requires patient authentication token.
+    """
+    # Get booking
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found"
+        )
+    
+    # Verify user owns this booking
+    patient = db.query(Patient).filter(
+        Patient.user_id == current_user.id
+    ).first()
+    
+    if not patient or booking.patient_id != patient.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    # Verify payment with Paystack
+    paystack_service = PaystackService()
+    verification_result = paystack_service.verify_transaction(booking.paystack_reference)
+    
+    if verification_result.get("status"):
+        payment_data = verification_result.get("data", {})
+        
+        # Update booking payment status based on Paystack response
+        if payment_data.get("status") == "success":
+            booking.payment_status = PaymentStatus.PAID
+            db.commit()
+            
+            return {
+                "status": "success",
+                "message": "Payment verified successfully",
+                "booking_id": booking_id,
+                "payment_status": "paid",
+                "amount_paid": payment_data.get("amount"),
+                "paid_at": payment_data.get("paid_at")
+            }
+        else:
+            return {
+                "status": "pending",
+                "message": "Payment not yet completed",
+                "booking_id": booking_id,
+                "payment_status": payment_data.get("status")
+            }
+    else:
+        return {
+            "status": "error",
+            "message": verification_result.get("message", "Payment verification failed"),
+            "booking_id": booking_id
+        }
 
 
 # Location Endpoints

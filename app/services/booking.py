@@ -11,15 +11,19 @@ from app.db.models.booking import (
     BookingStatus, PaymentStatus
 )
 from app.db.models.booking_settings import BookingSettings
+from app.db.models.patient import Patient
 from app.schemas.booking import BookingCreate, BookingActionRequest
 from app.services.location import LocationService
 from app.services.gemini import gemini_service
+from app.services.paystack import PaystackService
+from app.core.config import settings
 
 
 class BookingService:
     def __init__(self, db: Session):
         self.db = db
         self.location_service = LocationService(db)
+        self.paystack_service = PaystackService()
 
     def generate_booking_code(self) -> str:
         """Generate unique booking code"""
@@ -29,8 +33,8 @@ class BookingService:
             if not existing:
                 return code
 
-    def create_booking(self, patient_id: UUID, booking_data: BookingCreate) -> Booking:
-        """Create a new booking"""
+    def create_booking(self, patient_id: UUID, booking_data: BookingCreate) -> Dict[str, Any]:
+        """Create a new booking with payment initiation"""
         
         # Calculate end time
         scheduled_end = booking_data.scheduled_date + timedelta(hours=booking_data.duration_hours)
@@ -59,8 +63,12 @@ class BookingService:
         platform_fee = service_fee * (settings.platform_fee_percent / 100)
         total_amount = service_fee + platform_fee
         
+        # Generate unique payment reference
+        booking_code = self.generate_booking_code()
+        paystack_reference = f"BKG_{booking_code}_{patient_id.hex[:8]}"
+        
         booking = Booking(
-            booking_code=self.generate_booking_code(),
+            booking_code=booking_code,
             patient_id=patient_id,
             service_type=booking_data.service_type,
             assistance_type=booking_data.assistance_type,
@@ -77,14 +85,51 @@ class BookingService:
             booking_for=booking_data.booking_for,
             total_amount=total_amount,
             service_fee=service_fee,
-            platform_fee=platform_fee
+            platform_fee=platform_fee,
+            paystack_reference=paystack_reference
         )
         
         self.db.add(booking)
         self.db.commit()
         self.db.refresh(booking)
         
-        return booking
+        # Get patient email for payment
+        patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient or not patient.email:
+            raise Exception("Patient email not found for payment processing.")
+        
+        # Initialize Paystack payment
+        payment_response = self.paystack_service.initialize_transaction(
+            email=patient.email,
+            amount=total_amount,
+            reference=paystack_reference,
+            callback_url=f"{settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete" if hasattr(settings, 'FRONTEND_URL') else None,
+            metadata={
+                "booking_id": str(booking.id),
+                "patient_id": str(patient_id),
+                "service_type": booking_data.service_type,
+                "booking_code": booking_code
+            }
+        )
+        
+        if not payment_response.get("status"):
+            # If payment initialization fails, mark booking as cancelled
+            booking.status = BookingStatus.CANCELLED
+            booking.payment_status = PaymentStatus.FAILED
+            self.db.commit()
+            self.db.refresh(booking)
+            
+            return {
+                "booking": booking,
+                "payment_url": None,
+                "payment_error": payment_response.get("message", "Payment initialization failed")
+            }
+        
+        return {
+            "booking": booking,
+            "payment_url": payment_response.get("authorization_url"),
+            "access_code": payment_response.get("access_code")
+        }
 
     def notify_nearby_caregivers(self, booking: Booking) -> List[BookingNotification]:
         """Send notifications to nearby caregivers using smart matching algorithm"""
