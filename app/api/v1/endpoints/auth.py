@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
     generate_password_reset_token,
     verify_password_reset_token,
 )
@@ -25,6 +27,7 @@ from app.schemas.user import (
     UserWithTypeData,
     UserProfileUpdate,
     UserProfileResponse,
+    RefreshTokenRequest,
 )
 from app.services.email import send_verification_email, send_password_reset_email
 from app.services.user import UserService
@@ -100,9 +103,13 @@ def login(
         )
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     return {
         "access_token": create_access_token(
             user.id, expires_delta=access_token_expires
+        ),
+        "refresh_token": create_refresh_token(
+            user.id, expires_delta=refresh_token_expires
         ),
         "token_type": "bearer",
     }
@@ -129,9 +136,55 @@ def login_mobile(
         )
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     return {
         "access_token": create_access_token(
             user.id, expires_delta=access_token_expires
+        ),
+        "refresh_token": create_refresh_token(
+            user.id, expires_delta=refresh_token_expires
+        ),
+        "token_type": "bearer",
+    }
+
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(
+    refresh_request: RefreshTokenRequest,
+    user_service: UserService = Depends(get_user_service),
+) -> Any:
+    """
+    Refresh access token using refresh token.
+    """
+    user_id = verify_refresh_token(refresh_request.refresh_token)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+    
+    # Verify user still exists and is active
+    user = user_service.get_user(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+        )
+    
+    # Generate new tokens
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    return {
+        "access_token": create_access_token(
+            user.id, expires_delta=access_token_expires
+        ),
+        "refresh_token": create_refresh_token(
+            user.id, expires_delta=refresh_token_expires
         ),
         "token_type": "bearer",
     }
