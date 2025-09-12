@@ -124,7 +124,7 @@ def download_vitals(
 
 # --- AI Insights ---
 @router.get("/{patient_id}/insights", response_model=dict)
-def get_vitals_insights(
+async def get_vitals_insights(
     patient_id: UUID,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -145,8 +145,7 @@ def get_vitals_insights(
         for v in vitals
     ]
     # Call Gemini for insights (async)
-    loop = asyncio.get_event_loop()
-    insights = loop.run_until_complete(gemini.analyze_vitals(vitals_data))
+    insights = await gemini.analyze_vitals(vitals_data)
     return insights
 
 # --- Grant Caregiver Access ---
