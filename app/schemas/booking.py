@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List, Literal, Union
+from typing import Optional, List, Literal, Union, Dict
 from pydantic import BaseModel, validator, Field
 import uuid
 
@@ -67,6 +67,83 @@ class BookingCreate(BaseModel):
         if v < 1 or v > 24:
             raise ValueError('Duration must be between 1 and 24 hours')
         return v
+
+
+# Booking Preview (for pricing estimates before booking creation)
+class BookingPreviewRequest(BaseModel):
+    service_type: Literal["nurse", "doctor", "physiotherapist", "caregiver", "nutritionist"] = Field(
+        description="Type of healthcare service requested",
+        example="caregiver"
+    )
+    duration_hours: int = Field(
+        description="Duration of service in hours (1-24)",
+        ge=1, le=24,
+        example=4
+    )
+    patient_latitude: Optional[float] = Field(
+        None,
+        description="Patient latitude for surge pricing calculation (-90 to 90)",
+        ge=-90, le=90,
+        example=6.5244
+    )
+    patient_longitude: Optional[float] = Field(
+        None,
+        description="Patient longitude for surge pricing calculation (-180 to 180)",
+        ge=-180, le=180,
+        example=3.3792
+    )
+
+    @validator('duration_hours')
+    def validate_duration(cls, v):
+        if v < 1 or v > 24:
+            raise ValueError('Duration must be between 1 and 24 hours')
+        return v
+
+
+class BookingPreviewResponse(BaseModel):
+    service_type: str = Field(description="Type of healthcare service", example="caregiver")
+    duration_hours: int = Field(description="Service duration in hours", example=4)
+    base_fee_per_hour: float = Field(description="Base fee per hour", example=5000.0)
+    service_multiplier: float = Field(description="Service type multiplier", example=1.0)
+    service_fee: float = Field(description="Total service fee before additional charges", example=20000.0)
+    platform_fee: float = Field(description="Platform commission fee", example=2000.0)
+    platform_fee_percent: float = Field(description="Platform fee percentage", example=10.0)
+    total_amount: float = Field(description="Total amount to be charged", example=22000.0)
+    currency: str = Field(description="Currency code", example="NGN")
+    
+    # Pricing factors
+    surge_pricing_active: bool = Field(description="Whether surge pricing is applied", example=False)
+    surge_multiplier: Optional[float] = Field(None, description="Surge pricing multiplier", example=1.2)
+    discount_active: bool = Field(description="Whether discount is applied", example=False)
+    discount_percent: Optional[float] = Field(None, description="Discount percentage", example=15.0)
+    
+    # Breakdown for transparency
+    pricing_breakdown: Dict[str, float] = Field(
+        description="Detailed pricing breakdown",
+        example={
+            "base_calculation": 20000.0,
+            "surge_adjustment": 0.0,
+            "discount_savings": 0.0,
+            "service_fee_final": 20000.0,
+            "platform_fee": 2000.0,
+            "total": 22000.0
+        }
+    )
+    
+    # Additional info
+    estimated_caregivers_available: Optional[int] = Field(
+        None,
+        description="Estimated number of available caregivers in the area",
+        example=8
+    )
+    peak_hours_warning: Optional[str] = Field(
+        None,
+        description="Warning about peak hours if applicable",
+        example="Peak hours: Higher demand may affect caregiver availability"
+    )
+
+    class Config:
+        from_attributes = True
 
 
 # Caregiver details for booking response

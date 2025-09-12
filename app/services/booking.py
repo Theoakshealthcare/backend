@@ -12,7 +12,7 @@ from app.db.models.booking import (
 )
 from app.db.models.booking_settings import BookingSettings
 from app.db.models.patient import Patient
-from app.schemas.booking import BookingCreate, BookingActionRequest
+from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPreviewRequest, BookingPreviewResponse
 from app.services.location import LocationService
 from app.services.gemini import gemini_service
 from app.services.paystack import PaystackService
@@ -32,6 +32,94 @@ class BookingService:
             existing = self.db.query(Booking).filter(Booking.booking_code == code).first()
             if not existing:
                 return code
+
+    def calculate_booking_preview(self, preview_data: BookingPreviewRequest) -> BookingPreviewResponse:
+        """Calculate booking pricing and details for preview without creating booking"""
+        
+        # Fetch latest booking settings
+        settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+        if not settings:
+            raise Exception("Booking settings not configured.")
+        
+        # Calculate service fee
+        base_fee = settings.base_fee
+        multiplier = 1.0
+        if settings.multipliers and preview_data.service_type in settings.multipliers:
+            multiplier = settings.multipliers[preview_data.service_type]
+        
+        # Base calculation
+        base_calculation = preview_data.duration_hours * base_fee * multiplier
+        service_fee = base_calculation
+        
+        # Apply surge pricing if active
+        surge_adjustment = 0.0
+        if settings.surge_pricing and settings.surge_multiplier:
+            surge_adjustment = service_fee * (settings.surge_multiplier - 1)
+            service_fee *= settings.surge_multiplier
+        
+        # Apply discount if any
+        discount_savings = 0.0
+        if settings.discount and settings.discount > 0:
+            discount_savings = service_fee * (settings.discount / 100)
+            service_fee *= (1 - settings.discount / 100)
+        
+        # Platform fee
+        platform_fee = service_fee * (settings.platform_fee_percent / 100)
+        total_amount = service_fee + platform_fee
+        
+        # Create detailed breakdown
+        pricing_breakdown = {
+            "base_calculation": round(base_calculation, 2),
+            "surge_adjustment": round(surge_adjustment, 2),
+            "discount_savings": round(discount_savings, 2),
+            "service_fee_final": round(service_fee, 2),
+            "platform_fee": round(platform_fee, 2),
+            "total": round(total_amount, 2)
+        }
+        
+        # Check available caregivers if location provided
+        estimated_caregivers = None
+        if preview_data.patient_latitude and preview_data.patient_longitude:
+            nearby_caregivers = self.location_service.get_nearby_active_caregivers_with_eta(
+                preview_data.patient_latitude,
+                preview_data.patient_longitude,
+                radius_km=20,
+                service_type=preview_data.service_type
+            )
+            estimated_caregivers = len(nearby_caregivers) if nearby_caregivers else 0
+        
+        # Peak hours warning
+        current_hour = datetime.now().hour
+        peak_hours_warning = None
+        if 17 <= current_hour <= 21:  # 5-9 PM peak hours
+            peak_hours_warning = "Peak hours (5-9 PM): Higher demand may affect caregiver availability"
+        elif settings.surge_pricing and settings.surge_multiplier > 1.0:
+            peak_hours_warning = f"Surge pricing active: {int((settings.surge_multiplier - 1) * 100)}% increase due to high demand"
+        
+        return BookingPreviewResponse(
+            service_type=preview_data.service_type,
+            duration_hours=preview_data.duration_hours,
+            base_fee_per_hour=base_fee,
+            service_multiplier=multiplier,
+            service_fee=round(service_fee, 2),
+            platform_fee=round(platform_fee, 2),
+            platform_fee_percent=settings.platform_fee_percent,
+            total_amount=round(total_amount, 2),
+            currency="NGN",
+            
+            # Pricing factors
+            surge_pricing_active=bool(settings.surge_pricing and settings.surge_multiplier > 1.0),
+            surge_multiplier=settings.surge_multiplier if settings.surge_pricing else None,
+            discount_active=bool(settings.discount and settings.discount > 0),
+            discount_percent=settings.discount if settings.discount else None,
+            
+            # Detailed breakdown
+            pricing_breakdown=pricing_breakdown,
+            
+            # Additional info
+            estimated_caregivers_available=estimated_caregivers,
+            peak_hours_warning=peak_hours_warning
+        )
 
     def create_booking(self, patient_id: UUID, booking_data: BookingCreate) -> Dict[str, Any]:
         """Create a new booking with payment initiation"""
