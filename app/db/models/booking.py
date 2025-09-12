@@ -67,6 +67,7 @@ class Booking(Base):
     service_fee = Column(Float, nullable=False)
     platform_fee = Column(Float, nullable=False)
     paystack_reference = Column(String, nullable=True)
+    payment_failure_reason = Column(Text, nullable=True)  # Store payment failure details
     
     # Special Instructions
     special_instructions = Column(Text, nullable=True)

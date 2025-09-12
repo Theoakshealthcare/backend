@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     PAYMENT_CURRENCY: str = "NGN"
     MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
     MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
+    
+    # Frontend URL for payment callbacks
+    FRONTEND_URL: str = "https://www.oaklycare.com"
 
     # Gemini AI Configuration
     GEMINI_API_KEY: Optional[str] = None

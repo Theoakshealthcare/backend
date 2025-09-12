@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Request, HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from app.db.models.booking import Booking, PaymentStatus
+from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.prescription import Prescription
 from app.api.deps import get_db
 from app.services.patient_wallet import PatientWalletService
 from app.services.paystack import PaystackService
+from app.services.booking import BookingService
 import logging
 
 router = APIRouter()
@@ -61,8 +62,13 @@ async def paystack_webhook(
                 booking = db.query(Booking).filter(Booking.paystack_reference == reference).first()
                 if booking:
                     booking.payment_status = PaymentStatus.PAID
+                    booking.status = BookingStatus.PENDING  # Set to pending after payment
                     db.commit()
-                    logger.info(f"Booking payment processed: {reference}")
+                    
+                    # Now that payment is successful, notify nearby caregivers
+                    booking_service = BookingService(db)
+                    notifications = booking_service.notify_nearby_caregivers(booking)
+                    logger.info(f"Booking payment processed: {reference}, notified {len(notifications)} caregivers")
                 
                 # Handle prescription payments
                 prescription = db.query(Prescription).filter(Prescription.paystack_reference == reference).first()
@@ -85,8 +91,11 @@ async def paystack_webhook(
                 booking = db.query(Booking).filter(Booking.paystack_reference == reference).first()
                 if booking:
                     booking.payment_status = PaymentStatus.FAILED
+                    booking.status = BookingStatus.CANCELLED  # Cancel booking on payment failure
+                    # Store failure reason
+                    booking.payment_failure_reason = event_data.get("gateway_response", "Payment failed")
                     db.commit()
-                    logger.info(f"Booking payment failed: {reference}")
+                    logger.info(f"Booking payment failed: {reference}, reason: {booking.payment_failure_reason}")
                 
                 # Handle prescription payment failures
                 prescription = db.query(Prescription).filter(Prescription.paystack_reference == reference).first()
