@@ -12,6 +12,7 @@ from app.db.models.patient import Patient
 from app.db.models.user import User
 from app.schemas.booking import (
     BookingCreate, BookingResponse, BookingActionRequest,
+    BookingPreviewRequest, BookingPreviewResponse,
     CaregiverLocationUpdate, CaregiverLocationResponse,
     ChatMessageCreate, ChatMessageResponse,
     BookingNoteCreate, BookingNoteResponse,
@@ -97,6 +98,71 @@ def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
 
 
 # Patient Endpoints
+@router.post(
+    "/preview",
+    response_model=BookingPreviewResponse,
+    summary="Get booking price preview",
+    description="Calculate booking pricing and availability without creating a booking. Use this to show pricing transparency to patients before they commit to booking.",
+    responses={
+        200: {
+            "description": "Booking preview generated successfully",
+            "model": BookingPreviewResponse
+        },
+        400: {
+            "description": "Invalid input data",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Duration must be between 1 and 24 hours"}
+                }
+            }
+        },
+        500: {
+            "description": "Booking settings not configured",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Booking settings not configured"}
+                }
+            }
+        }
+    },
+    tags=["Booking Preview"]
+)
+def get_booking_preview(
+    preview_data: BookingPreviewRequest,
+    booking_service: BookingService = Depends(get_booking_service),
+) -> Any:
+    """
+    Get booking price preview and availability estimate.
+    
+    **This endpoint provides:**
+    - Detailed pricing breakdown (service fee, platform fee, total)
+    - Applied surge pricing and discounts
+    - Estimated number of available caregivers (if location provided)
+    - Peak hours warnings
+    - Service type multipliers
+    
+    **Use this endpoint to:**
+    - Show transparent pricing to patients before booking
+    - Update pricing when service type or duration changes
+    - Display availability estimates in the UI
+    - Warn about surge pricing or peak hours
+    
+    **Optional location data:**
+    - Include patient_latitude and patient_longitude to get caregiver availability estimates
+    - Location is not required for basic pricing calculation
+    
+    **No authentication required** - this is a public pricing endpoint.
+    """
+    try:
+        preview = booking_service.calculate_booking_preview(preview_data)
+        return preview
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.post(
     "/create", 
     response_model=BookingResponse,
