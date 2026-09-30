@@ -145,7 +145,7 @@ The backend has almost no operational tooling. The review on 2026-09-30 found:
 | AD-FR-8 | **Application detail.** Shows the profile (step 1 and 2 fields), consents with timestamps, service areas, preferred hours, every document shown inline (AD-FR-15), Prembly/Onfido results shown as readable fields rather than raw JSON (ID numbers masked; Verification role sees the last 4 digits), and the application's history. | Must |
 | AD-FR-9 | **Document decisions.** Each document can be marked **Verified** or **Rejected** with a reason, which sets `verification_status` and `verified_at`. Expiry date is captured for licences. | Must |
 | AD-FR-10 | **Identity and background decisions.** Set `identity_verification_status` to `verified` or `failed`, and `background_check_status` to `cleared` or `failed` (new value). Each decision needs evidence notes. The status the client sends through `POST /caregiver/identity-verification/result` is **not trusted for approval**; it is stored only as a hint. | Must |
-| AD-FR-11 | **Approve.** Only enabled when the required documents are verified, identity is verified and the background check is cleared **[DECISION: is a background check mandatory for MVP?]**. Approval sets `profile_status='approved'` and records `approved_by`/`approved_at`. It also sends the caregiver a push notification and email. | Must |
+| AD-FR-11 | **Approve.** Only enabled when the required documents are verified, identity is verified **and the background check is cleared** (a background check is **mandatory before approval**, decided 2026-09-30). Approval sets `profile_status='approved'` and records `approved_by`/`approved_at`. It also sends the caregiver a push notification and email. | Must |
 | AD-FR-12 | **Reject / request changes.** Rejection needs a reason chosen from a list plus free text. "Request changes" sends the caregiver back to fix specific items, and the app shows those items. | Must |
 | AD-FR-13 | **Skills.** When approving, the officer assigns **structured service skills** (`nurse`, `caregiver`, `physiotherapist`, `doctor`, `nutritionist`) and sub-specialties (Elderly Care, Dementia, Post-operative, …). This replaces matching on free-text specialization (WhatsApp PRD P2). | Must |
 | AD-FR-14 | **Suspend / reinstate** an approved caregiver, with a reason. A suspended caregiver is not matched and their active future bookings go to the Ops queue for reassignment. | Must |
@@ -456,6 +456,7 @@ All tables are created through Alembic, after the migration graph is fixed. Mone
 - **Redis, a job queue and a scheduler** (shared with the WhatsApp channel).
 - **Private object storage** and migration of the existing documents.
 - **Paystack:** Transfers enabled on the account, with the business verification and balance funding that Transfers need ⚠️ (confirm the account tier). Refund and transfer webhooks configured.
+- **Background check process or provider.** Mandatory before approval (A5), so a v1.0 blocker. Until a vendor is integrated, Verification records the result manually, with uploaded evidence (AD-FR-10).
 - **WhatsApp channel tables** (contacts, consents, support conversations, ratings) for the modules that depend on them.
 - **Caregiver app:** it must show approval results, requested changes and suspension, report its location and availability, and receive push notifications.
 
@@ -488,7 +489,7 @@ All tables are created through Alembic, after the migration graph is fixed. Mone
 | A2 | **Earning hold period** (dispute window) | 24 h after completion |
 | A3 | **Payout cadence and minimum** | Weekly (Friday); minimum ₦5,000 |
 | A4 | **Refund approval limit** for Finance | ₦100,000; above that needs a Super Admin |
-| A5 | **Background check** mandatory for MVP approval? Which provider? | Mandatory ID verification (Prembly); background check v1.1 |
+| A5 | **Background check provider and method.** ✅ *Decided 2026-09-30: a background check is mandatory before any caregiver is approved.* Still open: which provider or process (for example, a police clearance certificate plus reference checks, or a vendor). | Open |
 | A6 | **Four-eyes** on pricing and adjustments | Yes, for pricing publish and adjustments |
 | A7 | **Unmatched SLA** | 30 min to escalate; the patient is told at 30 min |
 | A8 | **On-call channel** for urgent handovers | Phone number and email **[TBD]** |
