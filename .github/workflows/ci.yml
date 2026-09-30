@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      POETRY_VERSION: "2.2.1"
+      # Dummy values so the app can import; no job step connects to a database.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      SECRET_KEY: ci-secret-key
+      VITALS_ENCRYPTION_KEY: 50X3wQnra4NZogcYofLdQonUIBEcDbj2Pf_lCgblQVI=  # throwaway CI-only key
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Install Poetry
+        run: pipx install "poetry==${POETRY_VERSION}"
+
+      - name: Validate pyproject and lock file
+        run: poetry check --lock
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Lint (bug-class rules)
+        # Only syntax errors and undefined names fail CI for now; the full
+        # ruleset (and ruff format) is enforced once the codebase is cleaned up.
+        run: poetry run ruff check --select E9,F63,F7,F82 .
+
+      - name: App import and OpenAPI smoke test
+        run: poetry run python -m scripts.ci_smoke

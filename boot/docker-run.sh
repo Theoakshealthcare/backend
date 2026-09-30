@@ -2,7 +2,7 @@
 
 set -e  # Exit on any error
 
-source /opt/venv/bin/activate
+source /app/.venv/bin/activate
 
 cd /app
 RUN_PORT=${PORT:-8000}

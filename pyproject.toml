@@ -1,0 +1,66 @@
+[project]
+name = "oaklycare-backend"
+version = "0.1.0"
+description = "FastAPI backend for the Oaklycare home-healthcare platform"
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    # Web framework / ASGI
+    "fastapi (>=0.141.1,<0.142.0)",
+    # [standard] pulls in `websockets`, required by the booking WebSocket endpoints
+    "uvicorn[standard] (>=0.53.0,<0.54.0)",
+    "gunicorn (>=26.2.0,<27.0.0)",
+    "python-multipart (>=0.0.32,<0.1.0)",
+
+    # Database
+    "sqlalchemy (>=2.0.54,<2.1.0)",
+    "alembic (>=1.20.0,<2.0.0)",
+    "psycopg2-binary (>=2.9.13,<3.0.0)",
+
+    # Settings / validation
+    "pydantic (>=2.13.5,<3.0.0)",
+    "pydantic-settings (>=2.15.0,<3.0.0)",
+    "email-validator (>=2.3.0,<3.0.0)",
+    "python-dotenv (>=1.2.3,<2.0.0)",
+
+    # Auth / crypto
+    "python-jose[cryptography] (>=3.5.0,<4.0.0)",
+    # passlib 1.7.4 is unmaintained and breaks on bcrypt>=4.1; keep this pair
+    # pinned together until the move to pwdlib.
+    "passlib[bcrypt] (==1.7.4)",
+    "bcrypt (==4.0.1)",
+    "cryptography (>=46.0.0)",
+
+    # Email templates
+    "jinja2 (>=3.1.6,<4.0.0)",
+    "certifi (>=2026.7.22)",
+
+    # Third-party integrations
+    "requests (>=2.34.2,<3.0.0)",
+    "cloudinary (>=1.46.2,<2.0.0)",
+    # Deprecated upstream; migrate to google-genai.
+    "google-generativeai (>=0.8.6,<0.9.0)",
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.1.1"
+httpx = "^0.28.1"
+ruff = "^0.16.9"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["app/alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
