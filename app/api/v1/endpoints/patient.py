@@ -8,7 +8,7 @@ import csv
 from io import StringIO
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_admin, get_current_user, get_db
 from app.db.models.user import User
 from app.db.models.patient import Patient
 from app.schemas.patient import (
@@ -25,7 +25,12 @@ from app.schemas.patient import (
     PaymentVerificationResponse,
     PaystackWebhookEvent
 )
-from app.services.patient_wallet import PatientWalletService
+from app.services.patient_wallet import (
+    PatientWalletService,
+    RefundConflict,
+    RefundGatewayError,
+    RefundNotFound,
+)
 from app.services.paystack import PaystackService
 from app.db.models.patient import PatientRefundRequest
 
@@ -312,17 +317,10 @@ def get_refund_requests(
 @router.get("/admin/refund/requests")
 def get_all_refund_requests(
     status_filter: Optional[str] = Query(None, description="Filter by status: pending, approved, rejected"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
     """Get all refund requests (Admin only)"""
-    # Strengthen admin permission check
-    if current_user.user_type != "admin" or not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Active admin account required."
-        )
-        
     query = db.query(PatientRefundRequest)
     
     if status_filter:
@@ -355,16 +353,10 @@ def get_all_refund_requests(
 def process_refund_request(
     request_id: UUID,
     action_data: Dict[str, Any],  # {"action": "approve/reject", "admin_notes": "..."}
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     wallet_service: PatientWalletService = Depends(get_patient_wallet_service),
 ):
     """Process refund request (Admin only)"""
-    if current_user.user_type != "admin" or not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Active admin account required."
-        )
-    
     action = action_data.get("action")
     admin_notes = action_data.get("admin_notes")
     
@@ -374,19 +366,20 @@ def process_refund_request(
             detail="Action must be either 'approve' or 'reject'"
         )
     
-    success = wallet_service.process_refund_approval(
-        request_id, 
-        current_user.id, 
-        action, 
-        admin_notes
-    )
-    
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Refund request not found or already processed"
+    try:
+        wallet_service.process_refund_approval(
+            request_id,
+            current_user.id,
+            action,
+            admin_notes
         )
-    
+    except RefundNotFound:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Refund request not found")
+    except RefundConflict as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except RefundGatewayError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
     return {
         "status": "success",
         "message": f"Refund request {action}d successfully"
