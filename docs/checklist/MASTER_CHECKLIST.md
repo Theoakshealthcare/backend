@@ -29,13 +29,14 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Library swaps: passlib → pwdlib · python-jose → PyJWT · google-generativeai → google-genai
 
 ## 1. Secrets & repo hygiene — 🔴 critical, not started
-- [ ] ⚠️ Rotate every secret in the committed backend `.env`: JWT secret, SMTP, Gemini, Paystack keys and webhook secret, Cloudinary, Supabase DB password
-- [ ] ⚠️ Plan re-encryption of vitals and FallGuard data before rotating `VITALS_ENCRYPTION_KEY`
-- [ ] ⚠️ Move secrets into Render env vars, then `git rm --cached .env`
-- [ ] ⚠️ Remove the hardcoded DB password from `config.py`, `alembic.ini`, `docker-compose.yml` and `scripts/check_booking_patient.py`
+- [ ] ⚠️ **Owner:** rotate every secret in the committed backend `.env` ([runbook](../sop/2026-10-05-secrets-and-rotation.md)): JWT secret, SMTP, Gemini, Paystack keys and webhook secret, Cloudinary, Supabase DB password
+- [x] Re-encryption script for vitals and FallGuard data with multi-key support. 2026-10-05, `security/secrets`, [SOP + runbook](../sop/2026-10-05-secrets-and-rotation.md)
+- [x] `.env` untracked; configuration comes from the server env file (Docker). 2026-10-05, `security/secrets`
+- [x] Removed the hardcoded DB password and credentials from the code; required settings fail fast. 2026-10-05, `security/secrets`
 - [ ] ⚠️ Patient app: remove the committed release keystore and its passwords (`android/gradle.properties`), and decide whether to reset the Play upload key
 - [ ] Decide on a history rewrite (`git filter-repo`) for each repo
-- [ ] Remove the committed `__pycache__` files; untrack the caregiver app's `.env`
+- [x] Backend `__pycache__` files untracked. 2026-10-05
+- [ ] Untrack the caregiver app's `.env`
 
 ## 2. Backend security & money fixes — 🔴 critical, not started
 - [ ] ⚠️ Authenticate the booking WebSockets (they currently use hardcoded demo users)

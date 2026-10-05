@@ -1,6 +1,5 @@
 import json
 import os
-import secrets
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, validator
@@ -9,7 +8,12 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    # Required, no defaults: the app refuses to start without them.
+    SECRET_KEY: str
+    DATABASE_URL: str
+    # Comma-separated Fernet keys. The first encrypts; all of them can decrypt
+    # (lets the key be rotated without downtime, see scripts/reencrypt_health_data.py).
+    VITALS_ENCRYPTION_KEY: str
     # 60 minutes for access token
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # 7 days for refresh token
@@ -35,19 +39,6 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "Oaklycare"
     
-    # Database
-    POSTGRES_SERVER: str = "ljrcyoonkqpbdsddqmwk.supabase.co"
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "Oaklycarehealth"
-    POSTGRES_DB: str = "postgres"
-    DATABASE_URL: Optional[str] = None
-
-    @validator("DATABASE_URL", pre=True)
-    def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
-        if isinstance(v, str):
-            return v
-        return "postgresql://postgres.ljrcyoonkqpbdsddqmwk:Oaklycarehealth@aws-0-eu-north-1.pooler.supabase.com:6543/postgres"
-
     # Email
     SMTP_TLS: bool = True
     SMTP_PORT: Optional[int] = None
@@ -70,11 +61,6 @@ class Settings(BaseSettings):
     OTP_EXPIRE_MINUTES: int = 10
     OTP_LENGTH: int = 5
 
-    # First superuser
-    FIRST_SUPERUSER_EMAIL: EmailStr = "admin@oaklycare.com"
-    FIRST_SUPERUSER_PASSWORD: str = "admin"
-    FIRST_SUPERUSER_FULLNAME: str = "Admin"
-    
     # Onfido Configuration
     ONFIDO_API_KEY: str = ""
     ONFIDO_WEBHOOK_TOKEN: Optional[str] = None
@@ -95,8 +81,6 @@ class Settings(BaseSettings):
     # Gemini AI Configuration
     GEMINI_API_KEY: Optional[str] = None
     
-    # Encryption Key
-    VITALS_ENCRYPTION_KEY: Optional[str] = None
 
     # Push Notifications
     FCM_SERVER_KEY: Optional[str] = None
