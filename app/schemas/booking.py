@@ -241,6 +241,15 @@ class BookingResponse(BaseModel):
     booking_for: str
     created_at: datetime
     updated_at: datetime
+    dispatch_state: Optional[str] = Field(
+        None, description="dispatching | matched | unmatched; null before payment or for legacy bookings")
+    visit_code: Optional[str] = Field(
+        None,
+        description="4-digit code the patient gives the caregiver to start the visit. Only returned to the "
+                    "booking's own patient from GET /booking/booking/{id}, while the booking is accepted or "
+                    "en_route; null for everyone else and in every other response.",
+        example="4821",
+    )
     # Payment fields for booking creation response
     payment_url: Optional[str] = Field(
         None,
@@ -315,8 +324,10 @@ class CaregiverLocationResponse(BaseModel):
 
 # Booking Actions
 class BookingActionRequest(BaseModel):
-    action: Literal["accept", "decline", "start", "complete", "cancel"]
+    action: Literal["accept", "decline", "on_my_way", "start", "complete", "cancel"]
     reason: Optional[str] = None
+    # Required by `start`: the 4-digit code the patient reads out at the door.
+    visit_code: Optional[str] = Field(None, pattern=r"^[0-9]{4}$")
 
 
 # Chat Message

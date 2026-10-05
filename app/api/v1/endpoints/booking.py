@@ -2,12 +2,14 @@ import logging
 from typing import Any, List, Optional
 from uuid import UUID
 
+from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin, user_is_admin, authenticate_websocket
 from app.core.money import kobo_to_naira
+from app.core.security import decrypt
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
@@ -21,7 +23,9 @@ from app.schemas.booking import (
     BookingNotificationResponse,
     LiveTrackingResponse
 )
-from app.services.booking import BookingActionForbidden, BookingService, BookingStateConflict
+from app.services.booking import (
+    BookingActionForbidden, BookingService, BookingStateConflict, BookingVisitCodeError,
+)
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
@@ -44,6 +48,11 @@ def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
     """Helper function to enrich booking with patient and caregiver details"""
     booking_dict = booking.__dict__.copy()
     booking_dict.pop("_sa_instance_state", None)
+    # The visit code never leaves through this helper (the action endpoint returns this dict as-is,
+    # without a response model to filter it). The patient-facing GET adds the plain code explicitly.
+    for secret in ("visit_code_enc", "visit_code_failed_attempts", "visit_code_locked_until"):
+        booking_dict.pop(secret, None)
+    booking_dict["visit_code"] = None
     # Money is stored as kobo; responses keep the naira field names mobile clients already use.
     booking_dict["total_amount"] = booking.total_amount
     booking_dict["service_fee"] = booking.service_fee
@@ -478,6 +487,9 @@ async def handle_booking_action(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except BookingStateConflict as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except BookingVisitCodeError as e:
+        headers = {"Retry-After": str(e.retry_after)} if e.retry_after else None
+        raise HTTPException(status_code=e.status_code, detail=e.detail, headers=headers)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -486,7 +498,7 @@ async def handle_booking_action(
 
 
 @router.get(
-    "/booking/{booking_id}", 
+    "/booking/{booking_id}",
     response_model=BookingResponse,
     summary="Get booking details",
     description="Retrieve detailed information about a specific booking. Available to both patients and caregivers who have access.",
@@ -518,7 +530,25 @@ def get_booking_details(
 
     # Enrich booking with patient and caregiver details
     enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+    enriched_booking["visit_code"] = _visit_code_for_patient(booking_service.db, current_user, booking)
     return enriched_booking
+
+
+def _visit_code_for_patient(db: Session, user: User, booking: Booking) -> Optional[str]:
+    """The plain visit code, for the booking's own patient only and only while it can still be used
+    (accepted or en_route). Everyone else, including the caregiver and admins, gets None."""
+    if user.user_type != "patient" or booking.visit_code_enc is None:
+        return None
+    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE):
+        return None
+    patient = db.query(Patient).filter(Patient.user_id == user.id).first()
+    if patient is None or booking.patient_id != patient.id:
+        return None
+    try:
+        return decrypt(booking.visit_code_enc)
+    except InvalidToken:
+        log.error("Booking %s: visit code cannot be decrypted", booking.id)
+        return None
 
 
 def _refund_required_response(booking: Booking) -> dict:
@@ -848,7 +878,7 @@ def get_live_booking_tracking(
 
     # The location is the caregiver's latest global position, so it must stop being visible
     # once the job is over (same rule as the tracking WebSocket). Admins keep access.
-    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS) and not user_is_admin(
+    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS) and not user_is_admin(
         booking_service.db, current_user
     ):
         raise HTTPException(

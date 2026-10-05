@@ -1,8 +1,12 @@
+import hmac
+import logging
+import math
 import secrets
 import string
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from uuid import UUID
+from cryptography.fernet import InvalidToken
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
@@ -21,6 +25,9 @@ from app.services.pricing import compute_price
 # aliased: `settings` is shadowed by BookingSettings locals in this module's methods
 from app.core.config import settings as app_settings
 from app.core.money import kobo_to_naira
+from app.core.security import decrypt, encrypt
+
+logger = logging.getLogger(__name__)
 
 
 def _naira(kobo: int) -> float:
@@ -34,6 +41,17 @@ class BookingActionForbidden(Exception):
 
 class BookingStateConflict(Exception):
     """The booking is not in a state that allows this action (HTTP 409)."""
+
+
+class BookingVisitCodeError(Exception):
+    """The visit code was missing or wrong (HTTP 400), or is locked after too many wrong tries
+    (HTTP 423, with ``retry_after`` seconds)."""
+
+    def __init__(self, detail: str, status_code: int, retry_after: Optional[int] = None):
+        super().__init__(detail)
+        self.detail = detail
+        self.status_code = status_code
+        self.retry_after = retry_after
 
 
 class BookingService:
@@ -316,6 +334,55 @@ class BookingService:
         else:
             return 1.0  # No surge
 
+    def _check_visit_code(self, booking: Booking, code: Optional[str]) -> None:
+        """Verify the visit code for `start`, under the booking row lock the caller holds.
+
+        A wrong guess is counted and saved *before* raising (the caller rolls back on errors, which
+        would otherwise throw the counter away). Three wrong guesses lock the code for
+        VISIT_CODE_LOCK_MINUTES; while locked even the right code is refused and nothing is counted.
+        """
+        now = datetime.utcnow()
+        if booking.visit_code_enc is None:
+            # accepted before codes existed: fail closed rather than skip the check
+            raise BookingStateConflict("This booking has no visit code. Contact support")
+        locked_until = booking.visit_code_locked_until
+        if locked_until is not None and locked_until > now:
+            raise self._locked_error(locked_until, now)
+        if not code:
+            raise BookingVisitCodeError("A visit code is required to start the visit", status_code=400)
+        try:
+            expected = decrypt(booking.visit_code_enc)
+        except InvalidToken:
+            logger.error("Booking %s: visit code cannot be decrypted (encryption key rotated away?)", booking.id)
+            raise BookingStateConflict("This booking has no visit code. Contact support")
+        if hmac.compare_digest(expected.encode(), code.encode()):
+            return
+
+        attempts = (booking.visit_code_failed_attempts or 0) + 1
+        if attempts >= app_settings.VISIT_CODE_MAX_ATTEMPTS:
+            booking.visit_code_failed_attempts = 0
+            booking.visit_code_locked_until = now + timedelta(minutes=app_settings.VISIT_CODE_LOCK_MINUTES)
+            error: BookingVisitCodeError = self._locked_error(booking.visit_code_locked_until, now)
+        else:
+            booking.visit_code_failed_attempts = attempts
+            left = app_settings.VISIT_CODE_MAX_ATTEMPTS - attempts
+            error = BookingVisitCodeError(
+                f"Incorrect visit code. {left} attempt{'s' if left != 1 else ''} left before the code is locked",
+                status_code=400,
+            )
+        self.db.commit()
+        logger.warning("Booking %s: wrong visit code (attempt %d)", booking.id, attempts)
+        raise error
+
+    @staticmethod
+    def _locked_error(locked_until: datetime, now: datetime) -> "BookingVisitCodeError":
+        seconds = max(1, math.ceil((locked_until - now).total_seconds()))
+        minutes = max(1, math.ceil(seconds / 60))
+        return BookingVisitCodeError(
+            f"Too many incorrect attempts. The visit code is locked for {minutes} minute{'s' if minutes != 1 else ''}",
+            status_code=423, retry_after=seconds,
+        )
+
     def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID,
                             action_data: BookingActionRequest) -> Booking:
         """Handle a caregiver action on a booking.
@@ -373,6 +440,9 @@ class BookingService:
                 # Allowed from any dispatch state: an offer from an earlier wave stays valid, and so
                 # does one from a booking already escalated to 'unmatched'.
                 booking.dispatch_state = "matched"
+                booking.visit_code_enc = encrypt(f"{secrets.randbelow(10_000):04d}")
+                booking.visit_code_failed_attempts = 0
+                booking.visit_code_locked_until = None
                 notification.response = "accept"
                 notification.response_at = datetime.utcnow()
 
@@ -397,18 +467,26 @@ class BookingService:
                 if not is_assigned:
                     raise BookingActionForbidden("This booking is not assigned to you")
 
-                if action == "start":
+                if action == "on_my_way":
                     if booking.status != BookingStatus.ACCEPTED:
+                        raise BookingStateConflict("Only an accepted booking can be marked on the way")
+                    booking.status = BookingStatus.EN_ROUTE
+                elif action == "start":
+                    # on_my_way is optional: a caregiver who never pressed it can still start.
+                    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE):
                         raise BookingStateConflict("Only an accepted booking can be started")
+                    self._check_visit_code(booking, action_data.visit_code)
                     booking.status = BookingStatus.IN_PROGRESS
                     booking.actual_start_time = datetime.utcnow()
+                    booking.visit_code_failed_attempts = 0
+                    booking.visit_code_locked_until = None
                 elif action == "complete":
                     if booking.status != BookingStatus.IN_PROGRESS:
                         raise BookingStateConflict("Only a booking in progress can be completed")
                     booking.status = BookingStatus.COMPLETED
                     booking.actual_end_time = datetime.utcnow()
                 elif action == "cancel":
-                    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS):
+                    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):
                         raise BookingStateConflict("This booking can no longer be cancelled")
                     booking.status = BookingStatus.CANCELLED
 
