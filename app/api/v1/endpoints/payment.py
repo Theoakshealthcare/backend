@@ -114,7 +114,12 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
                 db.rollback()
 
         elif event in ("refund_processed", "refund_failed"):
-            wallet_service.process_refund_webhook(event_data.get("refund_id"), event == "refund_processed")
+            wallet_service.process_refund_webhook(
+                event_data.get("refund_id"),
+                event == "refund_processed",
+                original_reference=event_data.get("reference"),
+                amount_kobo=event_data.get("amount_kobo"),
+            )
 
         elif event == "refund_successful":
             logger.info(f"Refund successful for reference: {reference}")

@@ -15,6 +15,7 @@ from app.schemas.patient import (
     PatientWalletSummary, PatientTransactionOut,
     PaymentVerificationResponse
 )
+from app.core.money import to_kobo
 from app.services.paystack import PaystackService
 
 logger = logging.getLogger(__name__)
@@ -612,10 +613,12 @@ class PatientWalletService:
                 PatientRefundRequest.id == request_id).with_for_update().populate_existing().first()
             tx = self.db.query(PatientTransaction).filter(
                 PatientTransaction.id == refund_tx_id).with_for_update().populate_existing().first()
-            req.status = "approved"
-            req.processed_at = datetime.utcnow()
-            if gateway_id is not None:
+            if gateway_id is not None and tx.paystack_reference is None:
                 tx.paystack_reference = str(gateway_id)
+            # a refund webhook may already have closed this (failed / successful); don't reopen it
+            if req.status == "processing" and tx.status != "failed":
+                req.status = "approved"
+                req.processed_at = datetime.utcnow()
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -656,25 +659,80 @@ class PatientWalletService:
             self.db.rollback()
             raise
 
-    def process_refund_webhook(self, refund_id: Any, processed: bool) -> bool:
-        """Handle Paystack refund.processed / refund.failed. Idempotent; unknown ids ignored."""
-        if refund_id is None:
-            return False
-        tx = (
-            self.db.query(PatientTransaction)
-            .filter(PatientTransaction.type == "refund",
-                    PatientTransaction.paystack_reference == str(refund_id))
-            .with_for_update().populate_existing().first()
-        )
+    def _match_pending_refund_by_original(self, original_reference: Optional[str], amount_kobo: Optional[int]):
+        """Find the single pending refund tx for this original charge reference and amount."""
+        if not original_reference or amount_kobo is None:
+            return None
+        candidates = self.db.query(PatientTransaction).filter(
+            PatientTransaction.type == "refund",
+            PatientTransaction.status == "pending",
+        ).all()
+        matches = []
+        for t in candidates:
+            if to_kobo(t.amount) != amount_kobo or _REQUEST_TAG not in (t.description or ""):
+                continue
+            try:
+                req_id = uuid.UUID((t.description or "").rsplit(_REQUEST_TAG, 1)[1].rstrip("]"))
+            except ValueError:
+                continue
+            req = self.db.query(PatientRefundRequest).filter(PatientRefundRequest.id == req_id).first()
+            if req is None:
+                continue
+            original = self.db.query(PatientTransaction).filter(PatientTransaction.id == req.transaction_id).first()
+            if original is not None and original.paystack_reference == original_reference:
+                matches.append(t)
+        return matches[0] if len(matches) == 1 else None
+
+    def process_refund_webhook(
+        self,
+        refund_id: Any,
+        processed: bool,
+        original_reference: Optional[str] = None,
+        amount_kobo: Optional[int] = None,
+    ) -> bool:
+        """Handle Paystack refund.processed / refund.failed. Idempotent.
+
+        Matches by the stored Paystack refund id; if that was never stored (ambiguous
+        response, or the webhook beat phase 3), falls back to the original charge
+        reference + amount against exactly one pending refund tx and stores the id.
+        """
+        tx = None
+        if refund_id is not None:
+            tx = (
+                self.db.query(PatientTransaction)
+                .filter(PatientTransaction.type == "refund",
+                        PatientTransaction.paystack_reference == str(refund_id))
+                .first()
+            )
+        if tx is None:
+            tx = self._match_pending_refund_by_original(original_reference, amount_kobo)
+            if tx is not None and refund_id is not None:
+                tx.paystack_reference = str(refund_id)
+                self.db.commit()
         if tx is None:
             self.db.rollback()
-            logger.warning("Refund webhook for unknown refund id %s", refund_id)
+            logger.error(
+                "Refund webhook could not be matched (refund id %s, original reference %s, amount %s kobo); "
+                "needs manual reconciliation", refund_id, original_reference, amount_kobo,
+            )
             return False
+        tx_id = tx.id
+        self.db.rollback()  # re-lock in a fixed order below
+
         if processed:
+            tx = self.db.query(PatientTransaction).filter(
+                PatientTransaction.id == tx_id).with_for_update().populate_existing().first()
             if tx.status == "pending":
                 tx.status = "successful"
                 tx.updated_at = datetime.utcnow()
+                description = tx.description or ""
+                if _REQUEST_TAG in description:
+                    req = self.db.query(PatientRefundRequest).filter(
+                        PatientRefundRequest.id == uuid.UUID(description.rsplit(_REQUEST_TAG, 1)[1].rstrip("]"))
+                    ).with_for_update().populate_existing().first()
+                    if req is not None and req.status == "processing":
+                        req.status = "approved"
+                        req.processed_at = datetime.utcnow()
             self.db.commit()
             return True
-        self.db.rollback()  # release this lock; _compensate_refund re-locks everything in order
-        return self._compensate_refund(tx.id, to_request_status="failed")
+        return self._compensate_refund(tx_id, to_request_status="failed")

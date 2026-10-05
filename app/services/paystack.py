@@ -263,6 +263,8 @@ class PaystackService:
             return {
                 "event": "refund_processed" if event == "refund.processed" else "refund_failed",
                 "refund_id": data.get("id"),
+                "reference": data.get("transaction_reference") or (data.get("transaction") or {}).get("reference"),
+                "amount_kobo": data.get("amount"),
                 "status": data.get("status"),
             }
         elif event == "refund.successful":

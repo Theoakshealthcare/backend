@@ -4,7 +4,7 @@
 |---|---|
 | **Date** | 2026-10-05 |
 | **Branch** | `security/money` (base `test/harness`) |
-| **Status** | Verified locally (74 tests green) |
+| **Status** | Verified locally (78 tests green) |
 
 ## What shipped
 Five money-path fixes, each with tests that failed before the change:
@@ -33,7 +33,7 @@ Five money-path fixes, each with tests that failed before the change:
 | Deposit refunds to card | The deposit's wallet credit is **reversed** (balance debited) before the Paystack refund; blocked (409) if the balance can't cover it | Leaving the credit: the patient keeps the money in the wallet and also gets it on the card |
 | Refund is two-phase | Phase 1 under locks: request -> `processing`, deposit's wallet credit debited, pending refund tx, **commit**. Phase 2: Paystack call with no transaction open (15s timeout). Phase 3: success -> request `approved`, gateway id stored; definite rejection (Paystack 4xx / `status:false`) -> compensate (re-credit, refund tx `failed`, request back to `pending`, 502); ambiguous (timeout, network, 5xx) -> stays `processing`, logged for reconciliation, **never auto-retried**, 502 "outcome unknown" | Calling Paystack under row locks: a hung call holds locks and pool connections; auto-retrying an ambiguous call could refund twice |
 | Refund states | Request: `pending` -> `processing` -> `approved` / back to `pending` / `failed` (Paystack later reported failure). Refund tx: `pending` -> `successful` (`refund.processed` webhook) / `failed` | |
-| Refund webhooks | `refund.processed` marks the refund tx `successful`; `refund.failed` re-credits a reversed deposit once, marks tx `failed` and request `failed`. Matched by the Paystack refund id stored at phase 3. Idempotent; unknown ids ignored | |
+| Refund webhooks | `refund.processed` marks the refund tx `successful`; `refund.failed` re-credits a reversed deposit once, marks tx `failed` and request `failed`. Matched by the stored Paystack refund id; if none was stored (ambiguous response, or the webhook beat phase 3) falls back to the original charge reference + amount against exactly one `pending` refund tx and stores the id. No unique match -> ERROR log with the reference, 200. Phase 3 never reopens a request a webhook already closed. Idempotent | |
 | Refundable originals | Only `payment` / `deposit` transactions with status `successful`, checked at request and at approval (no refund of a refund) | |
 | Kobo conversion | One `app.core.money.to_kobo` (Decimal, half-up) used by `initialize_transaction`, `initiate_refund` and settlement. Booking `total_amount` / `service_fee` / `platform_fee` rounded to 2dp at creation | Truncating on init vs rounding on check rejected real payments for fractional totals |
 | Webhook key | Empty `PAYSTACK_SECRET_KEY` -> every webhook rejected (400), and startup fails when `ENVIRONMENT=production` | An empty key makes the HMAC forgeable by anyone |
@@ -76,7 +76,8 @@ Error shape stays FastAPI's `{"detail": ...}`.
 - A `payment_exceptions` review queue if ops needs more than the failure-reason column.
 - Refund `pending` -> `successful` transition from the `refund.successful` webhook (currently only logged).
 - A crash after phase 1 commit but before the Paystack call leaves a `processing` request that never reached Paystack; reconciliation is manual (query `patient_refund_requests.status='processing'`). Ambiguous outcomes land in the same bucket. No automated reconciler yet.
-- Refund webhooks match on the Paystack refund id from the create response; the webhook payload shape follows Paystack docs and was not captured live. A `processing` request has no id and cannot be matched.
+- The refund webhook payload shape (`id`, `transaction_reference`, `amount` in kobo) is from Paystack docs, **not a live capture**.
+- An admin reconcile endpoint/job (list `processing` refunds, force-close or re-credit) lands with the admin console; until then unmatched refunds are found via the ERROR log and `patient_refund_requests.status='processing'`.
 - Refund tx to request link is a `[refund_request:<id>]` tag in `description` (no migration); a proper `refund_request_id` column belongs with WP-E.
 - Webhook signature uses `PAYSTACK_SECRET_KEY` (what Paystack signs with); `PAYSTACK_WEBHOOK_SECRET` is unused.
 - Money columns are still Float/Numeric naira (WP-E2).
