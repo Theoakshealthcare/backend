@@ -113,3 +113,49 @@ def send_password_reset_email(email_to: str, token: str) -> None:
         html_template=html_template,
         # environment={"project_name": settings.PROJECT_NAME},
     )
+
+
+_CAREGIVER_DECISIONS = {
+    "approved": (
+        "Your application was approved",
+        "Congratulations, your application has been approved. You can now receive booking requests.",
+    ),
+    "rejected": (
+        "Your application was not approved",
+        "Unfortunately we could not approve your application.",
+    ),
+    "changes_requested": (
+        "Changes needed on your application",
+        "We need a few changes before we can approve your application. Please update the items below and resubmit.",
+    ),
+    "suspended": (
+        "Your account has been suspended",
+        "Your caregiver account has been suspended and you will not receive new booking requests.",
+    ),
+}
+
+
+def send_caregiver_decision_email(
+    *,
+    email_to: str,
+    full_name: str,
+    decision: str,
+    reason: str | None = None,
+    items: list[str] | None = None,
+    note: str | None = None,
+) -> bool:
+    """Tell a caregiver about an admin decision (approved, rejected, changes_requested, suspended)."""
+    heading, message = _CAREGIVER_DECISIONS[decision]
+    html_content = render_template(
+        "caregiver_decision",
+        {
+            "project_name": settings.PROJECT_NAME,
+            "heading": heading,
+            "message": message,
+            "full_name": full_name,
+            "reason": reason,
+            "items": items,
+            "note": note,
+        },
+    )
+    return send_email_smtp(email_to, f"{settings.PROJECT_NAME} - {heading}", html_content)
