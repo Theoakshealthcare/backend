@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     PAYMENT_CURRENCY: str = "NGN"
     MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
     MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
+    MIN_WITHDRAWAL_KOBO: int = 100000  # 1,000 Naira, minimum caregiver withdrawal
     
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"

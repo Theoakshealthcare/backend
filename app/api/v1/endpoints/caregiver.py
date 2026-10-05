@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.api.deps import get_current_user, get_db, user_is_admin
+from app.core.config import settings
 from app.db.models.user import User
 from app.schemas.caregiver import (
     CaregiverProfile,
@@ -429,11 +430,26 @@ def request_withdrawal(
     caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
     if not caregiver:
         raise HTTPException(status_code=404, detail="Caregiver profile not found.")
-    wallet = db.query(CaregiverWallet).filter(CaregiverWallet.caregiver_id == caregiver.id).first()
+    if data.amount < settings.MIN_WITHDRAWAL_KOBO:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Minimum withdrawal is {settings.MIN_WITHDRAWAL_KOBO} kobo.",
+        )
+    # Lock the wallet row so check + deduct is atomic; populate_existing forces a fresh
+    # read of the balance after we acquire the lock.
+    wallet = (
+        db.query(CaregiverWallet)
+        .filter(CaregiverWallet.caregiver_id == caregiver.id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
     if not wallet or wallet.balance < data.amount:
+        db.rollback()
         raise HTTPException(status_code=400, detail="Insufficient wallet balance.")
     acct = db.query(CaregiverBankAccount).filter(CaregiverBankAccount.caregiver_id == caregiver.id).first()
     if not acct:
+        db.rollback()
         raise HTTPException(status_code=400, detail="Bank account not set.")
     # Create withdrawal transaction (pending)
     from uuid import uuid4

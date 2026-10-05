@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from typing import Optional, List, Literal
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, Field, validator
 import uuid
 
 
@@ -132,7 +132,7 @@ class CaregiverBankAccountUpdate(BaseModel):
     account_name: str
 
 class CaregiverWithdrawalRequest(BaseModel):
-    amount: int  # in kobo
+    amount: int = Field(gt=0)  # in kobo
     narration: Optional[str] = None
 
 class CaregiverWithdrawalResponse(BaseModel):
