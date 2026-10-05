@@ -13,12 +13,12 @@ settle_booking_payment(), so the rules cannot drift apart:
 
 import logging
 import uuid
-from decimal import Decimal
 from enum import Enum
-from typing import Any, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.money import to_kobo, to_kobo_or_none
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 
 logger = logging.getLogger(__name__)
@@ -33,16 +33,10 @@ class SettleOutcome(str, Enum):
 
 
 def expected_kobo(booking: Booking) -> int:
-    return int((Decimal(str(booking.total_amount)) * 100).quantize(Decimal("1")))
+    return to_kobo(booking.total_amount)
 
 
-def naira_to_kobo(amount_naira: Any) -> Optional[int]:
-    if amount_naira is None:
-        return None
-    try:
-        return int((Decimal(str(amount_naira)) * 100).quantize(Decimal("1")))
-    except Exception:
-        return None
+naira_to_kobo = to_kobo_or_none
 
 
 def settle_booking_payment(db: Session, booking_id: uuid.UUID, paid_kobo: Optional[int]) -> SettleOutcome:

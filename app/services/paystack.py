@@ -6,7 +6,10 @@ from typing import Dict, Any, Optional
 from decimal import Decimal
 from datetime import datetime
 
-from app.core.config import settings  # Assume you have Paystack keys in settings
+from app.core.config import settings
+from app.core.money import to_kobo
+
+REQUEST_TIMEOUT_SECONDS = 15  # Assume you have Paystack keys in settings
 
 
 class PaystackService:
@@ -43,7 +46,7 @@ class PaystackService:
         url = f"{self.base_url}/transaction/initialize"
         
         # Convert amount to kobo (multiply by 100)
-        amount_kobo = int(amount * 100)
+        amount_kobo = to_kobo(amount)
         
         payload = {
             "email": email,
@@ -59,7 +62,7 @@ class PaystackService:
             payload["metadata"] = metadata
         
         try:
-            response = requests.post(url, headers=self.headers, json=payload)
+            response = requests.post(url, headers=self.headers, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
             response.raise_for_status()
             
             data = response.json()
@@ -100,7 +103,7 @@ class PaystackService:
         url = f"{self.base_url}/transaction/verify/{reference}"
         
         try:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=REQUEST_TIMEOUT_SECONDS)
             response.raise_for_status()
             
             data = response.json()
@@ -156,10 +159,10 @@ class PaystackService:
         }
         
         if amount:
-            payload["amount"] = int(amount * 100)  # Convert to kobo
+            payload["amount"] = to_kobo(amount)
         
         try:
-            response = requests.post(url, headers=self.headers, json=payload)
+            response = requests.post(url, headers=self.headers, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
             response.raise_for_status()
             
             data = response.json()
@@ -174,14 +177,26 @@ class PaystackService:
                     "message": data.get("message", "Refund initiation failed")
                 }
                 
-        except requests.RequestException as e:
+        except requests.HTTPError as e:
+            # A 4xx is Paystack definitively refusing; a 5xx may or may not have been applied.
+            code = e.response.status_code if e.response is not None else None
+            definite = code is not None and 400 <= code < 500
             return {
                 "status": False,
+                "ambiguous": not definite,
+                "message": f"Paystack error: {code}"
+            }
+        except requests.RequestException as e:
+            # Timeout / connection drop: the refund may have been created. Never assume failure.
+            return {
+                "status": False,
+                "ambiguous": True,
                 "message": f"Network error: {str(e)}"
             }
         except Exception as e:
             return {
                 "status": False,
+                "ambiguous": True,
                 "message": f"Unexpected error: {str(e)}"
             }
 
@@ -196,6 +211,9 @@ class PaystackService:
         Returns:
             True if signature is valid, False otherwise
         """
+        if not self.secret_key or not signature:
+            # With no key configured the HMAC is computable by anyone: never accept.
+            return False
         try:
             expected_signature = hmac.new(
                 self.secret_key.encode('utf-8'),
@@ -241,6 +259,12 @@ class PaystackService:
                 "customer_email": data.get("customer", {}).get("email"),
                 "metadata": data.get("metadata", {})
             }
+        elif event in ("refund.processed", "refund.failed"):
+            return {
+                "event": "refund_processed" if event == "refund.processed" else "refund_failed",
+                "refund_id": data.get("id"),
+                "status": data.get("status"),
+            }
         elif event == "refund.successful":
             return {
                 "event": "refund_successful",
@@ -266,7 +290,7 @@ class PaystackService:
         url = f"{self.base_url}/bank"
         
         try:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=REQUEST_TIMEOUT_SECONDS)
             response.raise_for_status()
             
             data = response.json()
