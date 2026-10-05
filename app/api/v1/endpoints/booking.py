@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSoc
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin
+from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin, user_is_admin
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
@@ -19,7 +19,7 @@ from app.schemas.booking import (
     BookingNotificationResponse,
     LiveTrackingResponse
 )
-from app.services.booking import BookingService
+from app.services.booking import BookingActionForbidden, BookingService, BookingStateConflict
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
 from app.services.paystack import PaystackService
@@ -38,7 +38,8 @@ def get_location_service(db: Session = Depends(get_db)) -> LocationService:
 def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
     """Helper function to enrich booking with patient and caregiver details"""
     booking_dict = booking.__dict__.copy()
-    
+    booking_dict.pop("_sa_instance_state", None)
+
     # Add patient details
     patient = db.query(Patient).filter(Patient.id == booking.patient_id).first()
     if patient:
@@ -95,6 +96,21 @@ def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
             booking_dict['caregiver_details'] = caregiver_details
     
     return booking_dict
+
+
+def ensure_booking_read_access(db: Session, user: User, booking: Booking) -> None:
+    """Allow the booking's patient, its assigned caregiver, or an admin; refuse everyone else."""
+    if user_is_admin(db, user):
+        return
+    if user.user_type == "patient":
+        patient = db.query(Patient).filter(Patient.user_id == user.id).first()
+        if patient and booking.patient_id == patient.id:
+            return
+    elif user.user_type == "caregiver":
+        caregiver = db.query(Caregiver).filter(Caregiver.user_id == user.id).first()
+        if caregiver and booking.caregiver_id == caregiver.id:
+            return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
 
 # Patient Endpoints
@@ -449,6 +465,10 @@ async def handle_booking_action(
         # Enrich booking with patient and caregiver details
         enriched_booking = enrich_booking_with_details(booking, booking_service.db)
         return {"message": f"Booking {action_data.action} successfully", "booking": enriched_booking}
+    except BookingActionForbidden as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BookingStateConflict as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -485,26 +505,8 @@ def get_booking_details(
             detail="Booking not found"
         )
     
-    # Check if user has access to this booking
-    if current_user.user_type == "patient":
-        patient = booking_service.db.query(Patient).filter(
-            Patient.user_id == current_user.id
-        ).first()
-        if not patient or booking.patient_id != patient.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
-    elif current_user.user_type == "caregiver":
-        caregiver = booking_service.db.query(Caregiver).filter(
-            Caregiver.user_id == current_user.id
-        ).first()
-        if not caregiver or booking.caregiver_id != caregiver.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
-    
+    ensure_booking_read_access(booking_service.db, current_user, booking)
+
     # Enrich booking with patient and caregiver details
     enriched_booking = enrich_booking_with_details(booking, booking_service.db)
     return enriched_booking
@@ -792,25 +794,8 @@ def get_live_booking_tracking(
             detail="Booking not found"
         )
     
-    # Verify user has access to this booking
-    has_access = False
-    if current_user.user_type == "patient":
-        patient = booking_service.db.query(Patient).filter(
-            Patient.user_id == current_user.id
-        ).first()
-        has_access = patient and booking.patient_id == patient.id
-    elif current_user.user_type == "caregiver":
-        caregiver = booking_service.db.query(Caregiver).filter(
-            Caregiver.user_id == current_user.id
-        ).first()
-        has_access = caregiver and booking.caregiver_id == caregiver.id
-    
-    if not has_access:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-    
+    ensure_booking_read_access(booking_service.db, current_user, booking)
+
     # Check if booking has assigned caregiver
     if not booking.caregiver_id:
         raise HTTPException(
@@ -843,7 +828,7 @@ def get_live_booking_tracking(
     eta_minutes = max(5, int((distance / 25) * 60))
     
     # Determine if caregiver is moving (speed > 0.5 m/s)
-    is_moving = caregiver_location.speed and caregiver_location.speed > 0.5
+    is_moving = bool(caregiver_location.speed and caregiver_location.speed > 0.5)
     
     return LiveTrackingResponse(
         booking_id=booking.id,
