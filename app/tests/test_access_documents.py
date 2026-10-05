@@ -225,3 +225,27 @@ def test_migration_refuses_paths_that_escape_the_legacy_root(db, tmp_path):
     assert outside.exists() and not private_root.exists()
     assert doc.file_path == "uploads/../outside.txt"
     assert stats.moved == 0 and stats.missing == 1
+
+
+# --- download hardening: never trust the stored MIME type ------------------------
+
+
+@pytest.mark.parametrize("stored_mime", ["text/html", "image/svg+xml", "application/xhtml+xml", None])
+def test_non_allowlisted_stored_type_is_forced_to_download(db, client, private_dir, stored_mime):
+    caregiver = make_caregiver(db)
+    doc = uploaded_document(db, client, caregiver)
+    doc.mime_type = stored_mime  # e.g. a legacy row moved by migrate_private_documents
+    db.commit()
+    r = client.get(f"/api/v1/caregiver/documents/{doc.id}/file", headers=auth_headers(caregiver.user))
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/octet-stream"
+    assert r.headers["content-disposition"].startswith("attachment")
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_allowlisted_document_is_served_sandboxed(db, client, private_dir):
+    caregiver = make_caregiver(db)
+    doc = uploaded_document(db, client, caregiver)
+    r = client.get(f"/api/v1/caregiver/documents/{doc.id}/file", headers=auth_headers(caregiver.user))
+    assert r.headers["content-security-policy"] == "sandbox; default-src 'none'"
+    assert r.headers["cache-control"] == "private, no-store"
