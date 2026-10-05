@@ -1,5 +1,6 @@
-import secrets
 import json
+import os
+import secrets
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, validator
@@ -109,7 +110,9 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
-        env_file = ".env"
+        # OAKLY_ENV_FILE="" disables .env loading (the test suite relies on this so a
+        # developer's real .env can never leak into tests).
+        env_file = os.environ.get("OAKLY_ENV_FILE", ".env") or None
 
 
 settings = Settings()

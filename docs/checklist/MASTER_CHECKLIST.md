@@ -21,8 +21,9 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] Backend on Poetry (`pyproject.toml` + `poetry.lock`), with Docker and Render updated — 2026-09-29, branch `chore/poetry-migration`, see [SOP](../sop/2026-09-29-poetry-migration.md)
 - [x] Backend CI: lock check, bug-class lint, app smoke test — 2026-09-29
 - [x] Backend `.gitignore` — 2026-09-29
-- [ ] Merge `chore/poetry-migration` and switch the Render build and start commands
-- [ ] Real pytest suite with a throwaway Postgres, run in CI
+- [ ] Merge `chore/poetry-migration` (Render is being retired; the deploy target is Docker)
+- [x] pytest harness: throwaway Postgres (testcontainers), factories, network guard, run in CI. 2026-10-05, branch `test/harness`, [SOP](../sop/2026-10-05-test-harness.md)
+- [ ] Phase 0 execution: [plan](../plans/2026-10-05-phase-0-security-foundations.md). WP-B secrets · WP-C access control · WP-D money · WP-E foundations
 - [ ] Clean the ruff backlog, then enforce the full ruleset and `ruff format`
 - [ ] Python 3.11 → 3.12 or 3.13
 - [ ] Library swaps: passlib → pwdlib · python-jose → PyJWT · google-generativeai → google-genai
