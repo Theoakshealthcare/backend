@@ -5,7 +5,7 @@ from app.db.models.prescription import Prescription
 from app.api.deps import get_db
 from app.services.patient_wallet import PatientWalletService
 from app.services.paystack import PaystackService
-from app.services.booking import BookingService
+from app.services.booking_payment import settle_booking_payment, naira_to_kobo
 import logging
 
 router = APIRouter()
@@ -34,7 +34,7 @@ async def paystack_webhook(
     
     # Verify webhook signature
     if not paystack_service.verify_webhook_signature(body, signature):
-        logger.warning(f"Invalid webhook signature received: {signature}")
+        logger.warning("Invalid webhook signature received")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid webhook signature"
@@ -44,7 +44,7 @@ async def paystack_webhook(
         # Parse webhook payload
         payload = await request.json()
         event_data = paystack_service.parse_webhook_event(payload)
-        reference = event_data.get("reference", "")
+        reference = event_data.get("reference") or ""
         
         logger.info(f"Processing webhook event: {event_data.get('event')} for reference: {reference}")
         
@@ -61,18 +61,16 @@ async def paystack_webhook(
                 # Handle booking payments
                 booking = db.query(Booking).filter(Booking.paystack_reference == reference).first()
                 if booking:
-                    booking.payment_status = PaymentStatus.PAID
-                    booking.status = BookingStatus.PENDING  # Set to pending after payment
-                    db.commit()
-                    
-                    # Now that payment is successful, notify nearby caregivers
-                    booking_service = BookingService(db)
-                    notifications = booking_service.notify_nearby_caregivers(booking)
-                    logger.info(f"Booking payment processed: {reference}, notified {len(notifications)} caregivers")
+                    # paid kobo comes straight from the signed payload, not the naira-converted copy
+                    paid_kobo = payload.get("data", {}).get("amount")
+                    if not isinstance(paid_kobo, int):
+                        paid_kobo = naira_to_kobo(paid_kobo)
+                    outcome = settle_booking_payment(db, booking.id, paid_kobo)
+                    logger.info(f"Booking payment {reference}: {outcome.value}")
                 
                 # Handle prescription payments
                 prescription = db.query(Prescription).filter(Prescription.paystack_reference == reference).first()
-                if prescription:
+                if prescription and prescription.payment_status != "paid":
                     prescription.payment_status = "paid"
                     db.commit()
                     logger.info(f"Prescription payment processed: {reference}")
@@ -88,18 +86,27 @@ async def paystack_webhook(
                     logger.error(f"Failed to process wallet deposit failure: {reference}")
             else:
                 # Handle booking payment failures
-                booking = db.query(Booking).filter(Booking.paystack_reference == reference).first()
-                if booking:
+                booking = (
+                    db.query(Booking)
+                    .filter(Booking.paystack_reference == reference)
+                    .with_for_update()
+                    .populate_existing()
+                    .first()
+                )
+                if booking and booking.payment_status != PaymentStatus.PAID:
                     booking.payment_status = PaymentStatus.FAILED
                     booking.status = BookingStatus.CANCELLED  # Cancel booking on payment failure
                     # Store failure reason
                     booking.payment_failure_reason = event_data.get("gateway_response", "Payment failed")
                     db.commit()
                     logger.info(f"Booking payment failed: {reference}, reason: {booking.payment_failure_reason}")
+                elif booking:
+                    db.rollback()
+                    logger.warning(f"Ignoring charge.failed for already-paid booking: {reference}")
                 
                 # Handle prescription payment failures
                 prescription = db.query(Prescription).filter(Prescription.paystack_reference == reference).first()
-                if prescription:
+                if prescription and prescription.payment_status != "paid":
                     prescription.payment_status = "failed"
                     db.commit()
                     logger.info(f"Prescription payment failed: {reference}")
