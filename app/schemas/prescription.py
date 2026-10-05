@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class PrescriptionBase(BaseModel):
     medication_name: str
@@ -20,11 +20,13 @@ class PrescriptionCreate(PrescriptionBase):
     total_cost: Optional[float] = None
 
 class PrescriptionUpdate(BaseModel):
+    # Payment fields (payment_status, total_cost, paystack_reference) are deliberately absent:
+    # they change only via the payment webhook / settlement. extra="forbid" turns an attempt
+    # to send them into a 422 instead of a silent no-op.
+    model_config = ConfigDict(extra="forbid")
+
     status: Optional[str] = None
-    payment_status: Optional[str] = None
     doctor_note_path: Optional[str] = None
-    total_cost: Optional[float] = None
-    paystack_reference: Optional[str] = None
 
 class PrescriptionResponse(PrescriptionBase):
     id: UUID

@@ -16,7 +16,7 @@ Seven access-control fixes, each with tests for no token, wrong user, right user
 | 2 | Both booking WebSockets authenticate with a JWT. The demo user ids are gone. |
 | 3 | `/booking/ws/stats` is admin-only. `/auth/test-cloudinary` is deleted. |
 | 4 | Prescriptions need auth. A patient sees and creates only their own. Update, status change and note upload are admin-only. |
-| 5 | `GET /booking/booking/{id}` and `/live-tracking` are limited to the booking's patient, its assigned caregiver, or an admin. |
+| 5 | `GET /booking/booking/{id}` and `/live-tracking` are limited to the booking's patient, its assigned caregiver, or an admin. Live tracking also returns 409 unless the booking is accepted or in progress (admins exempt), so a caregiver's location isn't visible after the job. |
 | 6 | Caregiver booking actions are checked for who and for state. Accept has exactly one winner. |
 | 7 | Caregiver documents are stored privately and served only to the owner or an admin. |
 
@@ -35,7 +35,7 @@ The audit found that:
 | Inactive users | Checked in `get_current_user` itself (403 `Inactive user`) | Every route that depends on it, directly or through `get_current_active_user`, is covered. Before, only some routes used the active-user variant, and it returned 400. |
 | Admin check | `user_is_admin(db, user)` in `app/api/deps.py` (an `Admin` row) | Admins aren't a `user_type` yet. Matches `get_current_admin`. |
 | WebSocket token | `?token=<jwt>` or `Sec-WebSocket-Protocol: bearer, <jwt>` (the server echoes `bearer`) | Mobile and browser sockets can't set an `Authorization` header. The header form keeps the token out of access logs. |
-| WebSocket close codes | 4401 missing, invalid, refresh, inactive or unknown user. 4403 wrong role. | The close happens before `accept`, so no demo connection ever exists. |
+| WebSocket close codes | 4401 missing, invalid, refresh, inactive or unknown user. 4403 wrong role. | The socket is accepted and then closed with the code. Closing before `accept()` makes uvicorn answer the handshake with HTTP 403, so browsers and Dart would never see 4401/4403 (proved by a real-uvicorn test). Nothing is registered or sent on a rejected socket. |
 | Tracking subscribe | Patient owns the booking and status is `accepted` or `in_progress`. "Not found" and "not yours" give the same error. | Ids can't be probed. A WebSocket session lives as long as the socket, so the booking is re-read with `populate_existing`. |
 | Accept race | `SELECT … FOR UPDATE` on the booking row (`with_for_update().populate_existing()`) before any check | Concurrent accepts serialise, so exactly one sees `pending`. A conditional UPDATE would also work. The lock keeps the validation readable. |
 | Action errors | `BookingActionForbidden` is 403, `BookingStateConflict` is 409, `ValueError` stays 404 | Error shape stays `{"detail": "..."}`. |
@@ -83,7 +83,16 @@ Two pre-existing 500s on these paths were fixed because the happy path couldn't 
 - Needs the `private_uploads` volume from `docker-compose.yml`. On a host without Docker volumes (for example Render), set `PRIVATE_UPLOAD_DIR` to a persistent disk path. Local disk is wiped on redeploy (see the checklist item on moving documents to Cloudinary or S3).
 - Roll back: revert the commits. Migrated files would then need to be moved back to `uploads/caregivers/...` and `file_path` prefixed with `uploads/` (the script has no reverse mode).
 
+## Review fixes (same branch)
+- WebSocket rejections are accept-then-close, tested with a real uvicorn server and the `websockets` client.
+- REST live tracking is limited to accepted/in-progress bookings (409 otherwise).
+- `POST /caregiver/identity-verification/result` stores the payload as evidence only; the status can go to `in_progress` at most and never overwrites `verified`/`failed`. Those become admin decisions in WP-E5. Until then, nothing sets `verified` through the API.
+
+- `PrescriptionUpdate` no longer has `payment_status`, `total_cost` or `paystack_reference`; the schema forbids extra fields, so sending them is a 422 (not a silent ignore). Payment state changes only via the webhook/settlement.
+
 ## Client impact (tell mobile)
+- Identity verification results no longer change status to verified/failed.
+- Live tracking REST returns 409 outside accepted/in-progress.
 - WebSocket clients must send a JWT access token and handle close codes 4401 and 4403.
 - `DocumentUploadResponse.file_path` is now a storage key, not a URL. Fetch documents with `GET /caregiver/documents/{id}/file` and a bearer token.
 - Caregiver action errors are now 403 and 409 (they were silent no-ops returning 200).
@@ -93,7 +102,6 @@ Two pre-existing 500s on these paths were fixed because the happy path couldn't 
 ## Follow-ups
 - Admin routes in `endpoints/patient.py:320,362` compare `user_type` to `"admin"`, which is never true. Use `get_current_admin`.
 - Chat and notes routes don't allow admins; decide whether support should read them.
-- Caregiver identity verification is still accepted from the client (separate checklist item).
 - WebSocket state is per process; it needs Redis if we run more than one worker.
 - Move document storage off local disk (Cloudinary or S3).
 - The unused `endpoints/websocket.py` imports a function that doesn't exist; it isn't mounted. Delete it when someone owns that cleanup.

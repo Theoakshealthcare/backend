@@ -145,17 +145,31 @@ def test_patch_is_admin_only(db, client):
     admin = make_admin(db)
     rx = make_prescription(db, owner)
     url = f"{BASE}/{rx.id}"
-    body = {"total_cost": 1}
+    body = {"doctor_note_path": "notes/x.pdf"}
 
     assert client.patch(url, json=body).status_code == 401
     assert client.patch(url, json=body, headers=auth_headers(owner.user)).status_code == 403
     assert client.patch(url, json=body, headers=refresh_headers(admin)).status_code == 401
     db.refresh(rx)
-    assert rx.total_cost == 5000
+    assert rx.doctor_note_path is None
 
     assert client.patch(url, json=body, headers=auth_headers(admin)).status_code == 200
     db.refresh(rx)
-    assert rx.total_cost == 1
+    assert rx.doctor_note_path == "notes/x.pdf"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"payment_status": "paid"}, {"total_cost": 1}, {"paystack_reference": "ref_x"}],
+)
+def test_patch_cannot_change_payment_state_even_for_admin(db, client, body):
+    # payment state only changes through the payment webhook / settlement (forbidden -> 422)
+    admin = make_admin(db)
+    rx = make_prescription(db, make_patient(db))
+    r = client.patch(f"{BASE}/{rx.id}", json=body, headers=auth_headers(admin))
+    assert r.status_code == 422
+    db.refresh(rx)
+    assert (rx.payment_status, rx.total_cost, rx.paystack_reference) == ("pending", 5000, None)
 
 
 def test_status_patch_is_admin_only(db, client):
