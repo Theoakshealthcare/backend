@@ -21,6 +21,7 @@ from app.schemas.booking import (
     LiveTrackingResponse
 )
 from app.services.booking import BookingActionForbidden, BookingService, BookingStateConflict
+from app.services.booking_payment import SettleOutcome, naira_to_kobo, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
 from app.services.paystack import PaystackService
@@ -558,6 +559,23 @@ def verify_booking_payment(
             detail="Access denied"
         )
     
+    # Already settled (webhook got there first, or a repeat call): nothing to re-verify or re-notify
+    if booking.payment_status == PaymentStatus.PAID:
+        return {
+            "status": "success",
+            "message": "Payment verified successfully",
+            "booking_id": booking_id,
+            "payment_status": "paid",
+            "amount_paid": booking.total_amount,
+            "paid_at": None
+        }
+
+    if not booking.paystack_reference:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking has no payment reference"
+        )
+
     # Verify payment with Paystack
     paystack_service = PaystackService()
     verification_result = paystack_service.verify_transaction(booking.paystack_reference)
@@ -567,8 +585,12 @@ def verify_booking_payment(
         
         # Update booking payment status based on Paystack response
         if payment_data.get("status") == "success":
-            booking.payment_status = PaymentStatus.PAID
-            db.commit()
+            outcome = settle_booking_payment(db, booking.id, naira_to_kobo(payment_data.get("amount")))
+            if outcome == SettleOutcome.AMOUNT_MISMATCH:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Payment amount does not match booking total"
+                )
             
             return {
                 "status": "success",

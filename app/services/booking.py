@@ -158,6 +158,10 @@ class BookingService:
         # Platform fee
         platform_fee = service_fee * (settings.platform_fee_percent / 100)
         total_amount = service_fee + platform_fee
+        # Money is stored to 2dp so what we charge (kobo) always equals what we later compare.
+        service_fee = round(service_fee, 2)
+        platform_fee = round(platform_fee, 2)
+        total_amount = round(total_amount, 2)
         
         # Generate unique payment reference
         booking_code = self.generate_booking_code()

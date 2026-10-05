@@ -44,10 +44,10 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] ⚠️ Admin approval for caregiver identity; stop accepting the verification result from the client
 - [x] ⚠️ Make the caregiver document uploads private (they're under the public `/uploads` mount) — code done 2026-10-05; run `scripts/migrate_private_documents.py` on production after deploy
 - [x] ⚠️ Reject refresh tokens used as access tokens (check the `type` claim) — `security/access-control`, 2026-10-05
-- [ ] ⚠️ Validate that withdrawal amounts are positive, and lock the wallet row
-- [ ] ⚠️ Fix refund approval paying twice (wallet credit plus a Paystack refund)
-- [ ] ⚠️ Make the Paystack webhook safe to replay, and check the paid amount against the booking
-- [ ] Wallet transactions: remove the nested `db.begin()`
+- [x] ⚠️ Validate that withdrawal amounts are positive, and lock the wallet row — 2026-10-05, `security/money`
+- [x] ⚠️ Fix refund approval paying twice (wallet credit plus a Paystack refund) — 2026-10-05, `security/money`
+- [x] ⚠️ Make the Paystack webhook safe to replay, and check the paid amount against the booking — 2026-10-05, `security/money` (also `verify-payment`)
+- [x] Wallet transactions: remove the nested `db.begin()` — 2026-10-05, `security/money`
 - [ ] Password reset: fix the email arguments that cause a 500, and build a real reset link
 - [ ] Vitals access grant: stop comparing a user ID with a patient ID; use the `accepted` status
 - [x] Only the booking's own caregiver can cancel it or change its state; only paid bookings can be accepted — `security/access-control`, 2026-10-05

@@ -2,11 +2,12 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, validator
+from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, model_validator, validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    ENVIRONMENT: str = "development"
     API_V1_STR: str = "/api/v1"
     # Required, no defaults: the app refuses to start without them.
     SECRET_KEY: str
@@ -74,6 +75,7 @@ class Settings(BaseSettings):
     PAYMENT_CURRENCY: str = "NGN"
     MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
     MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
+    MIN_WITHDRAWAL_KOBO: int = 100000  # 1,000 Naira, minimum caregiver withdrawal
     
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"
@@ -95,6 +97,13 @@ class Settings(BaseSettings):
     # Private file storage (caregiver documents). Must NOT be inside the public /uploads mount;
     # in Docker this is a named volume.
     PRIVATE_UPLOAD_DIR: str = "private_uploads"
+
+    @model_validator(mode="after")
+    def _require_paystack_key_in_production(self):
+        # An empty key makes webhook HMACs forgeable by anyone; refuse to boot.
+        if self.ENVIRONMENT.lower() == "production" and not self.PAYSTACK_SECRET_KEY:
+            raise ValueError("PAYSTACK_SECRET_KEY must be set when ENVIRONMENT=production")
+        return self
 
     class Config:
         case_sensitive = True
