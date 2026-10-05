@@ -105,3 +105,12 @@ Two pre-existing 500s on these paths were fixed because the happy path couldn't 
 - WebSocket state is per process; it needs Redis if we run more than one worker.
 - Move document storage off local disk (Cloudinary or S3).
 - The unused `endpoints/websocket.py` imports a function that doesn't exist; it isn't mounted. Delete it when someone owns that cleanup.
+
+## Addendum, 2026-10-05: document download hardening
+The download route `GET /caregiver/documents/{id}/file` no longer trusts the stored `mime_type`:
+- **Allowlisted types render inline.** Only `application/pdf`, `image/jpeg` and `image/png` are served `inline` with their own content type.
+- **Everything else downloads.** Any other type, including `NULL` and legacy rows moved by `migrate_private_documents.py`, is served as `application/octet-stream` with `attachment`.
+- **Response headers:** every response also carries `Content-Security-Policy: sandbox; default-src 'none'` (so an inline PDF can't run script in the API origin), `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`.
+- **Uploads:** the upload route already rejects non-allowlisted types.
+
+The automated security scan flagged this as a stored-XSS risk. Tests: `test_non_allowlisted_stored_type_is_forced_to_download` (text/html, SVG, XHTML, none) and `test_allowlisted_document_is_served_sandboxed`.

@@ -33,6 +33,9 @@ from app.db.models.caregiver import CaregiverWallet, CaregiverTransaction, Careg
 
 router = APIRouter()
 
+# Document types that may be rendered inline by the download route.
+INLINE_DOCUMENT_TYPES = frozenset({"application/pdf", "image/jpeg", "image/png"})
+
 
 def get_caregiver_service(db: Session = Depends(get_db)) -> CaregiverService:
     return CaregiverService(db)
@@ -166,12 +169,23 @@ def download_document(
     if path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document file not found")
 
+    # Never trust the stored MIME type (legacy rows predate upload validation): only
+    # allowlisted types render inline; anything else is forced to download. The sandbox
+    # CSP stops an inline document from running script in the API's origin.
+    if document.mime_type in INLINE_DOCUMENT_TYPES:
+        media_type, disposition = document.mime_type, "inline"
+    else:
+        media_type, disposition = "application/octet-stream", "attachment"
     return FileResponse(
         path,
-        media_type=document.mime_type or "application/octet-stream",
+        media_type=media_type,
         filename=document.document_name,
-        content_disposition_type="inline",
-        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+        content_disposition_type=disposition,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+            "Cache-Control": "private, no-store",
+        },
     )
 
 
