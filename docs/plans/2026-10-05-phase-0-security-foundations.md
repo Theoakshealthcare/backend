@@ -211,7 +211,7 @@
   - a concurrent tick does nothing twice;
   - accept after escalation still works.
 
-#### E1: Migration baseline (blocked on the owner's production `pg_dump --schema-only`)
+#### E1: Migration baseline ✅ (done 2026-10-05; unblocked by the owner confirming there is no production data)
 - Squash the history into a baseline that matches production exactly.
 - Stamp production at the baseline.
 - Remove `init_local_db` in favour of `alembic upgrade head` on empty DBs.

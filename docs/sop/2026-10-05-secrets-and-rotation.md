@@ -105,6 +105,8 @@ Do this **after this PR is merged and the new container deploy is live**, ideall
 - **Roll back:** revert the merge. The old code needs `.env` present, which it still is locally (only untracked).
 
 ## Follow-ups
+
+> **Update 2026-10-05 (E1):** `scripts/init_local_db.py` and the development hook in `boot/docker-run.sh` have been removed. `alembic upgrade head` now builds an empty database. The encryption-key rotation tooling stays for future use; with no stored health data, rotating the key today doesn't need a re-encryption run. See [the migration baseline SOP](2026-10-05-migration-baseline.md).
 - WP-E1: an Alembic baseline that replaces `init_local_db` for empty DBs.
 - Optional history rewrite (above).
 - Patient app: the release keystore and its passwords are committed (`android/app/oakly-upload-key.keystore`, `android/gradle.properties`). Decide whether to request a Play upload-key reset.

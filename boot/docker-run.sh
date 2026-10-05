@@ -60,10 +60,6 @@ cd /app
 
 # Check if alembic.ini exists in the correct location
 if [ -f "alembic.ini" ]; then
-    if [ "${ENVIRONMENT}" = "development" ]; then
-        # Dev only: bootstrap an empty DB from the models (no-op if tables exist).
-        python -m scripts.init_local_db
-    fi
     echo "✅ Found alembic.ini, running migrations..."
     alembic upgrade head
     echo "✅ Migrations completed successfully"
