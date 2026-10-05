@@ -365,7 +365,16 @@ class BookingService:
             is_assigned = booking.caregiver_id == caregiver_id
 
             if action == "accept":
-                caregiver_row = self.db.query(Caregiver).filter(Caregiver.id == caregiver_id).first()
+                # FOR SHARE, taken after the booking lock (suspend never locks bookings, so no cycle):
+                # it waits for an in-flight suspend and blocks a new one until this commits, so an
+                # accepted booking always appears in suspend's affected_bookings.
+                caregiver_row = (
+                    self.db.query(Caregiver)
+                    .filter(Caregiver.id == caregiver_id)
+                    .with_for_update(read=True)
+                    .populate_existing()
+                    .first()
+                )
                 if caregiver_row is None or caregiver_row.profile_status != "approved":
                     # e.g. suspended after the offer was sent
                     raise BookingActionForbidden("Your account is not approved to accept bookings")

@@ -36,7 +36,10 @@ Approval was only a status string, and the consent endpoint could move any careg
 | Audit | `AuditService.record()` adds the row to the caller's session without committing, so the audit row and the change commit together. Sensitive keys (`password`, `token`, `secret`, `pin`, ...) are redacted. IP is the direct peer, not `X-Forwarded-For`. | A forged proxy header must not forge the log. |
 | Append-only | ORM listeners refuse update/delete, and the migration adds a Postgres trigger that raises on UPDATE/DELETE for any client. | The PRD asks for DB-level protection; the role grant comes with the admin DB role later. |
 | Consent endpoint | Only moves `incomplete`/`changes_requested` to `under_review`, and only moves a `pending` background check to `in_progress`. | The old code reset approved/suspended/rejected caregivers. This is how a caregiver resubmits after "request changes". |
-| Accepting bookings | A caregiver must be `approved` to accept (`BookingActionForbidden`, 403). | A caregiver suspended after an offer was sent could still accept it. Matching already filters on `approved`. |
+| Accepting bookings | A caregiver must be `approved` to accept (403). The caregiver row is read `FOR SHARE` after the booking lock. | A caregiver suspended after an offer could still accept it. FOR SHARE makes accept wait for an in-flight suspend (and suspend wait for an in-flight accept), so an accepted booking always shows in `affected_bookings`. Lock order is booking, then caregiver; suspend never locks bookings. |
+| Negative decisions after approval | Identity `failed`, background check `failed`, or rejecting the last verified licence on an `approved` caregiver auto-suspends in the same transaction (reason "<decision> after approval", audit action `caregiver.auto_suspend`, `affected_bookings` and a suspension email). | A failed check must not leave someone bookable. |
+| Reinstate | Re-runs the approval preconditions (all but the status check); 409 with the unmet list. | Reinstating must not bypass the mandatory checks. |
+| Document upload | `upload_document` locks the caregiver row `FOR UPDATE`. | Serialises with approve's licence check. |
 | Suspend and bookings | Upcoming `accepted` bookings are returned as `affected_bookings`, written to the audit row and logged as a warning. No booking column was added. | There is no ops queue yet, and E2 owns the bookings model. |
 | Emails | `send_caregiver_decision_email` runs as a background task after commit; a failure is logged and never undoes the decision. Template autoescapes admin text. | A mail outage must not block a decision. |
 | Skills uniqueness | Unique index on `(caregiver_id, service_type, coalesce(sub_specialty, ''))`. | A plain unique constraint treats NULLs as distinct. |
@@ -72,7 +75,7 @@ seeded caregiver afterwards: approved | in_progress | approved_by NULL
 ## Follow-ups
 - Mobile must call `PUT /caregiver/consent` again to resubmit after `changes_requested`; confirm the app does, or add an explicit resubmit endpoint.
 - Suspended bookings need a real ops queue (a flag column once E2 merges).
-- Reinstate does not re-check preconditions (for example an expired licence); `expires_on` is stored but not enforced yet.
+- `expires_on` is stored but not enforced yet (an expired licence does not block approve or reinstate).
 - Console gaps: list filters by city and specialization, masked ID numbers, a searchable audit viewer, roles and permissions.
 - The audit list endpoint (`GET /`) is not itself audited; only the detail view is.
 - Push notification on approval (AD-FR-11) is not sent; email only.

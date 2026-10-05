@@ -85,7 +85,15 @@ class CaregiverService:
         return caregiver
 
     def upload_document(self, user_id: UUID, file: UploadFile, document_type: str) -> CaregiverDocument:
-        caregiver = self.get_caregiver_by_user_id(user_id)
+        # FOR UPDATE on the caregiver row: serialises with an admin's approve, which checks the
+        # licence documents under the same lock (so a new pending licence can't slip in mid-approve).
+        caregiver = (
+            self.db.query(Caregiver)
+            .filter(Caregiver.user_id == user_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not caregiver:
             raise ValueError("Caregiver not found")
 

@@ -481,7 +481,7 @@ def test_request_changes_only_from_under_review(db, client, admin):
 
 
 def test_suspend_and_reinstate(db, client, admin, emails):
-    cg = make_caregiver(db, approved=True)
+    cg = make_ready(db, profile_status="approved")
     patient = make_patient(db)
     future = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED)
     make_booking(db, patient, cg, status=BookingStatus.COMPLETED)  # not upcoming: not flagged
@@ -525,7 +525,7 @@ def test_suspended_caregiver_is_excluded_from_matching(db, client, admin):
     from app.db.models.booking import CaregiverLocation
     from app.services.location import LocationService
 
-    cg = make_caregiver(db, approved=True)
+    cg = make_ready(db, profile_status="approved")
     db.add(CaregiverLocation(caregiver_id=cg.id, latitude=6.45, longitude=3.47,
                              is_active=True, is_available=True))
     db.commit()

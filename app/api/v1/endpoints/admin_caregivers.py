@@ -67,6 +67,17 @@ def _notify(background: BackgroundTasks, cg: Caregiver, decision: str, **extra: 
     )
 
 
+def _auto_suspend_fields(affected: Optional[List[UUID]]) -> Dict[str, Any]:
+    return {"auto_suspended": affected is not None, "affected_bookings": affected or []}
+
+
+def _after_decision(background: BackgroundTasks, cg: Caregiver, affected: Optional[List[UUID]]) -> None:
+    if affected is not None:
+        logger.warning("Caregiver %s auto-suspended with %d upcoming accepted booking(s) needing reassignment",
+                       cg.id, len(affected))
+        _notify(background, cg, "suspended", reason=cg.suspension_reason)
+
+
 def _summary(cg: Caregiver) -> Dict[str, Any]:
     return {
         "id": cg.id,
@@ -90,13 +101,14 @@ def list_applications(
 
 @router.post("/documents/{doc_id}/decision")
 def decide_document(
-    doc_id: UUID, body: DocumentDecision, request: Request,
+    doc_id: UUID, body: DocumentDecision, request: Request, background: BackgroundTasks,
     admin: User = Depends(get_current_admin),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
-    doc = _run(lambda: service.decide_document(
+    doc, cg, affected = _run(lambda: service.decide_document(
         doc_id, admin.id, body.decision, body.reason, body.expires_on, request))
-    return {
+    _after_decision(background, cg, affected)
+    return {**_auto_suspend_fields(affected), 
         "id": doc.id, "caregiver_id": doc.caregiver_id, "verification_status": doc.verification_status,
         "rejection_reason": doc.rejection_reason, "expires_on": doc.expires_on, "verified_at": doc.verified_at,
     }
@@ -115,23 +127,27 @@ def get_application(
 
 @router.post("/{caregiver_id}/identity-decision")
 def identity_decision(
-    caregiver_id: UUID, body: IdentityDecision, request: Request,
+    caregiver_id: UUID, body: IdentityDecision, request: Request, background: BackgroundTasks,
     admin: User = Depends(get_current_admin),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
-    return _summary(_run(lambda: service.decide_identity(
-        caregiver_id, admin.id, body.decision, body.notes, request)))
+    cg, affected = _run(lambda: service.decide_identity(
+        caregiver_id, admin.id, body.decision, body.notes, request))
+    _after_decision(background, cg, affected)
+    return {**_summary(cg), **_auto_suspend_fields(affected)}
 
 
 @router.post("/{caregiver_id}/background-check-decision")
 def background_check_decision(
-    caregiver_id: UUID, body: BackgroundCheckDecision, request: Request,
+    caregiver_id: UUID, body: BackgroundCheckDecision, request: Request, background: BackgroundTasks,
     admin: User = Depends(get_current_admin),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
-    return _summary(_run(lambda: service.decide_background_check(
+    cg, affected = _run(lambda: service.decide_background_check(
         caregiver_id, admin.id, body.decision, body.notes, body.provider_reference,
-        body.document_id, request)))
+        body.document_id, request))
+    _after_decision(background, cg, affected)
+    return {**_summary(cg), **_auto_suspend_fields(affected)}
 
 
 @router.put("/{caregiver_id}/skills")

@@ -219,11 +219,11 @@ class CaregiverApprovalService:
     def decide_document(
         self, doc_id: UUID, admin_user_id: UUID, decision: str, reason: Optional[str],
         expires_on: Optional[date], request: Request,
-    ) -> CaregiverDocument:
+    ) -> tuple[CaregiverDocument, Caregiver, Optional[List[UUID]]]:
         doc = self.db.get(CaregiverDocument, doc_id)
         if doc is None:
             raise DocumentNotFound()
-        self._lock(doc.caregiver_id)  # serialise with approve's document checks
+        cg = self._lock(doc.caregiver_id)  # serialise with approve's document checks
         self.db.refresh(doc)
         before = {
             "verification_status": doc.verification_status, "rejection_reason": doc.rejection_reason,
@@ -249,24 +249,34 @@ class CaregiverApprovalService:
             },
             reason=reason, request=request,
         )
+        affected = None
+        if decision == "rejected" and cg.profile_status == "approved":
+            self.db.flush()
+            if self.unmet_for_approval(cg, check_state=False):
+                affected = self._auto_suspend_if_unqualified(cg, admin_user_id, "licence rejected", request)
+        cg.updated_at = datetime.utcnow()
         self.db.commit()
         self.db.refresh(doc)
-        return doc
+        self.db.refresh(cg)
+        return doc, cg, affected
 
     def decide_identity(self, caregiver_id: UUID, admin_user_id: UUID, decision: str, notes: str,
-                        request: Request) -> Caregiver:
+                        request: Request) -> tuple[Caregiver, Optional[List[UUID]]]:
         cg = self._lock(caregiver_id)
         before = _snapshot(cg)
         cg.identity_verification_status = decision
         self.audit.record(admin_user_id=admin_user_id, action="caregiver.identity_decision",
                           entity_type="caregiver", entity_id=cg.id, before=before,
                           after=_snapshot(cg), reason=notes, request=request)
-        return self._finish(cg)
+        affected = None
+        if decision == "failed":
+            affected = self._auto_suspend_if_unqualified(cg, admin_user_id, "identity failed", request)
+        return self._finish(cg), affected
 
     def decide_background_check(
         self, caregiver_id: UUID, admin_user_id: UUID, decision: str, notes: str,
         provider_reference: Optional[str], document_id: Optional[UUID], request: Request,
-    ) -> Caregiver:
+    ) -> tuple[Caregiver, Optional[List[UUID]]]:
         cg = self._lock(caregiver_id)
         if document_id is not None:
             doc = self.db.get(CaregiverDocument, document_id)
@@ -285,7 +295,11 @@ class CaregiverApprovalService:
                           entity_type="caregiver", entity_id=cg.id, before=before,
                           after={**_snapshot(cg), "evidence": cg.background_check_evidence},
                           reason=notes, request=request)
-        return self._finish(cg)
+        affected = None
+        if decision == "failed":
+            affected = self._auto_suspend_if_unqualified(
+                cg, admin_user_id, "background check failed", request)
+        return self._finish(cg), affected
 
     def set_skills(self, caregiver_id: UUID, admin_user_id: UUID, skills: List[Dict[str, Optional[str]]],
                    request: Request) -> List[CaregiverSkill]:
@@ -319,9 +333,9 @@ class CaregiverApprovalService:
 
     # --- lifecycle -------------------------------------------------------------
 
-    def unmet_for_approval(self, cg: Caregiver) -> List[Dict[str, str]]:
+    def unmet_for_approval(self, cg: Caregiver, check_state: bool = True) -> List[Dict[str, str]]:
         unmet: List[Dict[str, str]] = []
-        if cg.profile_status != "under_review":
+        if check_state and cg.profile_status != "under_review":
             unmet.append(_unmet("INVALID_STATE", f"Application is '{cg.profile_status}', not 'under_review'"))
         licences = (
             self.db.query(CaregiverDocument)
@@ -386,11 +400,9 @@ class CaregiverApprovalService:
                           reason=note, request=request)
         return self._finish(cg)
 
-    def suspend(self, caregiver_id: UUID, admin_user_id: UUID, reason: str,
-                request: Request) -> tuple[Caregiver, List[UUID]]:
-        cg = self._lock(caregiver_id)
-        if cg.profile_status != "approved":
-            raise StateConflict(f"Cannot suspend a caregiver that is '{cg.profile_status}'")
+    def _apply_suspend(self, cg: Caregiver, admin_user_id: UUID, reason: str, request: Request,
+                       action: str = "caregiver.suspend") -> List[UUID]:
+        """Suspend an approved caregiver inside the caller's transaction (no commit)."""
         before = _snapshot(cg)
         cg.profile_status = "suspended"
         cg.suspended_at = datetime.utcnow()
@@ -403,16 +415,35 @@ class CaregiverApprovalService:
                     Booking.scheduled_date > datetime.utcnow())
             .order_by(Booking.scheduled_date).all()
         ]
-        self.audit.record(admin_user_id=admin_user_id, action="caregiver.suspend", entity_type="caregiver",
+        self.audit.record(admin_user_id=admin_user_id, action=action, entity_type="caregiver",
                           entity_id=cg.id, before=before,
                           after={**_snapshot(cg), "affected_bookings": affected}, reason=reason,
                           request=request)
+        return affected
+
+    def _auto_suspend_if_unqualified(self, cg: Caregiver, admin_user_id: UUID, trigger: str,
+                                     request: Request) -> Optional[List[UUID]]:
+        """A negative decision on an approved caregiver must not leave them bookable."""
+        if cg.profile_status != "approved":
+            return None
+        return self._apply_suspend(cg, admin_user_id, f"{trigger} after approval", request,
+                                   action="caregiver.auto_suspend")
+
+    def suspend(self, caregiver_id: UUID, admin_user_id: UUID, reason: str,
+                request: Request) -> tuple[Caregiver, List[UUID]]:
+        cg = self._lock(caregiver_id)
+        if cg.profile_status != "approved":
+            raise StateConflict(f"Cannot suspend a caregiver that is '{cg.profile_status}'")
+        affected = self._apply_suspend(cg, admin_user_id, reason, request)
         return self._finish(cg), affected
 
     def reinstate(self, caregiver_id: UUID, admin_user_id: UUID, request: Request) -> Caregiver:
         cg = self._lock(caregiver_id)
         if cg.profile_status != "suspended":
             raise StateConflict(f"Cannot reinstate a caregiver that is '{cg.profile_status}'")
+        unmet = self.unmet_for_approval(cg, check_state=False)
+        if unmet:
+            raise StateConflict("Cannot reinstate: preconditions not met", unmet)
         before = _snapshot(cg)
         cg.profile_status = "approved"
         cg.suspended_at = None
