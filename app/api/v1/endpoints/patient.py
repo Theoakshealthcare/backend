@@ -135,6 +135,7 @@ def verify_payment(
     verification_request: PaymentVerificationRequest,
     current_user: User = Depends(get_current_user),
     wallet_service: PatientWalletService = Depends(get_patient_wallet_service),
+    db: Session = Depends(get_db),
 ):
     """Verify payment with Paystack"""
     if current_user.user_type != "patient":
@@ -143,7 +144,15 @@ def verify_payment(
             detail="Access denied. Patient account required."
         )
     
-    return wallet_service.verify_payment(verification_request.reference)
+    patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient profile not found.")
+
+    try:
+        return wallet_service.verify_payment(verification_request.reference, patient.id)
+    except LookupError:
+        # same response for unknown and foreign references
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
 
 @router.get("/wallet/transactions", response_model=List[PatientTransactionOut])

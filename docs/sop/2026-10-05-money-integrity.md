@@ -4,7 +4,7 @@
 |---|---|
 | **Date** | 2026-10-05 |
 | **Branch** | `security/money` (base `test/harness`) |
-| **Status** | Verified locally (71 tests green) |
+| **Status** | Verified locally (74 tests green) |
 
 ## What shipped
 Five money-path fixes, each with tests that failed before the change:
@@ -39,6 +39,7 @@ Five money-path fixes, each with tests that failed before the change:
 | Webhook key | Empty `PAYSTACK_SECRET_KEY` -> every webhook rejected (400), and startup fails when `ENVIRONMENT=production` | An empty key makes the HMAC forgeable by anyone |
 | Webhook threading | `async` route only reads the body and verifies the signature; DB work runs in `run_in_threadpool` with its own session | Blocking `FOR UPDATE` on the event loop |
 | Prescriptions | `charge.success` locks the row and requires paid kobo == `to_kobo(total_cost)`; replay no-op; `charge.failed` never touches a paid one | |
+| Wallet verify-payment | `POST /patient/wallet/verify-payment` looks up the reference scoped to the caller's own transactions; unknown and foreign references both return 404 "Transaction not found" before Paystack is called | Returning another patient's transaction id and amount |
 | Paystack timeouts | `timeout=15` on every `requests` call in `PaystackService` | |
 | Cumulative cap | Sum of other approved refunds + this amount must be <= original amount (409) | Per-request cap only (what `request_refund` does): lets two 80% requests both pass |
 | Booking settlement | One function, `settle_booking_payment`, used by webhook and verify-payment. Locks the booking, no-op if paid, compares kobo, only the caller that flips unpaid->paid notifies | Duplicating the logic in two endpoints |
@@ -60,7 +61,7 @@ Error shape stays FastAPI's `{"detail": ...}`.
 - No migrations.
 
 ## Verification
-`app/tests/test_money_withdraw.py`, `test_money_refunds.py`, `test_money_webhook.py`, `test_money_verify_payment.py`, `test_money_kobo_and_config.py`, `test_money_refund_flow.py` (66 tests). Each fix was written test-first and failed before the change. The two-phase test proves Paystack is called with no row lock held (`FOR UPDATE NOWAIT` from another session succeeds) and the committed state is already `processing` + debited. Highlights:
+`app/tests/test_money_withdraw.py`, `test_money_refunds.py`, `test_money_webhook.py`, `test_money_verify_payment.py`, `test_money_kobo_and_config.py`, `test_money_refund_flow.py` (69 tests). Each fix was written test-first and failed before the change. The two-phase test proves Paystack is called with no row lock held (`FOR UPDATE NOWAIT` from another session succeeds) and the committed state is already `processing` + debited. Highlights:
 - Withdraw: negative, zero, below-minimum, overdraw; two parallel requests give exactly one 200; a deterministic lock test holds the wallet row in another session and proves the request waits, then re-reads the balance.
 - Refunds: Paystack-only vs wallet-only, Paystack failure leaves it pending, second and concurrent approval, cumulative cap, 401/403, `Admin` row vs `user_type`.
 - Webhook: bad/missing/foreign signature (real HMAC-SHA512), replay (sequential and 4 concurrent), wrong amount, failed-after-paid, deposit replay/mismatch.

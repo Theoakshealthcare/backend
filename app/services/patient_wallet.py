@@ -388,28 +388,26 @@ class PatientWalletService:
             for t in transactions
         ]
 
-    def verify_payment(self, reference: str) -> PaymentVerificationResponse:
-        """Verify payment with Paystack"""
-        
+    def verify_payment(self, reference: str, patient_id: uuid.UUID) -> PaymentVerificationResponse:
+        """Verify one of the caller's own payments with Paystack. Raises LookupError for an
+        unknown or someone else's reference (before anything is sent to Paystack)."""
+
+        transaction = self.db.query(PatientTransaction).filter(
+            PatientTransaction.paystack_reference == reference,
+            PatientTransaction.patient_id == patient_id,
+        ).first()
+
+        if not transaction:
+            raise LookupError("Transaction not found")
+
         paystack_response = self.paystack.verify_transaction(reference)
-        
+
         if not paystack_response.get("status"):
             return PaymentVerificationResponse(
                 status="failed",
                 message=paystack_response.get("message", "Payment verification failed")
             )
-        
-        # Get transaction from database
-        transaction = self.db.query(PatientTransaction).filter(
-            PatientTransaction.paystack_reference == reference
-        ).first()
-        
-        if not transaction:
-            return PaymentVerificationResponse(
-                status="failed",
-                message="Transaction not found in our records"
-            )
-        
+
         paystack_data = paystack_response["data"]
         
         # Process the payment based on Paystack status
