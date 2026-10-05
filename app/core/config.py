@@ -77,6 +77,15 @@ class Settings(BaseSettings):
     MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
     MIN_WITHDRAWAL_KOBO: int = 100000  # 1,000 Naira, minimum caregiver withdrawal
     
+    # Background jobs (ARQ worker) and dispatch tunables.
+    REDIS_URL: str = "redis://localhost:6379/0"
+    PAYMENT_LINK_TTL_MINUTES: int = 30  # an unpaid booking is cancelled after this long
+    LOCATION_FRESHNESS_MINUTES: int = 15  # a caregiver location older than this is not matched
+    MATCH_RADIUS_KM: float = 20
+    DISPATCH_WAVE_SIZE: int = 8  # caregivers notified per wave
+    DISPATCH_WAVE_MINUTES: int = 10  # how long a wave waits for an accept before the next one
+    DISPATCH_ESCALATE_MINUTES: int = 30  # total dispatch time before the booking is unmatched
+
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"
 

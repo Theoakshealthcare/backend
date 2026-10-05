@@ -1,4 +1,4 @@
-# Local development stack: API + Postgres.
+# Local development stack: API + ARQ worker + Postgres + Redis.
 #   cp .env.example .env   # then fill in values
 #   docker compose up --build
 # All configuration comes from .env. No secrets live in this file.
@@ -24,6 +24,34 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Scheduled jobs (unpaid-booking expiry, caregiver dispatch waves). Same image as the API; the
+  # API container runs the migrations, so wait for it to be healthy.
+  worker:
+    build: .
+    command: ["arq", "app.worker.WorkerSettings"]
+    env_file: ${OAKLY_ENV_FILE_PATH:-.env}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://oakly:oakly@db:5432/oakly}
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    volumes:
+      - ./app:/app/app:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   db:
     image: postgres:16-alpine
