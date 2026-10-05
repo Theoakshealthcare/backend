@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSoc
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient
+from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
@@ -1000,7 +1000,7 @@ async def patient_tracking_websocket(
     description="Get current WebSocket connection and subscription statistics for monitoring",
     tags=["WebSocket Monitoring"]
 )
-def get_websocket_stats() -> dict:
+def get_websocket_stats(current_admin: User = Depends(get_current_admin)) -> dict:
     """
     Get WebSocket connection statistics for monitoring and debugging.
     

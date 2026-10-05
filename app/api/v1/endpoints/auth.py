@@ -454,26 +454,3 @@ def upload_profile_image(
             status_code=500,
             detail=f"Failed to upload profile image: {str(e)}"
         )
-
-
-@router.get("/test-cloudinary", response_model=dict)
-def test_cloudinary():
-    """Test endpoint to verify Cloudinary configuration"""
-    try:
-        from app.core.config import settings
-        cloudinary_service._ensure_configured()
-        return {
-            "status": "success",
-            "cloud_name": settings.CLOUDINARY_CLOUD_NAME,
-            "api_key_present": bool(settings.CLOUDINARY_API_KEY),
-            "api_secret_present": bool(settings.CLOUDINARY_API_SECRET),
-            "configured": True
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "configured": False
-        }
-
-

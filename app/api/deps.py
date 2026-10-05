@@ -35,6 +35,9 @@ async def get_current_user(
     
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "access":
+            # refresh tokens (and untyped tokens) must never authenticate API calls
+            raise credentials_exception
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
@@ -45,19 +48,19 @@ async def get_current_user(
     user = user_service.get_user(user_id)
     if user is None:
         raise credentials_exception
-    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user"
+        )
+
     return user
 
 
 async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Get current active user"""
-    if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
+    """Get current active user (get_current_user already refuses inactive users)."""
     return current_user
 
 
@@ -96,3 +99,8 @@ async def get_current_admin(
             detail="Access denied. Admin account required."
         )
     return current_user
+
+
+def user_is_admin(db: Session, user: User) -> bool:
+    """True when the user has an Admin row (admins are not a user_type today)."""
+    return db.query(Admin).filter(Admin.user_id == user.id).first() is not None
