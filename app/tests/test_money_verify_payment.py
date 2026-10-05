@@ -24,12 +24,12 @@ def notified(monkeypatch):
     return calls
 
 
-def _paystack(monkeypatch, amount_naira=44000.0, status="success"):
+def _paystack(monkeypatch, amount_kobo=4_400_000, status="success"):
     calls = []
 
     def fake(self, reference):
         calls.append(reference)
-        return {"status": True, "data": {"id": 1, "reference": reference, "amount": amount_naira,
+        return {"status": True, "data": {"id": 1, "reference": reference, "amount_kobo": amount_kobo,
                                          "status": status, "paid_at": "2026-10-05T10:00:00.000Z"}}
 
     monkeypatch.setattr(PaystackService, "verify_transaction", fake)
@@ -38,7 +38,7 @@ def _paystack(monkeypatch, amount_naira=44000.0, status="success"):
 
 def _setup(db, **kw):
     patient = make_patient(db)
-    booking = make_booking(db, patient, payment_status=PaymentStatus.PENDING, total_amount=44000.0, **kw)
+    booking = make_booking(db, patient, payment_status=PaymentStatus.PENDING, total_amount_kobo=4_400_000, **kw)
     return patient, booking
 
 
@@ -89,7 +89,7 @@ def test_repeat_verify_does_not_renotify(db, client, monkeypatch, notified):
 
 def test_wrong_amount_not_marked_paid(db, client, monkeypatch, notified):
     patient, b = _setup(db)
-    _paystack(monkeypatch, amount_naira=1000.0)
+    _paystack(monkeypatch, amount_kobo=100000)
     r = client.post(_url(b), headers=auth_headers(patient.user))
     assert r.status_code == 409
     fresh = _fresh(db, b)

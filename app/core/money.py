@@ -19,3 +19,11 @@ def to_kobo_or_none(amount_naira: Any) -> Optional[int]:
         return to_kobo(amount_naira)
     except Exception:
         return None
+
+
+def kobo_to_naira(kobo: int) -> Decimal:
+    """Integer kobo -> naira as an exact 2dp Decimal. Display/serialisation only.
+
+    Never feed the result back into arithmetic that gets stored; money stays in integer kobo.
+    """
+    return (Decimal(int(kobo)) / 100).quantize(Decimal("0.01"))

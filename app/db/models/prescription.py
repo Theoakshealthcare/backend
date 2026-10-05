@@ -3,11 +3,12 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, String, Text, ForeignKey, Float, Integer, Enum as SQLEnum
+    BigInteger, Boolean, Column, DateTime, String, Text, ForeignKey, Float, Integer, Enum as SQLEnum
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
+from app.core.money import kobo_to_naira
 from app.db.base import Base
 
 class PrescriptionStatus(str, Enum):
@@ -43,7 +44,7 @@ class Prescription(Base):
     payment_status = Column(String, default="pending")
 
     # Payment
-    total_cost = Column(Float, nullable=True)
+    total_cost_kobo = Column(BigInteger, nullable=True)  # integer kobo
     paystack_reference = Column(String, nullable=True)
 
     # Timestamps
@@ -52,4 +53,9 @@ class Prescription(Base):
 
     # Relationships
     patient = relationship("Patient")
-    requested_by_user = relationship("User") 
+    requested_by_user = relationship("User")
+
+    @property
+    def total_cost(self):
+        """Read-only naira view of total_cost_kobo, for responses."""
+        return kobo_to_naira(self.total_cost_kobo) if self.total_cost_kobo is not None else None

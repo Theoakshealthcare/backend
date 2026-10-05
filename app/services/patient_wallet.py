@@ -2,7 +2,6 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 
@@ -15,12 +14,10 @@ from app.schemas.patient import (
     PatientWalletSummary, PatientTransactionOut,
     PaymentVerificationResponse
 )
-from app.core.money import to_kobo
+from app.core.money import kobo_to_naira, to_kobo
 from app.services.paystack import PaystackService
 
 logger = logging.getLogger(__name__)
-
-_KOBO = Decimal("0.01")
 
 
 class RefundError(Exception):
@@ -72,10 +69,10 @@ class PatientWalletService:
         wallet = self.get_or_create_wallet(patient_id)
         
         return PatientWalletSummary(
-            balance=wallet.balance,
-            total_deposited=wallet.total_deposited,
-            total_spent=wallet.total_spent,
-            total_refunded=wallet.total_refunded,
+            balance=kobo_to_naira(wallet.balance_kobo),
+            total_deposited=kobo_to_naira(wallet.total_deposited_kobo),
+            total_spent=kobo_to_naira(wallet.total_spent_kobo),
+            total_refunded=kobo_to_naira(wallet.total_refunded_kobo),
             currency="NGN"
         )
 
@@ -95,6 +92,9 @@ class PatientWalletService:
         # Get or create wallet
         wallet = self.get_or_create_wallet(patient_id)
         
+        # Naira in, kobo from here on
+        amount_kobo = to_kobo(deposit_request.amount)
+
         # Generate unique reference
         reference = f"DEP_{patient_id}_{uuid.uuid4().hex[:8]}"
         
@@ -104,10 +104,10 @@ class PatientWalletService:
             patient_id=patient_id,
             wallet_id=wallet.id,
             type="deposit",
-            amount=deposit_request.amount,
+            amount_kobo=amount_kobo,
             status="pending",
             paystack_reference=reference,
-            description=deposit_request.description or f"Wallet deposit - {deposit_request.amount} NGN"
+            description=deposit_request.description or f"Wallet deposit - {kobo_to_naira(amount_kobo)} NGN"
         )
         
         self.db.add(transaction)
@@ -116,7 +116,7 @@ class PatientWalletService:
         # Initialize Paystack transaction
         paystack_response = self.paystack.initialize_transaction(
             email=patient.email,
-            amount=deposit_request.amount,
+            amount_kobo=amount_kobo,
             reference=reference,
             callback_url=callback_url,
             metadata={
@@ -137,7 +137,7 @@ class PatientWalletService:
             paystack_reference=reference,
             authorization_url=paystack_response["authorization_url"],
             access_code=paystack_response["access_code"],
-            amount=deposit_request.amount,
+            amount=kobo_to_naira(amount_kobo),
             currency="NGN"
         )
 
@@ -164,11 +164,11 @@ class PatientWalletService:
             self.db.rollback()
             return True  # Already processed
 
-        paid = paystack_data.get("amount")
-        if paid is None or Decimal(str(paid)).quantize(_KOBO) != Decimal(transaction.amount).quantize(_KOBO):
+        paid = paystack_data.get("amount_kobo")
+        if not isinstance(paid, int) or paid != transaction.amount_kobo:
             logger.error(
-                "Deposit amount mismatch for %s: expected %s, paystack reported %s",
-                reference, transaction.amount, paid,
+                "Deposit amount mismatch for %s: expected %s kobo, paystack reported %s",
+                reference, transaction.amount_kobo, paid,
             )
             self.db.rollback()
             return False
@@ -188,8 +188,8 @@ class PatientWalletService:
                     .first()
                 )
                 if wallet:
-                    wallet.balance += transaction.amount
-                    wallet.total_deposited += transaction.amount
+                    wallet.balance_kobo += transaction.amount_kobo
+                    wallet.total_deposited_kobo += transaction.amount_kobo
                     wallet.updated_at = datetime.utcnow()
 
             self.db.commit()
@@ -232,6 +232,7 @@ class PatientWalletService:
     ) -> PatientPaymentResponse:
         """Make a payment from wallet balance (one transaction, wallet row locked)."""
 
+        amount_kobo = to_kobo(payment_request.amount)
         self.get_or_create_wallet(patient_id)  # commits; the lock below starts a fresh transaction
 
         try:
@@ -243,14 +244,14 @@ class PatientWalletService:
                 .first()
             )
 
-            if wallet.balance < payment_request.amount:
-                balance = wallet.balance
+            if wallet.balance_kobo < amount_kobo:
+                balance_kobo = wallet.balance_kobo
                 self.db.rollback()
                 return PatientPaymentResponse(
                     transaction_id="",
                     status="failed",
                     message="Insufficient wallet balance",
-                    remaining_balance=balance
+                    remaining_balance=kobo_to_naira(balance_kobo)
                 )
 
             transaction = PatientTransaction(
@@ -258,14 +259,14 @@ class PatientWalletService:
                 patient_id=patient_id,
                 wallet_id=wallet.id,
                 type="payment",
-                amount=payment_request.amount,
+                amount_kobo=amount_kobo,
                 status="successful",
-                description=payment_request.description or f"Payment - {payment_request.amount} NGN",
+                description=payment_request.description or f"Payment - {kobo_to_naira(amount_kobo)} NGN",
                 booking_id=payment_request.booking_id
             )
 
-            wallet.balance -= payment_request.amount
-            wallet.total_spent += payment_request.amount
+            wallet.balance_kobo -= amount_kobo
+            wallet.total_spent_kobo += amount_kobo
             wallet.updated_at = datetime.utcnow()
 
             self.db.add(transaction)
@@ -280,7 +281,7 @@ class PatientWalletService:
             transaction_id=str(transaction.id),
             status="successful",
             message="Payment completed successfully",
-            remaining_balance=wallet.balance
+            remaining_balance=kobo_to_naira(wallet.balance_kobo)
         )
 
     def request_refund(
@@ -304,7 +305,8 @@ class PatientWalletService:
             raise ValueError("Transaction not found or not eligible for refund")
         
         # Check if refund amount is valid
-        if refund_request.amount > transaction.amount:
+        amount_kobo = to_kobo(refund_request.amount)
+        if amount_kobo > transaction.amount_kobo:
             raise ValueError("Refund amount cannot exceed transaction amount")
         
         # Check if refund request already exists
@@ -323,7 +325,7 @@ class PatientWalletService:
             id=uuid.uuid4(),
             patient_id=patient_id,
             transaction_id=refund_request.transaction_id,
-            amount=refund_request.amount,
+            amount_kobo=amount_kobo,
             reason=refund_request.reason,
             status="pending"
         )
@@ -377,7 +379,7 @@ class PatientWalletService:
             PatientTransactionOut(
                 id=str(t.id),
                 type=t.type,
-                amount=t.amount,
+                amount=kobo_to_naira(t.amount_kobo),
                 status=t.status,
                 paystack_reference=t.paystack_reference,
                 payment_method=t.payment_method,
@@ -418,13 +420,13 @@ class PatientWalletService:
                     status="failed",
                     message="Payment amount does not match the expected amount",
                     transaction_id=str(transaction.id),
-                    amount=transaction.amount
+                    amount=kobo_to_naira(transaction.amount_kobo)
                 )
             return PaymentVerificationResponse(
                 status="successful",
                 message="Payment verified and processed successfully",
                 transaction_id=str(transaction.id),
-                amount=transaction.amount
+                amount=kobo_to_naira(transaction.amount_kobo)
             )
         else:
             self.process_failed_payment(reference, paystack_data)
@@ -432,7 +434,7 @@ class PatientWalletService:
                 status="failed",
                 message="Payment verification failed",
                 transaction_id=str(transaction.id),
-                amount=transaction.amount
+                amount=kobo_to_naira(transaction.amount_kobo)
             )
 
     def get_refund_requests(self, patient_id: uuid.UUID) -> List[Dict[str, Any]]:
@@ -446,7 +448,7 @@ class PatientWalletService:
             {
                 "id": str(req.id),
                 "transaction_id": str(req.transaction_id),
-                "amount": req.amount,
+                "amount": kobo_to_naira(req.amount_kobo),
                 "reason": req.reason,
                 "status": req.status,
                 "admin_notes": req.admin_notes,
@@ -515,14 +517,13 @@ class PatientWalletService:
                 raise RefundConflict("Original transaction is not refundable")
 
             already_refunded = sum(
-                (r.amount for r in self.db.query(PatientRefundRequest).filter(
+                r.amount_kobo for r in self.db.query(PatientRefundRequest).filter(
                     PatientRefundRequest.transaction_id == original.id,
                     PatientRefundRequest.status.in_(("approved", "processing")),
                     PatientRefundRequest.id != refund_request.id,
-                ).all()),
-                Decimal("0"),
+                ).all()
             )
-            if already_refunded + refund_request.amount > original.amount:
+            if already_refunded + refund_request.amount_kobo > original.amount_kobo:
                 raise RefundConflict("Approved refunds would exceed the original transaction amount")
 
             wallet = (
@@ -538,7 +539,7 @@ class PatientWalletService:
                 patient_id=refund_request.patient_id,
                 wallet_id=original.wallet_id,
                 type="refund",
-                amount=refund_request.amount,
+                amount_kobo=refund_request.amount_kobo,
                 admin_approved=True,
                 admin_id=admin_id,
                 approved_at=now,
@@ -547,8 +548,8 @@ class PatientWalletService:
 
             if not original.paystack_reference:
                 # Wallet destination: no external call, one transaction.
-                wallet.balance += refund_request.amount
-                wallet.total_refunded += refund_request.amount
+                wallet.balance_kobo += refund_request.amount_kobo
+                wallet.total_refunded_kobo += refund_request.amount_kobo
                 wallet.updated_at = now
                 refund_transaction.status = "successful"
                 refund_transaction.description = f"Refund to wallet - {refund_request.reason}"
@@ -564,9 +565,9 @@ class PatientWalletService:
             # money leaves exactly one place.
             debited = original.type == "deposit"
             if debited:
-                if wallet is None or wallet.balance < refund_request.amount:
+                if wallet is None or wallet.balance_kobo < refund_request.amount_kobo:
                     raise RefundConflict("Wallet balance cannot cover reversing this deposit")
-                wallet.balance -= refund_request.amount
+                wallet.balance_kobo -= refund_request.amount_kobo
                 wallet.updated_at = now
 
             refund_transaction.status = "pending"  # Paystack settles asynchronously
@@ -581,14 +582,14 @@ class PatientWalletService:
             refund_tx_id = refund_transaction.id
             request_id = refund_request.id
             reference = original.paystack_reference
-            amount = refund_request.amount
+            amount_kobo = refund_request.amount_kobo
             self.db.commit()  # releases every lock before the network call
         except Exception:
             self.db.rollback()
             raise
 
         # ---- phase 2: call Paystack with no transaction open ------------------------------
-        result = self.paystack.initiate_refund(reference, amount)
+        result = self.paystack.initiate_refund(reference, amount_kobo)
 
         # ---- phase 3: finalise or compensate ------------------------------------------------
         if result.get("status"):
@@ -646,7 +647,7 @@ class PatientWalletService:
             if original is not None and original.type == "deposit":
                 wallet = self.db.query(PatientWallet).filter(
                     PatientWallet.id == tx.wallet_id).with_for_update().populate_existing().first()
-                wallet.balance += tx.amount
+                wallet.balance_kobo += tx.amount_kobo
                 wallet.updated_at = datetime.utcnow()
             tx.status = "failed"
             if req is not None:
@@ -669,7 +670,7 @@ class PatientWalletService:
         ).all()
         matches = []
         for t in candidates:
-            if to_kobo(t.amount) != amount_kobo or _REQUEST_TAG not in (t.description or ""):
+            if t.amount_kobo != amount_kobo or _REQUEST_TAG not in (t.description or ""):
                 continue
             try:
                 req_id = uuid.UUID((t.description or "").rsplit(_REQUEST_TAG, 1)[1].rstrip("]"))

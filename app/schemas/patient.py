@@ -4,6 +4,8 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr, validator
 import uuid
 
+from app.core.money import to_kobo
+
 
 # Base Patient Schemas
 class PatientBase(BaseModel):
@@ -253,7 +255,7 @@ class PatientDepositRequest(BaseModel):
 
     @validator('amount')
     def validate_amount(cls, v):
-        if v <= 0:
+        if v <= 0 or to_kobo(v) < 1:
             raise ValueError('Amount must be greater than 0')
         if v > 1000000:  # 1 million Naira limit
             raise ValueError('Amount cannot exceed 1,000,000 NGN')
@@ -276,7 +278,7 @@ class PatientPaymentRequest(BaseModel):
 
     @validator('amount')
     def validate_amount(cls, v):
-        if v <= 0:
+        if v <= 0 or to_kobo(v) < 1:
             raise ValueError('Amount must be greater than 0')
         return v
 
@@ -296,7 +298,7 @@ class PatientRefundRequestCreate(BaseModel):
 
     @validator('amount')
     def validate_amount(cls, v):
-        if v <= 0:
+        if v <= 0 or to_kobo(v) < 1:
             raise ValueError('Refund amount must be greater than 0')
         return v
 

@@ -16,7 +16,14 @@ from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPrev
 from app.services.location import LocationService
 from app.services.gemini import gemini_service
 from app.services.paystack import PaystackService
+from app.services.pricing import compute_price
 from app.core.config import settings
+from app.core.money import kobo_to_naira
+
+
+def _naira(kobo: int) -> float:
+    """Kobo -> naira for the (float-typed) response fields. Display only."""
+    return float(kobo_to_naira(kobo))
 
 
 class BookingActionForbidden(Exception):
@@ -49,42 +56,30 @@ class BookingService:
         if not settings:
             raise Exception("Booking settings not configured.")
         
-        # Calculate service fee
-        base_fee = settings.base_fee
+        # Price in kobo (single source of truth shared with create_booking)
         multiplier = 1.0
         if settings.multipliers and preview_data.service_type in settings.multipliers:
             multiplier = settings.multipliers[preview_data.service_type]
-        
-        # Base calculation
-        base_calculation = preview_data.duration_hours * base_fee * multiplier
-        service_fee = base_calculation
-        
-        # Apply surge pricing if active
-        surge_adjustment = 0.0
-        if settings.surge_pricing and settings.surge_multiplier:
-            surge_adjustment = service_fee * (settings.surge_multiplier - 1)
-            service_fee *= settings.surge_multiplier
-        
-        # Apply discount if any
-        discount_savings = 0.0
-        if settings.discount and settings.discount > 0:
-            discount_savings = service_fee * (settings.discount / 100)
-            service_fee *= (1 - settings.discount / 100)
-        
-        # Platform fee
-        platform_fee = service_fee * (settings.platform_fee_percent / 100)
-        total_amount = service_fee + platform_fee
-        
-        # Create detailed breakdown
+        surge_active = bool(settings.surge_pricing and settings.surge_multiplier)
+        price = compute_price(
+            base_fee_kobo=settings.base_fee_kobo,
+            quantity=preview_data.duration_hours,
+            multiplier=multiplier,
+            surge_multiplier=settings.surge_multiplier if surge_active else None,
+            discount_percent=settings.discount,
+            platform_fee_percent=settings.platform_fee_percent,
+        )
+
+        # Detailed breakdown (naira, 2dp, for the client)
         pricing_breakdown = {
-            "base_calculation": round(base_calculation, 2),
-            "surge_adjustment": round(surge_adjustment, 2),
-            "discount_savings": round(discount_savings, 2),
-            "service_fee_final": round(service_fee, 2),
-            "platform_fee": round(platform_fee, 2),
-            "total": round(total_amount, 2)
+            "base_calculation": _naira(price.base_calculation_kobo),
+            "surge_adjustment": _naira(price.surge_adjustment_kobo),
+            "discount_savings": _naira(price.discount_savings_kobo),
+            "service_fee_final": _naira(price.service_fee_kobo),
+            "platform_fee": _naira(price.platform_fee_kobo),
+            "total": _naira(price.total_kobo),
         }
-        
+
         # Check available caregivers if location provided
         estimated_caregivers = None
         if preview_data.patient_latitude and preview_data.patient_longitude:
@@ -107,12 +102,12 @@ class BookingService:
         return BookingPreviewResponse(
             service_type=preview_data.service_type,
             duration_hours=preview_data.duration_hours,
-            base_fee_per_hour=base_fee,
+            base_fee_per_hour=_naira(settings.base_fee_kobo),
             service_multiplier=multiplier,
-            service_fee=round(service_fee, 2),
-            platform_fee=round(platform_fee, 2),
+            service_fee=_naira(price.service_fee_kobo),
+            platform_fee=_naira(price.platform_fee_kobo),
             platform_fee_percent=settings.platform_fee_percent,
-            total_amount=round(total_amount, 2),
+            total_amount=_naira(price.total_kobo),
             currency="NGN",
             
             # Pricing factors
@@ -140,29 +135,20 @@ class BookingService:
         if not settings:
             raise Exception("Booking settings not configured.")
         
-        # Calculate service fee
-        base_fee = settings.base_fee
+        # Price in kobo. What we store is exactly what we send to Paystack and what settlement
+        # later compares against.
         multiplier = 1.0
         if settings.multipliers and booking_data.service_type in settings.multipliers:
             multiplier = settings.multipliers[booking_data.service_type]
-        service_fee = booking_data.duration_hours * base_fee * multiplier
-        
-        # Apply surge pricing if active
-        if settings.surge_pricing and settings.surge_multiplier:
-            service_fee *= settings.surge_multiplier
-        
-        # Apply discount if any
-        if settings.discount:
-            service_fee *= (1 - settings.discount / 100)
-        
-        # Platform fee
-        platform_fee = service_fee * (settings.platform_fee_percent / 100)
-        total_amount = service_fee + platform_fee
-        # Money is stored to 2dp so what we charge (kobo) always equals what we later compare.
-        service_fee = round(service_fee, 2)
-        platform_fee = round(platform_fee, 2)
-        total_amount = round(total_amount, 2)
-        
+        price = compute_price(
+            base_fee_kobo=settings.base_fee_kobo,
+            quantity=booking_data.duration_hours,
+            multiplier=multiplier,
+            surge_multiplier=settings.surge_multiplier if settings.surge_pricing else None,
+            discount_percent=settings.discount,
+            platform_fee_percent=settings.platform_fee_percent,
+        )
+
         # Generate unique payment reference
         booking_code = self.generate_booking_code()
         paystack_reference = f"BKG_{booking_code}_{patient_id.hex[:8]}"
@@ -183,9 +169,9 @@ class BookingService:
             patient_state=booking_data.patient_state,
             special_instructions=booking_data.special_instructions,
             booking_for=booking_data.booking_for,
-            total_amount=total_amount,
-            service_fee=service_fee,
-            platform_fee=platform_fee,
+            total_amount_kobo=price.total_kobo,
+            service_fee_kobo=price.service_fee_kobo,
+            platform_fee_kobo=price.platform_fee_kobo,
             paystack_reference=paystack_reference
         )
         
@@ -201,7 +187,7 @@ class BookingService:
         # Initialize Paystack payment
         payment_response = self.paystack_service.initialize_transaction(
             email=patient.email,
-            amount=total_amount,
+            amount_kobo=booking.total_amount_kobo,
             reference=paystack_reference,
             callback_url=f"{settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete" if hasattr(settings, 'FRONTEND_URL') else None,
             metadata={

@@ -20,7 +20,7 @@ BASE = "/api/v1/prescription"
 
 @pytest.fixture
 def settings_row(db):
-    row = PrescriptionSettings(base_fee=5000, multipliers={"regular": 1.0}, discount=0)
+    row = PrescriptionSettings(base_fee_kobo=500000, multipliers={"regular": 1.0}, discount=0)
     db.add(row)
     db.commit()
     return row
@@ -33,7 +33,7 @@ def make_prescription(db, patient) -> Prescription:
         medication_name="Paracetamol",
         delivery_option="regular",
         address="1 Test Close, Lekki",
-        total_cost=5000,
+        total_cost_kobo=500000,
     )
     db.add(rx)
     db.commit()
@@ -169,7 +169,7 @@ def test_patch_cannot_change_payment_state_even_for_admin(db, client, body):
     r = client.patch(f"{BASE}/{rx.id}", json=body, headers=auth_headers(admin))
     assert r.status_code == 422
     db.refresh(rx)
-    assert (rx.payment_status, rx.total_cost, rx.paystack_reference) == ("pending", 5000, None)
+    assert (rx.payment_status, rx.total_cost_kobo, rx.paystack_reference) == ("pending", 500000, None)
 
 
 def test_status_patch_is_admin_only(db, client):

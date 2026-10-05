@@ -31,14 +31,14 @@ def test_ambiguous_then_processed_is_closed_by_reference_match(db, client, ambig
     assert _fresh(db, PatientRefundRequest, req.id).status == "approved"
     (rt,) = _refund_txs(db)
     assert rt.status == "successful" and rt.paystack_reference == "888"
-    assert _fresh(db, PatientWallet, wallet.id).balance == 0
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
 
 
 def test_ambiguous_then_failed_recredits_deposit_once(db, client, ambiguous_refund):
     wallet, tx, req = ambiguous_refund
     for _ in range(3):  # replay
         assert _event(client, "refund.failed", _data(tx)).status_code == 200
-    assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("1000")
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000
     assert _fresh(db, PatientRefundRequest, req.id).status == "failed"
     assert [t.status for t in _refund_txs(db)] == ["failed"]
 
@@ -47,7 +47,7 @@ def test_fallback_needs_matching_amount_and_logs_error(db, client, ambiguous_ref
     wallet, tx, req = ambiguous_refund
     assert _event(client, "refund.failed", _data(tx, amount=5)).status_code == 200
     assert _fresh(db, PatientRefundRequest, req.id).status == "processing"
-    assert _fresh(db, PatientWallet, wallet.id).balance == 0
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
     assert any(tx.paystack_reference in r.getMessage() and r.levelname == "ERROR" for r in caplog.records)
 
 
@@ -62,4 +62,4 @@ def test_late_finish_does_not_reopen_a_failed_refund(db, client, monkeypatch):
     monkeypatch.setattr(PaystackService, "initiate_refund", fail_then_succeed)
     client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
     assert _fresh(db, PatientRefundRequest, req.id).status == "failed"
-    assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("1000")
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000

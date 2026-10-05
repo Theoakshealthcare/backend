@@ -41,8 +41,8 @@ def test_initialize_amount_equals_settlement_expectation(db, monkeypatch):
         return Resp()
 
     monkeypatch.setattr("app.services.paystack.requests.post", fake_post)
-    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING, total_amount=1531.885)
-    PaystackService().initialize_transaction("p@example.com", booking.total_amount, "ref-1")
+    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING, total_amount_kobo=153189)
+    PaystackService().initialize_transaction("p@example.com", booking.total_amount_kobo, "ref-1")
     assert sent["json"]["amount"] == expected_kobo(booking) == 153189
 
 
@@ -50,7 +50,7 @@ def test_fractional_payment_settles_end_to_end(db, client, monkeypatch):
     from app.services.booking import BookingService as BS
 
     monkeypatch.setattr(BS, "notify_nearby_caregivers", lambda self, b: [])
-    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING, total_amount=1531.885)
+    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING, total_amount_kobo=153189)
     body = json.dumps({"event": "charge.success", "data": {
         "reference": booking.paystack_reference, "amount": 153189, "status": "success"}}).encode()
     sig = hmac.new(settings.PAYSTACK_SECRET_KEY.encode(), body, hashlib.sha512).hexdigest()
@@ -60,15 +60,15 @@ def test_fractional_payment_settles_end_to_end(db, client, monkeypatch):
     assert db.get(Booking, booking.id).payment_status == PaymentStatus.PAID
 
 
-def test_booking_creation_rounds_money_to_two_places(db, monkeypatch):
+def test_booking_creation_stores_integer_kobo(db, monkeypatch):
     sent = {}
 
-    def fake_init(self, email, amount, reference, callback_url=None, metadata=None):
-        sent["amount"] = amount
+    def fake_init(self, email, amount_kobo, reference, callback_url=None, metadata=None):
+        sent["amount_kobo"] = amount_kobo
         return {"status": True, "authorization_url": "u", "access_code": "a", "reference": reference}
 
     monkeypatch.setattr(PaystackService, "initialize_transaction", fake_init)
-    db.add(BookingSettings(base_fee=1234.567, platform_fee_percent=10.0, multipliers={}))
+    db.add(BookingSettings(base_fee_kobo=123457, platform_fee_percent=10.0, multipliers={}))
     db.commit()
     patient = make_patient(db)
     result = BookingService(db).create_booking(patient.id, BookingCreate(
@@ -77,11 +77,9 @@ def test_booking_creation_rounds_money_to_two_places(db, monkeypatch):
         patient_latitude=6.4, patient_longitude=3.4, patient_city="Lagos",
         patient_state="Lagos", booking_for="myself"))
     b = result["booking"]
-    for v in (b.total_amount, b.service_fee, b.platform_fee):
-        assert round(v, 2) == v
-    assert sent["amount"] == b.total_amount
-    from app.core.money import to_kobo
-    assert to_kobo(sent["amount"]) == expected_kobo(b)
+    for v in (b.total_amount_kobo, b.service_fee_kobo, b.platform_fee_kobo):
+        assert isinstance(v, int)
+    assert sent["amount_kobo"] == b.total_amount_kobo == expected_kobo(b)
 
 
 def test_every_paystack_request_has_a_timeout(monkeypatch):
@@ -100,9 +98,9 @@ def test_every_paystack_request_has_a_timeout(monkeypatch):
     monkeypatch.setattr("app.services.paystack.requests.post", fake)
     monkeypatch.setattr("app.services.paystack.requests.get", fake)
     svc = PaystackService()
-    svc.initialize_transaction("p@example.com", Decimal("10"), "r")
+    svc.initialize_transaction("p@example.com", 1000, "r")
     svc.verify_transaction("r")
-    svc.initiate_refund("r", Decimal("10"))
+    svc.initiate_refund("r", 1000)
     svc.get_supported_banks()
     assert len(seen) == 4 and all(t for t in seen)
 
