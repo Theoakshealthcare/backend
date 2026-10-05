@@ -298,3 +298,34 @@ def test_invalid_source_state_is_a_conflict(db, client, action, source):
     assert act(client, booking, caregiver, action).status_code == 409
     db.refresh(booking)
     assert booking.status == source
+
+
+# --- live tracking only while the job is active -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "status", [BookingStatus.PENDING, BookingStatus.COMPLETED, BookingStatus.CANCELLED, BookingStatus.DECLINED]
+)
+def test_live_tracking_is_a_conflict_outside_accepted_or_in_progress(db, client, status):
+    patient, caregiver = make_patient(db), make_caregiver(db)
+    booking = make_booking(db, patient, caregiver, status=status)
+    db.add(CaregiverLocation(caregiver_id=caregiver.id, latitude=6.45, longitude=3.47, is_active=True))
+    db.commit()
+    url = f"{BOOKING}/{booking.id}/live-tracking"
+
+    for user in (patient.user, caregiver.user):
+        r = client.get(url, headers=auth_headers(user))
+        assert r.status_code == 409, (status, r.text)
+        assert "latitude" not in r.text
+    # admins keep access for support
+    assert client.get(url, headers=auth_headers(make_admin(db))).status_code == 200
+
+
+@pytest.mark.parametrize("status", [BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS])
+def test_live_tracking_works_while_active(db, client, status):
+    patient, caregiver = make_patient(db), make_caregiver(db)
+    booking = make_booking(db, patient, caregiver, status=status)
+    db.add(CaregiverLocation(caregiver_id=caregiver.id, latitude=6.45, longitude=3.47, is_active=True))
+    db.commit()
+    r = client.get(f"{BOOKING}/{booking.id}/live-tracking", headers=auth_headers(patient.user))
+    assert r.status_code == 200

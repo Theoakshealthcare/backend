@@ -799,6 +799,16 @@ def get_live_booking_tracking(
     
     ensure_booking_read_access(booking_service.db, current_user, booking)
 
+    # The location is the caregiver's latest global position, so it must stop being visible
+    # once the job is over (same rule as the tracking WebSocket). Admins keep access.
+    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS) and not user_is_admin(
+        booking_service.db, current_user
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live tracking is only available while the booking is accepted or in progress",
+        )
+
     # Check if booking has assigned caregiver
     if not booking.caregiver_id:
         raise HTTPException(
