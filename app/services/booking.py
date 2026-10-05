@@ -11,6 +11,7 @@ from app.db.models.booking import (
     BookingStatus, PaymentStatus
 )
 from app.db.models.booking_settings import BookingSettings
+from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPreviewRequest, BookingPreviewResponse
 from app.services.location import LocationService
@@ -364,6 +365,19 @@ class BookingService:
             is_assigned = booking.caregiver_id == caregiver_id
 
             if action == "accept":
+                # FOR SHARE, taken after the booking lock (suspend never locks bookings, so no cycle):
+                # it waits for an in-flight suspend and blocks a new one until this commits, so an
+                # accepted booking always appears in suspend's affected_bookings.
+                caregiver_row = (
+                    self.db.query(Caregiver)
+                    .filter(Caregiver.id == caregiver_id)
+                    .with_for_update(read=True)
+                    .populate_existing()
+                    .first()
+                )
+                if caregiver_row is None or caregiver_row.profile_status != "approved":
+                    # e.g. suspended after the offer was sent
+                    raise BookingActionForbidden("Your account is not approved to accept bookings")
                 if notification is None:
                     raise BookingActionForbidden("You were not offered this booking")
                 if booking.status != BookingStatus.PENDING or booking.caregiver_id is not None:
