@@ -39,18 +39,19 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Untrack the caregiver app's `.env`
 
 ## 2. Backend security & money fixes — 🔴 critical, not started
-- [ ] ⚠️ Authenticate the booking WebSockets (they currently use hardcoded demo users)
-- [ ] ⚠️ Require auth and ownership checks on the prescription endpoints
+- [x] ⚠️ Authenticate the booking WebSockets (they currently use hardcoded demo users) — `security/access-control`, 2026-10-05
+- [x] ⚠️ Require auth and ownership checks on the prescription endpoints — `security/access-control`, 2026-10-05
 - [ ] ⚠️ Admin approval for caregiver identity; stop accepting the verification result from the client
-- [ ] ⚠️ Make the caregiver document uploads private (they're under the public `/uploads` mount)
-- [ ] ⚠️ Reject refresh tokens used as access tokens (check the `type` claim)
+- [x] ⚠️ Make the caregiver document uploads private (they're under the public `/uploads` mount) — code done 2026-10-05; run `scripts/migrate_private_documents.py` on production after deploy
+- [x] ⚠️ Reject refresh tokens used as access tokens (check the `type` claim) — `security/access-control`, 2026-10-05
 - [ ] ⚠️ Validate that withdrawal amounts are positive, and lock the wallet row
 - [ ] ⚠️ Fix refund approval paying twice (wallet credit plus a Paystack refund)
 - [ ] ⚠️ Make the Paystack webhook safe to replay, and check the paid amount against the booking
 - [ ] Wallet transactions: remove the nested `db.begin()`
 - [ ] Password reset: fix the email arguments that cause a 500, and build a real reset link
 - [ ] Vitals access grant: stop comparing a user ID with a patient ID; use the `accepted` status
-- [ ] Only the booking's own caregiver can cancel it or change its state; only paid bookings can be accepted
+- [x] Only the booking's own caregiver can cancel it or change its state; only paid bookings can be accepted — `security/access-control`, 2026-10-05
+- [x] Public diagnostics removed: `/booking/ws/stats` is admin-only, `/auth/test-cloudinary` deleted — 2026-10-05
 - [x] `GET /caregiver/verification-status` returned 500 instead of 403/404 — 2026-09-29
 - [ ] Rate limiting on login, OTP and password recovery
 - [ ] Fix the Alembic migration graph (two roots) so `upgrade head` works on an empty DB
@@ -155,5 +156,8 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] Production: run `python -m scripts.migrate_private_documents --dry-run`, then for real, after deploying WP-C (see `docs/sop/2026-10-05-access-control.md`)
+- [ ] `patient.py:320,362` admin routes check `user_type != "admin"` (never true); use `get_current_admin` (WP-D covers the refund route only)
+- [ ] Chat and notes routes in `endpoints/booking.py` don't let admins in; decide whether support staff should read them
 - [ ] Upgrade Poetry to 2.5.x everywhere (local, Render `POETRY_VERSION`, CI)
 - [ ] Docker image size is 828 MB, mostly gRPC and Google libraries; revisit after the `google-genai` swap
