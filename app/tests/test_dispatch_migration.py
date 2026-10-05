@@ -24,7 +24,8 @@ from app.db.session import engine as suite_engine
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSIONS = ROOT / "app" / "alembic" / "versions"
-NEW_BOOKING_COLUMNS = {"payment_expires_at", "cancel_reason", "dispatch_state", "dispatch_started_at"}
+NEW_BOOKING_COLUMNS = {"payment_expires_at", "cancel_reason", "dispatch_state", "dispatch_started_at",
+                       "refund_required", "refund_required_reason"}
 
 
 def _load_migration():
@@ -108,8 +109,9 @@ def test_migration_round_trip_with_seeded_rows(scratch_engine):
     assert NEW_BOOKING_COLUMNS <= {c["name"] for c in insp.get_columns("bookings")}
     with scratch_engine.connect() as conn:
         row = conn.execute(text(
-            "SELECT booking_code, dispatch_state, payment_expires_at, cancel_reason FROM bookings")).one()
-        assert tuple(row) == ("MIGTEST1", None, None, None)  # legacy rows keep NULLs
+            "SELECT booking_code, dispatch_state, payment_expires_at, cancel_reason, refund_required, "
+            "refund_required_reason FROM bookings")).one()
+        assert tuple(row) == ("MIGTEST1", None, None, None, False, None)  # legacy rows: NULLs, no refund flag
         diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
     assert diff == []
 

@@ -139,6 +139,23 @@ def test_caregiver_with_null_specialization_does_not_break_scoring(db):
     assert ids(find_candidates(db, paid_booking(db), NOW)) == [cg.id]
 
 
+def test_stationary_caregiver_stays_matchable_when_pinging_identical_coordinates(db):
+    from app.services.location import LocationService
+
+    cg = make_caregiver(db)
+    db.add(CaregiverSkill(caregiver_id=cg.id, service_type="nurse"))
+    svc = LocationService(db)
+    svc.update_caregiver_location(cg.id, LAT + 0.002, LON)
+    loc = db.query(CaregiverLocation).filter_by(caregiver_id=cg.id).one()
+    loc.updated_at = datetime.utcnow() - timedelta(minutes=settings.LOCATION_FRESHNESS_MINUTES + 5)
+    db.commit()  # time passes; the first fix is now stale
+    assert find_candidates(db, paid_booking(db), datetime.utcnow()) == []
+
+    svc.update_caregiver_location(cg.id, LAT + 0.002, LON)  # same GPS fix: no column value changes
+    db.expire_all()
+    assert ids(find_candidates(db, paid_booking(db), datetime.utcnow())) == [cg.id]
+
+
 def test_closer_caregiver_ranks_first(db):
     far = make_candidate(db, lat_offset=0.08)
     near = make_candidate(db, lat_offset=0.004)
@@ -174,12 +191,27 @@ def test_start_dispatch_twice_sends_one_wave(db):
     assert len(notified_ids(db, b)) == 3
 
 
-def test_start_dispatch_with_no_candidates_is_unmatched(db, caplog):
+def test_no_candidates_yet_keeps_dispatching_and_wave_one_goes_out_when_one_appears(db):
     b = paid_booking(db)
+    start_dispatch(db, b.id, NOW)
+    assert fresh(db, b).dispatch_state == "dispatching" and waves(db, b) == []
+    assert tick(db, minutes(1)) == 0
+    assert fresh(db, b).dispatch_state == "dispatching"
+
+    cg = make_candidate(db)
+    assert tick(db, minutes(2)) == 1
+    (w1,) = waves(db, b)
+    assert w1.wave_no == 1 and w1.notified_caregiver_ids == [cg.id] and w1.sent_at == minutes(2)
+
+
+def test_no_candidates_for_the_whole_window_becomes_unmatched(db, caplog):
+    b = paid_booking(db)
+    start_dispatch(db, b.id, NOW)
+    tick(db, minutes(29))
+    assert fresh(db, b).dispatch_state == "dispatching"
     with caplog.at_level(logging.WARNING):
-        start_dispatch(db, b.id, NOW)
-    b = fresh(db, b)
-    assert b.dispatch_state == "unmatched"
+        tick(db, minutes(30))
+    assert fresh(db, b).dispatch_state == "unmatched"
     assert waves(db, b) == []
     assert "unmatched" in caplog.text and str(b.id) in caplog.text
 

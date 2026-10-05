@@ -109,6 +109,9 @@ class LocationService:
             location.heading = kwargs.get('heading')
             location.speed = kwargs.get('speed')
             location.is_available = kwargs.get('is_available', True)
+            # onupdate only fires when a column value changes; a stationary caregiver re-sending the
+            # same fix must still count as fresh for matching.
+            location.updated_at = datetime.utcnow()
         else:
             location = CaregiverLocation(
                 caregiver_id=caregiver_id,

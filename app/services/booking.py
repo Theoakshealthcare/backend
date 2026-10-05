@@ -192,7 +192,7 @@ class BookingService:
             email=patient.email,
             amount_kobo=booking.total_amount_kobo,
             reference=paystack_reference,
-            callback_url=f"{settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete" if hasattr(settings, 'FRONTEND_URL') else None,
+            callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete",
             metadata={
                 "booking_id": str(booking.id),
                 "patient_id": str(patient_id),

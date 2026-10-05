@@ -8,7 +8,7 @@ bookings paid before this existed) and in ``booking_dispatch_waves``, one row pe
 - dispatch_tick() (ARQ cron, every minute) moves each ``dispatching`` booking along: when the
   latest wave has expired without an accept it notifies the next batch of caregivers who have not
   been offered the booking yet. After DISPATCH_ESCALATE_MINUTES in total, or when nobody is left
-  to notify, the booking becomes ``unmatched`` and is logged for the admin unmatched queue.
+  to notify after at least one wave, the booking becomes ``unmatched`` and is logged for the admin unmatched queue.
 - Accepting (BookingService.handle_booking_action) sets ``matched`` and stays allowed for any
   caregiver notified in any wave, including after the booking was escalated to ``unmatched``.
 
@@ -132,6 +132,8 @@ def _advance(db: Session, booking: Booking, now: datetime) -> bool:
         return False  # the current wave is still open
 
     if not _send_wave(db, booking, wave_count + 1, now):
+        if wave_count == 0:
+            return False  # nobody online yet: stay dispatching, retry next tick until the window ends
         _mark_unmatched(booking, "no candidates left", wave_count)
     return True
 

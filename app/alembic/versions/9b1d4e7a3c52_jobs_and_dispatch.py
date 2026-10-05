@@ -4,9 +4,10 @@ Revision ID: 9b1d4e7a3c52
 Revises: 2e543a04ee5d
 Create Date: 2026-10-05
 
-Adds bookings.payment_expires_at / cancel_reason (unpaid expiry), bookings.dispatch_state /
+Adds bookings.payment_expires_at / cancel_reason (unpaid expiry), refund_required /
+refund_required_reason (money received for a booking that stays cancelled), bookings.dispatch_state /
 dispatch_started_at (wave dispatch) and the booking_dispatch_waves table. No data is converted:
-every new bookings column is nullable and existing rows keep NULLs (the expiry job falls back to
+every new bookings column is nullable (refund_required defaults to false) and existing rows keep NULLs (the expiry job falls back to
 created_at + the TTL for rows without payment_expires_at; dispatch_state NULL means "paid before
 dispatch waves existed"). Downgrade drops the table and the columns, losing dispatch history only.
 """
@@ -27,6 +28,9 @@ UUID = postgresql.UUID(as_uuid=True)
 def upgrade() -> None:
     op.add_column("bookings", sa.Column("payment_expires_at", sa.DateTime(), nullable=True))
     op.add_column("bookings", sa.Column("cancel_reason", sa.String(), nullable=True))
+    op.add_column("bookings", sa.Column("refund_required", sa.Boolean(), nullable=False,
+                                        server_default=sa.false()))
+    op.add_column("bookings", sa.Column("refund_required_reason", sa.Text(), nullable=True))
     op.add_column("bookings", sa.Column("dispatch_state", sa.String(), nullable=True))
     op.add_column("bookings", sa.Column("dispatch_started_at", sa.DateTime(), nullable=True))
     op.create_check_constraint(
@@ -51,5 +55,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_bookings_dispatch_state", "bookings", type_="check")
     op.drop_column("bookings", "dispatch_started_at")
     op.drop_column("bookings", "dispatch_state")
+    op.drop_column("bookings", "refund_required_reason")
+    op.drop_column("bookings", "refund_required")
     op.drop_column("bookings", "cancel_reason")
     op.drop_column("bookings", "payment_expires_at")

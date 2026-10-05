@@ -9,6 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 
 from app.core.money import kobo_to_naira
 from app.db.base import Base
@@ -71,6 +72,10 @@ class Booking(Base):
     # Unpaid expiry: the expire_unpaid_bookings job cancels a pending, unpaid booking past this time.
     payment_expires_at = Column(DateTime, nullable=True)
     cancel_reason = Column(String, nullable=True)  # e.g. 'unpaid_timeout'
+    # Money received for a booking that stays cancelled. The admin refund queue consumes this; nothing
+    # refunds automatically.
+    refund_required = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    refund_required_reason = Column(Text, nullable=True)  # paid_after_expiry | paid_after_cancellation
 
     # Dispatch to caregivers, separate from `status` so client enums don't change.
     # NULL = not dispatched (unpaid, or paid before dispatch waves existed).

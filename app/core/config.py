@@ -81,6 +81,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     PAYMENT_LINK_TTL_MINUTES: int = 30  # an unpaid booking is cancelled after this long
     LOCATION_FRESHNESS_MINUTES: int = 15  # a caregiver location older than this is not matched
+    # A payment that lands after the unpaid-expiry cancel reinstates the booking only if the visit is
+    # at least this far ahead; otherwise it is flagged for a refund.
+    LATE_PAYMENT_REINSTATE_MIN_LEAD_MINUTES: int = 60
     MATCH_RADIUS_KM: float = 20
     DISPATCH_WAVE_SIZE: int = 8  # caregivers notified per wave
     DISPATCH_WAVE_MINUTES: int = 10  # how long a wave waits for an accept before the next one
