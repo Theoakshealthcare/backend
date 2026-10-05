@@ -41,10 +41,15 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
+RUN mkdir -p /app/private_uploads /app/uploads
+
 COPY ./app /app/app
 
 # Copy alembic configuration
 COPY ./alembic.ini /app/alembic.ini
+
+# Operational scripts (dev DB bootstrap, health-data re-encryption)
+COPY ./scripts /app/scripts
 
 # Copy run script
 COPY ./boot/docker-run.sh /opt/run.sh
