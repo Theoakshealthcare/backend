@@ -31,7 +31,7 @@ class User(Base):
 
     # Relationships
     patient = relationship("Patient", back_populates="user", uselist=False)
-    caregiver = relationship("Caregiver", back_populates="user", uselist=False)
+    caregiver = relationship("Caregiver", back_populates="user", uselist=False, foreign_keys="Caregiver.user_id")
 
 
 class Admin(Base):

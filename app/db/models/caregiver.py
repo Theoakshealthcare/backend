@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 from typing import Optional, List
 
-from sqlalchemy import Boolean, Column, DateTime, String, Text, ForeignKey, Date, Integer, JSON
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Index, String, Text, ForeignKey, Date, Integer, JSON, text
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
 
@@ -37,7 +37,19 @@ class Caregiver(Base):
     profile_completion_step = Column(Integer, default=0)  # 0-3 for tracking progress
     identity_verification_status = Column(String, default='pending')  # pending, in_progress, verified, failed
     background_check_status = Column(String, default='pending')
-    profile_status = Column(String, default='incomplete')  # incomplete, under_review, approved, rejected
+    profile_status = Column(String, default='incomplete')  # incomplete, under_review, changes_requested, approved, rejected, suspended
+    # background_check_status: pending, in_progress, cleared, failed (set only by an admin decision)
+
+    # Admin approval workflow (written only by CaregiverApprovalService, never by the caregiver)
+    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    suspended_at = Column(DateTime, nullable=True)
+    suspension_reason = Column(Text, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    changes_requested = Column(JSON, nullable=True)  # {"items": [...], "note": "..."}
+    background_check_evidence = Column(JSON, nullable=True)  # {"notes", "document_id", "provider_reference"}
+    background_check_decided_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    background_check_decided_at = Column(DateTime, nullable=True)
     
     # Third-party Integration IDs
     onfido_applicant_id = Column(String, nullable=True)
@@ -58,13 +70,14 @@ class Caregiver(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    user = relationship("User", back_populates="caregiver")
+    user = relationship("User", back_populates="caregiver", foreign_keys=[user_id])
     documents = relationship("CaregiverDocument", back_populates="caregiver")
     certifications = relationship("CaregiverCertification", back_populates="caregiver")
     bookings = relationship("Booking", back_populates="caregiver")
     notifications = relationship("BookingNotification", back_populates="caregiver")
     locations = relationship("CaregiverLocation", back_populates="caregiver")
     notes = relationship("BookingNote", back_populates="caregiver")
+    skills = relationship("CaregiverSkill", back_populates="caregiver", cascade="all, delete-orphan")
 
 
 class CaregiverDocument(Base):
@@ -87,8 +100,43 @@ class CaregiverDocument(Base):
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     verified_at = Column(DateTime, nullable=True)
 
+    # Admin review
+    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    expires_on = Column(Date, nullable=True)
+
     # Relationship
     caregiver = relationship("Caregiver", back_populates="documents")
+
+
+SERVICE_TYPES = ("nurse", "doctor", "physiotherapist", "caregiver", "nutritionist")
+
+
+class CaregiverSkill(Base):
+    """A structured service skill an admin assigned to a caregiver (used for matching)."""
+    __tablename__ = "caregiver_skills"
+    __table_args__ = (
+        CheckConstraint(
+            "service_type IN ('nurse','doctor','physiotherapist','caregiver','nutritionist')",
+            name="ck_caregiver_skills_service_type",
+        ),
+        # sub_specialty is nullable, and NULLs are distinct in a plain unique constraint,
+        # so the index coalesces it.
+        Index(
+            "uq_caregiver_skills_caregiver_service_sub",
+            "caregiver_id", "service_type", text("coalesce(sub_specialty, '')"),
+            unique=True,
+        ),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id", ondelete="CASCADE"), nullable=False)
+    service_type = Column(String, nullable=False)
+    sub_specialty = Column(String, nullable=True)
+    created_by_admin_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    caregiver = relationship("Caregiver", back_populates="skills")
 
 
 class CaregiverCertification(Base):
