@@ -15,6 +15,7 @@ from app.db.models.booking_settings import BookingSettings
 from app.db.models.patient import PatientRefundRequest, PatientTransaction, PatientWallet
 from app.db.models.prescription_settings import PrescriptionSettings
 from app.schemas.booking import BookingCreate, BookingPreviewRequest
+from app.services import dispatch
 from app.services.booking import BookingService
 from app.services.paystack import PaystackService
 from app.tests.factories import auth_headers, make_admin, make_patient
@@ -82,7 +83,7 @@ def test_preview_create_init_and_settlement_agree_on_one_kobo_total(db, client, 
         return {"status": True, "authorization_url": "u", "access_code": "a", "reference": reference}
 
     monkeypatch.setattr(PaystackService, "initialize_transaction", fake_init)
-    monkeypatch.setattr(BookingService, "notify_nearby_caregivers", lambda self, b: [])
+    monkeypatch.setattr(dispatch, "start_dispatch", lambda db, booking_id, now=None: None)
     patient = make_patient(db)
 
     preview = BookingService(db).calculate_booking_preview(BookingPreviewRequest(

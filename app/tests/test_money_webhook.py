@@ -12,7 +12,7 @@ from app.core.money import to_kobo
 from app.core.config import settings
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.patient import PatientTransaction, PatientWallet
-from app.services.booking import BookingService
+from app.services import dispatch
 from app.tests.factories import make_booking, make_patient
 
 URL = "/api/v1/payment/paystack/webhook"
@@ -35,7 +35,7 @@ def _post(client, event, reference, kobo, signature=None, **extra):
 @pytest.fixture
 def notified(monkeypatch):
     calls = []
-    monkeypatch.setattr(BookingService, "notify_nearby_caregivers", lambda self, b: calls.append(b.id) or [])
+    monkeypatch.setattr(dispatch, "start_dispatch", lambda db, booking_id, now=None: calls.append(booking_id))
     return calls
 
 

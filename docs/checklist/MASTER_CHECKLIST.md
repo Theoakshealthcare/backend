@@ -27,8 +27,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Phase 0 WP-E: [plan](../plans/2026-10-05-phase-0-security-foundations.md#wp-e-foundations-so-a-booking-can-complete-branches-from-main-which-now-includes-wpad)
   - [x] E2 money in kobo. 2026-10-05, branch `foundations/kobo`, migration `68b8941cfc28`, [SOP](../sop/2026-10-05-money-in-kobo.md)
   - [x] E5 caregiver approval API (mandatory background check) + audit log. 2026-10-05, `foundations/caregiver-approval`, migration `2e543a04ee5d`, [SOP](../sop/2026-10-05-caregiver-approval.md)
-  - [ ] E3 Redis + ARQ worker, unpaid-booking expiry
-  - [ ] E4 skills-based matching + dispatch waves
+  - [x] E3 Redis + ARQ worker, unpaid-booking expiry. 2026-10-05, `foundations/dispatch`, migration `9b1d4e7a3c52`, [SOP](../sop/2026-10-05-jobs-and-dispatch.md)
+  - [x] E4 skills-based matching + dispatch waves. 2026-10-05, `foundations/dispatch`, same migration and SOP
   - [ ] E1 migration baseline (blocked: needs production schema dump)
 - [ ] Clean the ruff backlog, then enforce the full ruleset and `ruff format`
 - [ ] Python 3.11 → 3.12 or 3.13

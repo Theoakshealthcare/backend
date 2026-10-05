@@ -5,10 +5,11 @@ from enum import Enum
 
 from sqlalchemy import (
     Boolean, Column, DateTime, String, Text, ForeignKey, 
-    BigInteger, Float, Integer, JSON, Enum as SQLEnum
+    BigInteger, Float, Integer, JSON, Enum as SQLEnum, CheckConstraint, UniqueConstraint
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 
 from app.core.money import kobo_to_naira
 from app.db.base import Base
@@ -32,7 +33,12 @@ class PaymentStatus(str, Enum):
 
 class Booking(Base):
     __tablename__ = "bookings"
-    
+    __table_args__ = (
+        CheckConstraint(
+            "dispatch_state IN ('dispatching','matched','unmatched')", name="ck_bookings_dispatch_state"
+        ),
+    )
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_code = Column(String, unique=True, nullable=False)
     
@@ -63,6 +69,19 @@ class Booking(Base):
     status = Column(SQLEnum(BookingStatus), default=BookingStatus.PENDING)
     payment_status = Column(SQLEnum(PaymentStatus), default=PaymentStatus.PENDING)
     
+    # Unpaid expiry: the expire_unpaid_bookings job cancels a pending, unpaid booking past this time.
+    payment_expires_at = Column(DateTime, nullable=True)
+    cancel_reason = Column(String, nullable=True)  # e.g. 'unpaid_timeout'
+    # Money received for a booking that stays cancelled. The admin refund queue consumes this; nothing
+    # refunds automatically.
+    refund_required = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    refund_required_reason = Column(Text, nullable=True)  # paid_after_expiry | paid_after_cancellation
+
+    # Dispatch to caregivers, separate from `status` so client enums don't change.
+    # NULL = not dispatched (unpaid, or paid before dispatch waves existed).
+    dispatch_state = Column(String, nullable=True)  # dispatching | matched | unmatched
+    dispatch_started_at = Column(DateTime, nullable=True)
+
     # Payment
     # Money is integer kobo (BIGINT). The naira properties below are read-only, for responses.
     total_amount_kobo = Column(BigInteger, nullable=False)
@@ -97,6 +116,20 @@ class Booking(Base):
     @property
     def platform_fee(self):
         return kobo_to_naira(self.platform_fee_kobo)
+
+
+class BookingDispatchWave(Base):
+    """One batch of caregivers notified about a booking. (booking_id, wave_no) is unique, so two
+    workers can never both send the same wave."""
+    __tablename__ = "booking_dispatch_waves"
+    __table_args__ = (UniqueConstraint("booking_id", "wave_no", name="uq_booking_dispatch_waves_booking_wave"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    wave_no = Column(Integer, nullable=False)
+    notified_caregiver_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=False, default=list)
+    sent_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
 
 
 class BookingNotification(Base):

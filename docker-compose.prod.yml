@@ -1,4 +1,4 @@
-# Production stack: the API container only. The database is managed separately.
+# Production stack: the API, the ARQ worker and Redis. The database is managed separately.
 #   docker compose -f docker-compose.prod.yml --env-file /etc/oakly/backend.env up -d
 # The env file lives on the server (never in git) and must set at least
 # DATABASE_URL, SECRET_KEY and VITALS_ENCRYPTION_KEY (see .env.example).
@@ -21,5 +21,38 @@ services:
       retries: 3
       start_period: 40s
 
+  # Scheduled jobs (unpaid-booking expiry, caregiver dispatch waves). Same image as the API; the
+  # API container runs the migrations, so wait for it to be healthy. The jobs are lock-safe, so
+  # a second worker replica is harmless.
+  worker:
+    image: ${OAKLY_API_IMAGE:-oaklycare-backend:latest}
+    command: ["arq", "app.worker.WorkerSettings"]
+    env_file: ${OAKLY_ENV_FILE_PATH:-/etc/oakly/backend.env}
+    environment:
+      ENVIRONMENT: production
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379/0
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    # Not published to the host; password required. ARQ payloads are JSON (see app/worker.py).
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   private_uploads:
+  redis_data:

@@ -8,7 +8,7 @@ import pytest
 
 from app.core.config import settings
 from app.db.models.booking import Booking, PaymentStatus
-from app.services.booking import BookingService
+from app.services import dispatch
 from app.services.paystack import PaystackService
 from app.tests.factories import auth_headers, make_booking, make_patient
 
@@ -20,7 +20,7 @@ def _url(b):
 @pytest.fixture
 def notified(monkeypatch):
     calls = []
-    monkeypatch.setattr(BookingService, "notify_nearby_caregivers", lambda self, b: calls.append(b.id) or [])
+    monkeypatch.setattr(dispatch, "start_dispatch", lambda db, booking_id, now=None: calls.append(booking_id))
     return calls
 
 
@@ -121,3 +121,49 @@ def test_verify_then_webhook_notifies_once(db, client, monkeypatch, notified):
     assert client.post(_url(b), headers=auth_headers(patient.user)).status_code == 200
     assert _webhook(client, b).status_code == 200
     assert len(notified) == 1
+
+
+def _expire(db, b):
+    from datetime import datetime, timedelta
+
+    from app.services.booking_expiry import expire_unpaid_bookings
+
+    b.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    assert expire_unpaid_bookings(db) == 1
+
+
+def test_late_verify_with_lead_time_reinstates_with_the_normal_response(db, client, monkeypatch, notified):
+    _paystack(monkeypatch)
+    patient, b = _setup(db)
+    _expire(db, b)
+    r = client.post(_url(b), headers=auth_headers(patient.user))
+    assert r.status_code == 200, r.text
+    assert r.json()["payment_status"] == "paid" and "refund_required" not in r.json()
+    assert _webhook(client, b).status_code == 200
+    r = client.post(_url(b), headers=auth_headers(patient.user))
+    assert "refund_required" not in r.json()
+    fresh = _fresh(db, b)
+    assert fresh.status.value == "pending" and fresh.dispatch_state == "dispatching"
+    assert notified == [b.id]
+
+
+def test_late_verify_too_close_to_the_visit_returns_the_refund_response(db, client, monkeypatch, notified):
+    from datetime import datetime, timedelta
+
+    _paystack(monkeypatch)
+    soon = datetime.utcnow() + timedelta(minutes=10)
+    patient, b = _setup(db, scheduled_date=soon, scheduled_end_date=soon + timedelta(hours=4))
+    _expire(db, b)
+    expected_keys = {"status", "message", "booking_id", "payment_status", "booking_status", "refund_required"}
+    for _ in range(2):  # the repeat call (already paid) answers the same way
+        r = client.post(_url(b), headers=auth_headers(patient.user))
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert expected_keys <= set(body)
+        assert body["payment_status"] == "paid" and body["booking_status"] == "cancelled"
+        assert body["refund_required"] is True and body["message"]
+    assert _webhook(client, b).status_code == 200
+    fresh = _fresh(db, b)
+    assert fresh.refund_required is True and fresh.dispatch_state is None
+    assert notified == []

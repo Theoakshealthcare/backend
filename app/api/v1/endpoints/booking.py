@@ -521,6 +521,20 @@ def get_booking_details(
     return enriched_booking
 
 
+def _refund_required_response(booking: Booking) -> dict:
+    """Paid, but the booking stays cancelled (the payment link had expired and the visit is too
+    close to reinstate). Distinct shape so the app can tell the patient a refund is coming."""
+    return {
+        "status": "success",
+        "message": "Your payment was received after the booking was cancelled. "
+                   "The booking will not go ahead and the payment will be refunded.",
+        "booking_id": booking.id,
+        "payment_status": "paid",
+        "booking_status": booking.status.value,
+        "refund_required": True,
+    }
+
+
 @router.post(
     "/booking/{booking_id}/verify-payment",
     summary="Verify booking payment",
@@ -566,6 +580,8 @@ def verify_booking_payment(
     
     # Already settled (webhook got there first, or a repeat call): nothing to re-verify or re-notify
     if booking.payment_status == PaymentStatus.PAID:
+        if booking.refund_required:
+            return _refund_required_response(booking)
         return {
             "status": "success",
             "message": "Payment verified successfully",
@@ -597,6 +613,10 @@ def verify_booking_payment(
                     detail="Payment amount does not match booking total"
                 )
             
+            if outcome == SettleOutcome.PAID_NOT_DISPATCHED:
+                db.refresh(booking)
+                return _refund_required_response(booking)
+
             return {
                 "status": "success",
                 "message": "Payment verified successfully",
