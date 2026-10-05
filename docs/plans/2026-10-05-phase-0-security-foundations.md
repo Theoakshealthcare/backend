@@ -101,29 +101,128 @@
 
 **Acceptance criteria:** tests cover negative, zero, overdraw and concurrent withdrawals; double approval; refund destination; webhook replay, wrong amount, bad signature and failed-after-paid; verify-payment parity.
 
-### WP-E: Foundations so a booking can complete (after C and D merge)
-- **E1. Migrations.**
-  - Today the Alembic history has two roots and doesn't create the vitals, access or FallGuard tables, so it can't build an empty DB.
-  - Replace it with a **baseline** generated from the models and checked against a `pg_dump --schema-only` of production. Stamp production at the baseline.
-  - ⚠️ This needs a read-only schema dump of production from the owner.
-- **E2. Money in kobo.** Migrate `bookings.total_amount/service_fee/platform_fee`, patient wallet and transaction amounts and prescription `total_cost` from Float/Numeric naira to BIGINT kobo. One pricing helper does all rounding.
-- **E3. Jobs.** Add Redis and an ARQ worker plus scheduler as docker-compose services. First jobs:
-  - expire unpaid bookings after 30 minutes
-  - dispatch timeout and re-dispatch
-- **E4. Matching.**
-  - Structured caregiver skills (`caregiver_skills`) instead of matching on free-text specialization.
-  - Location freshness of at most 15 minutes.
-  - Dispatch waves (WA-FR-28/29).
-- **E5. Caregiver approval API** (the first slice of the Admin console):
-  - Admin endpoints for application list and detail, document decision, identity decision, **background-check decision (mandatory)**, approve/reject and skills.
-  - Approval is impossible unless documents and identity are verified **and** the background check is cleared.
+### WP-E: Foundations so a booking can complete (branches from `main`, which now includes WP-A–D)
+
+**Shared rules for all of WP-E**
+
+- **Migrations.** Each sub-package adds **one Alembic migration**, chained to the current head (`6fb30639d5f4`).
+  - Sub-packages running in parallel will create sibling heads. The lead re-parents them (`down_revision`) at merge time, so `alembic heads` must show exactly one head on `main`.
+  - Verify each migration against a database at the *current* head, as follows:
+    1. On `main`, start a throwaway Postgres.
+    2. Run `python -m scripts.init_local_db` (with `ENVIRONMENT=development`).
+    3. Switch to your branch and run `alembic upgrade head`, then `alembic downgrade -1`, then `alembic upgrade head`.
+
+    Record the output in the SOP. Data-converting migrations must be tested with **seeded rows**.
+  - The test harness still builds the schema from the models (`create_all`), so models and migration must agree. Add a test that compares them: run `alembic upgrade head` on a DB built at the old head, then `alembic check` or an equivalent, if feasible.
+- **Money.** All new money columns are `BIGINT` kobo. Convert only with `app/core/money.py` (`to_kobo`, and a new `kobo_to_naira` for display).
+- **API contract.** Keep the existing JSON field names and **naira** values in responses, so the mobile apps keep working. Internal storage changes; the wire format doesn't. New fields may be added, but not renamed or removed.
+- **Admin auth.** Use the existing `get_current_admin` for now; full roles and permissions come with the Admin console. Every admin write goes through `AuditService.record(...)` (E5 creates it).
+
+#### E2: Money in kobo (branch `foundations/kobo`)
+- **Migrate these columns to BIGINT kobo**, using `ROUND(x * 100)`, and rename each to `*_kobo`:
+  - `bookings.total_amount`, `service_fee`, `platform_fee`
+  - `booking_settings.base_fee`
+  - `patient_wallets.balance`, `total_deposited`, `total_spent`, `total_refunded`
+  - `patient_transactions.amount`
+  - `patient_refund_requests.amount`
+  - `prescriptions.total_cost`
+  - `prescription_settings.base_fee`
+- **Writing the migration.** It must be reversible (divide by 100 on downgrade), wrapped in one transaction, and tested on seeded rows that include fractional amounts.
+- **Code changes.**
+  - Model attributes use the `*_kobo` names.
+  - Pricing (`calculate_booking_preview`, `create_booking`, prescriptions) computes in Decimal and stores kobo through `to_kobo`.
+  - Settlement, refund and withdrawal code compares kobo integers directly. No floats anywhere in money paths.
+- **Responses** still return naira, the same fields, with 2 decimal places.
+- **Tests:**
+  - a fractional price end to end, from preview through create, Paystack init and settlement, all agreeing;
+  - wallet deposit, then payment, then refund, with balances in kobo;
+  - the migration upgrade and downgrade on seeded data.
+- ⚠️ **Money path: an Opus review is required.**
+
+#### E5: Caregiver approval API (branch `foundations/caregiver-approval`)
+- **New `caregiver_skills` table:**
+  - Columns: `caregiver_id`, `service_type` (one of nurse, doctor, physiotherapist, caregiver, nutritionist), `sub_specialty` (nullable), `created_by_admin_id`, `created_at`.
+  - Unique on (`caregiver_id`, `service_type`, `sub_specialty`).
+  - E4 uses this table for matching.
+- **Caregiver fields:**
+  - Add `approved_by`, `approved_at`, `suspended_at`, `suspension_reason`, `rejection_reason`, `changes_requested`. `changes_requested` is JSON: a list of item keys plus a note.
+  - Add `background_check_evidence` (JSON: notes, an optional document id, a provider reference) and `background_check_decided_by` / `_at`.
+  - New allowed values: `background_check_status` gains `cleared` and `failed`; `profile_status` gains `suspended` and `changes_requested`.
+- **Document fields:** `caregiver_documents` gains `reviewed_by`, `rejection_reason` and `expires_on`.
+- **New `admin_audit_log` table** (append-only): `admin_user_id`, `action`, `entity_type`, `entity_id`, `before` (JSON), `after` (JSON), `reason`, `ip`, `user_agent`, `created_at`. Plus `AuditService.record()`.
+- **Admin endpoints** under `/api/v1/admin/caregivers` (all `get_current_admin`, all audited):
+  - `GET /` lists applications. Filter by `profile_status`, default `under_review`; paginated; oldest first.
+  - `GET /{id}` returns the full detail: profile, consents, documents (metadata plus the existing authorized download URL), identity results, background check, skills, and the audit history for that caregiver.
+  - `POST /documents/{doc_id}/decision` takes `{decision: verified|rejected, reason?, expires_on?}`.
+  - `POST /{id}/identity-decision` takes `{decision: verified|failed, notes}`.
+  - `POST /{id}/background-check-decision` takes `{decision: cleared|failed, notes, provider_reference?, document_id?}`. **Mandatory before approval.**
+  - `PUT /{id}/skills` sets the full skill list.
+  - `POST /{id}/approve` is only allowed when all of these hold, otherwise 409 with a list of what's missing:
+    - at least one `license` document is verified, and none is pending;
+    - identity is verified;
+    - the background check is cleared;
+    - at least one skill is set;
+    - consents are accepted.
+
+    On success it sets `profile_status=approved`, `approved_by` and `approved_at`.
+  - `POST /{id}/reject` takes `{reason}`.
+  - `POST /{id}/request-changes` takes `{items[], note}`.
+  - `POST /{id}/suspend` takes `{reason}`. Suspended caregivers are excluded from matching; future accepted bookings are flagged for ops.
+  - `POST /{id}/reinstate`.
+- **Caregiver side:**
+  - `GET /caregiver/verification-status` now includes `rejection_reason`, `changes_requested`, and the background check status.
+  - Approve, reject, request-changes and suspend each email the caregiver. Use the existing email service, mocked in tests.
+- **Form options:** replace the US `states` list with the 36 Nigerian states plus the FCT (AD-FR-56).
+- **Tests:**
+  - every endpoint returns 401 without a token and 403 for a non-admin;
+  - every approve precondition (each missing item gives 409 naming it);
+  - an audit row is written for each action;
+  - the caregiver cannot set any of these fields themselves;
+  - suspended caregivers are excluded from matching (the current `find_nearby_caregivers` path).
+- ⚠️ **Permission path: an Opus review is required.**
+
+#### E3 + E4: Jobs and matching (branch `foundations/dispatch`, starts after E5 merges because it needs `caregiver_skills`)
+- **E3, infrastructure:**
+  - Add Redis 7 and an **ARQ** worker (`app/worker.py`) as docker-compose services, dev and prod.
+  - Add a `REDIS_URL` setting.
+  - The ARQ cron runs `expire_unpaid_bookings` every minute and `dispatch_tick` every minute.
+  - Job functions are plain functions taking a DB session, so tests call them directly without Redis. Add one smoke test that the worker settings import cleanly.
+- **Expire unpaid bookings:**
+  - New booking field `payment_expires_at`, set to now + `PAYMENT_LINK_TTL_MINUTES` (default 30) at creation.
+  - The job cancels bookings that are `pending` with payment `pending` and past expiry: `cancel_reason='unpaid_timeout'`, row lock, idempotent.
+  - Replace the old 7-day `auto_cancel_unpaid_bookings`.
+- **E4, matching:**
+  - Candidates must be: approved, not suspended, holding a `caregiver_skills` row for the booking's `service_type`, with `caregiver_locations.is_available` true and `updated_at` within `LOCATION_FRESHNESS_MINUTES` (15), and within the radius (20 km).
+  - Keep the existing scoring for ordering.
+  - The free-text `specialization ILIKE` match goes away.
+- **Dispatch waves:**
+  - New table `booking_dispatch_waves` (`booking_id`, `wave_no`, `notified_caregiver_ids`, `sent_at`, `expires_at`).
+  - Booking gains a `dispatch_state` field (`dispatching` | `matched` | `unmatched`). It's separate from `status`, so client enums don't break.
+  - Settlement starts wave 1 (top `DISPATCH_WAVE_SIZE` = 8).
+  - `dispatch_tick` starts the next wave of not-yet-notified candidates when a wave expires (`DISPATCH_WAVE_MINUTES` = 10) without an accept.
+  - After `DISPATCH_ESCALATE_MINUTES` (30), or when no candidates are left, set `dispatch_state=unmatched` and log it, for the admin unmatched queue.
+  - Accept sets `matched`.
+  - Everything must be idempotent and safe if two workers run.
+- **Tests:**
+  - expiry (including not expiring paid bookings, and running twice);
+  - candidate filtering (each filter);
+  - wave progression;
+  - escalation;
+  - a concurrent tick does nothing twice;
+  - accept after escalation still works.
+
+#### E1: Migration baseline (blocked on the owner's production `pg_dump --schema-only`)
+- Squash the history into a baseline that matches production exactly.
+- Stamp production at the baseline.
+- Remove `init_local_db` in favour of `alembic upgrade head` on empty DBs.
+- Make the test harness build the schema through migrations.
 
 ## Order and parallelism
 1. WP-A (done) is the base.
 2. **WP-C and WP-D run in parallel** in separate worktrees. They touch different files. WP-C owns the caregiver actions in `services/booking.py`; WP-D owns `payment.py`, `patient_wallet.py`, the withdraw route, and the verify-payment route.
 3. WP-B runs alongside them, done by the lead.
 4. Merge order: A → B → C → D, rebasing as needed.
-5. WP-E starts after that; E1 waits on the owner's schema dump.
+5. WP-E: **E2 and E5 run in parallel** (E2 owns the money models, services and pricing; E5 owns caregiver, document and admin code). **E3+E4** follow once E5 merges. E1 waits on the owner's schema dump.
 
 ## Owner actions (outside the code)
 - Rotate each secret using the WP-B runbook once WP-B is merged and deployed.
