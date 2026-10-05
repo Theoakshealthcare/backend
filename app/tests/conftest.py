@@ -5,8 +5,9 @@ How it works
   (a testcontainers container, or TEST_DATABASE_URL if set, e.g. a CI service).
   The app's engine is created at import time, so every get_db() in the codebase
   uses the test database without dependency overrides.
-- The schema is built from the SQLAlchemy models (Base.metadata.create_all) once
-  per session; every test starts from empty tables (TRUNCATE ... CASCADE).
+- The schema is built by running the Alembic migrations (``alembic upgrade head``) once
+  per session, so tests run against exactly what production gets; every test starts
+  from empty tables (TRUNCATE ... CASCADE).
 - The developer's real .env is never loaded (OAKLY_ENV_FILE=""), and outbound
   network (SMTP, HTTP) is blocked, so a test can never send email, charge
   Paystack or call Gemini. Tests that need a third party mock it explicitly.
@@ -54,8 +55,14 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="session", autouse=True)
 def _schema():
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    from alembic import command
+    from alembic.config import Config
+
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public"))
+    cfg = Config("alembic.ini")
+    cfg.attributes["configure_logger"] = False  # keep pytest's logging setup
+    command.upgrade(cfg, "head")
     yield
 
 

@@ -29,7 +29,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
   - [x] E5 caregiver approval API (mandatory background check) + audit log. 2026-10-05, `foundations/caregiver-approval`, migration `2e543a04ee5d`, [SOP](../sop/2026-10-05-caregiver-approval.md)
   - [x] E3 Redis + ARQ worker, unpaid-booking expiry. 2026-10-05, `foundations/dispatch`, migration `9b1d4e7a3c52`, [SOP](../sop/2026-10-05-jobs-and-dispatch.md)
   - [x] E4 skills-based matching + dispatch waves. 2026-10-05, `foundations/dispatch`, same migration and SOP
-  - [ ] E1 migration baseline (blocked: needs production schema dump)
+  - [x] E1 migration baseline: one migration `0001_baseline`, built from the models; the test harness uses it. 2026-10-05, [SOP](../sop/2026-10-05-migration-baseline.md). No production data exists, so there was nothing to preserve.
 - [ ] Clean the ruff backlog, then enforce the full ruleset and `ruff format`
 - [ ] Python 3.11 → 3.12 or 3.13
 - [ ] Library swaps: passlib → pwdlib · python-jose → PyJWT · google-generativeai → google-genai
@@ -48,7 +48,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] ⚠️ Authenticate the booking WebSockets (they currently use hardcoded demo users) — `security/access-control`, 2026-10-05
 - [x] ⚠️ Require auth and ownership checks on the prescription endpoints — `security/access-control`, 2026-10-05
 - [ ] ⚠️ Admin approval for caregiver identity; stop accepting the verification result from the client
-- [x] ⚠️ Make the caregiver document uploads private (they're under the public `/uploads` mount) — code done 2026-10-05; run `scripts/migrate_private_documents.py` on production after deploy
+- [x] ⚠️ Make the caregiver document uploads private (they're under the public `/uploads` mount) — 2026-10-05, `security/access-control` (no legacy files to migrate)
 - [x] ⚠️ Reject refresh tokens used as access tokens (check the `type` claim) — `security/access-control`, 2026-10-05
 - [x] ⚠️ Validate that withdrawal amounts are positive, and lock the wallet row — 2026-10-05, `security/money`
 - [x] ⚠️ Fix refund approval paying twice (wallet credit plus a Paystack refund) — 2026-10-05, `security/money`
@@ -162,7 +162,6 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
-- [ ] Production: run `python -m scripts.migrate_private_documents --dry-run`, then for real, after deploying WP-C (see `docs/sop/2026-10-05-access-control.md`)
 - [ ] `patient.py:320,362` admin routes check `user_type != "admin"` (never true); use `get_current_admin` (WP-D covers the refund route only)
 - [ ] Chat and notes routes in `endpoints/booking.py` don't let admins in; decide whether support staff should read them
 - [ ] Upgrade Poetry to 2.5.x everywhere (local, Render `POETRY_VERSION`, CI)

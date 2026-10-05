@@ -74,6 +74,8 @@ Two pre-existing 500s on these paths were fixed because the happy path couldn't 
 - Not exercised: a real mobile client over the WebSocket subprotocol header; the migration script against production data.
 
 ## Operate / roll back
+
+> **Update 2026-10-05 (E1):** There is no production data, so the legacy-document migration was never needed. `scripts/migrate_private_documents.py` and its tests have been removed. Skip the migration steps below. See [the migration baseline SOP](2026-10-05-migration-baseline.md).
 - **Deploy order:** deploy the code, then run the migration once on the host:
   ```
   docker compose exec api python -m scripts.migrate_private_documents --dry-run

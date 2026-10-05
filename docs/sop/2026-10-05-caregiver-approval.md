@@ -54,6 +54,8 @@ Rejected alternatives: a `NULLS NOT DISTINCT` constraint (needs Postgres 15+); a
 - Tests: `app/tests/test_caregiver_approval.py`, `app/tests/test_caregiver_approval_migration.py`.
 
 ## Verification
+
+> **Update 2026-10-05 (E1):** The individual migration described here has been folded into the single baseline `0001_baseline`. The manual migration steps below are historical. See [the migration baseline SOP](2026-10-05-migration-baseline.md).
 - Tests first: the new suite failed (no routes, no tables) before the code. Baseline on the unchanged code was 202 passed.
 - Covered: 401 (no token, refresh token) and 403 (patient, caregiver) on all 11 routes; each approve precondition missing gives a 409 naming it, and all missing at once lists all five; one audit row per action with before/after; caregiver cannot set any new field through step1, step2, consent or upload; suspended caregivers are excluded from `find_nearby_caregivers` and cannot accept an earlier offer; approve vs reject race.
 - Migration, automated: `test_caregiver_approval_migration.py` builds a scratch database, seeds rows, runs `downgrade()` then `upgrade()` twice, checks the rows survive, `compare_metadata` against the models is empty, and the trigger blocks UPDATE and DELETE.

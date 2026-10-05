@@ -61,6 +61,8 @@ Money was a mix of `Float` (bookings, settings, prescriptions) and `Numeric(10,2
 
 ## Operate / roll back
 
+> **Update 2026-10-05 (E1):** There is no production data, and migration `68b8941cfc28` has been folded into the single baseline migration. The pre-migration step below no longer applies. See [the migration baseline SOP](2026-10-05-migration-baseline.md).
+
 **Pre-migration step (production): clear open unpaid bookings first.**
 Old code started Paystack with a *truncated* `int(total*100)`; this migration stores a *rounded* `total_amount_kobo`. An unpaid booking whose total has a fractional kobo (for example ₦1,531.875) could therefore be paid later for 1 kobo less than its stored total, and settlement would flag `AMOUNT_MISMATCH`.
 

@@ -15,7 +15,6 @@ from app.tests.factories import (
     make_patient,
     refresh_headers,
 )
-from scripts.migrate_private_documents import migrate
 
 UPLOAD = "/api/v1/caregiver/documents/upload"
 PDF = b"%PDF-1.4 fake pdf for tests"
@@ -167,65 +166,6 @@ def test_missing_file_on_disk_is_404(db, client, private_dir):
     assert r.status_code == 404
 
 
-# --- one-off migration script -----------------------------------------------------
-
-
-def test_migration_moves_legacy_files_and_rewrites_paths(db, tmp_path):
-    legacy_root = tmp_path / "uploads"
-    private_root = tmp_path / "private"
-    caregiver = make_caregiver(db)
-    legacy_file = legacy_root / "caregivers" / str(caregiver.id) / "documents" / "a.pdf"
-    legacy_file.parent.mkdir(parents=True)
-    legacy_file.write_bytes(PDF)
-    legacy_doc = make_document(db, caregiver, f"uploads/caregivers/{caregiver.id}/documents/a.pdf")
-    missing_doc = make_document(db, caregiver, f"uploads/caregivers/{caregiver.id}/documents/missing.pdf")
-    done_doc = make_document(db, caregiver, f"caregivers/{caregiver.id}/documents/already.pdf")
-
-    stats = migrate(db, legacy_root=legacy_root, private_root=private_root)
-
-    db.expire_all()
-    key = f"caregivers/{caregiver.id}/documents/a.pdf"
-    assert db.get(CaregiverDocument, legacy_doc.id).file_path == key
-    assert (private_root / key).read_bytes() == PDF
-    assert not legacy_file.exists()
-    # not-found files are reported and left alone; already-migrated rows are skipped
-    assert db.get(CaregiverDocument, missing_doc.id).file_path.startswith("uploads/")
-    assert db.get(CaregiverDocument, done_doc.id).file_path == f"caregivers/{caregiver.id}/documents/already.pdf"
-    assert (stats.moved, stats.missing, stats.skipped) == (1, 1, 1)
-
-
-def test_migration_is_idempotent_and_supports_dry_run(db, tmp_path):
-    legacy_root, private_root = tmp_path / "uploads", tmp_path / "private"
-    caregiver = make_caregiver(db)
-    legacy_file = legacy_root / "caregivers" / str(caregiver.id) / "documents" / "a.pdf"
-    legacy_file.parent.mkdir(parents=True)
-    legacy_file.write_bytes(PDF)
-    doc = make_document(db, caregiver, f"uploads/caregivers/{caregiver.id}/documents/a.pdf")
-
-    dry = migrate(db, legacy_root=legacy_root, private_root=private_root, dry_run=True)
-    db.expire_all()
-    assert dry.moved == 1 and legacy_file.exists() and doc.file_path.startswith("uploads/")
-
-    migrate(db, legacy_root=legacy_root, private_root=private_root)
-    again = migrate(db, legacy_root=legacy_root, private_root=private_root)
-    assert (again.moved, again.missing) == (0, 0)
-
-
-def test_migration_refuses_paths_that_escape_the_legacy_root(db, tmp_path):
-    legacy_root, private_root = tmp_path / "uploads", tmp_path / "private"
-    legacy_root.mkdir()
-    outside = tmp_path / "outside.txt"
-    outside.write_text("keep me")
-    caregiver = make_caregiver(db)
-    doc = make_document(db, caregiver, "uploads/../outside.txt")
-
-    stats = migrate(db, legacy_root=legacy_root, private_root=private_root)
-
-    db.expire_all()
-    assert outside.exists() and not private_root.exists()
-    assert doc.file_path == "uploads/../outside.txt"
-    assert stats.moved == 0 and stats.missing == 1
-
 
 # --- download hardening: never trust the stored MIME type ------------------------
 
@@ -234,7 +174,7 @@ def test_migration_refuses_paths_that_escape_the_legacy_root(db, tmp_path):
 def test_non_allowlisted_stored_type_is_forced_to_download(db, client, private_dir, stored_mime):
     caregiver = make_caregiver(db)
     doc = uploaded_document(db, client, caregiver)
-    doc.mime_type = stored_mime  # e.g. a legacy row moved by migrate_private_documents
+    doc.mime_type = stored_mime  # a row whose stored type was never validated
     db.commit()
     r = client.get(f"/api/v1/caregiver/documents/{doc.id}/file", headers=auth_headers(caregiver.user))
     assert r.status_code == 200

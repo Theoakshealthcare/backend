@@ -57,6 +57,8 @@ Rejected: Celery (the plan and the stack choose ARQ: async-native, small); setti
 | `DISPATCH_ESCALATE_MINUTES` | 30 | Total time before `unmatched`. |
 
 ## Verification
+
+> **Update 2026-10-05 (E1):** The individual migration described here has been folded into the single baseline `0001_baseline`. The manual migration steps below are historical. See [the migration baseline SOP](2026-10-05-migration-baseline.md).
 - Baseline on `main`: 339 passed. After: **399 passed** (`poetry run pytest -q -p no:warnings`), plus `poetry check --lock`, the ruff bug-class lint and `scripts.ci_smoke` as in CI.
 - Tests written against the plan list: expiry (expires, keeps paid, only `pending`, rerun is a no-op, legacy rows, late payment after expiry, create sets the expiry); one test per filter (unapproved, suspended status, suspended flag, no skill, wrong skill, stale, unavailable, too far) plus ILIKE-no-longer-matches and the NULL `specialization` crash; wave 1 of 8, waves never overlap, tick idempotent, escalation by time (30 min, no fourth wave) and by exhaustion, stale-between-waves, cancelled and legacy bookings ignored; two concurrent ticks (threads, separate sessions, three bookings) notify each caregiver once; a tick skips a booking another session holds locked; accept from wave 1 after wave 2, accept after `unmatched`, accept sets `matched`; settlement via webhook twice plus verify-payment gives one wave; settle twice gives one wave; a failed wave 1 is recovered by the tick.
 - `test_worker.py`: `WorkerSettings` imports and registers both crons at second 0 of every minute; one job runs through a real Redis (testcontainers) with an ARQ burst worker.
