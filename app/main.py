@@ -29,8 +29,9 @@ if settings.BACKEND_CORS_ORIGINS:
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Mount the uploads directory as a static files route so uploaded profile images can be served via FastAPI. Use '/uploads' as the URL path.
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Only public profile images are served statically. Private files (caregiver documents) live in
+# PRIVATE_UPLOAD_DIR and are served through authenticated endpoints.
+app.mount("/uploads/profile_images", StaticFiles(directory="uploads/profile_images"), name="profile_images")
 
 @app.get("/", include_in_schema=False)
 async def root():

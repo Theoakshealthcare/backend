@@ -16,6 +16,7 @@ htmlcov/
 # Runtime uploads (served locally, not source)
 uploads/
 uploaded_notes/
+private_uploads/
 
 # OS / editor
 .DS_Store

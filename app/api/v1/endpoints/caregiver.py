@@ -3,13 +3,13 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 import csv
 from io import StringIO
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user, get_db, user_is_admin
 from app.db.models.user import User
 from app.schemas.caregiver import (
     CaregiverProfile,
@@ -28,7 +28,7 @@ from app.schemas.caregiver import (
     CaregiverWithdrawalResponse
 )
 from app.services.caregiver import CaregiverService
-from app.db.models.caregiver import CaregiverWallet, CaregiverTransaction, CaregiverBankAccount, Caregiver
+from app.db.models.caregiver import CaregiverWallet, CaregiverTransaction, CaregiverBankAccount, Caregiver, CaregiverDocument
 
 router = APIRouter()
 
@@ -142,6 +142,36 @@ def upload_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
+
+
+@router.get("/documents/{document_id}/file")
+def download_document(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    caregiver_service: CaregiverService = Depends(get_caregiver_service),
+) -> Any:
+    """Stream a caregiver document. Only the owning caregiver or an admin may read it."""
+    document = db.query(CaregiverDocument).filter(CaregiverDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    if not user_is_admin(db, current_user):
+        owner = caregiver_service.get_caregiver_by_user_id(current_user.id)
+        if current_user.user_type != "caregiver" or not owner or owner.id != document.caregiver_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    path = caregiver_service.resolve_document_path(document.file_path)
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document file not found")
+
+    return FileResponse(
+        path,
+        media_type=document.mime_type or "application/octet-stream",
+        filename=document.document_name,
+        content_disposition_type="inline",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+    )
 
 
 @router.put("/consent", response_model=CaregiverProfile)

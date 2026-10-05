@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: Optional[str] = None
     CLOUDINARY_API_SECRET: Optional[str] = None
 
+    # Private file storage (caregiver documents). Must NOT be inside the public /uploads mount;
+    # in Docker this is a named volume.
+    PRIVATE_UPLOAD_DIR: str = "private_uploads"
+
     class Config:
         case_sensitive = True
         # OAKLY_ENV_FILE="" disables .env loading (the test suite relies on this so a
