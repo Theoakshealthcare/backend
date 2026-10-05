@@ -31,8 +31,9 @@ def redis_settings():
     from arq.connections import RedisSettings
     from testcontainers.community.redis import RedisContainer
 
-    with RedisContainer("redis:7-alpine") as redis:
-        yield RedisSettings(host=redis.get_container_host_ip(), port=int(redis.get_exposed_port(6379)))
+    with RedisContainer("redis:7-alpine", password="test-redis-password") as redis:
+        yield RedisSettings(host=redis.get_container_host_ip(), port=int(redis.get_exposed_port(6379)),
+                            password="test-redis-password")
 
 
 def test_a_job_runs_through_a_real_redis(db, redis_settings):
@@ -45,10 +46,12 @@ def test_a_job_runs_through_a_real_redis(db, redis_settings):
                            payment_expires_at=datetime.utcnow() - timedelta(minutes=1))
 
     async def run(redis_settings):
-        pool = await create_pool(redis_settings)
+        pool = await create_pool(redis_settings, job_serializer=worker.json_serializer,
+                                 job_deserializer=worker.json_deserializer)
         await pool.enqueue_job("expire_unpaid_bookings_job")
         w = Worker(functions=worker.WorkerSettings.functions, redis_settings=redis_settings,
-                   burst=True, poll_delay=0.1)
+                   burst=True, poll_delay=0.1,
+                   job_serializer=worker.json_serializer, job_deserializer=worker.json_deserializer)
         try:
             await w.main()
         finally:
@@ -60,3 +63,17 @@ def test_a_job_runs_through_a_real_redis(db, redis_settings):
     db.expire_all()
     b = db.get(Booking, expired.id)
     assert b.status == BookingStatus.CANCELLED and b.cancel_reason == "unpaid_timeout"
+
+
+def test_worker_uses_json_not_pickle():
+    """A pickle payload planted in Redis must not be deserialised (pickle can execute code)."""
+    import pickle
+
+    import pytest as _pytest
+
+    from app import worker
+
+    assert worker.WorkerSettings.job_deserializer is worker.json_deserializer
+    with _pytest.raises(ValueError):
+        worker.WorkerSettings.job_deserializer(pickle.dumps({"f": "expire_unpaid_bookings_job"}))
+    assert worker.json_deserializer(worker.json_serializer({"a": 1})) == {"a": 1}

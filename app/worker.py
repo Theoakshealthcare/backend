@@ -6,6 +6,7 @@ are synchronous, so they run in a thread to keep the worker's event loop free.
 """
 
 import asyncio
+import json
 import logging
 from typing import Any, Callable
 
@@ -43,6 +44,15 @@ async def dispatch_tick_job(ctx: dict) -> int:
     return advanced
 
 
+def json_serializer(obj: Any) -> bytes:
+    return json.dumps(obj, default=str).encode()
+
+
+def json_deserializer(data: bytes) -> Any:
+    # JSON instead of ARQ's default pickle: a job payload read from Redis can never execute code.
+    return json.loads(data)
+
+
 class WorkerSettings:
     functions = [expire_unpaid_bookings_job, dispatch_tick_job]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
@@ -52,5 +62,7 @@ class WorkerSettings:
         cron(dispatch_tick_job, second=0),
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
+    job_serializer = staticmethod(json_serializer)
+    job_deserializer = staticmethod(json_deserializer)
     job_timeout = 55  # finish inside the minute so runs never pile up
     max_jobs = 4

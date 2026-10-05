@@ -30,7 +30,7 @@ services:
     env_file: ${OAKLY_ENV_FILE_PATH:-/etc/oakly/backend.env}
     environment:
       ENVIRONMENT: production
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379/0
     restart: unless-stopped
     depends_on:
       api:
@@ -40,7 +40,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    # Not published to the host; password required. ARQ payloads are JSON (see app/worker.py).
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     volumes:
       - redis_data:/data
     restart: unless-stopped

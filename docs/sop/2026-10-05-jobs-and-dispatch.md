@@ -87,3 +87,16 @@ seeded booking afterwards: CHAIN001 | PENDING | PENDING | NULLs in the new nulla
 - A paid booking cancelled while `dispatching` keeps `dispatch_state='dispatching'` (the tick ignores it because `status` is not `pending`); ops/refund handling for cancelled paid bookings is outside this change.
 - `BookingService` methods still shadow `settings` with a `BookingSettings` local, which is why the config is imported as `app_settings` there.
 - The admin refund queue must consume `bookings.refund_required` (`SELECT ... WHERE refund_required`); nothing refunds automatically.
+
+## Addendum: Redis hardening (automated security scan finding)
+ARQ deserialises job payloads it reads from Redis. With the default **pickle** serializer, an unauthenticated Redis that's reachable on the network means remote code execution in the worker. Changes:
+- **JSON instead of pickle.** The worker uses JSON (`app/worker.py` `json_serializer` / `json_deserializer`). Anything enqueuing jobs must pass the same serializer.
+- **Password required.**
+  - Redis runs with `--requirepass`. `REDIS_URL` carries the password, and `REDISCLI_AUTH` covers the healthcheck.
+  - Production compose fails to start if `REDIS_PASSWORD` is unset.
+  - Dev defaults to `oakly-dev-redis`.
+- **Network exposure.**
+  - Production doesn't publish Redis to the host.
+  - Dev binds Redis, Postgres and the API to `127.0.0.1` only. Before this, they listened on every interface.
+- **Verified on a live stack.** Redis was healthy, the worker connected and registered both crons, an unauthenticated `PING` returned `NOAUTH`, and the port was bound to `127.0.0.1`.
+- **New setting:** `REDIS_PASSWORD`. Add it to the server env file before deploying.
