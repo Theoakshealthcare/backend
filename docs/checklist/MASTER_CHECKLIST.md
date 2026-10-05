@@ -23,7 +23,13 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] Backend `.gitignore` — 2026-09-29
 - [ ] Merge `chore/poetry-migration` (Render is being retired; the deploy target is Docker)
 - [x] pytest harness: throwaway Postgres (testcontainers), factories, network guard, run in CI. 2026-10-05, branch `test/harness`, [SOP](../sop/2026-10-05-test-harness.md)
-- [ ] Phase 0 execution: [plan](../plans/2026-10-05-phase-0-security-foundations.md). WP-B secrets · WP-C access control · WP-D money · WP-E foundations
+- [x] Phase 0 WP-A–D merged to `main` (harness, secrets, access control, money). 2026-10-05, PRs #3–#8
+- [ ] Phase 0 WP-E: [plan](../plans/2026-10-05-phase-0-security-foundations.md#wp-e-foundations-so-a-booking-can-complete-branches-from-main-which-now-includes-wpad)
+  - [ ] E2 money in kobo
+  - [ ] E5 caregiver approval API (mandatory background check) + audit log
+  - [ ] E3 Redis + ARQ worker, unpaid-booking expiry
+  - [ ] E4 skills-based matching + dispatch waves
+  - [ ] E1 migration baseline (blocked: needs production schema dump)
 - [ ] Clean the ruff backlog, then enforce the full ruleset and `ruff format`
 - [ ] Python 3.11 → 3.12 or 3.13
 - [ ] Library swaps: passlib → pwdlib · python-jose → PyJWT · google-generativeai → google-genai
