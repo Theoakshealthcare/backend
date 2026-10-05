@@ -8,7 +8,7 @@ import pytest
 
 from app.core.config import settings
 from app.db.models.booking import Booking, PaymentStatus
-from app.services.booking import BookingService
+from app.services import dispatch
 from app.services.paystack import PaystackService
 from app.tests.factories import auth_headers, make_booking, make_patient
 
@@ -20,7 +20,7 @@ def _url(b):
 @pytest.fixture
 def notified(monkeypatch):
     calls = []
-    monkeypatch.setattr(BookingService, "notify_nearby_caregivers", lambda self, b: calls.append(b.id) or [])
+    monkeypatch.setattr(dispatch, "start_dispatch", lambda db, booking_id, now=None: calls.append(booking_id))
     return calls
 
 

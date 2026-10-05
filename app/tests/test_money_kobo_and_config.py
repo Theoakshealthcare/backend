@@ -11,6 +11,7 @@ from app.core.config import Settings, settings
 from app.db.models.booking import Booking, PaymentStatus
 from app.db.models.booking_settings import BookingSettings
 from app.schemas.booking import BookingCreate
+from app.services import dispatch
 from app.services.booking import BookingService
 from app.services.booking_payment import expected_kobo
 from app.services.paystack import PaystackService
@@ -47,9 +48,7 @@ def test_initialize_amount_equals_settlement_expectation(db, monkeypatch):
 
 
 def test_fractional_payment_settles_end_to_end(db, client, monkeypatch):
-    from app.services.booking import BookingService as BS
-
-    monkeypatch.setattr(BS, "notify_nearby_caregivers", lambda self, b: [])
+    monkeypatch.setattr(dispatch, "start_dispatch", lambda db, booking_id, now=None: None)
     booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING, total_amount_kobo=153189)
     body = json.dumps({"event": "charge.success", "data": {
         "reference": booking.paystack_reference, "amount": 153189, "status": "success"}}).encode()
@@ -143,7 +142,7 @@ def test_webhook_db_work_runs_off_the_event_loop(db, client, monkeypatch):
         return real(*a, **kw)
 
     monkeypatch.setattr(pay, "settle_booking_payment", spy)
-    monkeypatch.setattr(BookingService, "notify_nearby_caregivers", lambda self, b: [])
+    monkeypatch.setattr(dispatch, "start_dispatch", lambda db, booking_id, now=None: None)
     booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING)
     body = json.dumps({"event": "charge.success", "data": {
         "reference": booking.paystack_reference, "amount": 4_400_000, "status": "success"}}).encode()

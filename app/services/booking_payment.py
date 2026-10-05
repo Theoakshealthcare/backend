@@ -7,12 +7,14 @@ settle_booking_payment(), so the rules cannot drift apart:
 - an already-paid booking is a no-op (no state change, no caregiver notification);
 - the amount Paystack reports (kobo) must equal the booking total, otherwise the booking
   is NOT marked paid and the discrepancy is recorded in ``payment_failure_reason`` for review;
-- caregivers are notified exactly once: only the caller that performs the unpaid -> paid
-  transition does it.
+- dispatch starts exactly once: only the caller that performs the unpaid -> paid transition marks
+  the booking ``dispatching`` (inside the same transaction as the payment) and sends wave 1. If
+  sending fails, dispatch_tick() sends it on its next run.
 """
 
 import logging
 import uuid
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -27,7 +29,7 @@ class SettleOutcome(str, Enum):
     NOT_FOUND = "not_found"
     ALREADY_PAID = "already_paid"
     AMOUNT_MISMATCH = "amount_mismatch"
-    PAID = "paid"  # transitioned to paid now, caregivers notified
+    PAID = "paid"  # transitioned to paid now, dispatch started
     PAID_NOT_DISPATCHED = "paid_not_dispatched"  # money received for a cancelled booking
 
 
@@ -63,20 +65,24 @@ def settle_booking_payment(db: Session, booking_id: uuid.UUID, paid_kobo: Option
     booking.payment_status = PaymentStatus.PAID
     booking.payment_failure_reason = None
     cancelled = booking.status == BookingStatus.CANCELLED
+    if not cancelled and booking.dispatch_state is None:
+        booking.dispatch_state = "dispatching"
+        booking.dispatch_started_at = datetime.utcnow()
     db.commit()
 
     if cancelled:
         logger.error("Booking %s was cancelled but payment arrived; needs a refund review", booking_id)
         return SettleOutcome.PAID_NOT_DISPATCHED
 
-    # Imported lazily: the booking service pulls in matching/websocket modules.
-    from app.services.booking import BookingService
+    # Imported lazily: dispatch pulls in the booking service (matching, websocket modules).
+    from app.services import dispatch
 
     try:
-        notifications = BookingService(db).notify_nearby_caregivers(booking)
-        logger.info("Booking %s paid; notified %d caregivers", booking_id, len(notifications))
+        dispatch.start_dispatch(db, booking_id)
+        logger.info("Booking %s paid; dispatch started", booking_id)
     except Exception:
-        # Payment is already committed; a retry would be a no-op, so surface it loudly instead.
+        # Payment and dispatch_state are already committed, and the tick retries wave 1, so surface
+        # it loudly instead of failing the settlement.
         db.rollback()
-        logger.exception("Booking %s paid but caregiver notification failed", booking_id)
+        logger.exception("Booking %s paid but starting dispatch failed; dispatch_tick will retry", booking_id)
     return SettleOutcome.PAID

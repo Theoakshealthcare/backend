@@ -18,7 +18,8 @@ from app.services.location import LocationService
 from app.services.gemini import gemini_service
 from app.services.paystack import PaystackService
 from app.services.pricing import compute_price
-from app.core.config import settings
+# aliased: `settings` is shadowed by BookingSettings locals in this module's methods
+from app.core.config import settings as app_settings
 from app.core.money import kobo_to_naira
 
 
@@ -87,7 +88,7 @@ class BookingService:
             nearby_caregivers = self.location_service.get_nearby_active_caregivers_with_eta(
                 preview_data.patient_latitude,
                 preview_data.patient_longitude,
-                radius_km=20,
+                radius_km=app_settings.MATCH_RADIUS_KM,
                 service_type=preview_data.service_type
             )
             estimated_caregivers = len(nearby_caregivers) if nearby_caregivers else 0
@@ -173,7 +174,8 @@ class BookingService:
             total_amount_kobo=price.total_kobo,
             service_fee_kobo=price.service_fee_kobo,
             platform_fee_kobo=price.platform_fee_kobo,
-            paystack_reference=paystack_reference
+            paystack_reference=paystack_reference,
+            payment_expires_at=datetime.utcnow() + timedelta(minutes=app_settings.PAYMENT_LINK_TTL_MINUTES),
         )
         
         self.db.add(booking)
@@ -218,38 +220,19 @@ class BookingService:
             "access_code": payment_response.get("access_code")
         }
 
-    def notify_nearby_caregivers(self, booking: Booking) -> List[BookingNotification]:
-        """Send notifications to nearby caregivers using smart matching algorithm"""
-        
-        # Use enhanced smart matching to find best caregivers
-        smart_matched_caregivers = self.smart_caregiver_matching(booking)
-        
-        notifications = []
-        
-        # Notify top 8 best-matched caregivers (reduced from 10 for better matching)
-        for caregiver in smart_matched_caregivers[:8]:
-            notification = BookingNotification(
-                booking_id=booking.id,
-                caregiver_id=caregiver['caregiver_id'],
-                title="New Booking Request",
-                message=f"New {booking.service_type} request - {caregiver['distance_km']}km away, ETA {caregiver.get('estimated_arrival_minutes', 'N/A')} min",
-                notification_type="new_booking"
-            )
-            
-            self.db.add(notification)
-            notifications.append(notification)
-        
-        self.db.commit()
-        return notifications
+    def smart_caregiver_matching(self, booking: Booking, now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Uber-like smart matching algorithm considering multiple factors.
 
-    def smart_caregiver_matching(self, booking: Booking) -> List[Dict[str, Any]]:
-        """Uber-like smart matching algorithm considering multiple factors"""
+        Eligibility (approved, not suspended, skill for the service type, fresh available
+        location, within the radius) is decided in LocationService; this only orders the result.
+        """
         
         # Get enhanced caregivers with ETA and scoring
         base_caregivers = self.location_service.get_nearby_active_caregivers_with_eta(
             booking.patient_latitude, booking.patient_longitude,
-            radius_km=20,  # Increased radius for better matching
-            service_type=booking.service_type
+            radius_km=app_settings.MATCH_RADIUS_KM,
+            service_type=booking.service_type,
+            now=now,
         )
         
         if not base_caregivers:
@@ -270,7 +253,7 @@ class BookingService:
                 score += 5
             
             # Service type specialization bonus
-            specialization = caregiver.get('specialization', '').lower()
+            specialization = (caregiver.get('specialization') or '').lower()
             service_type = booking.service_type.lower()
             if service_type in specialization:
                 score += 20  # Perfect match
@@ -387,6 +370,9 @@ class BookingService:
 
                 booking.caregiver_id = caregiver_id
                 booking.status = BookingStatus.ACCEPTED
+                # Allowed from any dispatch state: an offer from an earlier wave stays valid, and so
+                # does one from a booking already escalated to 'unmatched'.
+                booking.dispatch_state = "matched"
                 notification.response = "accept"
                 notification.response_at = datetime.utcnow()
 
@@ -527,16 +513,3 @@ class BookingService:
         return self.db.query(BookingNote).filter(
             BookingNote.booking_id == booking_id
         ).order_by(BookingNote.created_at.desc()).all()
-
-    def auto_cancel_unpaid_bookings(self):
-        """Auto-cancel unpaid bookings older than 7 days"""
-        threshold = datetime.utcnow() - timedelta(days=7)
-        unpaid_bookings = self.db.query(Booking).filter(
-            Booking.payment_status == PaymentStatus.PENDING,
-            Booking.status == BookingStatus.PENDING,
-            Booking.created_at < threshold
-        ).all()
-        for booking in unpaid_bookings:
-            booking.status = BookingStatus.CANCELLED
-        self.db.commit()
-        return len(unpaid_bookings)

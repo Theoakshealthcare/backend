@@ -3,10 +3,11 @@ from typing import List, Tuple, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, exists, func
 
+from app.core.config import settings
 from app.db.models.booking import CaregiverLocation, Booking
-from app.db.models.caregiver import Caregiver
+from app.db.models.caregiver import Caregiver, CaregiverSkill
 
 
 class LocationService:
@@ -32,10 +33,17 @@ class LocationService:
         return R * c
 
     def find_nearby_caregivers(self, patient_lat: float, patient_lon: float, 
-                             radius_km: float = 10, service_type: str = None) -> List[Dict[str, Any]]:
-        """Find caregivers within specified radius"""
-        
-        # Base query for active caregivers with recent location data
+                             radius_km: float = 10, service_type: str = None,
+                             now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Find matchable caregivers within the radius.
+
+        A caregiver is matchable when approved and not suspended, available, and their location was
+        reported within LOCATION_FRESHNESS_MINUTES of ``now`` (UTC; injectable for tests). When
+        ``service_type`` is given they must also hold a caregiver_skills row for it.
+        """
+        now = now or datetime.utcnow()
+        fresh_after = now - timedelta(minutes=settings.LOCATION_FRESHNESS_MINUTES)
+
         query = self.db.query(
             CaregiverLocation,
             Caregiver
@@ -45,13 +53,17 @@ class LocationService:
             and_(
                 CaregiverLocation.is_active == True,
                 CaregiverLocation.is_available == True,
-                Caregiver.profile_status == 'approved'
+                CaregiverLocation.updated_at >= fresh_after,
+                Caregiver.profile_status == 'approved',
+                Caregiver.suspended_at.is_(None),
             )
         )
 
-        # Filter by specialization if specified
         if service_type:
-            query = query.filter(Caregiver.specialization.ilike(f'%{service_type}%'))
+            query = query.filter(exists().where(and_(
+                CaregiverSkill.caregiver_id == Caregiver.id,
+                CaregiverSkill.service_type == service_type,
+            )))
 
         locations = query.all()
         
@@ -183,12 +195,13 @@ class LocationService:
         }
 
     def get_nearby_active_caregivers_with_eta(self, patient_lat: float, patient_lon: float, 
-                                            radius_km: float = 15, service_type: str = None) -> List[Dict[str, Any]]:
+                                            radius_km: float = 15, service_type: str = None,
+                                            now: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """Enhanced nearby caregivers search with ETA calculation (Uber-like)"""
         
         # Get base nearby caregivers
         nearby_caregivers = self.find_nearby_caregivers(
-            patient_lat, patient_lon, radius_km, service_type
+            patient_lat, patient_lon, radius_km, service_type, now=now
         )
         
         # Enhance with real-time ETA and scoring
