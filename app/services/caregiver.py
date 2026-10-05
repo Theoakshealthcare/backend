@@ -16,6 +16,15 @@ from app.schemas.caregiver import (
 from app.core.config import settings
 
 
+NIGERIAN_STATES = [
+    "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
+    "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "Gombe", "Imo", "Jigawa",
+    "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger",
+    "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe",
+    "Zamfara", "Federal Capital Territory",
+]
+
+
 class CaregiverService:
     DOCUMENT_EXTENSIONS = {
         "application/pdf": "pdf",
@@ -116,11 +125,15 @@ class CaregiverService:
         caregiver.background_check_consent = consent_data.background_check_consent
         caregiver.consent_date = datetime.utcnow()
         
-        # If all consents are given, update profile status
-        if all([consent_data.terms_accepted, consent_data.privacy_policy_accepted, 
+        # Submitting consent only starts (or restarts) a review. It must never overwrite an
+        # admin decision: an approved, suspended or rejected caregiver stays as they are, and a
+        # background check that has been decided is not reset.
+        if all([consent_data.terms_accepted, consent_data.privacy_policy_accepted,
                 consent_data.background_check_consent]):
-            caregiver.profile_status = "under_review"
-            caregiver.background_check_status = "in_progress"
+            if caregiver.profile_status in (None, "incomplete", "changes_requested"):
+                caregiver.profile_status = "under_review"
+            if caregiver.background_check_status in (None, "pending"):
+                caregiver.background_check_status = "in_progress"
 
         self.db.commit()
         self.db.refresh(caregiver)
@@ -135,7 +148,9 @@ class CaregiverService:
             "profile_completion_step": caregiver.profile_completion_step,
             "identity_verification_status": caregiver.identity_verification_status,
             "background_check_status": caregiver.background_check_status,
-            "profile_status": caregiver.profile_status
+            "profile_status": caregiver.profile_status,
+            "rejection_reason": caregiver.rejection_reason,
+            "changes_requested": caregiver.changes_requested,
         }
 
         return status
@@ -201,16 +216,5 @@ class CaregiverService:
                 "Flexible Hours",
                 "24/7 Availability"
             ],
-            "states": [
-                "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
-                "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
-                "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
-                "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
-                "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
-                "New Hampshire", "New Jersey", "New Mexico", "New York",
-                "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
-                "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
-                "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
-                "West Virginia", "Wisconsin", "Wyoming"
-            ]
+            "states": NIGERIAN_STATES
         }
