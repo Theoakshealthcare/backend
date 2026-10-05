@@ -145,12 +145,17 @@ class CaregiverService:
         if not caregiver:
             raise ValueError("Caregiver not found")
 
-        # Store the result (could be expanded to store in a separate table if needed)
+        # The client is not trusted: the submitted payload is stored as evidence only, and the
+        # most the client can do is move the status to "in_progress". "verified" / "failed" are
+        # admin decisions (and are never overwritten by a resubmission).
+        def next_status(current: Optional[str]) -> str:
+            return current if current in ("verified", "failed") else "in_progress"
+
         if verification_type == "document":
-            caregiver.identity_verification_status = result.get("status", "pending")
+            caregiver.identity_verification_status = next_status(caregiver.identity_verification_status)
             caregiver.document_verification_result = result
         elif verification_type == "face":
-            caregiver.face_verification_status = result.get("status", "pending")
+            caregiver.face_verification_status = next_status(caregiver.face_verification_status)
             caregiver.face_verification_result = result
         else:
             raise ValueError("Invalid verification type")
