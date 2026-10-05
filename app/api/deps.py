@@ -1,5 +1,5 @@
 from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, WebSocket, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
@@ -104,3 +104,52 @@ async def get_current_admin(
 def user_is_admin(db: Session, user: User) -> bool:
     """True when the user has an Admin row (admins are not a user_type today)."""
     return db.query(Admin).filter(Admin.user_id == user.id).first() is not None
+
+
+WS_CLOSE_UNAUTHENTICATED = 4401
+WS_CLOSE_FORBIDDEN = 4403
+
+
+def _websocket_token(websocket: WebSocket) -> tuple[Optional[str], Optional[str]]:
+    """Find the JWT on a WebSocket handshake.
+
+    Browsers and mobile clients can't set an Authorization header on a WebSocket, so the token
+    comes either in the Sec-WebSocket-Protocol header ("bearer, <jwt>"; the server echoes back
+    "bearer") or as a `token` query parameter. Returns (token, subprotocol_to_accept).
+    """
+    protocols = [p.strip() for p in websocket.scope.get("subprotocols", [])]
+    if "bearer" in protocols:
+        rest = [p for p in protocols if p != "bearer"]
+        if rest:
+            return rest[0], "bearer"
+    return websocket.query_params.get("token"), None
+
+
+async def authenticate_websocket(
+    websocket: WebSocket, db: Session, required_user_type: Optional[str] = None
+) -> Optional[tuple[User, Optional[str]]]:
+    """Authenticate a WebSocket before it is accepted.
+
+    On failure the socket is closed (4401 bad/missing token or inactive user, 4403 wrong
+    role) and None is returned. On success returns (user, subprotocol_to_accept).
+    """
+    token, subprotocol = _websocket_token(websocket)
+    if not token:
+        await websocket.close(code=WS_CLOSE_UNAUTHENTICATED)
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if payload.get("type") != "access" or not user_id:
+            raise JWTError("not an access token")
+        user = UserService(db).get_user(user_id)
+    except (JWTError, ValueError):
+        await websocket.close(code=WS_CLOSE_UNAUTHENTICATED)
+        return None
+    if user is None or not user.is_active:
+        await websocket.close(code=WS_CLOSE_UNAUTHENTICATED)
+        return None
+    if required_user_type and user.user_type != required_user_type:
+        await websocket.close(code=WS_CLOSE_FORBIDDEN)
+        return None
+    return user, subprotocol

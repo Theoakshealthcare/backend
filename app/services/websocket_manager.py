@@ -1,4 +1,5 @@
 import json
+import logging
 import asyncio
 from typing import Dict, Set, Optional, List
 from datetime import datetime, timedelta
@@ -14,7 +15,10 @@ from app.schemas.booking import (
 from app.services.location import LocationService
 from app.services.booking import BookingService
 from app.db.models.caregiver import Caregiver
-from app.db.models.booking import Booking
+from app.db.models.booking import Booking, BookingStatus
+
+
+log = logging.getLogger(__name__)
 
 
 class WebSocketConnectionManager:
@@ -31,9 +35,9 @@ class WebSocketConnectionManager:
         # Heartbeat tracking
         self.last_heartbeat: Dict[str, datetime] = {}
         
-    async def connect_caregiver(self, websocket: WebSocket, user_id: str):
+    async def connect_caregiver(self, websocket: WebSocket, user_id: str, subprotocol: Optional[str] = None):
         """Connect a caregiver for location updates"""
-        await websocket.accept()
+        await websocket.accept(subprotocol=subprotocol)
         self.caregiver_connections[user_id] = websocket
         self.last_heartbeat[f"caregiver_{user_id}"] = datetime.utcnow()
         
@@ -44,9 +48,9 @@ class WebSocketConnectionManager:
         )
         await websocket.send_text(status_message.model_dump_json())
         
-    async def connect_patient(self, websocket: WebSocket, user_id: str):
+    async def connect_patient(self, websocket: WebSocket, user_id: str, subprotocol: Optional[str] = None):
         """Connect a patient for tracking updates"""
-        await websocket.accept()
+        await websocket.accept(subprotocol=subprotocol)
         self.patient_connections[user_id] = websocket
         self.last_heartbeat[f"patient_{user_id}"] = datetime.utcnow()
         
@@ -168,22 +172,33 @@ class WebSocketConnectionManager:
                                        websocket: WebSocket, db: Session):
         """Subscribe patient to booking tracking"""
         try:
-            # Verify patient has access to this booking
-            booking = db.query(Booking).filter(Booking.id == booking_id).first()
-            if not booking:
-                error_msg = WebSocketError(error="Booking not found")
+            try:
+                booking_uuid = UUID(str(booking_id))
+            except ValueError:
+                error_msg = WebSocketError(error="Invalid booking id", code="INVALID_BOOKING_ID")
                 await websocket.send_text(error_msg.model_dump_json())
                 return
-                
-            # Check if patient owns this booking
+
+            # Same message for "not found" and "not yours", so ids can't be probed
+            denied = WebSocketError(error="Access denied", code="UNAUTHORIZED")
+            # populate_existing: this session lives as long as the socket; never trust a cached status
+            booking = db.query(Booking).filter(Booking.id == booking_uuid).populate_existing().first()
             from app.db.models.patient import Patient
             patient = db.query(Patient).filter(Patient.user_id == patient_user_id).first()
-            if not patient or booking.patient_id != patient.id:
-                error_msg = WebSocketError(error="Access denied", code="UNAUTHORIZED")
+            if not booking or not patient or booking.patient_id != patient.id:
+                await websocket.send_text(denied.model_dump_json())
+                return
+
+            if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS):
+                error_msg = WebSocketError(
+                    error="Tracking is only available for accepted or in-progress bookings",
+                    code="TRACKING_NOT_AVAILABLE",
+                )
                 await websocket.send_text(error_msg.model_dump_json())
                 return
-                
+
             # Add to subscriptions
+            booking_id = str(booking_uuid)
             if booking_id not in self.tracking_subscriptions:
                 self.tracking_subscriptions[booking_id] = set()
             self.tracking_subscriptions[booking_id].add(patient_user_id)
@@ -201,8 +216,9 @@ class WebSocketConnectionManager:
                     )
                     await websocket.send_text(broadcast_msg.model_dump_json())
                     
-        except Exception as e:
-            error_msg = WebSocketError(error=str(e))
+        except Exception:
+            log.exception("tracking_subscribe failed")
+            error_msg = WebSocketError(error="Could not subscribe to tracking")
             await websocket.send_text(error_msg.model_dump_json())
             
     def _handle_tracking_unsubscribe(self, patient_user_id: str, booking_id: str):

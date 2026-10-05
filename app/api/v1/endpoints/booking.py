@@ -1,3 +1,4 @@
+import logging
 from typing import Any, List, Optional
 from uuid import UUID
 
@@ -5,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSoc
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin, user_is_admin
+from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin, user_is_admin, authenticate_websocket
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
@@ -23,6 +24,8 @@ from app.services.booking import BookingActionForbidden, BookingService, Booking
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
 from app.services.paystack import PaystackService
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -863,9 +866,9 @@ async def caregiver_location_websocket(
     - `location_update`: Send GPS location data
     - `heartbeat`: Keep connection alive
     
-    **Authentication:** 
-    - Must include authentication token in query parameters: ?token=your_caregiver_token
-    - Or send authentication in first message after connection
+    **Authentication (required, caregiver accounts only):**
+    - A JWT *access* token, as `?token=<jwt>` or in the `Sec-WebSocket-Protocol` header
+      (`bearer, <jwt>`). Missing/invalid token closes with 4401; a non-caregiver with 4403.
     
     **Example Usage:**
     ```javascript
@@ -885,31 +888,26 @@ async def caregiver_location_websocket(
     }));
     ```
     """
-    # Extract token from query params (simple approach for demo)
-    # In production, implement proper WebSocket authentication
-    query_params = dict(websocket.query_params)
-    token = query_params.get("token")
-    
-    if not token:
-        await websocket.close(code=4001, reason="Authentication required")
+    auth = await authenticate_websocket(websocket, db, required_user_type="caregiver")
+    if auth is None:
         return
-    
-    # For demo purposes, we'll extract user_id from token (implement proper JWT validation)
+    user, subprotocol = auth
+    user_id = str(user.id)
+
     try:
-        # This is a simplified approach - implement proper JWT token validation
-        user_id = "demo_caregiver_user_id"  # Extract from JWT token in production
-        
-        await websocket_manager.connect_caregiver(websocket, user_id)
-        
+        await websocket_manager.connect_caregiver(websocket, user_id, subprotocol)
+
         try:
             while True:
                 message = await websocket.receive_text()
                 await websocket_manager.handle_caregiver_message(websocket, user_id, message, db)
         except WebSocketDisconnect:
             websocket_manager.disconnect_caregiver(user_id)
-            
-    except Exception as e:
-        await websocket.close(code=4000, reason=str(e))
+
+    except Exception:
+        log.exception("caregiver location websocket failed")
+        websocket_manager.disconnect_caregiver(user_id)
+        await websocket.close(code=4000, reason="Server error")
 
 
 @router.websocket("/ws/patient/tracking")
@@ -931,8 +929,10 @@ async def patient_tracking_websocket(
     - `tracking_unsubscribe`: Stop tracking a booking
     - `heartbeat`: Keep connection alive
     
-    **Authentication:** 
-    - Must include authentication token in query parameters: ?token=your_patient_token
+    **Authentication (required, patient accounts only):**
+    - A JWT *access* token, as `?token=<jwt>` or in the `Sec-WebSocket-Protocol` header
+      (`bearer, <jwt>`). Missing/invalid token closes with 4401; a non-patient with 4403.
+    - A patient can only subscribe to their own booking while it is accepted or in progress.
     
     **Example Usage:**
     ```javascript
@@ -954,29 +954,26 @@ async def patient_tracking_websocket(
     };
     ```
     """
-    # Extract token from query params
-    query_params = dict(websocket.query_params)
-    token = query_params.get("token")
-    
-    if not token:
-        await websocket.close(code=4001, reason="Authentication required")
+    auth = await authenticate_websocket(websocket, db, required_user_type="patient")
+    if auth is None:
         return
-    
+    user, subprotocol = auth
+    user_id = str(user.id)
+
     try:
-        # This is a simplified approach - implement proper JWT token validation
-        user_id = "demo_patient_user_id"  # Extract from JWT token in production
-        
-        await websocket_manager.connect_patient(websocket, user_id)
-        
+        await websocket_manager.connect_patient(websocket, user_id, subprotocol)
+
         try:
             while True:
                 message = await websocket.receive_text()
                 await websocket_manager.handle_patient_message(websocket, user_id, message, db)
         except WebSocketDisconnect:
             websocket_manager.disconnect_patient(user_id)
-            
-    except Exception as e:
-        await websocket.close(code=4000, reason=str(e))
+
+    except Exception:
+        log.exception("patient tracking websocket failed")
+        websocket_manager.disconnect_patient(user_id)
+        await websocket.close(code=4000, reason="Server error")
 
 
 @router.get(
