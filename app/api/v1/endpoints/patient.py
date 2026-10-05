@@ -9,6 +9,7 @@ from io import StringIO
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_user, get_db
+from app.core.money import kobo_to_naira
 from app.db.models.user import User
 from app.db.models.patient import Patient
 from app.schemas.patient import (
@@ -347,7 +348,7 @@ def get_all_refund_requests(
             "id": str(req.id),
             "patient_id": str(req.patient_id),
             "transaction_id": str(req.transaction_id),
-            "amount": req.amount,
+            "amount": kobo_to_naira(req.amount_kobo),
             "reason": req.reason,
             "status": req.status,
             "admin_notes": req.admin_notes,

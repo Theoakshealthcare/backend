@@ -3,6 +3,7 @@
 import uuid
 from decimal import Decimal
 
+from app.core.money import to_kobo
 from app.db.models.patient import PatientTransaction, PatientWallet
 from app.services.paystack import PaystackService
 from app.tests.factories import auth_headers, make_patient
@@ -11,11 +12,11 @@ URL = "/api/v1/patient/wallet/verify-payment"
 
 
 def _deposit(db, patient, amount="5000"):
-    wallet = PatientWallet(patient_id=patient.id, balance=Decimal("0"))
+    wallet = PatientWallet(patient_id=patient.id, balance_kobo=0)
     db.add(wallet)
     db.commit()
     tx = PatientTransaction(id=uuid.uuid4(), patient_id=patient.id, wallet_id=wallet.id, type="deposit",
-                            amount=Decimal(amount), status="pending", paystack_reference=f"DEP_{uuid.uuid4().hex[:8]}")
+                            amount_kobo=to_kobo(amount), status="pending", paystack_reference=f"DEP_{uuid.uuid4().hex[:8]}")
     db.add(tx)
     db.commit()
     return wallet, tx
@@ -24,7 +25,7 @@ def _deposit(db, patient, amount="5000"):
 def _mock(monkeypatch, calls):
     def fake(self, ref):
         calls.append(ref)
-        return {"status": True, "data": {"status": "success", "amount": 5000.0, "channel": "card"}}
+        return {"status": True, "data": {"status": "success", "amount_kobo": 500000, "channel": "card"}}
     monkeypatch.setattr(PaystackService, "verify_transaction", fake)
 
 

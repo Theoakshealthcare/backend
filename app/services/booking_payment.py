@@ -18,7 +18,6 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.money import to_kobo, to_kobo_or_none
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 
 logger = logging.getLogger(__name__)
@@ -33,10 +32,7 @@ class SettleOutcome(str, Enum):
 
 
 def expected_kobo(booking: Booking) -> int:
-    return to_kobo(booking.total_amount)
-
-
-naira_to_kobo = to_kobo_or_none
+    return booking.total_amount_kobo
 
 
 def settle_booking_payment(db: Session, booking_id: uuid.UUID, paid_kobo: Optional[int]) -> SettleOutcome:

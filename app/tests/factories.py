@@ -117,7 +117,7 @@ def make_booking(
     caregiver: Caregiver | None = None,
     status: BookingStatus = BookingStatus.PENDING,
     payment_status: PaymentStatus = PaymentStatus.PAID,
-    total_amount: float = 44000.0,
+    total_amount_kobo: int = 4_400_000,
     **overrides,
 ) -> Booking:
     start = datetime.utcnow() + timedelta(days=1)
@@ -135,9 +135,9 @@ def make_booking(
         patient_longitude=3.4723,
         patient_city="Lagos",
         patient_state="Lagos",
-        total_amount=total_amount,
-        service_fee=round(total_amount / 1.1, 2),
-        platform_fee=round(total_amount - total_amount / 1.1, 2),
+        total_amount_kobo=total_amount_kobo,
+        service_fee_kobo=round(total_amount_kobo / 1.1),
+        platform_fee_kobo=total_amount_kobo - round(total_amount_kobo / 1.1),
         booking_for="myself",
         status=status,
         payment_status=payment_status,

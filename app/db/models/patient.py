@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Numeric, String, Text, ForeignKey, Date, Integer, Index
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, String, Text, ForeignKey, Date, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -117,10 +117,11 @@ class PatientWallet(Base):
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, unique=True)
     
     # Wallet Details
-    balance = Column(Numeric(10, 2), default=0.00, nullable=False)  # Current available balance
-    total_deposited = Column(Numeric(10, 2), default=0.00, nullable=False)  # Total amount deposited
-    total_spent = Column(Numeric(10, 2), default=0.00, nullable=False)  # Total amount spent on services
-    total_refunded = Column(Numeric(10, 2), default=0.00, nullable=False)  # Total amount refunded
+    # All amounts are integer kobo (BIGINT)
+    balance_kobo = Column(BigInteger, default=0, nullable=False)  # Current available balance
+    total_deposited_kobo = Column(BigInteger, default=0, nullable=False)  # Total amount deposited
+    total_spent_kobo = Column(BigInteger, default=0, nullable=False)  # Total amount spent on services
+    total_refunded_kobo = Column(BigInteger, default=0, nullable=False)  # Total amount refunded
     
     # Status
     is_active = Column(Boolean, default=True)
@@ -148,7 +149,7 @@ class PatientTransaction(Base):
     
     # Transaction Details
     type = Column(String, nullable=False)  # 'deposit', 'payment', 'refund'
-    amount = Column(Numeric(10, 2), nullable=False)  # Amount in kobo (multiply by 100 for Paystack)
+    amount_kobo = Column(BigInteger, nullable=False)  # integer kobo, sent to Paystack as-is
     status = Column(String, nullable=False)  # 'pending', 'successful', 'failed', 'cancelled'
     
     # Payment Gateway Details (Paystack)
@@ -187,7 +188,7 @@ class PatientRefundRequest(Base):
     transaction_id = Column(UUID(as_uuid=True), ForeignKey("patient_transactions.id"), nullable=False)
     
     # Refund Details
-    amount = Column(Numeric(10, 2), nullable=False)  # Amount to refund
+    amount_kobo = Column(BigInteger, nullable=False)  # Amount to refund, integer kobo
     reason = Column(Text, nullable=False)  # Reason for refund request
     
     # Status

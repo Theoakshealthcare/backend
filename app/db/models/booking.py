@@ -5,11 +5,12 @@ from enum import Enum
 
 from sqlalchemy import (
     Boolean, Column, DateTime, String, Text, ForeignKey, 
-    Float, Integer, JSON, Enum as SQLEnum
+    BigInteger, Float, Integer, JSON, Enum as SQLEnum
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
+from app.core.money import kobo_to_naira
 from app.db.base import Base
 
 
@@ -63,9 +64,10 @@ class Booking(Base):
     payment_status = Column(SQLEnum(PaymentStatus), default=PaymentStatus.PENDING)
     
     # Payment
-    total_amount = Column(Float, nullable=False)
-    service_fee = Column(Float, nullable=False)
-    platform_fee = Column(Float, nullable=False)
+    # Money is integer kobo (BIGINT). The naira properties below are read-only, for responses.
+    total_amount_kobo = Column(BigInteger, nullable=False)
+    service_fee_kobo = Column(BigInteger, nullable=False)
+    platform_fee_kobo = Column(BigInteger, nullable=False)
     paystack_reference = Column(String, nullable=True)
     payment_failure_reason = Column(Text, nullable=True)  # Store payment failure details
     
@@ -83,6 +85,18 @@ class Booking(Base):
     notifications = relationship("BookingNotification", back_populates="booking")
     messages = relationship("ChatMessage", back_populates="booking")
     notes = relationship("BookingNote", back_populates="booking")
+
+    @property
+    def total_amount(self):
+        return kobo_to_naira(self.total_amount_kobo)
+
+    @property
+    def service_fee(self):
+        return kobo_to_naira(self.service_fee_kobo)
+
+    @property
+    def platform_fee(self):
+        return kobo_to_naira(self.platform_fee_kobo)
 
 
 class BookingNotification(Base):

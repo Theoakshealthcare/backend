@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.core.money import to_kobo
 from app.core.config import settings
 from app.db.models.patient import PatientRefundRequest, PatientTransaction, PatientWallet
 from app.db.models.prescription import Prescription
@@ -60,7 +61,7 @@ def test_paystack_is_called_outside_any_db_transaction(db, client, monkeypatch):
                 {"i": str(req.id)},
             ).one()
             bal = other.execute(
-                text("SELECT balance FROM patient_wallets WHERE id = :i"), {"i": str(wallet.id)}
+                text("SELECT balance_kobo FROM patient_wallets WHERE id = :i"), {"i": str(wallet.id)}
             ).scalar_one()
             observed.update(status=row[0], balance=bal)
         finally:
@@ -71,7 +72,7 @@ def test_paystack_is_called_outside_any_db_transaction(db, client, monkeypatch):
     monkeypatch.setattr(PaystackService, "initiate_refund", spy)
     r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
     assert r.status_code == 200, r.text
-    assert observed == {"status": "processing", "balance": Decimal("0.00")}
+    assert observed == {"status": "processing", "balance": 0}
 
 
 def test_success_finalises_request_and_records_gateway_id(db, client, monkeypatch):
@@ -82,7 +83,7 @@ def test_success_finalises_request_and_records_gateway_id(db, client, monkeypatc
     assert _fresh(db, PatientRefundRequest, req.id).status == "approved"
     (rt,) = _refund_txs(db)
     assert rt.paystack_reference == "555" and rt.status == "pending"
-    assert _fresh(db, PatientWallet, wallet.id).balance == 0
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
 
 
 def test_definite_rejection_is_compensated(db, client, monkeypatch):
@@ -91,7 +92,7 @@ def test_definite_rejection_is_compensated(db, client, monkeypatch):
     admin, patient, wallet, tx, req = _deposit_refund_setup(db)
     r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
     assert r.status_code == 502
-    assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("1000")
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000
     assert _fresh(db, PatientRefundRequest, req.id).status == "pending"
     assert [t.status for t in _refund_txs(db)] == ["failed"]
 
@@ -109,13 +110,13 @@ def test_ambiguous_error_stays_processing_and_is_never_retried(db, client, monke
     r = client.put(_url(req), json={"action": "approve"}, headers=h)
     assert r.status_code == 502
     assert _fresh(db, PatientRefundRequest, req.id).status == "processing"
-    assert _fresh(db, PatientWallet, wallet.id).balance == 0  # still debited: money may have left
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0  # still debited: money may have left
     assert [t.status for t in _refund_txs(db)] == ["pending"]
     # no second attempt, no reject, no double credit
     assert client.put(_url(req), json={"action": "approve"}, headers=h).status_code == 409
     assert client.put(_url(req), json={"action": "reject"}, headers=h).status_code == 409
     assert len(calls) == 1
-    assert _fresh(db, PatientWallet, wallet.id).balance == 0
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
 
 
 # --- refund of a refund ---------------------------------------------------------
@@ -141,7 +142,7 @@ def test_approval_refuses_refund_of_a_refund(db, client, monkeypatch):
     req = _request(db, patient, refund_tx, "500")
     r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
     assert r.status_code == 409
-    assert called == [] and _fresh(db, PatientWallet, wallet.id).balance == 0
+    assert called == [] and _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
 
 
 def test_approval_refuses_unsuccessful_original(db, client):
@@ -171,7 +172,7 @@ def test_refund_processed_webhook_finalises(db, client, approved_card_refund):
     for _ in range(2):  # replay safe
         assert _event(client, "refund.processed", {"id": 777, "status": "processed"}).status_code == 200
     assert [t.status for t in _refund_txs(db)] == ["successful"]
-    assert _fresh(db, PatientWallet, wallet.id).balance == 0
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
 
 
 def test_refund_failed_webhook_recredits_wallet_once(db, client, approved_card_refund):
@@ -179,7 +180,7 @@ def test_refund_failed_webhook_recredits_wallet_once(db, client, approved_card_r
     for _ in range(2):  # replay must not credit twice
         assert _event(client, "refund.failed", {"id": 777, "status": "failed"}).status_code == 200
     assert [t.status for t in _refund_txs(db)] == ["failed"]
-    assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("1000")
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000
     assert _fresh(db, PatientRefundRequest, req.id).status == "failed"
 
 
@@ -192,7 +193,7 @@ def test_refund_webhook_for_unknown_id_is_ignored(db, client):
 def _rx(db, cost=2500.0, status="pending"):
     patient = make_patient(db)
     rx = Prescription(patient_id=patient.id, requested_by_user_id=patient.user_id, medication_name="X",
-                      delivery_option="Pickup", address="1 Test Close", total_cost=cost,
+                      delivery_option="Pickup", address="1 Test Close", total_cost_kobo=to_kobo(cost),
                       paystack_reference=f"RX_{uuid.uuid4().hex[:8]}", payment_status=status)
     db.add(rx)
     db.commit()

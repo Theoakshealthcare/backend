@@ -62,6 +62,7 @@ select = ["E", "F", "I"]
 [tool.pytest.ini_options]
 testpaths = ["app/tests"]
 pythonpath = ["."]
+markers = ["migration: runs Alembic against a scratch database (slower)"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

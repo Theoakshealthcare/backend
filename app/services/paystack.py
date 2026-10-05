@@ -3,11 +3,9 @@ import hashlib
 import hmac
 import json
 from typing import Dict, Any, Optional
-from decimal import Decimal
 from datetime import datetime
 
 from app.core.config import settings
-from app.core.money import to_kobo
 
 REQUEST_TIMEOUT_SECONDS = 15  # Assume you have Paystack keys in settings
 
@@ -25,7 +23,7 @@ class PaystackService:
     def initialize_transaction(
         self, 
         email: str, 
-        amount: Decimal, 
+        amount_kobo: int, 
         reference: str,
         callback_url: Optional[str] = None,
         metadata: Optional[Dict] = None
@@ -35,7 +33,7 @@ class PaystackService:
         
         Args:
             email: Customer email
-            amount: Amount in Naira (will be converted to kobo)
+            amount_kobo: Amount to charge, in integer kobo (sent to Paystack as-is)
             reference: Unique transaction reference
             callback_url: URL to redirect to after payment
             metadata: Additional data to store with transaction
@@ -44,9 +42,6 @@ class PaystackService:
             Dict containing authorization_url, access_code, and reference
         """
         url = f"{self.base_url}/transaction/initialize"
-        
-        # Convert amount to kobo (multiply by 100)
-        amount_kobo = to_kobo(amount)
         
         payload = {
             "email": email,
@@ -114,7 +109,7 @@ class PaystackService:
                     "data": {
                         "id": transaction_data["id"],
                         "reference": transaction_data["reference"],
-                        "amount": transaction_data["amount"] / 100,  # Convert from kobo to Naira
+                        "amount_kobo": int(transaction_data["amount"]),  # integer kobo, as Paystack reports it
                         "status": transaction_data["status"],
                         "paid_at": transaction_data.get("paid_at"),
                         "channel": transaction_data.get("channel"),
@@ -141,13 +136,13 @@ class PaystackService:
                 "message": f"Unexpected error: {str(e)}"
             }
 
-    def initiate_refund(self, transaction_reference: str, amount: Optional[Decimal] = None) -> Dict[str, Any]:
+    def initiate_refund(self, transaction_reference: str, amount_kobo: Optional[int] = None) -> Dict[str, Any]:
         """
         Initiate a refund for a transaction
         
         Args:
             transaction_reference: Reference of transaction to refund
-            amount: Amount to refund (if partial). If None, full refund
+            amount_kobo: Amount to refund in integer kobo (if partial). If None, full refund
             
         Returns:
             Dict containing refund details
@@ -158,8 +153,8 @@ class PaystackService:
             "transaction": transaction_reference
         }
         
-        if amount:
-            payload["amount"] = to_kobo(amount)
+        if amount_kobo:
+            payload["amount"] = int(amount_kobo)
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
@@ -242,7 +237,7 @@ class PaystackService:
             return {
                 "event": "payment_successful",
                 "reference": data.get("reference"),
-                "amount": data.get("amount", 0) / 100,  # Convert from kobo
+                "amount_kobo": data.get("amount"),
                 "status": data.get("status"),
                 "paid_at": data.get("paid_at"),
                 "channel": data.get("channel"),
@@ -253,7 +248,7 @@ class PaystackService:
             return {
                 "event": "payment_failed",
                 "reference": data.get("reference"),
-                "amount": data.get("amount", 0) / 100,
+                "amount_kobo": data.get("amount"),
                 "status": data.get("status"),
                 "gateway_response": data.get("gateway_response"),
                 "customer_email": data.get("customer", {}).get("email"),
@@ -271,7 +266,7 @@ class PaystackService:
             return {
                 "event": "refund_successful",
                 "reference": data.get("transaction", {}).get("reference"),
-                "amount": data.get("amount", 0) / 100,
+                "amount_kobo": data.get("amount"),
                 "status": data.get("status"),
                 "refunded_at": data.get("created_at"),
                 "customer_email": data.get("customer", {}).get("email")

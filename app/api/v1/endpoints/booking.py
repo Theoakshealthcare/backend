@@ -7,6 +7,7 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin, user_is_admin, authenticate_websocket
+from app.core.money import kobo_to_naira
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
@@ -21,7 +22,7 @@ from app.schemas.booking import (
     LiveTrackingResponse
 )
 from app.services.booking import BookingActionForbidden, BookingService, BookingStateConflict
-from app.services.booking_payment import SettleOutcome, naira_to_kobo, settle_booking_payment
+from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
 from app.services.paystack import PaystackService
@@ -43,6 +44,10 @@ def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
     """Helper function to enrich booking with patient and caregiver details"""
     booking_dict = booking.__dict__.copy()
     booking_dict.pop("_sa_instance_state", None)
+    # Money is stored as kobo; responses keep the naira field names mobile clients already use.
+    booking_dict["total_amount"] = booking.total_amount
+    booking_dict["service_fee"] = booking.service_fee
+    booking_dict["platform_fee"] = booking.platform_fee
 
     # Add patient details
     patient = db.query(Patient).filter(Patient.id == booking.patient_id).first()
@@ -566,7 +571,7 @@ def verify_booking_payment(
             "message": "Payment verified successfully",
             "booking_id": booking_id,
             "payment_status": "paid",
-            "amount_paid": booking.total_amount,
+            "amount_paid": kobo_to_naira(booking.total_amount_kobo),
             "paid_at": None
         }
 
@@ -585,7 +590,7 @@ def verify_booking_payment(
         
         # Update booking payment status based on Paystack response
         if payment_data.get("status") == "success":
-            outcome = settle_booking_payment(db, booking.id, naira_to_kobo(payment_data.get("amount")))
+            outcome = settle_booking_payment(db, booking.id, payment_data.get("amount_kobo"))
             if outcome == SettleOutcome.AMOUNT_MISMATCH:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -597,7 +602,7 @@ def verify_booking_payment(
                 "message": "Payment verified successfully",
                 "booking_id": booking_id,
                 "payment_status": "paid",
-                "amount_paid": payment_data.get("amount"),
+                "amount_paid": kobo_to_naira(payment_data["amount_kobo"]) if payment_data.get("amount_kobo") is not None else None,
                 "paid_at": payment_data.get("paid_at")
             }
         else:

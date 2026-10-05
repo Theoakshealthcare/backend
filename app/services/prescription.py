@@ -4,6 +4,7 @@ from app.schemas.prescription import PrescriptionCreate, PrescriptionUpdate
 from uuid import UUID
 from typing import Optional, List
 from app.db.models.prescription_settings import PrescriptionSettings
+from app.services.pricing import compute_price
 
 class PrescriptionService:
     def __init__(self, db: Session):
@@ -14,16 +15,18 @@ class PrescriptionService:
         settings = self.db.query(PrescriptionSettings).order_by(PrescriptionSettings.created_at.desc()).first()
         if not settings:
             raise Exception("Prescription settings not configured.")
-        base_fee = settings.base_fee
         multiplier = 1.0
         if settings.multipliers and data.delivery_option in settings.multipliers:
             multiplier = settings.multipliers[data.delivery_option]
-        total_cost = base_fee * multiplier
-        if settings.surge_pricing and settings.surge_multiplier:
-            total_cost *= settings.surge_multiplier
-        if settings.discount:
-            total_cost *= (1 - settings.discount / 100)
-        prescription = Prescription(**data.dict(exclude={'total_cost'}), total_cost=total_cost)
+        price = compute_price(
+            base_fee_kobo=settings.base_fee_kobo,
+            multiplier=multiplier,
+            surge_multiplier=settings.surge_multiplier if settings.surge_pricing else None,
+            discount_percent=settings.discount,
+        )
+        prescription = Prescription(
+            **data.dict(exclude={'total_cost'}), total_cost_kobo=price.total_kobo
+        )
         self.db.add(prescription)
         self.db.commit()
         self.db.refresh(prescription)

@@ -80,5 +80,5 @@ Error shape stays FastAPI's `{"detail": ...}`.
 - An admin reconcile endpoint/job (list `processing` refunds, force-close or re-credit) lands with the admin console; until then unmatched refunds are found via the ERROR log and `patient_refund_requests.status='processing'`.
 - Refund tx to request link is a `[refund_request:<id>]` tag in `description` (no migration); a proper `refund_request_id` column belongs with WP-E.
 - Webhook signature uses `PAYSTACK_SECRET_KEY` (what Paystack signs with); `PAYSTACK_WEBHOOK_SECRET` is unused.
-- Money columns are still Float/Numeric naira (WP-E2).
+- ~~Money columns are still Float/Numeric naira~~ Done in WP-E2: integer kobo, see [money-in-kobo](2026-10-05-money-in-kobo.md). Note that this SOP's `to_kobo(booking.total_amount)` comparisons are now plain kobo integer comparisons.
 - Wallet payment endpoint does not link the payment to a booking status.

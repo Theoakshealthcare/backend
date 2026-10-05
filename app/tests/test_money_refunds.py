@@ -8,6 +8,7 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.money import to_kobo
 from app.db.models.patient import PatientRefundRequest, PatientTransaction, PatientWallet
 from app.main import app as fastapi_app
 from app.services.paystack import PaystackService
@@ -15,7 +16,7 @@ from app.tests.factories import auth_headers, make_admin, make_patient, make_use
 
 
 def _wallet(db, patient, balance="0"):
-    w = PatientWallet(patient_id=patient.id, balance=Decimal(balance))
+    w = PatientWallet(patient_id=patient.id, balance_kobo=to_kobo(balance))
     db.add(w)
     db.commit()
     db.refresh(w)
@@ -25,7 +26,7 @@ def _wallet(db, patient, balance="0"):
 def _tx(db, wallet, patient, amount="1000", reference=None, type_="payment"):
     t = PatientTransaction(
         id=uuid.uuid4(), patient_id=patient.id, wallet_id=wallet.id, type=type_,
-        amount=Decimal(amount), status="successful", paystack_reference=reference,
+        amount_kobo=to_kobo(amount), status="successful", paystack_reference=reference,
     )
     db.add(t)
     db.commit()
@@ -36,7 +37,7 @@ def _tx(db, wallet, patient, amount="1000", reference=None, type_="payment"):
 def _request(db, patient, tx, amount="1000"):
     r = PatientRefundRequest(
         id=uuid.uuid4(), patient_id=patient.id, transaction_id=tx.id,
-        amount=Decimal(amount), reason="Service was not delivered", status="pending",
+        amount_kobo=to_kobo(amount), reason="Service was not delivered", status="pending",
     )
     db.add(r)
     db.commit()
@@ -111,10 +112,10 @@ def test_paystack_original_refunds_to_paystack_only(db, client, paystack_refunds
 
     r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
     assert r.status_code == 200, r.text
-    assert paystack_refunds == [("DEP_x_1", Decimal("1000"))]
+    assert paystack_refunds == [("DEP_x_1", 100000)]
     w = _fresh(db, PatientWallet, wallet.id)
     # the deposit is reversed out of the wallet and paid back to the card: never both
-    assert w.balance == 0 and w.total_refunded == 0
+    assert w.balance_kobo == 0 and w.total_refunded_kobo == 0
     assert _fresh(db, PatientRefundRequest, req.id).status == "approved"
 
 
@@ -129,7 +130,7 @@ def test_wallet_original_refunds_to_wallet_only(db, client, paystack_refunds):
     assert r.status_code == 200, r.text
     assert paystack_refunds == []
     w = _fresh(db, PatientWallet, wallet.id)
-    assert w.balance == Decimal("400") and w.total_refunded == Decimal("400")
+    assert w.balance_kobo == 40000 and w.total_refunded_kobo == 40000
 
 
 def test_paystack_failure_leaves_request_pending_and_pays_nothing(db, client, monkeypatch):
@@ -146,7 +147,7 @@ def test_paystack_failure_leaves_request_pending_and_pays_nothing(db, client, mo
     r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
     assert r.status_code == 502
     assert _fresh(db, PatientRefundRequest, req.id).status == "pending"
-    assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("1000")
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000
     # a definite rejection is compensated: the wallet debit is reversed, the refund tx is marked failed
     assert [t.status for t in db.query(PatientTransaction).filter_by(type="refund")] in ([], ["failed"])
 
@@ -173,7 +174,7 @@ def test_second_approval_is_rejected(db, client, paystack_refunds):
     assert client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin)).status_code == 200
     r2 = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
     assert r2.status_code == 409
-    assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("1000")
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000
     assert db.query(PatientTransaction).filter_by(type="refund").count() == 1
 
 
@@ -193,7 +194,7 @@ def test_reject_does_not_pay(db, client, paystack_refunds):
     r = client.put(_url(req), json={"action": "reject", "admin_notes": "no"}, headers=auth_headers(admin))
     assert r.status_code == 200
     assert _fresh(db, PatientRefundRequest, req.id).status == "rejected"
-    assert _fresh(db, PatientWallet, wallet.id).balance == 0
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
     assert paystack_refunds == []
 
 
@@ -234,4 +235,4 @@ def test_cumulative_refunds_cannot_exceed_original_amount(db, client, paystack_r
     second = _request(db, patient, tx, "800")
     r = client.put(_url(second), json={"action": "approve"}, headers=auth_headers(admin))
     assert r.status_code == 409
-    assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("800")
+    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 80000

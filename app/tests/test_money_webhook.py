@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.core.money import to_kobo
 from app.core.config import settings
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.patient import PatientTransaction, PatientWallet
@@ -38,8 +39,8 @@ def notified(monkeypatch):
     return calls
 
 
-def _booking(db, payment_status=PaymentStatus.PENDING, total=44000.0, **kw):
-    return make_booking(db, make_patient(db), payment_status=payment_status, total_amount=total, **kw)
+def _booking(db, payment_status=PaymentStatus.PENDING, total_kobo=4_400_000, **kw):
+    return make_booking(db, make_patient(db), payment_status=payment_status, total_amount_kobo=total_kobo, **kw)
 
 
 def _fresh(db, booking):
@@ -132,12 +133,12 @@ def test_cancelled_booking_that_receives_money_is_not_redispatched(db, client, n
 
 def _deposit(db, amount="5000", status="pending"):
     patient = make_patient(db)
-    wallet = PatientWallet(patient_id=patient.id, balance=Decimal("0"))
+    wallet = PatientWallet(patient_id=patient.id, balance_kobo=0)
     db.add(wallet)
     db.commit()
     tx = PatientTransaction(
         id=uuid.uuid4(), patient_id=patient.id, wallet_id=wallet.id, type="deposit",
-        amount=Decimal(amount), status=status, paystack_reference=f"DEP_{uuid.uuid4().hex[:10]}",
+        amount_kobo=to_kobo(amount), status=status, paystack_reference=f"DEP_{uuid.uuid4().hex[:10]}",
     )
     db.add(tx)
     db.commit()
@@ -154,13 +155,13 @@ def test_deposit_credited_once_on_replay(db, client):
     for _ in range(3):
         assert _post(client, "charge.success", tx.paystack_reference, 500_000).status_code == 200
     w = _wallet_fresh(db, wallet)
-    assert w.balance == Decimal("5000") and w.total_deposited == Decimal("5000")
+    assert w.balance_kobo == 500000 and w.total_deposited_kobo == 500000
 
 
 def test_deposit_wrong_amount_not_credited(db, client):
     wallet, tx = _deposit(db)
     _post(client, "charge.success", tx.paystack_reference, 100_000)
-    assert _wallet_fresh(db, wallet).balance == 0
+    assert _wallet_fresh(db, wallet).balance_kobo == 0
     db.expire_all()
     assert db.get(PatientTransaction, tx.id).status == "pending"
 
@@ -171,7 +172,7 @@ def test_deposit_failed_after_success_does_not_flip_status(db, client):
     _post(client, "charge.failed", tx.paystack_reference, 500_000)
     db.expire_all()
     assert db.get(PatientTransaction, tx.id).status == "successful"
-    assert _wallet_fresh(db, wallet).balance == Decimal("5000")
+    assert _wallet_fresh(db, wallet).balance_kobo == 500000
 
 
 def test_concurrent_replays_notify_once(db, notified):

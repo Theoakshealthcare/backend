@@ -25,7 +25,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] pytest harness: throwaway Postgres (testcontainers), factories, network guard, run in CI. 2026-10-05, branch `test/harness`, [SOP](../sop/2026-10-05-test-harness.md)
 - [x] Phase 0 WP-A–D merged to `main` (harness, secrets, access control, money). 2026-10-05, PRs #3–#8
 - [ ] Phase 0 WP-E: [plan](../plans/2026-10-05-phase-0-security-foundations.md#wp-e-foundations-so-a-booking-can-complete-branches-from-main-which-now-includes-wpad)
-  - [ ] E2 money in kobo
+  - [x] E2 money in kobo. 2026-10-05, branch `foundations/kobo`, migration `68b8941cfc28`, [SOP](../sop/2026-10-05-money-in-kobo.md)
   - [ ] E5 caregiver approval API (mandatory background check) + audit log
   - [ ] E3 Redis + ARQ worker, unpaid-booking expiry
   - [ ] E4 skills-based matching + dispatch waves
@@ -106,7 +106,7 @@ Spec: [PRD](../prd/PRD-whatsapp-patient-channel.md) · [proposal](../proposals/2
   - [ ] Bookings no longer require an email (P7)
   - [ ] Caregiver actions check ownership (P8)
   - [ ] Critical security items closed (P9)
-  - [ ] Money stored in kobo (P10)
+  - [x] Money stored in kobo (P10). 2026-10-05, E2
   - [ ] Meta business verified (P11)
 - [ ] **Meta onboarding:** business portfolio, verification, dedicated number, display name, WhatsApp Business Account, payment method, templates (PRD §13–14)
 - [ ] **Infrastructure:**

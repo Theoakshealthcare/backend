@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-from app.core.money import to_kobo, to_kobo_or_none
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.prescription import Prescription
 from app.db.session import SessionLocal
@@ -23,9 +22,10 @@ def get_paystack_service() -> PaystackService:
     return PaystackService()
 
 
-def _paid_kobo(payload: Dict[str, Any]):
-    amount = payload.get("data", {}).get("amount")
-    return amount if isinstance(amount, int) else to_kobo_or_none(amount)
+def _paid_kobo(event_data: Dict[str, Any]):
+    """Kobo Paystack says was paid; anything that is not a plain integer is treated as unknown."""
+    amount = event_data.get("amount_kobo")
+    return amount if isinstance(amount, int) and not isinstance(amount, bool) else None
 
 
 def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack_service: PaystackService) -> None:
@@ -47,7 +47,7 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
 
             booking = db.query(Booking).filter(Booking.paystack_reference == reference).first()
             if booking:
-                outcome = settle_booking_payment(db, booking.id, _paid_kobo(payload))
+                outcome = settle_booking_payment(db, booking.id, _paid_kobo(event_data))
                 logger.info(f"Booking payment {reference}: {outcome.value}")
             db.rollback()
 
@@ -59,8 +59,8 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
                 .first()
             )
             if prescription and prescription.payment_status != "paid":
-                paid = _paid_kobo(payload)
-                if prescription.total_cost is not None and paid == to_kobo(prescription.total_cost):
+                paid = _paid_kobo(event_data)
+                if prescription.total_cost_kobo is not None and paid == prescription.total_cost_kobo:
                     prescription.payment_status = "paid"
                     db.commit()
                     logger.info(f"Prescription payment processed: {reference}")
@@ -68,7 +68,7 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
                     db.rollback()
                     logger.error(
                         f"Prescription {reference} amount mismatch: expected "
-                        f"{prescription.total_cost}, paystack reported {paid} kobo"
+                        f"{prescription.total_cost_kobo} kobo, paystack reported {paid} kobo"
                     )
             else:
                 db.rollback()
