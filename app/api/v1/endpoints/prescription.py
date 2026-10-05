@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 import os
 
-from app.api.deps import get_db, get_current_user, get_current_admin
+from app.api.deps import get_db, get_current_user, get_current_admin, user_is_admin
 from app.db.models.user import User
 from app.db.models.patient import Patient
 from app.schemas.prescription import PrescriptionCreate, PrescriptionResponse, PrescriptionUpdate
@@ -18,12 +18,18 @@ router = APIRouter()
 
 # --- ADMIN SETTINGS ENDPOINTS (must come first) ---
 @router.get("/settings", response_model=List[PrescriptionSettingsResponse])
-def get_prescription_settings(db: Session = Depends(get_db)):
+def get_prescription_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     settings = db.query(PrescriptionSettings).order_by(PrescriptionSettings.created_at.desc()).all()
     return settings
 
 @router.get("/settings/latest", response_model=PrescriptionSettingsResponse)
-def get_latest_prescription_settings(db: Session = Depends(get_db)):
+def get_latest_prescription_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     settings = db.query(PrescriptionSettings).order_by(PrescriptionSettings.created_at.desc()).first()
     if not settings:
         raise HTTPException(status_code=404, detail="Prescription settings not found")
@@ -78,6 +84,27 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 def get_prescription_service(db: Session = Depends(get_db)) -> PrescriptionService:
     return PrescriptionService(db)
 
+
+def _require_patient_access(db: Session, user: User, patient_id: UUID) -> None:
+    """Allow the patient who owns `patient_id`, or an admin. Everyone else gets 403."""
+    if user_is_admin(db, user):
+        return
+    if user.user_type == "patient":
+        patient = db.query(Patient).filter(Patient.user_id == user.id).first()
+        if patient and patient.id == patient_id:
+            return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+
+def _get_accessible_prescription(
+    prescription_id: UUID, db: Session, user: User, service: PrescriptionService
+):
+    prescription = service.get_prescription(prescription_id)
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+    _require_patient_access(db, user, prescription.patient_id)
+    return prescription
+
 @router.post("/create", response_model=PrescriptionResponse)
 def create_prescription(
     prescription_data: PrescriptionCreate,
@@ -89,6 +116,9 @@ def create_prescription(
     patient = db.query(Patient).filter(Patient.id == prescription_data.patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+    _require_patient_access(db, current_user, patient.id)
+    # never trust the client-supplied requester; it is always the authenticated caller
+    prescription_data = prescription_data.copy(update={"requested_by_user_id": current_user.id})
     prescription = prescription_service.create_prescription(prescription_data)
     return prescription
 
@@ -96,24 +126,27 @@ def create_prescription(
 def get_patient_prescriptions(
     patient_id: UUID,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    _require_patient_access(db, current_user, patient_id)
     return prescription_service.get_patient_prescriptions(patient_id)
 
 @router.get("/{prescription_id}", response_model=PrescriptionResponse)
 def get_prescription(
     prescription_id: UUID,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    prescription = prescription_service.get_prescription(prescription_id)
-    if not prescription:
-        raise HTTPException(status_code=404, detail="Prescription not found")
-    return prescription
+    return _get_accessible_prescription(prescription_id, db, current_user, prescription_service)
 
 @router.patch("/{prescription_id}", response_model=PrescriptionResponse)
 def update_prescription(
     prescription_id: UUID,
     update_data: PrescriptionUpdate,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
+    current_admin: User = Depends(get_current_admin),
 ):
     prescription = prescription_service.update_prescription(prescription_id, update_data)
     if not prescription:
@@ -125,6 +158,7 @@ async def upload_doctor_note(
     prescription_id: UUID,
     file: UploadFile = File(...),
     prescription_service: PrescriptionService = Depends(get_prescription_service),
+    current_admin: User = Depends(get_current_admin),
 ):
     prescription = prescription_service.get_prescription(prescription_id)
     if not prescription:
@@ -143,6 +177,7 @@ async def upload_doctor_note(
 @router.get("/check_availability/{medication_name}")
 def check_drug_availability(
     medication_name: str,
+    current_user: User = Depends(get_current_user),
 ):
     # Mock logic: always available
     # In future, integrate with pharmacy inventory
@@ -153,6 +188,7 @@ def update_prescription_status(
     prescription_id: UUID,
     status: str = Body(..., embed=True),
     prescription_service: PrescriptionService = Depends(get_prescription_service),
+    current_admin: User = Depends(get_current_admin),
 ):
     update_data = PrescriptionUpdate(status=status)
     prescription = prescription_service.update_prescription(prescription_id, update_data)
@@ -164,8 +200,8 @@ def update_prescription_status(
 def get_prescription_status(
     prescription_id: UUID,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    prescription = prescription_service.get_prescription(prescription_id)
-    if not prescription:
-        raise HTTPException(status_code=404, detail="Prescription not found")
+    prescription = _get_accessible_prescription(prescription_id, db, current_user, prescription_service)
     return {"status": prescription.status} 
