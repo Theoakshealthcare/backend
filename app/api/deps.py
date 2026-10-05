@@ -130,12 +130,20 @@ async def authenticate_websocket(
 ) -> Optional[tuple[User, Optional[str]]]:
     """Authenticate a WebSocket before it is accepted.
 
-    On failure the socket is closed (4401 bad/missing token or inactive user, 4403 wrong
-    role) and None is returned. On success returns (user, subprotocol_to_accept).
+    On failure the socket is accepted and then closed with an application code (4401 bad or
+    missing token or inactive user, 4403 wrong role), and None is returned. It must be accepted
+    first: closing before accept() makes uvicorn answer the handshake with a plain HTTP 403,
+    so real clients would never see the close code. Nothing is sent and no connection is
+    registered. On success returns (user, subprotocol_to_accept).
     """
     token, subprotocol = _websocket_token(websocket)
+
+    async def reject(code: int, reason: str) -> None:
+        await websocket.accept(subprotocol=subprotocol)
+        await websocket.close(code=code, reason=reason)
+
     if not token:
-        await websocket.close(code=WS_CLOSE_UNAUTHENTICATED)
+        await reject(WS_CLOSE_UNAUTHENTICATED, "Authentication required")
         return None
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
@@ -144,12 +152,12 @@ async def authenticate_websocket(
             raise JWTError("not an access token")
         user = UserService(db).get_user(user_id)
     except (JWTError, ValueError):
-        await websocket.close(code=WS_CLOSE_UNAUTHENTICATED)
+        await reject(WS_CLOSE_UNAUTHENTICATED, "Invalid token")
         return None
     if user is None or not user.is_active:
-        await websocket.close(code=WS_CLOSE_UNAUTHENTICATED)
+        await reject(WS_CLOSE_UNAUTHENTICATED, "Invalid token")
         return None
     if required_user_type and user.user_type != required_user_type:
-        await websocket.close(code=WS_CLOSE_FORBIDDEN)
+        await reject(WS_CLOSE_FORBIDDEN, "Wrong account type")
         return None
     return user, subprotocol

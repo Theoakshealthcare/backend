@@ -26,8 +26,8 @@ def _reset_manager():
 
 def assert_closed_with(client, url, code, **kwargs):
     with pytest.raises(WebSocketDisconnect) as exc:
-        with client.websocket_connect(url, **kwargs):
-            pass
+        with client.websocket_connect(url, **kwargs) as ws:
+            ws.receive_text()  # accepted-then-closed: the close code arrives on the first read
     assert exc.value.code == code
 
 
@@ -182,3 +182,61 @@ def test_subscribe_with_malformed_booking_id_is_a_clean_error(db, client):
         seen = roundtrip(ws, {"type": "tracking_subscribe", "booking_id": "not-a-uuid"})
     errors = [m for m in seen if m["type"] == "error"]
     assert errors and "not-a-uuid" not in errors[0]["error"]
+
+
+# --- real server: close codes must reach the client ------------------------------
+
+
+def _run_real_server():
+    import socket
+    import threading
+    import time
+
+    import uvicorn
+
+    from app.main import app as fastapi_app
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(fastapi_app, host="127.0.0.1", port=port, log_level="error"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(100):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started
+    return server, thread, port
+
+
+async def _close_code(url, **kwargs):
+    import websockets
+
+    async with websockets.connect(url, **kwargs) as ws:
+        try:
+            await ws.recv()
+        except websockets.ConnectionClosed as e:
+            return e.rcvd.code
+    return None
+
+
+def test_real_client_receives_4401_and_4403(db):
+    # Closing before accept() makes uvicorn answer the handshake with HTTP 403, so a real
+    # client never sees 4401/4403. The server must accept, then close with the code.
+    import asyncio
+
+    patient = make_patient(db)
+    patient_token = create_access_token(patient.user.id)
+    server, thread, port = _run_real_server()
+    try:
+        base = f"ws://127.0.0.1:{port}"
+        assert asyncio.run(_close_code(f"{base}{CAREGIVER_WS}?token=garbage")) == 4401
+        assert asyncio.run(_close_code(f"{base}{PATIENT_WS}")) == 4401
+        assert asyncio.run(_close_code(f"{base}{CAREGIVER_WS}?token={patient_token}")) == 4403
+        assert (
+            asyncio.run(_close_code(f"{base}{CAREGIVER_WS}", subprotocols=["bearer", "garbage"])) == 4401
+        )
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
