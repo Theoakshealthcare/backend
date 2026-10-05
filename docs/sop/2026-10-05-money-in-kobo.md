@@ -60,6 +60,20 @@ Money was a mix of `Float` (bookings, settings, prescriptions) and `Numeric(10,2
   `alembic heads` -> `68b8941cfc28 (head)`. Downgrade is lossy only for sub-kobo precision that the old floats carried (e.g. 1531.885 returns as 1531.89), which is the intent.
 
 ## Operate / roll back
+
+**Pre-migration step (production): clear open unpaid bookings first.**
+Old code started Paystack with a *truncated* `int(total*100)`; this migration stores a *rounded* `total_amount_kobo`. An unpaid booking whose total has a fractional kobo (for example ₦1,531.875) could therefore be paid later for 1 kobo less than its stored total, and settlement would flag `AMOUNT_MISMATCH`.
+
+Before running the migration:
+1. List the affected bookings:
+   ```sql
+   SELECT id, booking_code, total_amount FROM bookings
+   WHERE payment_status = 'pending' AND status = 'pending'
+     AND total_amount * 100 <> floor(total_amount * 100);
+   ```
+2. Cancel those bookings, or wait for them to be paid. Then run the migration.
+3. If any `AMOUNT_MISMATCH` still appears afterwards, reconcile it manually: the patient was charged 1 kobo less.
+
 - **Deploy order:** the migration and the new code must go together (old code reads `total_amount`, which no longer exists). Run `alembic upgrade head` in the release step, in a quiet window: each `ALTER TYPE` takes an `ACCESS EXCLUSIVE` lock and rewrites the table (small tables, seconds).
 - **Roll back:** `alembic downgrade -1`, then deploy the previous image. Any booking or wallet write made between upgrade and downgrade is converted back at 2dp.
 - **Before running against production:** the downgrade types assume the production columns match the models (`Float` / `Numeric(10,2)`). Confirm with `\d bookings` and `\d patient_wallets` first, because the migration history can't rebuild an empty DB (WP-E1).

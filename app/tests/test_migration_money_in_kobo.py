@@ -28,7 +28,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_single_alembic_head_and_chain():
     script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert script.get_heads() == [REVISION]
+    # exactly one head (later migrations may chain on top of this one)
+    assert len(script.get_heads()) == 1
     assert script.get_revision(REVISION).down_revision == "6fb30639d5f4"
 
 
@@ -130,7 +131,7 @@ def test_upgrade_downgrade_round_trip_on_seeded_rows(scratch_url):
             # a NULL cost must stay NULL
             _insert(conn, "prescriptions", total_cost=None)
 
-        _alembic(scratch_url, "upgrade", "head")
+        _alembic(scratch_url, "upgrade", REVISION)
 
         for table, _, expected in SEED:
             if table == "prescriptions":
@@ -170,7 +171,7 @@ def test_upgrade_downgrade_round_trip_on_seeded_rows(scratch_url):
             assert conn.execute(text("SELECT base_fee FROM booking_settings")).scalar_one() == pytest.approx(1234.57)
             assert float(conn.execute(text("SELECT amount FROM patient_transactions")).scalar_one()) == pytest.approx(5000.5)
 
-        _alembic(scratch_url, "upgrade", "head")
+        _alembic(scratch_url, "upgrade", REVISION)
         assert _read(engine, "patient_wallets", ["balance_kobo"]) == {"balance_kobo": 123456}
     finally:
         engine.dispose()
