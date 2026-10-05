@@ -58,6 +58,8 @@ RUN chmod +x /opt/run.sh
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app
+# Private upload volume mount point (owned by the app user so a fresh named volume is writable)
+
 USER app
 
 EXPOSE 8000

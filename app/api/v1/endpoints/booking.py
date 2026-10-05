@@ -1,3 +1,4 @@
+import logging
 from typing import Any, List, Optional
 from uuid import UUID
 
@@ -5,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSoc
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient
+from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin, user_is_admin, authenticate_websocket
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
@@ -19,10 +20,13 @@ from app.schemas.booking import (
     BookingNotificationResponse,
     LiveTrackingResponse
 )
-from app.services.booking import BookingService
+from app.services.booking import BookingActionForbidden, BookingService, BookingStateConflict
+from app.services.booking_payment import SettleOutcome, naira_to_kobo, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
 from app.services.paystack import PaystackService
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -38,7 +42,8 @@ def get_location_service(db: Session = Depends(get_db)) -> LocationService:
 def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
     """Helper function to enrich booking with patient and caregiver details"""
     booking_dict = booking.__dict__.copy()
-    
+    booking_dict.pop("_sa_instance_state", None)
+
     # Add patient details
     patient = db.query(Patient).filter(Patient.id == booking.patient_id).first()
     if patient:
@@ -95,6 +100,21 @@ def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
             booking_dict['caregiver_details'] = caregiver_details
     
     return booking_dict
+
+
+def ensure_booking_read_access(db: Session, user: User, booking: Booking) -> None:
+    """Allow the booking's patient, its assigned caregiver, or an admin; refuse everyone else."""
+    if user_is_admin(db, user):
+        return
+    if user.user_type == "patient":
+        patient = db.query(Patient).filter(Patient.user_id == user.id).first()
+        if patient and booking.patient_id == patient.id:
+            return
+    elif user.user_type == "caregiver":
+        caregiver = db.query(Caregiver).filter(Caregiver.user_id == user.id).first()
+        if caregiver and booking.caregiver_id == caregiver.id:
+            return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
 
 # Patient Endpoints
@@ -449,6 +469,10 @@ async def handle_booking_action(
         # Enrich booking with patient and caregiver details
         enriched_booking = enrich_booking_with_details(booking, booking_service.db)
         return {"message": f"Booking {action_data.action} successfully", "booking": enriched_booking}
+    except BookingActionForbidden as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except BookingStateConflict as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -485,26 +509,8 @@ def get_booking_details(
             detail="Booking not found"
         )
     
-    # Check if user has access to this booking
-    if current_user.user_type == "patient":
-        patient = booking_service.db.query(Patient).filter(
-            Patient.user_id == current_user.id
-        ).first()
-        if not patient or booking.patient_id != patient.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
-    elif current_user.user_type == "caregiver":
-        caregiver = booking_service.db.query(Caregiver).filter(
-            Caregiver.user_id == current_user.id
-        ).first()
-        if not caregiver or booking.caregiver_id != caregiver.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
-    
+    ensure_booking_read_access(booking_service.db, current_user, booking)
+
     # Enrich booking with patient and caregiver details
     enriched_booking = enrich_booking_with_details(booking, booking_service.db)
     return enriched_booking
@@ -553,6 +559,23 @@ def verify_booking_payment(
             detail="Access denied"
         )
     
+    # Already settled (webhook got there first, or a repeat call): nothing to re-verify or re-notify
+    if booking.payment_status == PaymentStatus.PAID:
+        return {
+            "status": "success",
+            "message": "Payment verified successfully",
+            "booking_id": booking_id,
+            "payment_status": "paid",
+            "amount_paid": booking.total_amount,
+            "paid_at": None
+        }
+
+    if not booking.paystack_reference:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking has no payment reference"
+        )
+
     # Verify payment with Paystack
     paystack_service = PaystackService()
     verification_result = paystack_service.verify_transaction(booking.paystack_reference)
@@ -562,8 +585,12 @@ def verify_booking_payment(
         
         # Update booking payment status based on Paystack response
         if payment_data.get("status") == "success":
-            booking.payment_status = PaymentStatus.PAID
-            db.commit()
+            outcome = settle_booking_payment(db, booking.id, naira_to_kobo(payment_data.get("amount")))
+            if outcome == SettleOutcome.AMOUNT_MISMATCH:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Payment amount does not match booking total"
+                )
             
             return {
                 "status": "success",
@@ -792,25 +819,18 @@ def get_live_booking_tracking(
             detail="Booking not found"
         )
     
-    # Verify user has access to this booking
-    has_access = False
-    if current_user.user_type == "patient":
-        patient = booking_service.db.query(Patient).filter(
-            Patient.user_id == current_user.id
-        ).first()
-        has_access = patient and booking.patient_id == patient.id
-    elif current_user.user_type == "caregiver":
-        caregiver = booking_service.db.query(Caregiver).filter(
-            Caregiver.user_id == current_user.id
-        ).first()
-        has_access = caregiver and booking.caregiver_id == caregiver.id
-    
-    if not has_access:
+    ensure_booking_read_access(booking_service.db, current_user, booking)
+
+    # The location is the caregiver's latest global position, so it must stop being visible
+    # once the job is over (same rule as the tracking WebSocket). Admins keep access.
+    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS) and not user_is_admin(
+        booking_service.db, current_user
+    ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live tracking is only available while the booking is accepted or in progress",
         )
-    
+
     # Check if booking has assigned caregiver
     if not booking.caregiver_id:
         raise HTTPException(
@@ -843,7 +863,7 @@ def get_live_booking_tracking(
     eta_minutes = max(5, int((distance / 25) * 60))
     
     # Determine if caregiver is moving (speed > 0.5 m/s)
-    is_moving = caregiver_location.speed and caregiver_location.speed > 0.5
+    is_moving = bool(caregiver_location.speed and caregiver_location.speed > 0.5)
     
     return LiveTrackingResponse(
         booking_id=booking.id,
@@ -878,9 +898,9 @@ async def caregiver_location_websocket(
     - `location_update`: Send GPS location data
     - `heartbeat`: Keep connection alive
     
-    **Authentication:** 
-    - Must include authentication token in query parameters: ?token=your_caregiver_token
-    - Or send authentication in first message after connection
+    **Authentication (required, caregiver accounts only):**
+    - A JWT *access* token, as `?token=<jwt>` or in the `Sec-WebSocket-Protocol` header
+      (`bearer, <jwt>`). Missing/invalid token closes with 4401; a non-caregiver with 4403.
     
     **Example Usage:**
     ```javascript
@@ -900,31 +920,26 @@ async def caregiver_location_websocket(
     }));
     ```
     """
-    # Extract token from query params (simple approach for demo)
-    # In production, implement proper WebSocket authentication
-    query_params = dict(websocket.query_params)
-    token = query_params.get("token")
-    
-    if not token:
-        await websocket.close(code=4001, reason="Authentication required")
+    auth = await authenticate_websocket(websocket, db, required_user_type="caregiver")
+    if auth is None:
         return
-    
-    # For demo purposes, we'll extract user_id from token (implement proper JWT validation)
+    user, subprotocol = auth
+    user_id = str(user.id)
+
     try:
-        # This is a simplified approach - implement proper JWT token validation
-        user_id = "demo_caregiver_user_id"  # Extract from JWT token in production
-        
-        await websocket_manager.connect_caregiver(websocket, user_id)
-        
+        await websocket_manager.connect_caregiver(websocket, user_id, subprotocol)
+
         try:
             while True:
                 message = await websocket.receive_text()
                 await websocket_manager.handle_caregiver_message(websocket, user_id, message, db)
         except WebSocketDisconnect:
             websocket_manager.disconnect_caregiver(user_id)
-            
-    except Exception as e:
-        await websocket.close(code=4000, reason=str(e))
+
+    except Exception:
+        log.exception("caregiver location websocket failed")
+        websocket_manager.disconnect_caregiver(user_id)
+        await websocket.close(code=4000, reason="Server error")
 
 
 @router.websocket("/ws/patient/tracking")
@@ -946,8 +961,10 @@ async def patient_tracking_websocket(
     - `tracking_unsubscribe`: Stop tracking a booking
     - `heartbeat`: Keep connection alive
     
-    **Authentication:** 
-    - Must include authentication token in query parameters: ?token=your_patient_token
+    **Authentication (required, patient accounts only):**
+    - A JWT *access* token, as `?token=<jwt>` or in the `Sec-WebSocket-Protocol` header
+      (`bearer, <jwt>`). Missing/invalid token closes with 4401; a non-patient with 4403.
+    - A patient can only subscribe to their own booking while it is accepted or in progress.
     
     **Example Usage:**
     ```javascript
@@ -969,29 +986,26 @@ async def patient_tracking_websocket(
     };
     ```
     """
-    # Extract token from query params
-    query_params = dict(websocket.query_params)
-    token = query_params.get("token")
-    
-    if not token:
-        await websocket.close(code=4001, reason="Authentication required")
+    auth = await authenticate_websocket(websocket, db, required_user_type="patient")
+    if auth is None:
         return
-    
+    user, subprotocol = auth
+    user_id = str(user.id)
+
     try:
-        # This is a simplified approach - implement proper JWT token validation
-        user_id = "demo_patient_user_id"  # Extract from JWT token in production
-        
-        await websocket_manager.connect_patient(websocket, user_id)
-        
+        await websocket_manager.connect_patient(websocket, user_id, subprotocol)
+
         try:
             while True:
                 message = await websocket.receive_text()
                 await websocket_manager.handle_patient_message(websocket, user_id, message, db)
         except WebSocketDisconnect:
             websocket_manager.disconnect_patient(user_id)
-            
-    except Exception as e:
-        await websocket.close(code=4000, reason=str(e))
+
+    except Exception:
+        log.exception("patient tracking websocket failed")
+        websocket_manager.disconnect_patient(user_id)
+        await websocket.close(code=4000, reason="Server error")
 
 
 @router.get(
@@ -1000,7 +1014,7 @@ async def patient_tracking_websocket(
     description="Get current WebSocket connection and subscription statistics for monitoring",
     tags=["WebSocket Monitoring"]
 )
-def get_websocket_stats() -> dict:
+def get_websocket_stats(current_admin: User = Depends(get_current_admin)) -> dict:
     """
     Get WebSocket connection statistics for monitoring and debugging.
     

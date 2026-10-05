@@ -1,0 +1,155 @@
+"""Shared kobo conversion, Paystack call timeouts, and webhook key hardening."""
+
+import hashlib
+import hmac
+import json
+from decimal import Decimal
+
+import pytest
+
+from app.core.config import Settings, settings
+from app.db.models.booking import Booking, PaymentStatus
+from app.db.models.booking_settings import BookingSettings
+from app.schemas.booking import BookingCreate
+from app.services.booking import BookingService
+from app.services.booking_payment import expected_kobo
+from app.services.paystack import PaystackService
+from app.tests.factories import make_booking, make_patient
+
+
+def test_to_kobo_rounds_half_up():
+    from app.core.money import to_kobo
+
+    assert to_kobo(1531.875) == 153188
+    assert to_kobo(1531.885) == 153189  # half-even would give 153188
+    assert to_kobo(Decimal("1531.874")) == 153187
+    assert to_kobo(44000.0) == 4_400_000
+    assert to_kobo(0.1 + 0.2) == 30  # float noise must not shift the result
+
+
+def test_initialize_amount_equals_settlement_expectation(db, monkeypatch):
+    """The amount we send to Paystack must be exactly what settlement later expects."""
+    sent = {}
+
+    class Resp:
+        def raise_for_status(self): ...
+        def json(self):
+            return {"status": True, "data": {"authorization_url": "u", "access_code": "a", "reference": "r"}}
+
+    def fake_post(url, **kwargs):
+        sent.update(kwargs)
+        return Resp()
+
+    monkeypatch.setattr("app.services.paystack.requests.post", fake_post)
+    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING, total_amount=1531.885)
+    PaystackService().initialize_transaction("p@example.com", booking.total_amount, "ref-1")
+    assert sent["json"]["amount"] == expected_kobo(booking) == 153189
+
+
+def test_fractional_payment_settles_end_to_end(db, client, monkeypatch):
+    from app.services.booking import BookingService as BS
+
+    monkeypatch.setattr(BS, "notify_nearby_caregivers", lambda self, b: [])
+    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING, total_amount=1531.885)
+    body = json.dumps({"event": "charge.success", "data": {
+        "reference": booking.paystack_reference, "amount": 153189, "status": "success"}}).encode()
+    sig = hmac.new(settings.PAYSTACK_SECRET_KEY.encode(), body, hashlib.sha512).hexdigest()
+    assert client.post("/api/v1/payment/paystack/webhook", content=body,
+                       headers={"x-paystack-signature": sig}).status_code == 200
+    db.expire_all()
+    assert db.get(Booking, booking.id).payment_status == PaymentStatus.PAID
+
+
+def test_booking_creation_rounds_money_to_two_places(db, monkeypatch):
+    sent = {}
+
+    def fake_init(self, email, amount, reference, callback_url=None, metadata=None):
+        sent["amount"] = amount
+        return {"status": True, "authorization_url": "u", "access_code": "a", "reference": reference}
+
+    monkeypatch.setattr(PaystackService, "initialize_transaction", fake_init)
+    db.add(BookingSettings(base_fee=1234.567, platform_fee_percent=10.0, multipliers={}))
+    db.commit()
+    patient = make_patient(db)
+    result = BookingService(db).create_booking(patient.id, BookingCreate(
+        service_type="nurse", assistance_type="x", duration_hours=1,
+        scheduled_date="2030-01-01T10:00:00", patient_address="1 Test Close",
+        patient_latitude=6.4, patient_longitude=3.4, patient_city="Lagos",
+        patient_state="Lagos", booking_for="myself"))
+    b = result["booking"]
+    for v in (b.total_amount, b.service_fee, b.platform_fee):
+        assert round(v, 2) == v
+    assert sent["amount"] == b.total_amount
+    from app.core.money import to_kobo
+    assert to_kobo(sent["amount"]) == expected_kobo(b)
+
+
+def test_every_paystack_request_has_a_timeout(monkeypatch):
+    seen = []
+
+    class Resp:
+        def raise_for_status(self): ...
+        def json(self):
+            return {"status": True, "data": {"id": 1, "reference": "r", "amount": 100, "status": "success",
+                                             "authorization_url": "u", "access_code": "a"}}
+
+    def fake(url, **kwargs):
+        seen.append(kwargs.get("timeout"))
+        return Resp()
+
+    monkeypatch.setattr("app.services.paystack.requests.post", fake)
+    monkeypatch.setattr("app.services.paystack.requests.get", fake)
+    svc = PaystackService()
+    svc.initialize_transaction("p@example.com", Decimal("10"), "r")
+    svc.verify_transaction("r")
+    svc.initiate_refund("r", Decimal("10"))
+    svc.get_supported_banks()
+    assert len(seen) == 4 and all(t for t in seen)
+
+
+# --- webhook key hardening -----------------------------------------------------
+
+def test_webhook_rejected_when_secret_key_empty(db, client, monkeypatch):
+    monkeypatch.setattr(settings, "PAYSTACK_SECRET_KEY", "")
+    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING)
+    body = json.dumps({"event": "charge.success", "data": {
+        "reference": booking.paystack_reference, "amount": 4_400_000, "status": "success"}}).encode()
+    forged = hmac.new(b"", body, hashlib.sha512).hexdigest()  # anyone can compute this
+    r = client.post("/api/v1/payment/paystack/webhook", content=body, headers={"x-paystack-signature": forged})
+    assert r.status_code in (400, 401)
+    db.expire_all()
+    assert db.get(Booking, booking.id).payment_status == PaymentStatus.PENDING
+
+
+def test_production_startup_requires_paystack_key():
+    with pytest.raises(ValueError):
+        Settings(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="")
+    assert Settings(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_live_placeholder").ENVIRONMENT == "production"
+    assert Settings(ENVIRONMENT="development", PAYSTACK_SECRET_KEY="").PAYSTACK_SECRET_KEY == ""
+
+
+def test_webhook_db_work_runs_off_the_event_loop(db, client, monkeypatch):
+    import asyncio
+
+    import app.api.v1.endpoints.payment as pay
+
+    on_loop = []
+    real = pay.settle_booking_payment
+
+    def spy(*a, **kw):
+        try:
+            asyncio.get_running_loop()
+            on_loop.append(True)
+        except RuntimeError:
+            on_loop.append(False)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(pay, "settle_booking_payment", spy)
+    monkeypatch.setattr(BookingService, "notify_nearby_caregivers", lambda self, b: [])
+    booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING)
+    body = json.dumps({"event": "charge.success", "data": {
+        "reference": booking.paystack_reference, "amount": 4_400_000, "status": "success"}}).encode()
+    sig = hmac.new(settings.PAYSTACK_SECRET_KEY.encode(), body, hashlib.sha512).hexdigest()
+    assert client.post("/api/v1/payment/paystack/webhook", content=body,
+                       headers={"x-paystack-signature": sig}).status_code == 200
+    assert on_loop == [False]

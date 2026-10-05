@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -14,7 +15,37 @@ from app.schemas.patient import (
     PatientWalletSummary, PatientTransactionOut,
     PaymentVerificationResponse
 )
+from app.core.money import to_kobo
 from app.services.paystack import PaystackService
+
+logger = logging.getLogger(__name__)
+
+_KOBO = Decimal("0.01")
+
+
+class RefundError(Exception):
+    """Base class for refund-approval failures. Subclasses map to HTTP statuses."""
+
+
+class RefundNotFound(RefundError):
+    pass
+
+
+class RefundConflict(RefundError):
+    """Already processed, over-refund, or the wallet cannot cover a deposit reversal."""
+
+
+class RefundGatewayError(RefundError):
+    """Paystack definitively refused the refund. Local changes were compensated."""
+
+
+class RefundOutcomeUnknown(RefundGatewayError):
+    """Paystack call timed out / errored ambiguously. The request stays 'processing'
+    for manual reconciliation; it is never retried automatically."""
+
+
+_REFUNDABLE_TYPES = ("payment", "deposit")
+_REQUEST_TAG = "[refund_request:"
 
 
 class PatientWalletService:
@@ -111,101 +142,117 @@ class PatientWalletService:
         )
 
     def process_successful_payment(self, reference: str, paystack_data: Dict[str, Any]) -> bool:
-        """Process successful payment from webhook"""
-        
-        transaction = self.db.query(PatientTransaction).filter(
-            PatientTransaction.paystack_reference == reference
-        ).first()
-        
+        """Credit a deposit once. Safe to call repeatedly (webhook replay, verify polling).
+
+        Locks the transaction row, so concurrent calls serialise and only the first credits.
+        Returns False when the transaction is unknown or the paid amount differs from the
+        amount we asked for (nothing is credited in that case).
+        """
+        transaction = (
+            self.db.query(PatientTransaction)
+            .filter(PatientTransaction.paystack_reference == reference)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+
         if not transaction:
+            self.db.rollback()
             return False
-        
+
         if transaction.status == "successful":
+            self.db.rollback()
             return True  # Already processed
-        
+
+        paid = paystack_data.get("amount")
+        if paid is None or Decimal(str(paid)).quantize(_KOBO) != Decimal(transaction.amount).quantize(_KOBO):
+            logger.error(
+                "Deposit amount mismatch for %s: expected %s, paystack reported %s",
+                reference, transaction.amount, paid,
+            )
+            self.db.rollback()
+            return False
+
         try:
-            # Begin transaction
-            self.db.begin()
-            
-            # Update transaction
             transaction.status = "successful"
             transaction.paystack_status = paystack_data.get("status")
             transaction.payment_method = paystack_data.get("channel")
             transaction.updated_at = datetime.utcnow()
-            
-            # Update wallet balance if it's a deposit
+
             if transaction.type == "deposit":
-                wallet = self.db.query(PatientWallet).filter(
-                    PatientWallet.id == transaction.wallet_id
-                ).with_for_update().first()  # Lock the row for update
-                
+                wallet = (
+                    self.db.query(PatientWallet)
+                    .filter(PatientWallet.id == transaction.wallet_id)
+                    .with_for_update()
+                    .populate_existing()
+                    .first()
+                )
                 if wallet:
                     wallet.balance += transaction.amount
                     wallet.total_deposited += transaction.amount
                     wallet.updated_at = datetime.utcnow()
-            
+
             self.db.commit()
-        except Exception as e:
+        except Exception:
             self.db.rollback()
-            raise e
+            raise
         return True
 
     def process_failed_payment(self, reference: str, paystack_data: Dict[str, Any]) -> bool:
-        """Process failed payment from webhook"""
-        
-        transaction = self.db.query(PatientTransaction).filter(
-            PatientTransaction.paystack_reference == reference
-        ).first()
-        
+        """Mark a pending deposit failed. A transaction that already settled is left alone."""
+
+        transaction = (
+            self.db.query(PatientTransaction)
+            .filter(PatientTransaction.paystack_reference == reference)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+
         if not transaction:
+            self.db.rollback()
             return False
-        
+
+        if transaction.status != "pending":
+            self.db.rollback()
+            return True
+
         transaction.status = "failed"
         transaction.paystack_status = paystack_data.get("status")
         transaction.description = f"{transaction.description} - Failed: {paystack_data.get('gateway_response', 'Unknown error')}"
         transaction.updated_at = datetime.utcnow()
-        
+
         self.db.commit()
         return True
 
     def make_payment(
-        self, 
-        patient_id: uuid.UUID, 
+        self,
+        patient_id: uuid.UUID,
         payment_request: PatientPaymentRequest
     ) -> PatientPaymentResponse:
-        """Make a payment from wallet balance"""
-        
-        wallet = self.get_or_create_wallet(patient_id)
-        
-        # Check if sufficient balance
-        if wallet.balance < payment_request.amount:
-            return PatientPaymentResponse(
-                transaction_id="",
-                status="failed",
-                message="Insufficient wallet balance",
-                remaining_balance=wallet.balance
-            )
-        
+        """Make a payment from wallet balance (one transaction, wallet row locked)."""
+
+        self.get_or_create_wallet(patient_id)  # commits; the lock below starts a fresh transaction
+
         try:
-            # Begin atomic transaction
-            self.db.begin()
-            
-            # Lock wallet for update to prevent race conditions
-            wallet = self.db.query(PatientWallet).filter(
-                PatientWallet.patient_id == patient_id
-            ).with_for_update().first()
-            
-            # Double-check balance after locking
+            wallet = (
+                self.db.query(PatientWallet)
+                .filter(PatientWallet.patient_id == patient_id)
+                .with_for_update()
+                .populate_existing()
+                .first()
+            )
+
             if wallet.balance < payment_request.amount:
+                balance = wallet.balance
                 self.db.rollback()
                 return PatientPaymentResponse(
                     transaction_id="",
                     status="failed",
                     message="Insufficient wallet balance",
-                    remaining_balance=wallet.balance
+                    remaining_balance=balance
                 )
-            
-            # Create payment transaction
+
             transaction = PatientTransaction(
                 id=uuid.uuid4(),
                 patient_id=patient_id,
@@ -216,20 +263,19 @@ class PatientWalletService:
                 description=payment_request.description or f"Payment - {payment_request.amount} NGN",
                 booking_id=payment_request.booking_id
             )
-            
-            # Update wallet balance
+
             wallet.balance -= payment_request.amount
             wallet.total_spent += payment_request.amount
             wallet.updated_at = datetime.utcnow()
-            
+
             self.db.add(transaction)
             self.db.commit()
             self.db.refresh(wallet)
-            
-        except Exception as e:
+
+        except Exception:
             self.db.rollback()
-            raise e
-        
+            raise
+
         return PatientPaymentResponse(
             transaction_id=str(transaction.id),
             status="successful",
@@ -249,7 +295,8 @@ class PatientWalletService:
             and_(
                 PatientTransaction.id == refund_request.transaction_id,
                 PatientTransaction.patient_id == patient_id,
-                PatientTransaction.status == "successful"
+                PatientTransaction.status == "successful",
+                PatientTransaction.type.in_(_REFUNDABLE_TYPES)
             )
         ).first()
         
@@ -264,7 +311,7 @@ class PatientWalletService:
         existing_request = self.db.query(PatientRefundRequest).filter(
             and_(
                 PatientRefundRequest.transaction_id == refund_request.transaction_id,
-                PatientRefundRequest.status == "pending"
+                PatientRefundRequest.status.in_(("pending", "processing"))
             )
         ).first()
         
@@ -342,33 +389,37 @@ class PatientWalletService:
             for t in transactions
         ]
 
-    def verify_payment(self, reference: str) -> PaymentVerificationResponse:
-        """Verify payment with Paystack"""
-        
+    def verify_payment(self, reference: str, patient_id: uuid.UUID) -> PaymentVerificationResponse:
+        """Verify one of the caller's own payments with Paystack. Raises LookupError for an
+        unknown or someone else's reference (before anything is sent to Paystack)."""
+
+        transaction = self.db.query(PatientTransaction).filter(
+            PatientTransaction.paystack_reference == reference,
+            PatientTransaction.patient_id == patient_id,
+        ).first()
+
+        if not transaction:
+            raise LookupError("Transaction not found")
+
         paystack_response = self.paystack.verify_transaction(reference)
-        
+
         if not paystack_response.get("status"):
             return PaymentVerificationResponse(
                 status="failed",
                 message=paystack_response.get("message", "Payment verification failed")
             )
-        
-        # Get transaction from database
-        transaction = self.db.query(PatientTransaction).filter(
-            PatientTransaction.paystack_reference == reference
-        ).first()
-        
-        if not transaction:
-            return PaymentVerificationResponse(
-                status="failed",
-                message="Transaction not found in our records"
-            )
-        
+
         paystack_data = paystack_response["data"]
         
         # Process the payment based on Paystack status
         if paystack_data["status"] == "success":
-            self.process_successful_payment(reference, paystack_data)
+            if not self.process_successful_payment(reference, paystack_data):
+                return PaymentVerificationResponse(
+                    status="failed",
+                    message="Payment amount does not match the expected amount",
+                    transaction_id=str(transaction.id),
+                    amount=transaction.amount
+                )
             return PaymentVerificationResponse(
                 status="successful",
                 message="Payment verified and processed successfully",
@@ -406,69 +457,282 @@ class PatientWalletService:
         ]
 
     def process_refund_approval(
-        self, 
-        refund_request_id: uuid.UUID, 
-        admin_id: uuid.UUID, 
+        self,
+        refund_request_id: uuid.UUID,
+        admin_id: uuid.UUID,
         action: str,
         admin_notes: Optional[str] = None
-    ) -> bool:
-        """Process refund request approval/rejection (Admin function)"""
-        
-        refund_request = self.db.query(PatientRefundRequest).filter(
-            PatientRefundRequest.id == refund_request_id
-        ).first()
-        
-        if not refund_request or refund_request.status != "pending":
-            return False
-        
-        if action == "approve":
-            # Create refund transaction
-            refund_transaction = PatientTransaction(
-                id=uuid.uuid4(),
-                patient_id=refund_request.patient_id,
-                wallet_id=self.get_or_create_wallet(refund_request.patient_id).id,
-                type="refund",
-                amount=refund_request.amount,
-                status="successful",
-                description=f"Refund for transaction - {refund_request.reason}",
-                admin_approved=True,
-                admin_id=admin_id,
-                approved_at=datetime.utcnow()
-            )
-            
-            # Update wallet balance
-            wallet = self.get_or_create_wallet(refund_request.patient_id)
-            wallet.balance += refund_request.amount
-            wallet.total_refunded += refund_request.amount
-            wallet.updated_at = datetime.utcnow()
-            
-            # Update refund request
-            refund_request.status = "approved"
-            refund_request.admin_id = admin_id
-            refund_request.admin_notes = admin_notes
-            refund_request.processed_at = datetime.utcnow()
-            
-            self.db.add(refund_transaction)
-            
-            # If original transaction was via Paystack, initiate Paystack refund
-            original_transaction = self.db.query(PatientTransaction).filter(
-                PatientTransaction.id == refund_request.transaction_id
-            ).first()
-            
-            if original_transaction and original_transaction.paystack_reference:
-                paystack_refund = self.paystack.initiate_refund(
-                    original_transaction.paystack_reference,
-                    refund_request.amount
-                )
-                
-                if paystack_refund.get("status"):
-                    refund_transaction.paystack_reference = paystack_refund["data"].get("id")
-        
-        elif action == "reject":
+    ) -> Dict[str, Any]:
+        """Approve or reject a refund request (admin function).
+
+        Approval pays exactly one destination:
+          - original transaction has a Paystack reference -> Paystack refund to the original
+            payment; if that original was a wallet deposit, the wallet credit is reversed
+            (the money leaves the wallet and goes back to the card, never both);
+          - otherwise -> credit the wallet.
+        The request row is locked for the whole operation, so a second approval waits and
+        then sees status != pending. Raises RefundError subclasses; on any error nothing
+        has changed.
+        """
+
+        refund_request = (
+            self.db.query(PatientRefundRequest)
+            .filter(PatientRefundRequest.id == refund_request_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+
+        if not refund_request:
+            self.db.rollback()
+            raise RefundNotFound("Refund request not found")
+        if refund_request.status != "pending":
+            self.db.rollback()
+            raise RefundConflict("Refund request has already been processed")
+
+        now = datetime.utcnow()
+
+        if action == "reject":
             refund_request.status = "rejected"
             refund_request.admin_id = admin_id
             refund_request.admin_notes = admin_notes
-            refund_request.processed_at = datetime.utcnow()
-        
-        self.db.commit()
-        return True
+            refund_request.processed_at = now
+            self.db.commit()
+            return {"destination": None}
+
+        # ---- phase 1: under row locks, validate and commit the intent -------------------
+        try:
+            # Lock the original so concurrent approvals of different requests against the
+            # same transaction serialise and the cumulative cap below is race-free.
+            original = (
+                self.db.query(PatientTransaction)
+                .filter(PatientTransaction.id == refund_request.transaction_id)
+                .with_for_update()
+                .populate_existing()
+                .first()
+            )
+            if original is None or original.type not in _REFUNDABLE_TYPES or original.status != "successful":
+                raise RefundConflict("Original transaction is not refundable")
+
+            already_refunded = sum(
+                (r.amount for r in self.db.query(PatientRefundRequest).filter(
+                    PatientRefundRequest.transaction_id == original.id,
+                    PatientRefundRequest.status.in_(("approved", "processing")),
+                    PatientRefundRequest.id != refund_request.id,
+                ).all()),
+                Decimal("0"),
+            )
+            if already_refunded + refund_request.amount > original.amount:
+                raise RefundConflict("Approved refunds would exceed the original transaction amount")
+
+            wallet = (
+                self.db.query(PatientWallet)
+                .filter(PatientWallet.id == original.wallet_id)
+                .with_for_update()
+                .populate_existing()
+                .first()
+            )
+
+            refund_transaction = PatientTransaction(
+                id=uuid.uuid4(),
+                patient_id=refund_request.patient_id,
+                wallet_id=original.wallet_id,
+                type="refund",
+                amount=refund_request.amount,
+                admin_approved=True,
+                admin_id=admin_id,
+                approved_at=now,
+                refund_reason=refund_request.reason,
+            )
+
+            if not original.paystack_reference:
+                # Wallet destination: no external call, one transaction.
+                wallet.balance += refund_request.amount
+                wallet.total_refunded += refund_request.amount
+                wallet.updated_at = now
+                refund_transaction.status = "successful"
+                refund_transaction.description = f"Refund to wallet - {refund_request.reason}"
+                refund_request.status = "approved"
+                refund_request.admin_id = admin_id
+                refund_request.admin_notes = admin_notes
+                refund_request.processed_at = now
+                self.db.add(refund_transaction)
+                self.db.commit()
+                return {"destination": "wallet"}
+
+            # Paystack destination. A deposit's wallet credit is reversed first so the
+            # money leaves exactly one place.
+            debited = original.type == "deposit"
+            if debited:
+                if wallet is None or wallet.balance < refund_request.amount:
+                    raise RefundConflict("Wallet balance cannot cover reversing this deposit")
+                wallet.balance -= refund_request.amount
+                wallet.updated_at = now
+
+            refund_transaction.status = "pending"  # Paystack settles asynchronously
+            refund_transaction.description = (
+                f"Refund to original payment - {refund_request.reason} {_REQUEST_TAG}{refund_request.id}]"
+            )
+            refund_request.status = "processing"
+            refund_request.admin_id = admin_id
+            refund_request.admin_notes = admin_notes
+            self.db.add(refund_transaction)
+            # capture plain values first: touching ORM attributes after commit would open a new transaction
+            refund_tx_id = refund_transaction.id
+            request_id = refund_request.id
+            reference = original.paystack_reference
+            amount = refund_request.amount
+            self.db.commit()  # releases every lock before the network call
+        except Exception:
+            self.db.rollback()
+            raise
+
+        # ---- phase 2: call Paystack with no transaction open ------------------------------
+        result = self.paystack.initiate_refund(reference, amount)
+
+        # ---- phase 3: finalise or compensate ------------------------------------------------
+        if result.get("status"):
+            self._finish_refund_request(request_id, refund_tx_id, (result.get("data") or {}).get("id"))
+            return {"destination": "paystack"}
+
+        if result.get("ambiguous"):
+            logger.error(
+                "Paystack refund outcome UNKNOWN for request %s (refund tx %s): %s. "
+                "Left in 'processing' for manual reconciliation; not retried.",
+                request_id, refund_tx_id, result.get("message"),
+            )
+            raise RefundOutcomeUnknown("Refund outcome unknown; flagged for reconciliation")
+
+        logger.error("Paystack refund rejected for request %s: %s", request_id, result.get("message"))
+        self._compensate_refund(refund_tx_id, to_request_status="pending")
+        raise RefundGatewayError("Paystack refund could not be initiated")
+
+    def _finish_refund_request(self, request_id, refund_tx_id, gateway_id) -> None:
+        try:
+            req = self.db.query(PatientRefundRequest).filter(
+                PatientRefundRequest.id == request_id).with_for_update().populate_existing().first()
+            tx = self.db.query(PatientTransaction).filter(
+                PatientTransaction.id == refund_tx_id).with_for_update().populate_existing().first()
+            if gateway_id is not None and tx.paystack_reference is None:
+                tx.paystack_reference = str(gateway_id)
+            # a refund webhook may already have closed this (failed / successful); don't reopen it
+            if req.status == "processing" and tx.status != "failed":
+                req.status = "approved"
+                req.processed_at = datetime.utcnow()
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def _compensate_refund(self, refund_tx_id, to_request_status: str) -> bool:
+        """Undo a card refund that Paystack did not make: re-credit a reversed deposit and
+        mark the refund transaction failed. Idempotent (only acts on a pending refund tx)."""
+        try:
+            tx = self.db.query(PatientTransaction).filter(
+                PatientTransaction.id == refund_tx_id).with_for_update().populate_existing().first()
+            if tx is None or tx.status != "pending":
+                self.db.rollback()
+                return False
+            description = tx.description or ""
+            req = None
+            if _REQUEST_TAG in description:
+                req_id = description.rsplit(_REQUEST_TAG, 1)[1].rstrip("]")
+                req = self.db.query(PatientRefundRequest).filter(
+                    PatientRefundRequest.id == uuid.UUID(req_id)).with_for_update().populate_existing().first()
+            original = (
+                self.db.query(PatientTransaction).filter(PatientTransaction.id == req.transaction_id)
+                .with_for_update().populate_existing().first() if req else None
+            )
+            if original is not None and original.type == "deposit":
+                wallet = self.db.query(PatientWallet).filter(
+                    PatientWallet.id == tx.wallet_id).with_for_update().populate_existing().first()
+                wallet.balance += tx.amount
+                wallet.updated_at = datetime.utcnow()
+            tx.status = "failed"
+            if req is not None:
+                req.status = to_request_status
+                if to_request_status != "pending":
+                    req.processed_at = datetime.utcnow()
+            self.db.commit()
+            return True
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def _match_pending_refund_by_original(self, original_reference: Optional[str], amount_kobo: Optional[int]):
+        """Find the single pending refund tx for this original charge reference and amount."""
+        if not original_reference or amount_kobo is None:
+            return None
+        candidates = self.db.query(PatientTransaction).filter(
+            PatientTransaction.type == "refund",
+            PatientTransaction.status == "pending",
+        ).all()
+        matches = []
+        for t in candidates:
+            if to_kobo(t.amount) != amount_kobo or _REQUEST_TAG not in (t.description or ""):
+                continue
+            try:
+                req_id = uuid.UUID((t.description or "").rsplit(_REQUEST_TAG, 1)[1].rstrip("]"))
+            except ValueError:
+                continue
+            req = self.db.query(PatientRefundRequest).filter(PatientRefundRequest.id == req_id).first()
+            if req is None:
+                continue
+            original = self.db.query(PatientTransaction).filter(PatientTransaction.id == req.transaction_id).first()
+            if original is not None and original.paystack_reference == original_reference:
+                matches.append(t)
+        return matches[0] if len(matches) == 1 else None
+
+    def process_refund_webhook(
+        self,
+        refund_id: Any,
+        processed: bool,
+        original_reference: Optional[str] = None,
+        amount_kobo: Optional[int] = None,
+    ) -> bool:
+        """Handle Paystack refund.processed / refund.failed. Idempotent.
+
+        Matches by the stored Paystack refund id; if that was never stored (ambiguous
+        response, or the webhook beat phase 3), falls back to the original charge
+        reference + amount against exactly one pending refund tx and stores the id.
+        """
+        tx = None
+        if refund_id is not None:
+            tx = (
+                self.db.query(PatientTransaction)
+                .filter(PatientTransaction.type == "refund",
+                        PatientTransaction.paystack_reference == str(refund_id))
+                .first()
+            )
+        if tx is None:
+            tx = self._match_pending_refund_by_original(original_reference, amount_kobo)
+            if tx is not None and refund_id is not None:
+                tx.paystack_reference = str(refund_id)
+                self.db.commit()
+        if tx is None:
+            self.db.rollback()
+            logger.error(
+                "Refund webhook could not be matched (refund id %s, original reference %s, amount %s kobo); "
+                "needs manual reconciliation", refund_id, original_reference, amount_kobo,
+            )
+            return False
+        tx_id = tx.id
+        self.db.rollback()  # re-lock in a fixed order below
+
+        if processed:
+            tx = self.db.query(PatientTransaction).filter(
+                PatientTransaction.id == tx_id).with_for_update().populate_existing().first()
+            if tx.status == "pending":
+                tx.status = "successful"
+                tx.updated_at = datetime.utcnow()
+                description = tx.description or ""
+                if _REQUEST_TAG in description:
+                    req = self.db.query(PatientRefundRequest).filter(
+                        PatientRefundRequest.id == uuid.UUID(description.rsplit(_REQUEST_TAG, 1)[1].rstrip("]"))
+                    ).with_for_update().populate_existing().first()
+                    if req is not None and req.status == "processing":
+                        req.status = "approved"
+                        req.processed_at = datetime.utcnow()
+            self.db.commit()
+            return True
+        return self._compensate_refund(tx_id, to_request_status="failed")

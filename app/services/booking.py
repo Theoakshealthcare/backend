@@ -19,6 +19,14 @@ from app.services.paystack import PaystackService
 from app.core.config import settings
 
 
+class BookingActionForbidden(Exception):
+    """The caregiver is not allowed to perform this action on this booking (HTTP 403)."""
+
+
+class BookingStateConflict(Exception):
+    """The booking is not in a state that allows this action (HTTP 409)."""
+
+
 class BookingService:
     def __init__(self, db: Session):
         self.db = db
@@ -150,6 +158,10 @@ class BookingService:
         # Platform fee
         platform_fee = service_fee * (settings.platform_fee_percent / 100)
         total_amount = service_fee + platform_fee
+        # Money is stored to 2dp so what we charge (kobo) always equals what we later compare.
+        service_fee = round(service_fee, 2)
+        platform_fee = round(platform_fee, 2)
+        total_amount = round(total_amount, 2)
         
         # Generate unique payment reference
         booking_code = self.generate_booking_code()
@@ -334,32 +346,50 @@ class BookingService:
         else:
             return 1.0  # No surge
 
-    def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID, 
+    def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID,
                             action_data: BookingActionRequest) -> Booking:
-        """Handle caregiver actions on booking"""
-        
-        booking = self.db.query(Booking).filter(Booking.id == booking_id).first()
+        """Handle a caregiver action on a booking.
+
+        Raises BookingActionForbidden (403) when this caregiver may not act on the booking,
+        BookingStateConflict (409) when the booking is not in a state that allows the action,
+        ValueError (404) when the booking does not exist.
+        """
+        action = action_data.action
+
+        # Row lock: concurrent accepts serialise here, so exactly one sees PENDING.
+        # populate_existing makes sure we read the locked row, not a stale identity-map copy.
+        booking = (
+            self.db.query(Booking)
+            .filter(Booking.id == booking_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not booking:
             raise ValueError("Booking not found")
-        
-        # Update notification response
-        notification = self.db.query(BookingNotification).filter(
-            and_(
-                BookingNotification.booking_id == booking_id,
-                BookingNotification.caregiver_id == caregiver_id
-            )
-        ).first()
-        
-        if notification:
-            notification.response = action_data.action
-            notification.response_at = datetime.utcnow()
-        
-        # Handle different actions
-        if action_data.action == "accept":
-            if booking.status == BookingStatus.PENDING:
+
+        try:
+            notification = self.db.query(BookingNotification).filter(
+                and_(
+                    BookingNotification.booking_id == booking_id,
+                    BookingNotification.caregiver_id == caregiver_id
+                )
+            ).first()
+            is_assigned = booking.caregiver_id == caregiver_id
+
+            if action == "accept":
+                if notification is None:
+                    raise BookingActionForbidden("You were not offered this booking")
+                if booking.status != BookingStatus.PENDING or booking.caregiver_id is not None:
+                    raise BookingStateConflict("Booking is no longer available")
+                if booking.payment_status != PaymentStatus.PAID:
+                    raise BookingStateConflict("Booking has not been paid for")
+
                 booking.caregiver_id = caregiver_id
                 booking.status = BookingStatus.ACCEPTED
-                
+                notification.response = "accept"
+                notification.response_at = datetime.utcnow()
+
                 # Mark other notifications as declined
                 other_notifications = self.db.query(BookingNotification).filter(
                     and_(
@@ -367,29 +397,40 @@ class BookingService:
                         BookingNotification.caregiver_id != caregiver_id
                     )
                 ).all()
-                
                 for notif in other_notifications:
                     notif.response = "auto_declined"
                     notif.response_at = datetime.utcnow()
-        
-        elif action_data.action == "decline":
-            if notification:
+
+            elif action == "decline":
+                if notification is None:
+                    raise BookingActionForbidden("You were not offered this booking")
                 notification.response = "declined"
-        
-        elif action_data.action == "start":
-            if booking.caregiver_id == caregiver_id and booking.status == BookingStatus.ACCEPTED:
-                booking.status = BookingStatus.IN_PROGRESS
-                booking.actual_start_time = datetime.utcnow()
-        
-        elif action_data.action == "complete":
-            if booking.caregiver_id == caregiver_id and booking.status == BookingStatus.IN_PROGRESS:
-                booking.status = BookingStatus.COMPLETED
-                booking.actual_end_time = datetime.utcnow()
-        
-        elif action_data.action == "cancel":
-            booking.status = BookingStatus.CANCELLED
-        
-        self.db.commit()
+                notification.response_at = datetime.utcnow()
+
+            else:  # start / complete / cancel: assigned caregiver only
+                if not is_assigned:
+                    raise BookingActionForbidden("This booking is not assigned to you")
+
+                if action == "start":
+                    if booking.status != BookingStatus.ACCEPTED:
+                        raise BookingStateConflict("Only an accepted booking can be started")
+                    booking.status = BookingStatus.IN_PROGRESS
+                    booking.actual_start_time = datetime.utcnow()
+                elif action == "complete":
+                    if booking.status != BookingStatus.IN_PROGRESS:
+                        raise BookingStateConflict("Only a booking in progress can be completed")
+                    booking.status = BookingStatus.COMPLETED
+                    booking.actual_end_time = datetime.utcnow()
+                elif action == "cancel":
+                    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS):
+                        raise BookingStateConflict("This booking can no longer be cancelled")
+                    booking.status = BookingStatus.CANCELLED
+
+            self.db.commit()
+        except Exception:
+            self.db.rollback()  # also releases the row lock
+            raise
+
         self.db.refresh(booking)
         return booking
 

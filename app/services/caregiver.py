@@ -1,6 +1,7 @@
 import os
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -16,8 +17,28 @@ from app.core.config import settings
 
 
 class CaregiverService:
+    DOCUMENT_EXTENSIONS = {
+        "application/pdf": "pdf",
+        "image/jpeg": "jpg",
+        "image/jpg": "jpg",
+        "image/png": "png",
+    }
+
     def __init__(self, db: Session):
         self.db = db
+
+    @staticmethod
+    def resolve_document_path(file_path: str) -> Optional[Path]:
+        """Resolve a stored document key to a file inside PRIVATE_UPLOAD_DIR.
+
+        Returns None if the file doesn't exist or the key would escape the private directory
+        (absolute path, `..`, symlink), so a bad DB row can never be used to read other files.
+        """
+        base = Path(settings.PRIVATE_UPLOAD_DIR).resolve()
+        candidate = (base / file_path).resolve()
+        if not candidate.is_relative_to(base) or not candidate.is_file():
+            return None
+        return candidate
 
     def get_caregiver_by_user_id(self, user_id: UUID) -> Optional[Caregiver]:
         return self.db.query(Caregiver).filter(Caregiver.user_id == user_id).first()
@@ -59,26 +80,23 @@ class CaregiverService:
         if not caregiver:
             raise ValueError("Caregiver not found")
 
-        # Create upload directory
-        upload_dir = f"uploads/caregivers/{caregiver.id}/documents"
-        os.makedirs(upload_dir, exist_ok=True)
+        # Documents are private: stored under PRIVATE_UPLOAD_DIR (never the public /uploads
+        # mount) and only served through GET /caregiver/documents/{id}/file.
+        # The extension comes from the validated content type, never from the client filename.
+        extension = self.DOCUMENT_EXTENSIONS.get(file.content_type or "", "bin")
+        key = f"caregivers/{caregiver.id}/documents/{uuid.uuid4()}.{extension}"
+        file_path = Path(settings.PRIVATE_UPLOAD_DIR) / key
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Generate unique filename
-        file_extension = file.filename.split('.')[-1] if '.' in file.filename else ''
-        unique_filename = f"{uuid.uuid4()}.{file_extension}"
-        file_path = os.path.join(upload_dir, unique_filename)
-
-        # Save file
-        with open(file_path, "wb") as buffer:
-            content = file.file.read()
-            buffer.write(content)
+        content = file.file.read()
+        file_path.write_bytes(content)
 
         # Create document record
         document = CaregiverDocument(
             caregiver_id=caregiver.id,
             document_type=document_type,
             document_name=file.filename,
-            file_path=file_path,
+            file_path=key,
             file_size=len(content),
             mime_type=file.content_type
         )
@@ -127,12 +145,17 @@ class CaregiverService:
         if not caregiver:
             raise ValueError("Caregiver not found")
 
-        # Store the result (could be expanded to store in a separate table if needed)
+        # The client is not trusted: the submitted payload is stored as evidence only, and the
+        # most the client can do is move the status to "in_progress". "verified" / "failed" are
+        # admin decisions (and are never overwritten by a resubmission).
+        def next_status(current: Optional[str]) -> str:
+            return current if current in ("verified", "failed") else "in_progress"
+
         if verification_type == "document":
-            caregiver.identity_verification_status = result.get("status", "pending")
+            caregiver.identity_verification_status = next_status(caregiver.identity_verification_status)
             caregiver.document_verification_result = result
         elif verification_type == "face":
-            caregiver.face_verification_status = result.get("status", "pending")
+            caregiver.face_verification_status = next_status(caregiver.face_verification_status)
             caregiver.face_verification_result = result
         else:
             raise ValueError("Invalid verification type")
