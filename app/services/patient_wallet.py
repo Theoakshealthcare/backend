@@ -35,7 +35,16 @@ class RefundConflict(RefundError):
 
 
 class RefundGatewayError(RefundError):
-    """Paystack refused or failed to start the refund. Nothing was changed."""
+    """Paystack definitively refused the refund. Local changes were compensated."""
+
+
+class RefundOutcomeUnknown(RefundGatewayError):
+    """Paystack call timed out / errored ambiguously. The request stays 'processing'
+    for manual reconciliation; it is never retried automatically."""
+
+
+_REFUNDABLE_TYPES = ("payment", "deposit")
+_REQUEST_TAG = "[refund_request:"
 
 
 class PatientWalletService:
@@ -285,7 +294,8 @@ class PatientWalletService:
             and_(
                 PatientTransaction.id == refund_request.transaction_id,
                 PatientTransaction.patient_id == patient_id,
-                PatientTransaction.status == "successful"
+                PatientTransaction.status == "successful",
+                PatientTransaction.type.in_(_REFUNDABLE_TYPES)
             )
         ).first()
         
@@ -300,7 +310,7 @@ class PatientWalletService:
         existing_request = self.db.query(PatientRefundRequest).filter(
             and_(
                 PatientRefundRequest.transaction_id == refund_request.transaction_id,
-                PatientRefundRequest.status == "pending"
+                PatientRefundRequest.status.in_(("pending", "processing"))
             )
         ).first()
         
@@ -491,6 +501,7 @@ class PatientWalletService:
             self.db.commit()
             return {"destination": None}
 
+        # ---- phase 1: under row locks, validate and commit the intent -------------------
         try:
             # Lock the original so concurrent approvals of different requests against the
             # same transaction serialise and the cumulative cap below is race-free.
@@ -501,13 +512,13 @@ class PatientWalletService:
                 .populate_existing()
                 .first()
             )
-            if original is None:
-                raise RefundConflict("Original transaction not found")
+            if original is None or original.type not in _REFUNDABLE_TYPES or original.status != "successful":
+                raise RefundConflict("Original transaction is not refundable")
 
             already_refunded = sum(
                 (r.amount for r in self.db.query(PatientRefundRequest).filter(
                     PatientRefundRequest.transaction_id == original.id,
-                    PatientRefundRequest.status == "approved",
+                    PatientRefundRequest.status.in_(("approved", "processing")),
                     PatientRefundRequest.id != refund_request.id,
                 ).all()),
                 Decimal("0"),
@@ -535,45 +546,137 @@ class PatientWalletService:
                 refund_reason=refund_request.reason,
             )
 
-            if original.paystack_reference:
-                if original.type == "deposit":
-                    if wallet is None or wallet.balance < refund_request.amount:
-                        raise RefundConflict("Wallet balance cannot cover reversing this deposit")
-                    wallet.balance -= refund_request.amount
-                    wallet.updated_at = now
-
-                paystack_refund = self.paystack.initiate_refund(
-                    original.paystack_reference, refund_request.amount
-                )
-                if not paystack_refund.get("status"):
-                    logger.error(
-                        "Paystack refund failed for request %s: %s",
-                        refund_request.id, paystack_refund.get("message"),
-                    )
-                    raise RefundGatewayError("Paystack refund could not be initiated")
-
-                refund_transaction.status = "pending"  # Paystack settles asynchronously
-                refund_transaction.description = f"Refund to original payment - {refund_request.reason}"
-                gateway_id = (paystack_refund.get("data") or {}).get("id")
-                if gateway_id is not None:
-                    refund_transaction.paystack_reference = str(gateway_id)
-                destination = "paystack"
-            else:
+            if not original.paystack_reference:
+                # Wallet destination: no external call, one transaction.
                 wallet.balance += refund_request.amount
                 wallet.total_refunded += refund_request.amount
                 wallet.updated_at = now
                 refund_transaction.status = "successful"
                 refund_transaction.description = f"Refund to wallet - {refund_request.reason}"
-                destination = "wallet"
+                refund_request.status = "approved"
+                refund_request.admin_id = admin_id
+                refund_request.admin_notes = admin_notes
+                refund_request.processed_at = now
+                self.db.add(refund_transaction)
+                self.db.commit()
+                return {"destination": "wallet"}
 
-            refund_request.status = "approved"
+            # Paystack destination. A deposit's wallet credit is reversed first so the
+            # money leaves exactly one place.
+            debited = original.type == "deposit"
+            if debited:
+                if wallet is None or wallet.balance < refund_request.amount:
+                    raise RefundConflict("Wallet balance cannot cover reversing this deposit")
+                wallet.balance -= refund_request.amount
+                wallet.updated_at = now
+
+            refund_transaction.status = "pending"  # Paystack settles asynchronously
+            refund_transaction.description = (
+                f"Refund to original payment - {refund_request.reason} {_REQUEST_TAG}{refund_request.id}]"
+            )
+            refund_request.status = "processing"
             refund_request.admin_id = admin_id
             refund_request.admin_notes = admin_notes
-            refund_request.processed_at = now
             self.db.add(refund_transaction)
+            # capture plain values first: touching ORM attributes after commit would open a new transaction
+            refund_tx_id = refund_transaction.id
+            request_id = refund_request.id
+            reference = original.paystack_reference
+            amount = refund_request.amount
+            self.db.commit()  # releases every lock before the network call
+        except Exception:
+            self.db.rollback()
+            raise
+
+        # ---- phase 2: call Paystack with no transaction open ------------------------------
+        result = self.paystack.initiate_refund(reference, amount)
+
+        # ---- phase 3: finalise or compensate ------------------------------------------------
+        if result.get("status"):
+            self._finish_refund_request(request_id, refund_tx_id, (result.get("data") or {}).get("id"))
+            return {"destination": "paystack"}
+
+        if result.get("ambiguous"):
+            logger.error(
+                "Paystack refund outcome UNKNOWN for request %s (refund tx %s): %s. "
+                "Left in 'processing' for manual reconciliation; not retried.",
+                request_id, refund_tx_id, result.get("message"),
+            )
+            raise RefundOutcomeUnknown("Refund outcome unknown; flagged for reconciliation")
+
+        logger.error("Paystack refund rejected for request %s: %s", request_id, result.get("message"))
+        self._compensate_refund(refund_tx_id, to_request_status="pending")
+        raise RefundGatewayError("Paystack refund could not be initiated")
+
+    def _finish_refund_request(self, request_id, refund_tx_id, gateway_id) -> None:
+        try:
+            req = self.db.query(PatientRefundRequest).filter(
+                PatientRefundRequest.id == request_id).with_for_update().populate_existing().first()
+            tx = self.db.query(PatientTransaction).filter(
+                PatientTransaction.id == refund_tx_id).with_for_update().populate_existing().first()
+            req.status = "approved"
+            req.processed_at = datetime.utcnow()
+            if gateway_id is not None:
+                tx.paystack_reference = str(gateway_id)
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
 
-        return {"destination": destination}
+    def _compensate_refund(self, refund_tx_id, to_request_status: str) -> bool:
+        """Undo a card refund that Paystack did not make: re-credit a reversed deposit and
+        mark the refund transaction failed. Idempotent (only acts on a pending refund tx)."""
+        try:
+            tx = self.db.query(PatientTransaction).filter(
+                PatientTransaction.id == refund_tx_id).with_for_update().populate_existing().first()
+            if tx is None or tx.status != "pending":
+                self.db.rollback()
+                return False
+            description = tx.description or ""
+            req = None
+            if _REQUEST_TAG in description:
+                req_id = description.rsplit(_REQUEST_TAG, 1)[1].rstrip("]")
+                req = self.db.query(PatientRefundRequest).filter(
+                    PatientRefundRequest.id == uuid.UUID(req_id)).with_for_update().populate_existing().first()
+            original = (
+                self.db.query(PatientTransaction).filter(PatientTransaction.id == req.transaction_id)
+                .with_for_update().populate_existing().first() if req else None
+            )
+            if original is not None and original.type == "deposit":
+                wallet = self.db.query(PatientWallet).filter(
+                    PatientWallet.id == tx.wallet_id).with_for_update().populate_existing().first()
+                wallet.balance += tx.amount
+                wallet.updated_at = datetime.utcnow()
+            tx.status = "failed"
+            if req is not None:
+                req.status = to_request_status
+                if to_request_status != "pending":
+                    req.processed_at = datetime.utcnow()
+            self.db.commit()
+            return True
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def process_refund_webhook(self, refund_id: Any, processed: bool) -> bool:
+        """Handle Paystack refund.processed / refund.failed. Idempotent; unknown ids ignored."""
+        if refund_id is None:
+            return False
+        tx = (
+            self.db.query(PatientTransaction)
+            .filter(PatientTransaction.type == "refund",
+                    PatientTransaction.paystack_reference == str(refund_id))
+            .with_for_update().populate_existing().first()
+        )
+        if tx is None:
+            self.db.rollback()
+            logger.warning("Refund webhook for unknown refund id %s", refund_id)
+            return False
+        if processed:
+            if tx.status == "pending":
+                tx.status = "successful"
+                tx.updated_at = datetime.utcnow()
+            self.db.commit()
+            return True
+        self.db.rollback()  # release this lock; _compensate_refund re-locks everything in order
+        return self._compensate_refund(tx.id, to_request_status="failed")

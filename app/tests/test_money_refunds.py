@@ -147,7 +147,8 @@ def test_paystack_failure_leaves_request_pending_and_pays_nothing(db, client, mo
     assert r.status_code == 502
     assert _fresh(db, PatientRefundRequest, req.id).status == "pending"
     assert _fresh(db, PatientWallet, wallet.id).balance == Decimal("1000")
-    assert db.query(PatientTransaction).filter_by(type="refund").count() == 0
+    # a definite rejection is compensated: the wallet debit is reversed, the refund tx is marked failed
+    assert [t.status for t in db.query(PatientTransaction).filter_by(type="refund")] in ([], ["failed"])
 
 
 def test_deposit_refund_blocked_when_wallet_already_spent(db, client, paystack_refunds):
