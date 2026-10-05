@@ -1,7 +1,7 @@
 """caregiver approval: skills, admin audit log, decision columns
 
 Revision ID: 2e543a04ee5d
-Revises: 6fb30639d5f4
+Revises: 68b8941cfc28
 Create Date: 2026-10-05
 
 Adds caregiver_skills and admin_audit_log (append-only, enforced by a trigger), the approval
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "2e543a04ee5d"
-down_revision: Union[str, None] = "6fb30639d5f4"
+down_revision: Union[str, None] = "68b8941cfc28"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

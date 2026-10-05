@@ -4,7 +4,7 @@
 |---|---|
 | **Date** | 2026-10-05 |
 | **Branch** | `foundations/caregiver-approval` (base `main`) |
-| **Migration** | `2e543a04ee5d` (down_revision `6fb30639d5f4`) |
+| **Migration** | `2e543a04ee5d` (down_revision `68b8941cfc28`, E2) |
 | **Status** | Verified locally; not pushed. Needs the Opus permission-path review before merge. |
 
 ## What shipped
@@ -60,9 +60,9 @@ Rejected alternatives: a `NULLS NOT DISTINCT` constraint (needs Postgres 15+); a
 - Migration, manual (Postgres 16, schema built on `main` by `ENVIRONMENT=development python -m scripts.init_local_db`, one caregiver and one document seeded):
 
 ```
-alembic upgrade head    Running upgrade 6fb30639d5f4 -> 2e543a04ee5d
-alembic downgrade -1    Running downgrade 2e543a04ee5d -> 6fb30639d5f4
-alembic upgrade head    Running upgrade 6fb30639d5f4 -> 2e543a04ee5d
+alembic upgrade head    Running upgrade 68b8941cfc28 -> 2e543a04ee5d
+alembic downgrade -1    Running downgrade 2e543a04ee5d -> 68b8941cfc28
+alembic upgrade head    Running upgrade 68b8941cfc28 -> 2e543a04ee5d
 alembic current         2e543a04ee5d (head)
 seeded caregiver afterwards: approved | in_progress | approved_by NULL
 ```

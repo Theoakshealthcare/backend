@@ -54,7 +54,7 @@ def scratch_engine():
 
 def test_migration_round_trip_with_seeded_rows(scratch_engine):
     mig = _load_migration()
-    assert mig.down_revision == "6fb30639d5f4"
+    assert mig.down_revision == "68b8941cfc28"
     Base.metadata.create_all(scratch_engine)
 
     user_id, cg_id, doc_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
