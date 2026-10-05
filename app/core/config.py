@@ -89,6 +89,14 @@ class Settings(BaseSettings):
     DISPATCH_WAVE_MINUTES: int = 10  # how long a wave waits for an accept before the next one
     DISPATCH_ESCALATE_MINUTES: int = 30  # total dispatch time before the booking is unmatched
 
+    # Caregiver app: push notifications (Expo), visit code and home summary.
+    EXPO_PUSH_URL: str = "https://exp.host/--/api/v2/push/send"
+    EXPO_PUSH_TIMEOUT_SECONDS: float = 10
+    EXPO_ACCESS_TOKEN: Optional[str] = None  # only if "enhanced push security" is on for the Expo project
+    VISIT_CODE_MAX_ATTEMPTS: int = 3  # wrong codes before the visit code locks
+    VISIT_CODE_LOCK_MINUTES: int = 15
+    HOME_TIMEZONE: str = "Africa/Lagos"  # what "today" means on the caregiver home screen
+
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"
 
