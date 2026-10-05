@@ -1,36 +1,44 @@
 # syntax=docker/dockerfile:1.4
 
-ARG PYTHON_VERSION=3.11-slim-bullseye
-FROM python:${PYTHON_VERSION}
+ARG PYTHON_VERSION=3.11-slim-bookworm
 
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# ---- Build stage: resolve and install dependencies with Poetry ----
+FROM python:${PYTHON_VERSION} AS builder
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+ARG POETRY_VERSION=2.2.1
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
 
-# Install system dependencies
+RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+
+WORKDIR /app
+
+# Copy dependency manifests first for better layer caching
+COPY pyproject.toml poetry.lock ./
+
+RUN poetry install --only main --no-root && rm -rf "$POETRY_CACHE_DIR"
+
+# ---- Runtime stage ----
+FROM python:${PYTHON_VERSION} AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
+
+# Runtime system dependencies (netcat is used by the boot script's DB wait loop)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-traditional \
-    libpq-dev \
-    libjpeg-dev \
-    libcairo2 \
-    gcc \
+    libpq5 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY ./app /app/app
@@ -47,7 +55,6 @@ RUN useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app
 USER app
 
-# Expose port
 EXPOSE 8000
 
 CMD ["/opt/run.sh"]

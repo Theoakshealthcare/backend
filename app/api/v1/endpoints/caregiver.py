@@ -180,8 +180,7 @@ def get_verification_status(
         )
     
     try:
-        status = caregiver_service.get_verification_status(current_user.id)
-        return status
+        return caregiver_service.get_verification_status(current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

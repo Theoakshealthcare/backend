@@ -76,17 +76,50 @@ oaklycare-backend/
 
 ## Getting Started
 
+Dependencies are managed with [Poetry](https://python-poetry.org/) (2.2.1). `pyproject.toml`
+declares them and `poetry.lock` pins exact versions — always commit both together.
+
 ### Prerequisites
 
-- Docker and Docker Compose
-- Python 3.9+
+- Python 3.11 (see `.python-version`)
+- Poetry 2.2.1 — `pipx install poetry==2.2.1`
+- Docker (optional, for the container build)
 
-### Installation
+### Local setup
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/oaklycare-backend.git
-   cd oaklycare-backend
+```bash
+git clone git@github.com:innocent98/backend.git
+cd backend
+cp .env.example .env            # then fill in real values
+poetry env use python3.11
+poetry install                  # creates .venv/ in the project (see poetry.toml)
+poetry run alembic upgrade head
+poetry run uvicorn app.main:app --reload
+```
 
+Swagger UI: http://localhost:8000/docs · OpenAPI: http://localhost:8000/api/v1/openapi.json
 
-<!-- gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:10000 --workers 4 -->
+### Managing dependencies
+
+| Task | Command |
+|---|---|
+| Add a runtime package | `poetry add <pkg>` |
+| Add a dev-only package | `poetry add --group dev <pkg>` |
+| Upgrade within constraints | `poetry update <pkg>` |
+| Check lock is in sync | `poetry check --lock` |
+| Install prod deps only | `poetry install --only main --no-root` |
+
+### Checks (same as CI)
+
+```bash
+poetry check --lock
+poetry run ruff check --select E9,F63,F7,F82 .
+poetry run python -m scripts.ci_smoke
+```
+
+### Docker
+
+```bash
+docker build -t oaklycare-backend .
+docker compose up
+```

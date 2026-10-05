@@ -120,24 +120,6 @@ class CaregiverService:
             "profile_status": caregiver.profile_status
         }
 
-        # Check Onfido status if check exists
-        if caregiver.onfido_check_id:
-            try:
-                check_status = onfido_service.get_check_status(caregiver.onfido_check_id)
-                status["onfido_check_status"] = check_status["status"]
-                status["onfido_result"] = check_status.get("result")
-                
-                # Update local status based on Onfido results
-                if check_status["status"] == "complete":
-                    if check_status.get("result") == "clear":
-                        caregiver.identity_verification_status = "verified"
-                    else:
-                        caregiver.identity_verification_status = "failed"
-                    self.db.commit()
-                    
-            except Exception as e:
-                print(f"Error checking Onfido status: {e}")
-
         return status
 
     def process_verification_result(self, user_id: UUID, verification_type: str, result: dict) -> None:

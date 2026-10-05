@@ -68,3 +68,5 @@ logs/
 # Temporary files
 tmp/
 temp/ 
+# Local virtualenv
+.venv/
