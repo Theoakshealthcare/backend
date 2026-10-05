@@ -1,0 +1,25 @@
+# Production stack: the API container only. The database is managed separately.
+#   docker compose -f docker-compose.prod.yml --env-file /etc/oakly/backend.env up -d
+# The env file lives on the server (never in git) and must set at least
+# DATABASE_URL, SECRET_KEY and VITALS_ENCRYPTION_KEY (see .env.example).
+services:
+  api:
+    image: ${OAKLY_API_IMAGE:-oaklycare-backend:latest}
+    build: .
+    env_file: ${OAKLY_ENV_FILE_PATH:-/etc/oakly/backend.env}
+    environment:
+      ENVIRONMENT: production
+    ports:
+      - "127.0.0.1:8000:8000"  # behind the reverse proxy; not exposed publicly
+    volumes:
+      - private_uploads:/app/private_uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  private_uploads:

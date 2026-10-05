@@ -37,3 +37,6 @@ jobs:
 
       - name: App import and OpenAPI smoke test
         run: poetry run python -m scripts.ci_smoke
+
+      - name: Tests (throwaway Postgres via testcontainers)
+        run: poetry run pytest -q -p no:warnings

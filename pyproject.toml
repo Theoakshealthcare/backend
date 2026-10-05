@@ -49,17 +49,19 @@ package-mode = false
 pytest = "^9.1.1"
 httpx = "^0.28.1"
 ruff = "^0.16.9"
+testcontainers = {version = "^4.15.0", extras = ["postgres"]}
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["app/alembic/versions"]
+extend-exclude = ["app/alembic/versions", ".claude"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["app/tests"]
+pythonpath = ["."]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

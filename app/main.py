@@ -8,7 +8,6 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.api import api_router
 from app.core.config import settings
-# from app.db.init_db import create_first_superuser
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -32,10 +31,6 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Mount the uploads directory as a static files route so uploaded profile images can be served via FastAPI. Use '/uploads' as the URL path.
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
-# @app.on_event("startup")
-# async def startup_event():
-#     await create_first_superuser()
 
 @app.get("/", include_in_schema=False)
 async def root():

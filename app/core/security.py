@@ -1,4 +1,3 @@
-import os
 import random
 import string
 from datetime import datetime, timedelta
@@ -6,7 +5,7 @@ from typing import Any, Optional, Union
 
 from jose import jwt
 from passlib.context import CryptContext
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
 
 from app.core.config import settings
 
@@ -14,16 +13,33 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 
-FERNET_KEY = os.environ.get("VITALS_ENCRYPTION_KEY")
-if not FERNET_KEY:
-    raise RuntimeError("VITALS_ENCRYPTION_KEY environment variable not set.")
-fernet = Fernet(FERNET_KEY)
+def _build_fernet(keys: str) -> MultiFernet:
+    """Build a MultiFernet from a comma-separated key list.
+
+    The first key encrypts; every key can decrypt. To rotate, prepend the new key,
+    deploy, run scripts/reencrypt_health_data.py, then drop the old key.
+    """
+    parsed = [k.strip() for k in keys.split(",") if k.strip()]
+    if not parsed:
+        raise RuntimeError("VITALS_ENCRYPTION_KEY is empty.")
+    return MultiFernet([Fernet(k) for k in parsed])
+
+
+fernet = _build_fernet(settings.VITALS_ENCRYPTION_KEY)
+
 
 def encrypt(value: str) -> str:
     return fernet.encrypt(value.encode()).decode()
 
+
 def decrypt(value: str) -> str:
     return fernet.decrypt(value.encode()).decode()
+
+
+def rotate_ciphertext(value: str) -> str:
+    """Re-encrypt a token with the primary (first) key. Raises InvalidToken if no key can read it."""
+    return fernet.rotate(value.encode()).decode()
+
 
 def create_access_token(
     subject: Union[str, Any], expires_delta: Optional[timedelta] = None
