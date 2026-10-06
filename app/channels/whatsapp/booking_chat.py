@@ -440,7 +440,11 @@ def check_payment(ctx: Ctx) -> Result:
     if booking.payment_status == PaymentStatus.PAID:
         return Result(after_commit=lambda db: check_payment_after_commit(db, contact_id, booking_id))
     if booking.status == BookingStatus.CANCELLED:
-        # Expired or failed: the cancellation message comes from the booking event; the state just goes back.
+        if booking.cancel_reason == "unpaid_timeout":
+            # Expired, but they may have paid on the link and the webhook may have been lost: ask Paystack
+            # before telling them it is cancelled.
+            return Result(after_commit=lambda db: check_payment_after_commit(db, contact_id, booking_id))
+        # Failed or cancelled by them: the cancellation message comes from the booking event; the state just goes back.
         return _to_idle(_menu(ctx, "cancelled_body"))
     return Result(after_commit=lambda db: check_payment_after_commit(db, contact_id, booking_id))
 
@@ -449,8 +453,7 @@ def check_payment_after_commit(db: Session, contact_id: uuid.UUID, booking_id: u
     """The person came back to the chat. If the webhook has not arrived yet, ask Paystack (WA-FR-27) before
     answering; settlement is the same function the webhook uses, so the two cannot disagree."""
     from app.channels.whatsapp import notifications  # imported here: notifications imports this module's friends
-    from app.services.booking_payment import SettleOutcome, settle_booking_payment
-    from app.services.paystack import PaystackService
+    from app.services.booking_payment import SettleOutcome, verify_and_settle
 
     contact = db.get(WhatsAppContact, contact_id)
     lang = contact.language
@@ -458,22 +461,21 @@ def check_payment_after_commit(db: Session, contact_id: uuid.UUID, booking_id: u
     quote = db.query(Quote).filter(Quote.booking_id == booking_id).first()
     url = (quote.payload or {}).get("payment_url") if quote else None
 
-    if booking.payment_status != PaymentStatus.PAID and booking.status == BookingStatus.PENDING:
-        if not url:
+    expired_unpaid = booking.status == BookingStatus.CANCELLED and booking.cancel_reason == "unpaid_timeout"
+    if booking.payment_status != PaymentStatus.PAID and (booking.status == BookingStatus.PENDING or expired_unpaid):
+        if booking.status == BookingStatus.PENDING and not url:
             age = datetime.utcnow() - booking.created_at
             if age < PAYMENT_INIT_GRACE:
                 return Result([copy.text(lang, "pay_preparing_body")], State.AWAITING_PAYMENT)
             return _payment_failed(db, contact, booking, quote.id) if quote else Result()
-        verified = PaystackService().verify_transaction(booking.paystack_reference)
-        data = verified.get("data") or {}
-        if verified.get("status") and data.get("status") == "success":
-            outcome = settle_booking_payment(db, booking_id, data.get("amount_kobo"))
+        outcome = verify_and_settle(db, booking_id)
+        if outcome is not None:
             logger.info("whatsapp booking %s verified on return: %s", booking_id, outcome.value)
             if outcome == SettleOutcome.AMOUNT_MISMATCH:
                 return Result([copy.text(lang, "pay_waiting_body", minutes=str(settings.PAYMENT_LINK_TTL_MINUTES))],
                               State.AWAITING_PAYMENT)
-            db.expire_all()
-            booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().first()
+        db.expire_all()
+        booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().first()
 
     if booking.payment_status == PaymentStatus.PAID:
         notifications.deliver_pending(db, booking_id=booking_id)  # payment_received goes out now, once
@@ -491,17 +493,41 @@ def _waiting_message(lang: str, url: str) -> CtaUrlMessage:
 
 
 def cancel_unpaid(ctx: Ctx) -> Result:
-    booking_id = _uuid((ctx.conversation.context or {}).get("booking_id"))
-    booking = (ctx.db.query(Booking).filter(Booking.id == booking_id).populate_existing().with_for_update().first()
-               if booking_id else None)
+    """Cancel before paying. The person may have paid on the link a moment ago with the webhook still on its way,
+    so Cancel is only honoured after asking Paystack (``_cancel_after_check``, off the conversation lock)."""
+    context = {k: v for k, v in (ctx.conversation.context or {}).items() if k in ("quote_id", "booking_id")}
+    booking_id = _uuid(context.get("booking_id"))
+    booking = ctx.db.get(Booking, booking_id) if booking_id else None
     if booking is None:
         return _to_idle(_menu(ctx, "flow_stale_body"))
     if booking.payment_status == PaymentStatus.PAID:
-        return Result([_text(ctx, "pay_cancel_paid_body")], State.AWAITING_PAYMENT)
+        return Result([_text(ctx, "pay_cancel_paid_body")], State.AWAITING_PAYMENT, context)
+    contact_id = ctx.contact.id
+    return Result(state=State.AWAITING_PAYMENT, context=context,
+                  after_commit=lambda db: _cancel_after_check(db, contact_id, booking_id))
+
+
+def _cancel_after_check(db: Session, contact_id: uuid.UUID, booking_id: uuid.UUID) -> Result:
+    from app.channels.whatsapp import notifications  # imported here: notifications imports this module
+    from app.services.booking_payment import SettleOutcome, verify_and_settle
+
+    lang = db.get(WhatsAppContact, contact_id).language
+    if verify_and_settle(db, booking_id) == SettleOutcome.AMOUNT_MISMATCH:
+        # Money was taken but not the right amount: do not cancel it away, a person has to look.
+        return Result([copy.text(lang, "pay_cancel_paid_body")], State.AWAITING_PAYMENT)
+    # Only the booking row is locked here (the conversation lock was released at the commit), so the lock order
+    # conversation -> quote -> booking holds. The state is re-read under the lock: a webhook may have won.
+    booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().with_for_update().first()
+    if booking.payment_status == PaymentStatus.PAID:
+        db.rollback()
+        notifications.deliver_pending(db, booking_id=booking_id)  # "payment received" (or the refund notice) now
+        return Result(state=State.IDLE, context={"quote_id": None, "booking_id": None})
     if booking.status == BookingStatus.PENDING:
         booking.status = BookingStatus.CANCELLED
         booking.cancel_reason = "user_cancelled"
-    return _to_idle(_menu(ctx, "pay_cancelled_body"))
+    db.commit()
+    return Result([copy.menu(lang, "pay_cancelled_body")], State.IDLE,
+                  {"quote_id": None, "booking_id": None, "waitlist_quote_id": None})
 
 
 # --- dispatcher and housekeeping --------------------------------------------------------------

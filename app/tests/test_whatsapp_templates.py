@@ -20,11 +20,15 @@ URL = CHECKOUT_BASE + "ac_abc123"
 # --- the registry ----------------------------------------------------------------------------------------
 def test_the_w2_templates_exist_in_the_utility_category_with_the_prd_wording():
     assert set(TEMPLATES) == {"booking_payment_link", "payment_link_expiring", "payment_received",
-                              "booking_cancelled_unpaid"}
+                              "payment_refund_pending", "booking_cancelled_unpaid"}
     assert all(t.category == "utility" for t in TEMPLATES.values())
     assert TEMPLATES["payment_received"].body == (
         "Payment of {{1}} received for booking {{2}}. We're assigning a professional now.")
-    assert TEMPLATES["payment_link_expiring"].body == "Your payment link for booking {{1}} expires in 10 minutes."
+    assert TEMPLATES["payment_link_expiring"].body == (
+        "Your payment link for booking {{1}} expires in {{2}} minutes.")
+    assert TEMPLATES["payment_refund_pending"].body == (
+        "We received your payment of {{1}} for booking {{2}}, but that booking had already been cancelled. "
+        "We'll refund you; our team will be in touch.")
     assert TEMPLATES["booking_cancelled_unpaid"].body == "Booking {{1}} was cancelled because payment wasn't completed."
     assert TEMPLATES["booking_payment_link"].body.startswith("Your Oakly booking {{1}} for {{2}} on {{3}}")
 
@@ -42,8 +46,8 @@ def test_no_template_has_a_slot_for_health_information():
         assert not any(b in p for p in template.params for b in banned), template.name
 
 
-def test_the_receipt_is_the_only_essential_template():
-    assert [t.name for t in TEMPLATES.values() if t.essential] == ["payment_received"]
+def test_only_the_messages_about_money_taken_are_essential():
+    assert [t.name for t in TEMPLATES.values() if t.essential] == ["payment_received", "payment_refund_pending"]
 
 
 def test_render_fills_in_order_and_refuses_a_missing_variable():
@@ -54,7 +58,7 @@ def test_render_fills_in_order_and_refuses_a_missing_variable():
 
 
 def test_every_free_text_rendering_fits_whatsapps_limits():
-    params = {"booking_code": "AB12CD34", "total": "₦1,000,000.50", "recipient_first_name": "Oluwatobiloba",
+    params = {"booking_code": "AB12CD34", "minutes": "10", "total": "₦1,000,000.50", "recipient_first_name": "Oluwatobiloba",
               "when": "Sat 4 Oct, 10:00–14:00"}
     for name in TEMPLATES:
         message = choose(name, params, in_window=True, url=URL)  # building it validates the limits
@@ -63,7 +67,7 @@ def test_every_free_text_rendering_fits_whatsapps_limits():
 
 # --- inside the window: free text; outside: the template ------------------------------------------------
 def test_inside_the_window_the_same_words_go_as_free_text_with_buttons():
-    pay = choose("payment_link_expiring", {"booking_code": "AB12"}, in_window=True, url=URL)
+    pay = choose("payment_link_expiring", {"booking_code": "AB12", "minutes": "10"}, in_window=True, url=URL)
     assert isinstance(pay, CtaUrlMessage) and pay.display_text == "Pay now" and pay.url == URL
     again = choose("booking_cancelled_unpaid", {"booking_code": "AB12"}, in_window=True)
     assert isinstance(again, ButtonsMessage) and again.buttons == (("menu:book", "Book again"),)
@@ -79,7 +83,7 @@ def test_outside_the_window_it_is_a_template_message():
 
 
 def test_a_url_button_template_carries_only_the_suffix_of_the_checkout_link():
-    message = as_template("payment_link_expiring", {"booking_code": "AB12"}, url_suffix="ac_abc123")
+    message = as_template("payment_link_expiring", {"booking_code": "AB12", "minutes": "10"}, url_suffix="ac_abc123")
     assert message.components[1] == {"type": "button", "sub_type": "url", "index": "0",
                                      "parameters": [{"type": "text", "text": "ac_abc123"}]}
     assert checkout_suffix(URL) == "ac_abc123" and checkout_suffix("https://evil.example/x") is None
@@ -87,9 +91,9 @@ def test_a_url_button_template_carries_only_the_suffix_of_the_checkout_link():
 
 def test_a_template_will_not_carry_a_link_that_is_not_ours():
     with pytest.raises(ValueError):
-        choose("payment_link_expiring", {"booking_code": "AB12"}, in_window=False, url="https://evil.example/pay")
+        choose("payment_link_expiring", {"booking_code": "AB12", "minutes": "10"}, in_window=False, url="https://evil.example/pay")
     with pytest.raises(ValueError):
-        choose("payment_link_expiring", {"booking_code": "AB12"}, in_window=False, url=None)
+        choose("payment_link_expiring", {"booking_code": "AB12", "minutes": "10"}, in_window=False, url=None)
 
 
 def test_the_quick_reply_template_sends_its_payload_back():

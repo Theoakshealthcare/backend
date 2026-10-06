@@ -62,8 +62,8 @@ TEMPLATES: Dict[str, Template] = {t.name: t for t in (
     ),
     Template(
         "payment_link_expiring",
-        "Your payment link for booking {{1}} expires in 10 minutes.",
-        ("booking_code",),
+        "Your payment link for booking {{1}} expires in {{2}} minutes.",
+        ("booking_code", "minutes"),
         url_button=("Pay now", CHECKOUT_BASE),
     ),
     Template(
@@ -71,6 +71,13 @@ TEMPLATES: Dict[str, Template] = {t.name: t for t in (
         "Payment of {{1}} received for booking {{2}}. We're assigning a professional now.",
         ("total", "booking_code"),
         essential=True,
+    ),
+    Template(
+        "payment_refund_pending",
+        "We received your payment of {{1}} for booking {{2}}, but that booking had already been cancelled. "
+        "We'll refund you; our team will be in touch.",
+        ("total", "booking_code"),
+        essential=True,  # it is about their money
     ),
     Template(
         "booking_cancelled_unpaid",

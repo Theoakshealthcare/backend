@@ -73,7 +73,7 @@ def upgrade() -> None:
     sa.Column('claimed_at', sa.DateTime(), nullable=True),
     sa.Column('attempts', sa.Integer(), server_default='0', nullable=False),
     sa.Column('last_error', sa.String(), nullable=True),
-    sa.CheckConstraint("event IN ('payment_received', 'payment_link_expiring', 'booking_cancelled_unpaid')", name='ck_booking_events_event'),
+    sa.CheckConstraint("event IN ('payment_received', 'payment_link_expiring', 'booking_cancelled_unpaid', 'payment_refund_pending')", name='ck_booking_events_event'),
     sa.ForeignKeyConstraint(['booking_id'], ['bookings.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('booking_id', 'event', name='uq_booking_events_booking_event')

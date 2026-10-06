@@ -46,7 +46,7 @@ class Quote(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-BOOKING_EVENTS = ("payment_received", "payment_link_expiring", "booking_cancelled_unpaid")
+BOOKING_EVENTS = ("payment_received", "payment_link_expiring", "booking_cancelled_unpaid", "payment_refund_pending")
 
 
 class BookingEvent(Base):

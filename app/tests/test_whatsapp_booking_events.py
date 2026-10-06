@@ -66,6 +66,25 @@ def test_a_reminder_is_queued_once_at_twenty_minutes_and_sent_as_free_text_with_
     assert sent[0]["interactive"]["action"]["parameters"]["url"].startswith("https://checkout.paystack.com/")
 
 
+def test_the_reminder_says_how_long_is_really_left_from_the_settings(db, chat, client, booking_env, monkeypatch):
+    monkeypatch.setattr(settings, "WHATSAPP_PAYMENT_REMINDER_MINUTES", 12)  # link lives 30: 18 minutes remain
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    link_sent_at(db, booking, 13)
+    before = len(chat.fake.bodies)
+    notifications.run_events(db)
+    assert text_of(sent_since(chat, before)[0]) == f"Your payment link for booking {booking.booking_code} expires in 18 minutes."
+    chat.contact.last_inbound_at = datetime.utcnow() - timedelta(hours=25)
+    db.commit()
+    booking.payment_expires_at = datetime.utcnow() + timedelta(minutes=18)
+    db.query(BookingEvent).delete()
+    db.commit()
+    before = len(chat.fake.bodies)
+    notifications.run_events(db)
+    template = sent_since(chat, before)[0]["template"]
+    assert [p["text"] for p in template["components"][0]["parameters"]] == [booking.booking_code, "18"]
+
+
 def test_outside_the_window_the_reminder_goes_as_the_payment_link_expiring_template(db, chat, client, booking_env):
     confirmed(chat, client, booking_env)
     booking = the_booking(db)
@@ -80,7 +99,7 @@ def test_outside_the_window_the_reminder_goes_as_the_payment_link_expiring_templ
     template = sent[0]["template"]
     assert template["name"] == "payment_link_expiring" and template["language"] == {"code": "en"}
     body, button = template["components"]
-    assert body["parameters"] == [{"type": "text", "text": booking.booking_code}]
+    assert body["parameters"] == [{"type": "text", "text": booking.booking_code}, {"type": "text", "text": "10"}]
     quote = db.query(Quote).filter_by(booking_id=booking.id).one()
     assert button == {"type": "button", "sub_type": "url", "index": "0", "parameters": [
         {"type": "text", "text": quote.payload["payment_url"].removeprefix("https://checkout.paystack.com/")}]}
@@ -311,3 +330,147 @@ def test_the_sweep_wipes_answers_left_on_a_confirmed_quote_whose_link_never_came
     notifications.sweep_stale(db, datetime.utcnow())
     db.expire_all()
     assert db.query(Quote).one().sensitive_encrypted is None
+
+
+# --- paying and cancelling at the same time (security review: money taken, person never told) -------------------
+def test_cancel_asks_paystack_first_and_a_payment_that_already_landed_wins(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking_env.paystack.paid.add(booking.paystack_reference)  # they paid; the webhook has not arrived
+    before = len(chat.fake.bodies)
+    chat.say("cancel")
+    booking = the_booking(db)
+    assert booking_env.paystack.verified == [booking.paystack_reference]
+    assert booking.payment_status == PaymentStatus.PAID and booking.status == BookingStatus.PENDING
+    assert booking.cancel_reason is None and not booking.refund_required
+    texts = [text_of(b) for b in sent_since(chat, before)]
+    assert texts == [f"Payment of ₦44,000 received for booking {booking.booking_code}. "
+                     "We're assigning a professional now."]
+    assert chat.state == "idle"
+
+
+def test_cancel_with_nothing_paid_still_cancels_after_one_check_with_paystack(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    chat.say("cancel")
+    booking = the_booking(db)
+    assert booking_env.paystack.verified == [booking.paystack_reference]
+    assert (booking.status, booking.cancel_reason) == (BookingStatus.CANCELLED, "user_cancelled")
+    assert chat.state == "idle"
+
+
+def test_a_payment_that_does_not_match_the_booking_is_not_cancelled_over_the_persons_head(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking_env.paystack.paid.add(booking.paystack_reference)
+    booking.total_amount_kobo += 100  # what Paystack took no longer equals what we expect
+    db.commit()
+    sent = chat.say("cancel")
+    booking = the_booking(db)
+    assert booking.status == BookingStatus.PENDING and booking.cancel_reason is None
+    assert "Talk to a person" in text_of(sent[0]) and chat.state == "awaiting_payment"
+
+
+def test_the_payment_is_settled_even_if_it_lands_between_the_check_and_the_cancel(db, chat, client, booking_env, monkeypatch):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    real_verify = booking_env.paystack.verify_transaction
+
+    def paid_in_the_gap(service, reference):
+        result = real_verify(service, reference)  # unpaid when Paystack is asked ...
+        settle_booking_payment(db, booking.id, booking.total_amount_kobo)  # ... then the webhook wins the race
+        return result
+
+    monkeypatch.setattr("app.services.paystack.PaystackService.verify_transaction", paid_in_the_gap)
+    chat.say("cancel")
+    booking = the_booking(db)
+    assert booking.payment_status == PaymentStatus.PAID and booking.status == BookingStatus.PENDING  # not cancelled
+    assert not booking.refund_required
+
+
+def test_a_booking_that_expired_but_was_paid_is_restored_when_the_person_comes_back(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    booking_env.paystack.paid.add(booking.paystack_reference)  # paid on the link; the webhook was lost
+    before = len(chat.fake.bodies)
+    chat.say("I paid")
+    booking = the_booking(db)
+    assert booking.payment_status == PaymentStatus.PAID and booking.status == BookingStatus.PENDING
+    assert booking.cancel_reason is None and not booking.refund_required
+    texts = [text_of(b) for b in sent_since(chat, before)]
+    assert texts == [f"Payment of ₦44,000 received for booking {booking.booking_code}. "
+                     "We're assigning a professional now."]
+    assert chat.state == "idle"
+
+
+def test_a_booking_that_expired_and_was_not_paid_is_still_reported_cancelled(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    sent = chat.say("hello?")
+    assert booking_env.paystack.verified == [booking.paystack_reference]
+    assert the_booking(db).status == BookingStatus.CANCELLED and "cancelled" in text_of(sent[0]).lower()
+
+
+def test_the_cancellation_notice_is_not_sent_for_a_booking_paid_on_the_link_whose_webhook_was_lost(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    booking_env.paystack.paid.add(booking.paystack_reference)
+    before = len(chat.fake.bodies)
+    notifications.run_events(db)
+    texts = [text_of(b) for b in sent_since(chat, before)]
+    assert not any("was cancelled" in t for t in texts)
+    assert the_booking(db).payment_status == PaymentStatus.PAID and the_booking(db).status == BookingStatus.PENDING
+
+
+def test_paying_a_booking_that_was_already_cancelled_tells_the_person_a_refund_is_coming(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    chat.say("cancel")  # nothing paid yet, so it cancels; the Paystack link is still live
+    booking = the_booking(db)
+    outcome = settle_booking_payment(db, booking.id, booking.total_amount_kobo)  # they pay on it anyway
+    assert outcome.value == "paid_not_dispatched"
+    booking = the_booking(db)
+    assert booking.refund_required and booking.refund_required_reason == "paid_after_cancellation"
+    before = len(chat.fake.bodies)
+    assert notifications.deliver_pending(db) == 1 and notifications.deliver_pending(db) == 0
+    sent = sent_since(chat, before)
+    assert text_of(sent[0]) == (f"We received your payment of ₦44,000 for booking {booking.booking_code}, but that "
+                                "booking had already been cancelled. We'll refund you; our team will be in touch.")
+    assert db.query(BookingEvent).filter_by(event="payment_refund_pending").one().delivered_at is not None
+
+
+def test_the_refund_notice_goes_to_someone_who_sent_stop_and_as_a_template_outside_the_window(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    chat.say("cancel")
+    booking = the_booking(db)
+    chat.say("STOP")
+    chat.contact.last_inbound_at = datetime.utcnow() - timedelta(hours=30)
+    db.commit()
+    settle_booking_payment(db, booking.id, booking.total_amount_kobo)
+    before = len(chat.fake.bodies)
+    notifications.deliver_pending(db)
+    sent = sent_since(chat, before)
+    assert len(sent) == 1 and sent[0]["type"] == "template" and sent[0]["template"]["name"] == "payment_refund_pending"
+    body = sent[0]["template"]["components"][0]["parameters"]
+    assert [p["text"] for p in body] == ["₦44,000", booking.booking_code]
+
+
+def test_a_paid_expired_booking_too_close_to_the_visit_to_reinstate_also_tells_the_person_about_the_refund(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    booking.scheduled_date = datetime.utcnow() + timedelta(minutes=10)  # too soon to put back
+    db.commit()
+    expire_unpaid_bookings(db)
+    settle_booking_payment(db, booking.id, booking.total_amount_kobo)
+    before = len(chat.fake.bodies)
+    notifications.deliver_pending(db)
+    texts = [text_of(b) for b in sent_since(chat, before)]
+    assert len(texts) == 1 and "We'll refund you" in texts[0]  # and not "was cancelled because payment wasn't completed"

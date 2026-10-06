@@ -10,6 +10,8 @@ settle_booking_payment(), so the rules cannot drift apart:
 - a payment that arrives after the unpaid-expiry cancel reinstates the booking when the visit is at
   least LATE_PAYMENT_REINSTATE_MIN_LEAD_MINUTES away; otherwise (or for any other cancelled booking)
   it stays cancelled and ``refund_required`` is set for the admin refund queue;
+- a payment for a booking that stays cancelled records ``payment_refund_pending`` (same transaction), so a
+  WhatsApp booker is told a refund is coming instead of hearing nothing;
 - a WhatsApp booking flagged ``needs_address_check`` is paid but not dispatched until an operator clears it;
 - the ``payment_received`` event is recorded in the same transaction as the payment (the outbox);
 - dispatch starts exactly once: only the caller that performs the unpaid -> paid transition marks
@@ -89,6 +91,7 @@ def settle_booking_payment(
             booking.refund_required_reason = (
                 "paid_after_expiry" if booking.cancel_reason == "unpaid_timeout" else "paid_after_cancellation"
             )
+            booking_events.emit(db, booking, "payment_refund_pending")  # the booker is told a refund is coming
     held_for_address = False
     if not cancelled:
         # A WhatsApp booking with no map pin has placeholder coordinates: dispatching it would offer the job to
@@ -120,3 +123,25 @@ def settle_booking_payment(
         db.rollback()
         logger.exception("Booking %s paid but starting dispatch failed; dispatch_tick will retry", booking_id)
     return SettleOutcome.PAID
+
+
+def verify_and_settle(db: Session, booking_id: uuid.UUID) -> Optional[SettleOutcome]:
+    """Ask Paystack whether this booking was paid and, if so, settle it (the same function the webhook uses).
+    Returns the settle outcome, or None when there was nothing to settle (already paid, no reference, not paid
+    at Paystack, or Paystack could not be asked). The HTTP call runs with no transaction open and no row lock
+    held; ``settle_booking_payment`` then takes the booking lock itself."""
+    from app.services.paystack import PaystackService  # lazy: the webhook path imports this module at startup
+
+    booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().first()
+    if booking is None or booking.payment_status == PaymentStatus.PAID or not booking.paystack_reference:
+        db.rollback()
+        return None
+    reference = booking.paystack_reference
+    db.rollback()
+    verified = PaystackService().verify_transaction(reference)
+    data = verified.get("data") or {}
+    if not (verified.get("status") and data.get("status") == "success"):
+        return None
+    outcome = settle_booking_payment(db, booking_id, data.get("amount_kobo"))
+    logger.info("Booking %s verified with Paystack: %s", booking_id, outcome.value)
+    return outcome

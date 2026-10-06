@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 5
 CLAIM_LEASE = timedelta(minutes=2)
-TERMINAL_EVENTS = ("payment_received", "booking_cancelled_unpaid")  # after these the chat is no longer "paying"
+TERMINAL_EVENTS = ("payment_received", "payment_refund_pending", "booking_cancelled_unpaid")  # after these the chat is no longer "paying"
 
 
 # --- time-driven ------------------------------------------------------------------------------------
@@ -130,6 +130,8 @@ def _message_for(db: Session, event: BookingEvent, booking: Booking, contact: Wh
     name = event.event
     in_window = within_window(contact.last_inbound_at, now)
     params = {"booking_code": booking.booking_code}
+    if name == "payment_link_expiring":  # the wording follows the settings, never a number baked into the copy
+        params["minutes"] = str(max(0, settings.PAYMENT_LINK_TTL_MINUTES - settings.WHATSAPP_PAYMENT_REMINDER_MINUTES))
     url: Optional[str] = None
     if name == "payment_received":
         if booking.payment_status != PaymentStatus.PAID:
@@ -142,6 +144,10 @@ def _message_for(db: Session, event: BookingEvent, booking: Booking, contact: Wh
         url = (quote.payload or {}).get("payment_url") if quote else None
         if not url:
             return None, "stale"
+    elif name == "payment_refund_pending":
+        if not booking.refund_required:
+            return None, "stale"
+        params["total"] = rules.naira(booking.total_amount_kobo)
     elif name == "booking_cancelled_unpaid":
         if booking.payment_status == PaymentStatus.PAID:  # paid after the cancel and reinstated: say nothing
             return None, "stale"
@@ -184,6 +190,13 @@ def _deliver_one(db: Session, event_id, now: datetime, client: MetaCloudClient) 
         if name in TERMINAL_EVENTS:
             _reset_conversation(db, contact, booking)
         return False
+    if name == "booking_cancelled_unpaid" and booking.payment_status != PaymentStatus.PAID:
+        # Do not announce a cancellation for a booking that was paid on the link whose webhook never came.
+        from app.services.booking_payment import verify_and_settle
+        verify_and_settle(db, booking.id)
+        db.expire_all()
+        booking = db.query(Booking).filter(Booking.id == booking.id).populate_existing().one()
+        event = db.query(BookingEvent).filter(BookingEvent.id == event_id).populate_existing().one()
     message, reason = _message_for(db, event, booking, contact, now)
     if message is None:
         _finish(db, event_id, now, reason)
