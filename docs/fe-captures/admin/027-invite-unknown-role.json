@@ -4,7 +4,7 @@
     "path": "/api/v1/admin/admins",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "email": "nobody-ee5e3e@example.com",
+      "email": "nobody-1b46d2@example.com",
       "full_name": "Placeholder Nobody",
       "roles": [
         "wizard"

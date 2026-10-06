@@ -12,34 +12,34 @@
     },
     "body": [
       {
-        "id": "b35b9297-18d5-4e1c-b57e-c30def0a2ceb",
-        "email": "boss-ee5e3e@example.com",
+        "id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
+        "email": "boss-1b46d2@example.com",
         "full_name": "Placeholder Super Admin",
         "status": "active",
         "mfa_enabled": true,
         "roles": [
           "super_admin"
         ],
-        "last_login_at": "2026-10-06T13:08:30.514986",
+        "last_login_at": "2026-10-06T14:08:30.524504",
         "locked_until": null,
-        "created_at": "2026-10-06T13:07:56.117093"
+        "created_at": "2026-10-06T14:07:44.515392"
       },
       {
-        "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-        "email": "verifier-ee5e3e@example.com",
+        "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+        "email": "verifier-1b46d2@example.com",
         "full_name": "Placeholder Verifier",
         "status": "active",
         "mfa_enabled": true,
         "roles": [
           "verification"
         ],
-        "last_login_at": "2026-10-06T13:09:02.398476",
+        "last_login_at": "2026-10-06T14:09:02.377169",
         "locked_until": null,
-        "created_at": "2026-10-06T13:09:01.522951"
+        "created_at": "2026-10-06T14:09:01.528488"
       },
       {
-        "id": "ff59d78a-e166-441b-a3b0-c554107b9684",
-        "email": "stale-ee5e3e@example.com",
+        "id": "7174ca9d-bc22-41fe-9714-79bb6a490291",
+        "email": "stale-1b46d2@example.com",
         "full_name": "Placeholder Stale",
         "status": "invited",
         "mfa_enabled": false,
@@ -48,20 +48,20 @@
         ],
         "last_login_at": null,
         "locked_until": null,
-        "created_at": "2026-10-06T13:09:02.671899"
+        "created_at": "2026-10-06T14:09:02.641383"
       },
       {
-        "id": "c17a51bc-1c0f-4b5a-a5b0-c654769f5c31",
-        "email": "analyst-ee5e3e@example.com",
+        "id": "de19f20b-c62d-4544-8a29-710d29888d0f",
+        "email": "analyst-1b46d2@example.com",
         "full_name": "Placeholder Analyst",
         "status": "active",
         "mfa_enabled": true,
         "roles": [
           "read_only_analyst"
         ],
-        "last_login_at": "2026-10-06T13:09:03.299822",
+        "last_login_at": "2026-10-06T14:09:03.232108",
         "locked_until": null,
-        "created_at": "2026-10-06T13:09:03.009169"
+        "created_at": "2026-10-06T14:09:02.962479"
       }
     ]
   }

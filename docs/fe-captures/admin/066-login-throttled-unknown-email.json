@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/login",
+    "auth": null,
+    "body": {
+      "email": "nobody-at-all-1b46d2@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 429,
+    "headers": {
+      "retry-after": "30",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Too many requests. Try again later."
+    }
+  },
+  "note": "Attempt 6: 429 with Retry-After. Identical for known and unknown emails."
+}

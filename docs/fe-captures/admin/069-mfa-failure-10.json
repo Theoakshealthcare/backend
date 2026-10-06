@@ -1,11 +1,11 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/auth/login",
+    "path": "/api/v1/admin/auth/mfa/verify",
     "auth": null,
     "body": {
-      "email": "lockme-ee5e3e@example.com",
-      "password": "<PLACEHOLDER_PASSWORD>"
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "000000"
     }
   },
   "response": {
@@ -14,8 +14,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "detail": "Invalid email or password"
+      "detail": "Invalid verification code"
     }
   },
-  "note": "The 10th wrong password."
+  "note": "The 10th wrong code."
 }

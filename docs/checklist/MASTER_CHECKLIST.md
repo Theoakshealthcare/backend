@@ -20,10 +20,10 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 ---
 
 ## 0. Foundation / tooling — 🟡 in progress
-- [x] Backend on Poetry (`pyproject.toml` + `poetry.lock`), with Docker and Render updated — 2026-09-29, branch `chore/poetry-migration`, see [SOP](../sop/2026-09-29-poetry-migration.md)
+- [x] Backend on Poetry (`pyproject.toml` + `poetry.lock`), with Docker updated — 2026-09-29, branch `chore/poetry-migration`, see [SOP](../sop/2026-09-29-poetry-migration.md)
 - [x] Backend CI: lock check, bug-class lint, app smoke test — 2026-09-29
 - [x] Backend `.gitignore` — 2026-09-29
-- [ ] Merge `chore/poetry-migration` (Render is being retired; the deploy target is Docker)
+- [ ] Merge `chore/poetry-migration` (the deploy target is Docker)
 - [x] pytest harness: throwaway Postgres (testcontainers), factories, network guard, run in CI. 2026-10-05, branch `test/harness`, [SOP](../sop/2026-10-05-test-harness.md)
 - [x] Phase 0 WP-A–D merged to `main` (harness, secrets, access control, money). 2026-10-05, PRs #3–#8
 - [ ] Phase 0 WP-E: [plan](../plans/2026-10-05-phase-0-security-foundations.md#wp-e-foundations-so-a-booking-can-complete-branches-from-main-which-now-includes-wpad)
@@ -179,7 +179,7 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
 
 ## 9. Phase A: Admin Console v1 — 🟡 starting
 Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-console.md). PRD: [`docs/prd/PRD-admin-console.md`](../prd/PRD-admin-console.md).
-- [x] **A0** Admin identity: separate `admin_users`, TOTP MFA, roles and permissions, `require_permission` on every admin route, invites, bootstrap CLI, rate limits and lockout. 2026-10-06, branch `feat/admin-auth` (not yet merged), migration `0003_admin_identity`, [SOP](../sop/2026-10-06-admin-auth.md), [FE guide](../fe-integration-guide-admin.md). Needs the Opus review before merge.
+- [x] **A0** Admin identity: separate `admin_users`, TOTP MFA, roles and permissions, `require_permission` on every admin route, invites, bootstrap CLI, rate limits and lockout. 2026-10-06, branch `feat/admin-auth` (not yet merged), migration `0003_admin_identity`, [SOP](../sop/2026-10-06-admin-auth.md), [FE guide](../fe-integration-guide-admin.md). Opus review findings fixed 2026-10-06 (trusted proxies, password throttle vs MFA lock, single-use `mfa_token`, logout/refresh race); see the SOP addendum.
   - [x] 1. Tables: `admin_users`, `admin_roles`, `admin_role_permissions`, `admin_user_roles`, `admin_refresh_tokens`, `admin_rate_limits`; old `admins` dropped; audit and approval columns re-pointed at `admin_users`
   - [x] 2. Roles and 33 permissions seeded from PRD 8.2 (code catalogue + frozen copy in the migration, drift test)
   - [x] 3. Admin JWT (`aud=admin`, 15 minutes) and rotating refresh tokens with reuse detection, 30-minute idle timeout, 12-hour cap
@@ -191,7 +191,8 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] 9. Bootstrap CLI `python -m scripts.create_super_admin`
   - [x] 10. Tests: permission matrix (about 40 routes x 7 roles), token audience both ways, MFA replay, refresh reuse, lockout, invite, last Super Admin (with a race test), CLI, migration
   - [x] 11. FE guide from live captures (`scripts/capture_admin_flow.py`, `docs/fe-captures/admin/`), `--check` in CI
-  - [ ] 12. Opus review (auth and permission code)
+  - [x] 12. Opus review (auth and permission code): 1 high, 1 medium, 4 low findings fixed with tests, 2026-10-06
+  - [ ] 13. Final read of the review-fix diff before merge
 - [ ] **A1** Console scaffold (`apps/admin`, Next.js 16): login and MFA, permission-gated shell, caregiver queue and detail with all decisions, admin users
 - [ ] **A2** Bookings ops: list and detail with timeline, unmatched queue, assign, reassign, cancel, status correction
 - [ ] **A3** Money: earnings credited on completion, caregiver ledger, Paystack Transfer payouts, refunds v2 queue (`refund_required`), payments and webhook exceptions
@@ -210,9 +211,9 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
 - [ ] (A0) Admin invites are not emailed: the API returns the token and the console shows the link. Add an email, and an endpoint to re-issue an expired invite (today an expired invite blocks that email)
 - [ ] (A0) MFA recovery codes, and an optional IP allowlist for the console (AD-FR-87)
 - [ ] (A0) Admin access to the live-tracking WebSocket (admins used to reach it with an app token; the console gets its own booking views in A2)
-- [ ] (A0) Per-IP limits use the direct peer address; behind a reverse proxy configure trusted proxy headers before relying on them
+- [x] (A0) Per-IP limits and audit `ip` honour `TRUSTED_PROXIES`; set it to the reverse proxy's address when one is deployed
 - [ ] (A0) Admin `POST /prescription/create` is user-only now (an admin used to pass the patient-ownership check); prescription operations move to the console in v1.1
-- [ ] Upgrade Poetry to 2.5.x everywhere (local, Render `POETRY_VERSION`, CI)
+- [ ] Upgrade Poetry to 2.5.x everywhere (local, Docker, CI)
 - [ ] Docker image size is 828 MB, mostly gRPC and Google libraries; revisit after the `google-genai` swap
 - [ ] (C3) `GET /booking/caregiver/bookings?status=new_requests` and `/booking/caregiver/notifications` expose condition, instructions, address and patient contact to caregivers who have not accepted; trim them to the offer fields
 - [ ] (C3) Type the caregiver action response (it is a raw dict with money as strings and internal fields); store `reason` on decline/cancel

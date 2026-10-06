@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/login",
+    "auth": null,
+    "body": {
+      "email": "once-1b46d2@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "mfa_required": true,
+      "mfa_token": "<MFA_TOKEN_JWT>"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/capture_admin_flow.py",
-  "run_tag": "ee5e3e",
+  "run_tag": "1b46d2",
   "captures": [
     {
       "file": "001-login-wrong-password.json",
@@ -313,24 +313,84 @@
       "status": 401
     },
     {
-      "file": "063-login-failure-10.json",
-      "label": "login-failure-10",
+      "file": "063-login-failure-5-known-email.json",
+      "label": "login-failure-5-known-email",
       "status": 401
     },
     {
-      "file": "064-login-locked.json",
-      "label": "login-locked",
+      "file": "064-login-throttled-known-email.json",
+      "label": "login-throttled-known-email",
+      "status": 429
+    },
+    {
+      "file": "065-login-failure-5-unknown-email.json",
+      "label": "login-failure-5-unknown-email",
+      "status": 401
+    },
+    {
+      "file": "066-login-throttled-unknown-email.json",
+      "label": "login-throttled-unknown-email",
+      "status": 429
+    },
+    {
+      "file": "067-login-throttled-correct-password.json",
+      "label": "login-throttled-correct-password",
+      "status": 429
+    },
+    {
+      "file": "068-lock-login.json",
+      "label": "lock-login",
+      "status": 200
+    },
+    {
+      "file": "069-mfa-failure-10.json",
+      "label": "mfa-failure-10",
+      "status": 401
+    },
+    {
+      "file": "070-mfa-locked.json",
+      "label": "mfa-locked",
       "status": 423
     },
     {
-      "file": "065-login-locked-correct-password.json",
-      "label": "login-locked-correct-password",
+      "file": "071-login-while-mfa-locked.json",
+      "label": "login-while-mfa-locked",
       "status": 423
     },
     {
-      "file": "066-rate-limited.json",
+      "file": "072-login-wrong-password-while-mfa-locked.json",
+      "label": "login-wrong-password-while-mfa-locked",
+      "status": 401
+    },
+    {
+      "file": "073-single-use-login.json",
+      "label": "single-use-login",
+      "status": 200
+    },
+    {
+      "file": "074-single-use-verify.json",
+      "label": "single-use-verify",
+      "status": 200
+    },
+    {
+      "file": "075-single-use-verify-again.json",
+      "label": "single-use-verify-again",
+      "status": 401
+    },
+    {
+      "file": "076-rate-limited.json",
       "label": "rate-limited",
       "status": 429
+    },
+    {
+      "file": "077-login-rate-limited.json",
+      "label": "login-rate-limited",
+      "status": 429
+    },
+    {
+      "file": "078-refresh-while-ip-limited.json",
+      "label": "refresh-while-ip-limited",
+      "status": 200
     }
   ]
 }

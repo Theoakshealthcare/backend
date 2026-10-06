@@ -52,7 +52,7 @@ Request body:
 <!-- capture: 004-login.json request.body -->
 ```json
 {
-  "email": "boss-ee5e3e@example.com",
+  "email": "boss-1b46d2@example.com",
   "password": "<PLACEHOLDER_PASSWORD>"
 }
 ```
@@ -76,7 +76,7 @@ Request body:
 {
   "mfa_enrollment_required": true,
   "mfa_token": "<MFA_TOKEN_JWT>",
-  "otpauth_uri": "otpauth://totp/Oakly%20Admin:verifier-ee5e3e%40example.com?secret=<TOTP_SECRET>&issuer=Oakly%20Admin",
+  "otpauth_uri": "otpauth://totp/Oakly%20Admin:verifier-1b46d2%40example.com?secret=<TOTP_SECRET>&issuer=Oakly%20Admin",
   "secret": "<TOTP_SECRET>"
 }
 ```
@@ -91,8 +91,8 @@ Request body:
 |---|---|---|---|
 | `401` | `Invalid email or password` | Wrong password, unknown email, an invited admin who has not accepted yet, **and a disabled admin**. All four look identical on purpose. | 001, 002, 029, 053 |
 | `422` | a list of validation objects | The body is not valid (for example the email has no `@`). | 003 |
-| `423` | `Account temporarily locked. Try again later.` plus a `Retry-After` header | See section 3.4. | 064 |
-| `429` | `Too many requests. Try again later.` plus a `Retry-After` header | See section 3.5. | 066 |
+| `423` | `Account temporarily locked. Try again later.` plus a `Retry-After` header | The account is locked after wrong **codes** (section 3.4), and only a caller who sent the right password sees it. | 071 |
+| `429` | `Too many requests. Try again later.` plus a `Retry-After` header | Too many wrong passwords for this email from this IP (section 3.4), or the per-IP limit (section 3.5). Same body for both. | 064, 066, 076 |
 
 <!-- capture: 001-login-wrong-password.json response.body -->
 ```json
@@ -144,8 +144,8 @@ Request body (`code` is the 6 digits from the authenticator app; the real code i
   "token_type": "bearer",
   "expires_in": 900,
   "admin": {
-    "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-    "email": "verifier-ee5e3e@example.com",
+    "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+    "email": "verifier-1b46d2@example.com",
     "full_name": "Placeholder Verifier",
     "roles": [
       "verification"
@@ -172,8 +172,20 @@ Request body (`code` is the 6 digits from the authenticator app; the real code i
 | Status | `detail` | When | Capture |
 |---|---|---|---|
 | `401` | `Invalid verification code` | Wrong code, a code that is malformed, **or a code that was already used** (see 3.3). | 005, 009 |
-| `401` | `Invalid or expired MFA token` | The `mfa_token` is older than 5 minutes, malformed, not an MFA token, or the admin was disabled meanwhile. Restart from the password step. | 006 |
-| `423` / `429` | as above | Wrong codes count towards the lockout, and the same per-IP limit applies. | |
+| `401` | `Invalid or expired MFA token` | The `mfa_token` is older than 5 minutes, malformed, not an MFA token, the admin was disabled meanwhile, **or it was already used for a sign-in** (it works once, see 3.2.1). Restart from the password step. | 006, 075 |
+| `423` / `429` | as above | Wrong codes count towards the lockout (3.4), and the per-IP limit applies. | 070, 076 |
+
+### 3.2.1 The `mfa_token` works once
+A correct code spends the `mfa_token`. Presenting the same token again, even with a fresh valid code and inside its 5 minutes, is refused. A **wrong** code does not spend it, so the admin can retry a typo with the same token.
+
+<!-- capture: 075-single-use-verify-again.json response.body -->
+```json
+{
+  "detail": "Invalid or expired MFA token"
+}
+```
+
+**UX consequence:** if this `401` comes back after a code was accepted (a double submit, a second tab), do not ask for another code. Send the admin back to the password step.
 
 <!-- capture: 005-mfa-verify-wrong-code.json response.body -->
 ```json
@@ -201,45 +213,94 @@ A 6-digit code is valid for its 30-second step (the server also tolerates one st
 
 **UX consequence (must be shown):** if a sign-in succeeds and the admin signs in again straight away (a second tab, a second device, a fast logout and login), the authenticator will show the same code for up to 30 seconds and it will be refused. The error text should say **"Wait for the next code and try again"**, not just "invalid code". Do not count this as the admin's mistake in any local attempt counter; the server still counts it towards the lockout (3.4).
 
-### 3.4 Lockout
-**10 failed attempts in a row lock the account for 15 minutes.** Wrong passwords and wrong codes both count, and a correct password does **not** reset the counter (only a completed sign-in does). The 10th failure still answers `401`; the 11th attempt gets `423`:
+### 3.4 Wrong passwords throttle; wrong codes lock
+There are two different protections. They behave differently on purpose.
 
-<!-- capture: 063-login-failure-10.json response.body -->
+**Password step: throttle, never a lock.** Wrong passwords are counted per **email and IP address**. The first 5 failures answer `401`. From the 6th attempt on, every attempt (even with the **right** password) answers `429` with a `Retry-After` that starts at 30 seconds and doubles with each further failure, up to 15 minutes. A failure from one IP does not affect the same admin signing in from another IP, and no account is locked at this stage. The answers are **identical** whether the email is unknown, invited, disabled or active, at every attempt count, so the console must not (and cannot) tell the admin which case it is.
+
+<!-- capture: 063-login-failure-5-known-email.json response.body -->
 ```json
 {
   "detail": "Invalid email or password"
 }
 ```
 
-<!-- capture: 064-login-locked.json response.body -->
-```json
-{
-  "detail": "Account temporarily locked. Try again later."
-}
-```
-
-The response header is `Retry-After: 900` (seconds). It is also `423` for the **correct** password while locked:
-
-<!-- capture: 065-login-locked-correct-password.json response.body -->
-```json
-{
-  "detail": "Account temporarily locked. Try again later."
-}
-```
-
-**UX consequence (must be shown):** show "Account locked. Try again in N minutes" from `Retry-After`, disable the form until then, and do not auto-retry. A Super Admin can lift a lock early with **Reset MFA** (section 8.4). Do not tell the user whether the email exists.
-
-### 3.5 Per-IP rate limit
-The sign-in endpoints (`login`, `mfa/verify`, `refresh`) share one limit of **30 calls per minute per IP address**; `invite/accept` has its own. Past the limit the answer is `429` with `Retry-After` (seconds until the window ends). The call is not processed and does not count as a failed login.
-
-<!-- capture: 066-rate-limited.json response.body -->
+<!-- capture: 064-login-throttled-known-email.json response.body -->
 ```json
 {
   "detail": "Too many requests. Try again later."
 }
 ```
 
-The limit is per IP, and behind a reverse proxy every admin may share one address, so the proxy setup matters (see the SOP).
+The same call for an email that does not exist returns exactly the same status, body and `Retry-After` (captures 065 and 066). The right password while throttled is also `429`:
+
+<!-- capture: 067-login-throttled-correct-password.json response.body -->
+```json
+{
+  "detail": "Too many requests. Try again later."
+}
+```
+
+`Retry-After` is in seconds (capture 064 shows `30`). A successful sign-in clears the count for that email and IP.
+
+**Code step: lock.** The password is already proven here, so a hard lock is safe. **10 wrong codes in a row** (in `mfa/verify`) lock the account. The 10th still answers `401`; the 11th gets `423`. The lock lasts **15 minutes, then 1 hour, then 24 hours** for each further lock, and the escalation resets only after a successful sign-in. Every lock is written to the audit log (`admin.locked`).
+
+<!-- capture: 069-mfa-failure-10.json response.body -->
+```json
+{
+  "detail": "Invalid verification code"
+}
+```
+
+<!-- capture: 070-mfa-locked.json response.body -->
+```json
+{
+  "detail": "Account temporarily locked. Try again later."
+}
+```
+
+The header in capture 070 is `Retry-After: 900` (seconds, the first lock). While locked, the **right password** at `login` is `423` too, but a **wrong** password is a plain `401`, so the lock is only visible to someone who knows the password:
+
+<!-- capture: 071-login-while-mfa-locked.json response.body -->
+```json
+{
+  "detail": "Account temporarily locked. Try again later."
+}
+```
+
+<!-- capture: 072-login-wrong-password-while-mfa-locked.json response.body -->
+```json
+{
+  "detail": "Invalid email or password"
+}
+```
+
+**UX consequences (must be shown):**
+- On `429` (either step) show "Too many attempts. Try again in N seconds" from `Retry-After`, disable the form until then, and do not auto-retry. Do not say whether the email exists.
+- On `423` show "Account locked. Try again in N minutes" (or hours: `Retry-After` can be up to 86400). A Super Admin can lift a lock early with **Reset MFA** (section 8.4).
+- A lock is only ever caused by wrong codes after a correct password. An attacker who only knows an email cannot lock the admin out.
+
+### 3.5 Per-IP rate limit
+`login`, `mfa/verify` share one limit of **30 calls per minute per client IP address**; `invite/accept` has its own. Past the limit the answer is `429` with `Retry-After` (seconds until the window ends). The call is not processed.
+
+<!-- capture: 076-rate-limited.json response.body -->
+```json
+{
+  "detail": "Too many requests. Try again later."
+}
+```
+
+**`refresh` is not part of this limit.** It keeps working while the IP is limited (capture 078), so a busy sign-in page never ends an admin's session. A refresh token that is presented over and over is limited by its own value (same `429` shape).
+
+<!-- capture: 078-refresh-while-ip-limited.json response.body keys=token_type,expires_in -->
+```json
+{
+  "token_type": "bearer",
+  "expires_in": 900
+}
+```
+
+The "client IP" is the direct peer, unless the API is configured with `TRUSTED_PROXIES` (the reverse proxy in front of it), in which case it is the real client taken from `X-Forwarded-For`. This is server configuration, not something the console sends.
 
 ## 4. Keeping the session: refresh, logout, idle timeout
 
@@ -306,7 +367,7 @@ The new refresh token that the first refresh had produced is dead too, and so is
 ```
 
 **UX consequences (must be built in):**
-- **Refresh single-flight.** If two requests hit a `401` at the same time and both call refresh with the same token, the second one looks like theft and signs the admin out everywhere. The console must send **at most one refresh at a time** and make every waiting request reuse its result. With a BFF, serialise on the session.
+- **The console must serialise refresh calls: two concurrent refreshes with the same token trigger reuse detection and revoke all sessions.** Refresh single-flight: If two requests hit a `401` at the same time and both call refresh with the same token, the second one looks like theft and signs the admin out everywhere. The console must send **at most one refresh at a time** and make every waiting request reuse its result. With a BFF, serialise on the session.
 - **Never retry a refresh after a network error or timeout.** If the first attempt reached the server but the response was lost, the retry looks like theft. Go to the sign-in screen instead.
 - Only refresh on a `401` (or shortly before `expires_in`), not on every page load.
 
@@ -351,8 +412,8 @@ Needs an admin access token, no particular permission. Use it after sign-in and 
 <!-- capture: 039-verifier-me.json response.body -->
 ```json
 {
-  "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-  "email": "verifier-ee5e3e@example.com",
+  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+  "email": "verifier-1b46d2@example.com",
   "full_name": "Placeholder Verifier",
   "roles": [
     "verification"
@@ -455,7 +516,7 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
 <!-- capture: 025-invite.json request.body -->
 ```json
 {
-  "email": "verifier-ee5e3e@example.com",
+  "email": "verifier-1b46d2@example.com",
   "full_name": "Placeholder Verifier",
   "roles": [
     "verification"
@@ -468,8 +529,8 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
 <!-- capture: 025-invite.json response.body -->
 ```json
 {
-  "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-  "email": "verifier-ee5e3e@example.com",
+  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+  "email": "verifier-1b46d2@example.com",
   "full_name": "Placeholder Verifier",
   "status": "invited",
   "mfa_enabled": false,
@@ -478,9 +539,9 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
   ],
   "last_login_at": null,
   "locked_until": null,
-  "created_at": "2026-10-06T13:09:01.522951",
+  "created_at": "2026-10-06T14:09:01.528488",
   "invite_token": "<INVITE_TOKEN>",
-  "invite_expires_at": "2026-10-08T13:09:01.521843"
+  "invite_expires_at": "2026-10-08T14:09:01.527034"
 }
 ```
 
@@ -529,7 +590,7 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
 ```json
 {
   "accepted": true,
-  "email": "verifier-ee5e3e@example.com"
+  "email": "verifier-1b46d2@example.com"
 }
 ```
 
@@ -588,30 +649,30 @@ Returns an array (not an object with `items`) of every admin, oldest first.
 ```json
 [
   {
-    "id": "b35b9297-18d5-4e1c-b57e-c30def0a2ceb",
-    "email": "boss-ee5e3e@example.com",
+    "id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
+    "email": "boss-1b46d2@example.com",
     "full_name": "Placeholder Super Admin",
     "status": "active",
     "mfa_enabled": true,
     "roles": [
       "super_admin"
     ],
-    "last_login_at": "2026-10-06T13:08:30.514986",
+    "last_login_at": "2026-10-06T14:08:30.524504",
     "locked_until": null,
-    "created_at": "2026-10-06T13:07:56.117093"
+    "created_at": "2026-10-06T14:07:44.515392"
   },
   {
-    "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-    "email": "verifier-ee5e3e@example.com",
+    "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+    "email": "verifier-1b46d2@example.com",
     "full_name": "Placeholder Verifier",
     "status": "active",
     "mfa_enabled": true,
     "roles": [
       "verification"
     ],
-    "last_login_at": "2026-10-06T13:09:02.398476",
+    "last_login_at": "2026-10-06T14:09:02.377169",
     "locked_until": null,
-    "created_at": "2026-10-06T13:09:01.522951"
+    "created_at": "2026-10-06T14:09:01.528488"
   }
 ]
 ```
@@ -636,8 +697,8 @@ Body: `{"roles": [...]}` and/or `{"status": "active" | "disabled"}`. Both are op
 <!-- capture: 046-admin-update-roles.json response.body -->
 ```json
 {
-  "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-  "email": "verifier-ee5e3e@example.com",
+  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+  "email": "verifier-1b46d2@example.com",
   "full_name": "Placeholder Verifier",
   "status": "active",
   "mfa_enabled": true,
@@ -645,9 +706,9 @@ Body: `{"roles": [...]}` and/or `{"status": "active" | "disabled"}`. Both are op
     "support",
     "verification"
   ],
-  "last_login_at": "2026-10-06T13:09:02.398476",
+  "last_login_at": "2026-10-06T14:09:02.377169",
   "locked_until": null,
-  "created_at": "2026-10-06T13:09:01.522951"
+  "created_at": "2026-10-06T14:09:01.528488"
 }
 ```
 
@@ -684,7 +745,7 @@ Disabling revokes every session of that admin on the spot; their access token fa
 <!-- capture: 051-admin-disable.json response.body keys=id,status,roles -->
 ```json
 {
-  "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
+  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
   "status": "disabled",
   "roles": [
     "support",
@@ -701,8 +762,8 @@ No body. Clears the admin's authenticator, ends all their sessions, **and lifts 
 <!-- capture: 056-reset-mfa.json response.body -->
 ```json
 {
-  "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-  "email": "verifier-ee5e3e@example.com",
+  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+  "email": "verifier-1b46d2@example.com",
   "full_name": "Placeholder Verifier",
   "status": "active",
   "mfa_enabled": false,
@@ -710,9 +771,9 @@ No body. Clears the admin's authenticator, ends all their sessions, **and lifts 
     "support",
     "verification"
   ],
-  "last_login_at": "2026-10-06T13:09:02.398476",
+  "last_login_at": "2026-10-06T14:09:02.377169",
   "locked_until": null,
-  "created_at": "2026-10-06T13:09:01.522951"
+  "created_at": "2026-10-06T14:09:01.528488"
 }
 ```
 
@@ -766,18 +827,18 @@ Needs `audit.read` (Super Admin only). Newest first.
 ```json
 [
   {
-    "id": "90e6dcac-8dac-41e2-841c-0445d60ab444",
-    "admin_user_id": "b35b9297-18d5-4e1c-b57e-c30def0a2ceb",
-    "admin_email": "boss-ee5e3e@example.com",
+    "id": "850d2542-4a3a-4179-aea9-575a03aa26d2",
+    "admin_user_id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
+    "admin_email": "boss-1b46d2@example.com",
     "action": "admin.reset_mfa",
     "entity_type": "admin_user",
-    "entity_id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
+    "entity_id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
     "before": null,
     "after": null,
     "reason": null,
     "ip": "172.21.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-06T13:09:03.667082"
+    "created_at": "2026-10-06T14:09:03.594775"
   }
 ]
 ```
@@ -809,8 +870,18 @@ Actions this package writes: `admin.invite`, `admin.invite_accepted`, `admin.mfa
 | Wrong code, bad MFA token | Verified live | 005, 006 |
 | Replay of a used code refused | Verified live | 009 |
 | Wrong password, unknown email, invited and disabled all identical | Verified live | 001, 002, 029, 053 |
-| Lockout on the 11th attempt, `Retry-After: 900` | Verified live | 063, 064, 065 |
-| Per-IP `429` with `Retry-After` | Verified live | 066 |
+| Password throttle: 5 free failures, `429` + `Retry-After` from the 6th, identical for known and unknown email | Verified live | 063, 064, 065, 066 |
+| Right password while throttled is `429` | Verified live | 067 |
+| Doubling of the wait, the 15-minute cap, the other-IP-unaffected rule | Test only | `test_admin_auth_review.py` (a second IP cannot be simulated through the docker port) |
+| Invited and disabled emails throttle identically to unknown | Test only | `test_admin_auth_review.py` |
+| Code-step lock on the 11th attempt, `Retry-After: 900` | Verified live | 068, 069, 070 |
+| Right password at `login` while locked `423`; wrong password `401` | Verified live | 071, 072 |
+| Lock escalation 1 h then 24 h, reset on success | Test only | `test_admin_auth_review.py` |
+| `mfa_token` works once | Verified live | 073, 074, 075 |
+| Per-IP `429` with `Retry-After`, on `mfa/verify` and `login` | Verified live | 076, 077 |
+| Refresh unaffected by the per-IP limit | Verified live | 078 |
+| Real client IP behind `TRUSTED_PROXIES` (`X-Forwarded-For`) | Test only | `test_admin_auth_review.py`; no proxy in the capture stack |
+| Logout racing a refresh revokes the new token | Test only | `test_admin_auth_review.py` (two threads) |
 | `GET /admin/me` | Verified live | 010, 039 |
 | App token on admin route, admin token on app route | Verified live | 014, 015 |
 | Refresh rotation | Verified live | 016, 017 |

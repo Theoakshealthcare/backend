@@ -11,8 +11,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
-      "email": "verifier-ee5e3e@example.com",
+      "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+      "email": "verifier-1b46d2@example.com",
       "full_name": "Placeholder Verifier",
       "roles": [
         "verification"

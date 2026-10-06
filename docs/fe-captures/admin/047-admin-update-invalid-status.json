@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PATCH",
-    "path": "/api/v1/admin/admins/b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
+    "path": "/api/v1/admin/admins/b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "status": "invited"

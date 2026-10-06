@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/83f40284-18ed-44e2-ba00-179610a65ea1/approve",
+    "path": "/api/v1/admin/caregivers/11d0d759-2a93-4e22-a85b-62d317a9e82e/approve",
     "auth": null,
     "body": null
   },

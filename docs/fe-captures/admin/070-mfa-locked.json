@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "auth": null,
+    "body": {
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "000000"
+    }
+  },
+  "response": {
+    "status_code": 423,
+    "headers": {
+      "retry-after": "900",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Account temporarily locked. Try again later."
+    }
+  },
+  "note": "The 11th attempt: the account is locked (15 minutes the first time, then 1 hour, then 24 hours)."
+}

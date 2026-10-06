@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "auth": null,
+    "body": {
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "<TOTP_CODE>"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid or expired MFA token"
+    }
+  },
+  "note": "The same mfa_token with a fresh valid code: refused. Sign in again from the password step."
+}

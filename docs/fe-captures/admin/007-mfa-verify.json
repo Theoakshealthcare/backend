@@ -19,8 +19,8 @@
       "token_type": "bearer",
       "expires_in": 900,
       "admin": {
-        "id": "b35b9297-18d5-4e1c-b57e-c30def0a2ceb",
-        "email": "boss-ee5e3e@example.com",
+        "id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
+        "email": "boss-1b46d2@example.com",
         "full_name": "Placeholder Super Admin",
         "roles": [
           "super_admin"

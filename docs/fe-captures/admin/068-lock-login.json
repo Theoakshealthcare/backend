@@ -4,19 +4,18 @@
     "path": "/api/v1/admin/auth/login",
     "auth": null,
     "body": {
-      "email": "lockme-ee5e3e@example.com",
+      "email": "lockme-1b46d2@example.com",
       "password": "<PLACEHOLDER_PASSWORD>"
     }
   },
   "response": {
-    "status_code": 423,
+    "status_code": 200,
     "headers": {
-      "retry-after": "900",
       "content-type": "application/json"
     },
     "body": {
-      "detail": "Account temporarily locked. Try again later."
+      "mfa_required": true,
+      "mfa_token": "<MFA_TOKEN_JWT>"
     }
-  },
-  "note": "The 11th attempt: the account is locked."
+  }
 }

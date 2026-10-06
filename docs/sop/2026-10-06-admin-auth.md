@@ -7,14 +7,14 @@
 | **Migration** | `0003_admin_identity` (down_revision `0002_caregiver_mobile`) |
 | **Plan / PRD** | [Admin console plan, A0](../plans/2026-10-06-admin-console.md), PRD 7.17 and 8.2 |
 | **FE guide** | [`docs/fe-integration-guide-admin.md`](../fe-integration-guide-admin.md), 66 live captures in `docs/fe-captures/admin/` |
-| **Status** | Verified locally (674 tests pass, live stack run). Not pushed. **Needs the Opus review (auth and permission code) before merge.** |
+| **Status** | Verified locally (see the review-fixes addendum at the end for the current test count). Not pushed. The Opus review findings are fixed in the addendum; re-review the addendum's files before merge. |
 
 ## What shipped
 Admins are now their own accounts with their own tokens, TOTP MFA and roles. One dependency, `require_permission("x.y")`, guards every admin route.
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /admin/auth/login` | Password step. `200` `{mfa_required, mfa_token}` or, if MFA is not enrolled, `{mfa_enrollment_required, mfa_token, otpauth_uri, secret}`. `401` `Invalid email or password`, `423` + `Retry-After` after 10 failures, `429` per IP. |
+| `POST /admin/auth/login` | Password step. `200` `{mfa_required, mfa_token}` or, if MFA is not enrolled, `{mfa_enrollment_required, mfa_token, otpauth_uri, secret}`. `401` `Invalid email or password`, `429` + `Retry-After` (password throttle or per-IP limit), `423` + `Retry-After` (account locked by wrong codes, only shown after a correct password). |
 | `POST /admin/auth/mfa/verify` | Code step; completes enrolment on first success. `200` token pair + `admin`. |
 | `POST /admin/auth/refresh`, `/logout` | Rotating refresh (reuse revokes all sessions); logout `204`. |
 | `POST /admin/auth/invite/accept` | Set a password from a single-use invite. |
@@ -38,8 +38,8 @@ Admin was "a patient-style user with a row in `admins`", checked by `get_current
 | Refresh tokens | Opaque random string, only its SHA-256 stored, grouped by `family_id` (the session). Rotation sets `replaced_by_id`. Presenting a rotated token revokes **every** session of that admin and writes `admin.refresh_token_reuse`. A token revoked by logout is *not* treated as reuse. Idle timeout 30 minutes (each refresh moves it), session cap 12 hours. The row is locked `FOR UPDATE`, so two simultaneous refreshes cannot both win. | JWT refresh tokens (cannot be revoked); treating logout as theft |
 | TOTP | `pyotp`, 30-second step, one step of drift. The secret is Fernet-encrypted with the existing key helpers. `mfa_last_step` stores the last accepted step, and a code from that step or earlier is refused (replay). The admin row is locked while verifying, so two simultaneous submissions of one code cannot both pass. | Redis "used code" cache (the DB lock is simpler and survives restarts) |
 | Enrolment | First login of an un-enrolled admin generates and stores a *pending* secret (re-served until used), and the first correct code turns MFA on. Matches the contract table. | A separate enrolment endpoint (not in the contract) |
-| Lockout | 10 failures (password or code) lock the account for 15 minutes. The 10th answers `401`, the 11th `423` + `Retry-After`. Only a completed sign-in resets the counter, so a correct password cannot be used to keep guessing codes. Reset MFA also lifts a lock (the recovery path). | Resetting the counter on a correct password |
-| Per-IP limit | Fixed-window counters in the `admin_rate_limits` table (upsert + `RETURNING`), 30 calls per 60 seconds shared by login, verify and refresh; invite accept has its own bucket. Redis is not required. IP is the direct peer, as in the audit service. | Redis-only limiter |
+| Lockout | **Superseded by the review-fixes addendum.** Wrong passwords throttle per (email, IP); only wrong codes lock, for 15 min, 1 h, 24 h. Reset MFA also lifts a lock (the recovery path). | A hard lock on password failures (anyone could lock an admin out) |
+| Per-IP limit | Fixed-window counters in the `admin_rate_limits` table (upsert + `RETURNING`), 30 calls per 60 seconds shared by login and verify; invite accept has its own bucket; refresh is limited per token (addendum). Redis is not required. The client IP honours `TRUSTED_PROXIES` (addendum). | Redis-only limiter |
 | No account enumeration | Unknown email, wrong password, invited and disabled admins all answer `401 Invalid email or password`, and an unknown email still spends a bcrypt verification. | Distinct messages |
 | Invites | 48-hour token, only its hash stored, cleared on accept (single use, row locked). The token is returned in the `201`; **nothing is emailed yet**. | Emailing from this PR (needs a console URL setting and a template) |
 | Last Super Admin | Every change that could remove one takes a Postgres advisory lock (`pg_advisory_xact_lock`), then counts the *other* active Super Admins. Covers disabling and removing the role. A race test proves two Super Admins cannot remove each other at once. Self-disable is also refused. | A check without a lock (both pass) |
@@ -72,8 +72,11 @@ Admin was "a patient-style user with a row in `admins`", checked by `get_current
 | `ADMIN_IDLE_TIMEOUT_MINUTES` | 30 | A refresh token unused this long dies |
 | `ADMIN_SESSION_MAX_HOURS` | 12 | Absolute session cap |
 | `ADMIN_INVITE_HOURS` | 48 | Invite validity |
-| `ADMIN_MAX_FAILED_LOGINS` / `ADMIN_LOCKOUT_MINUTES` | 10 / 15 | Lockout |
-| `ADMIN_AUTH_IP_LIMIT` / `ADMIN_AUTH_IP_WINDOW_SECONDS` | 30 / 60 | Per-IP limit |
+| `ADMIN_MAX_FAILED_LOGINS` | 10 | Wrong codes before the account locks |
+| `ADMIN_LOCKOUT_TIERS_MINUTES` | `[15, 60, 1440]` | Lock length per consecutive lock (last repeats) |
+| `ADMIN_PASSWORD_FREE_ATTEMPTS` / `ADMIN_PASSWORD_BACKOFF_SECONDS` / `ADMIN_PASSWORD_BACKOFF_MAX_SECONDS` | 5 / 30 / 900 | Password throttle per (email, IP) |
+| `ADMIN_AUTH_IP_LIMIT` / `ADMIN_AUTH_IP_WINDOW_SECONDS` | 30 / 60 | Per-IP limit (login, verify) |
+| `TRUSTED_PROXIES` | empty | Proxies whose `X-Forwarded-For` is believed (CIDRs, comma-separated or JSON) |
 | `ADMIN_TOTP_ISSUER` | `Oakly Admin` | Name shown in the authenticator app |
 
 ## Verification
@@ -96,7 +99,7 @@ Admin was "a patient-style user with a row in `admins`", checked by `get_current
 - **First admin:** after deploying, `docker compose exec api python -m scripts.create_super_admin --email you@example.com` (password from a prompt or `OAKLY_BOOTSTRAP_PASSWORD`). The first sign-in enrols MFA.
 - **Locked out, lost phone:** another Super Admin uses *Reset MFA*. If there is none, run the CLI with a new email.
 - **Roll back:** `alembic downgrade 0002_caregiver_mobile`. It re-creates an empty `admins` table, clears the admin references on caregivers, documents and skills, and keeps audit rows (their foreign key is re-added `NOT VALID`). Admin accounts are lost, which is fine while there is no production data.
-- **Proxy:** per-IP limits and the audit `ip` use the direct peer address. Behind a reverse proxy every request would look like one IP; configure trusted proxy headers before launch.
+- **Proxy:** per-IP limits and the audit `ip` use the direct peer address unless that peer is in `TRUSTED_PROXIES`. Behind a reverse proxy set `TRUSTED_PROXIES` to the proxy's address or CIDR; otherwise every request looks like one IP.
 
 ## Follow-ups
 - Invite email, and an endpoint to re-issue an expired or lost invite (today the email stays taken).
@@ -104,3 +107,32 @@ Admin was "a patient-style user with a row in `admins`", checked by `get_current
 - An admin view of live tracking and of chat and notes (A2).
 - Prescription creation by admins moves to the console in v1.1.
 - Opus review of `app/api/deps.py`, `app/services/admin_auth.py` and `app/services/admin_users.py` before merge. Points worth a hard look: the `sid` session check, the reuse-detection commit path, the advisory lock, and the shared-route dependency.
+
+## Review fixes (Opus security review of this branch)
+
+Seven findings, fixed with the tests written first. Migration `0003_admin_identity` was edited in place because it is not merged (`admin_users.mfa_lock_count`; `admin_rate_limits.blocked_until` and `updated_at`).
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| 1 | High | The per-IP limiter used the direct peer, so behind a proxy all clients shared one bucket; `refresh` shared the login bucket, so login noise could block live sessions | New `app/core/client_ip.py` and `TRUSTED_PROXIES` (default empty = trust nobody). The client is the direct peer unless the peer is trusted, then the right-most `X-Forwarded-For` hop that is not trusted (an unparseable hop falls back to the peer). The limiter and the audit `ip` both use it. `refresh` left the IP bucket: it is limited per token hash, and only for tokens that exist, so junk tokens create no rows |
+| 2 | Medium | Ten wrong passwords locked the account from anywhere (DoS), and lock state told known from unknown emails | Password failures throttle per (email-hash, IP): 5 free, then `429` with a wait of 30 s doubling to 15 min, never a lock. The same counter runs for unknown, invited, disabled and active emails (a bcrypt check is always spent), so statuses, bodies and `Retry-After` match at every attempt count. The throttled `429` is returned before the password is checked, so the right password gives no signal. The hard lock (`423`) is only applied after a correct password, and the MFA stage is the only thing that creates one. The login no longer holds a row lock across bcrypt |
+| 3 | Low | The lock zeroed the failure counter, so TOTP guessing restarted for free | `admin_users.mfa_lock_count` escalates the lock: 15 min, 1 h, 24 h (`ADMIN_LOCKOUT_TIERS_MINUTES`); reset on a successful sign-in and by Reset MFA. Each lock writes an `admin.locked` audit row with `{stage, lock_count, minutes}` |
+| 4 | Low | An `mfa_token` could be reused for 5 minutes | Single use. A successful verify inserts `mfajti:<jti>` into `admin_rate_limits` (primary key, so concurrent inserts collide) under the admin row lock; a later use gets `401 Invalid or expired MFA token` and does not count as a code guess. A wrong code does not spend the token. An `iat` check was rejected: `iat` has one-second resolution and would refuse a legitimate second sign-in in the same second |
+| 5 | Low | Logout could miss a refresh in flight and leave its new token alive | `logout` takes `SELECT ... FOR UPDATE` on the presented token row, so it waits for the refresh to commit and its family update then revokes the new token |
+| 6 | Chore | `render.yaml` | Deleted; references in SOPs, plans and the checklist now say local Docker |
+
+### Response-shape changes the console must know about
+- Wrong passwords now `429` (with `Retry-After`, from the 6th attempt for that email and IP) instead of `423` after the 10th. `423` appears only after a correct password while the account is locked by wrong codes, and `mfa/verify` returns it too.
+- `mfa/verify` with an already-used `mfa_token` is `401 Invalid or expired MFA token`: go back to the password step.
+- `refresh` is no longer subject to the per-IP `429`. A refresh token presented repeatedly gets `429` on its own. Console rule, now in the guide: serialise refresh calls; two concurrent refreshes with one token look like theft and revoke every session.
+- Lock `Retry-After` can now be up to 86400.
+
+### Verification
+- Baseline before the changes: 674 passed. After: see the final run in the hand-back (27 new tests in `app/tests/test_admin_auth_review.py` plus the rewritten lockout, rate-limit and concurrency tests in `test_admin_auth.py`).
+- The logout race test was run with the `FOR UPDATE` removed and fails there (logout finishes while the refresh is in flight).
+- Live: stack rebuilt from scratch with a temp env file, `scripts/capture_admin_flow.py` re-run (78 captures, sections 10 to 13 are new: throttle, MFA lock, single-use token, per-IP limit with refresh still working), guide re-rendered, stack removed with `down -v`.
+- Not live: a second client IP and a proxy cannot be produced through the published docker port, so the IP-isolation and `TRUSTED_PROXIES` behaviour is covered by tests only, and lock escalation beyond the first tier is test-only.
+
+### Follow-ups
+- An attacker who knows an admin's password can still lock that admin out by sending wrong codes (up to 24 h per lock). Reset MFA by another Super Admin is the recovery; consider alerting on `admin.locked`.
+- A password-spraying attacker with many IPs is limited per (email, IP) only. Consider a per-email global ceiling if that shows up in logs.
