@@ -33,8 +33,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
   - [x] E4 skills-based matching + dispatch waves. 2026-10-05, `foundations/dispatch`, same migration and SOP
   - [x] E1 migration baseline: one migration `0001_baseline`, built from the models; the test harness uses it. 2026-10-05, [SOP](../sop/2026-10-05-migration-baseline.md). No production data exists, so there was nothing to preserve.
 - [ ] Clean the ruff backlog, then enforce the full ruleset and `ruff format`
-- [ ] Python 3.11 → 3.12 or 3.13
-- [ ] Library swaps: passlib → pwdlib · python-jose → PyJWT · google-generativeai → google-genai
+- [x] Python 3.11 → 3.13. 2026-10-06, branch `chore/tech-debt`, [SOP](../sop/2026-10-06-tech-debt.md)
+- [x] Library swaps: passlib → pwdlib · python-jose → PyJWT · google-generativeai → google-genai. 2026-10-06, same SOP
 
 ## 1. Secrets & repo hygiene — 🔴 critical, not started
 - [ ] ⚠️ **Owner:** rotate every secret in the committed backend `.env` ([runbook](../sop/2026-10-05-secrets-and-rotation.md)): JWT secret, SMTP, Gemini, Paystack keys and webhook secret, Cloudinary, Supabase DB password
@@ -216,10 +216,11 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] **W4** Web companion API and `apps/companion`
 - [ ] **W5** FallGuard Flow, vitals reminders, care circle, Pidgin
 
-## 11. Tech debt — ⚪ queued (after A0 merges; it touches the same auth code)
-- [ ] passlib → pwdlib, python-jose → PyJWT (app tokens), google-generativeai → google-genai
-- [ ] Python 3.11 → 3.13 (Docker, CI, `.python-version`)
-- [ ] Typed response models for verification-status, form-options and the booking action response
+## 11. Tech debt — 🟢 done on `chore/tech-debt` (2026-10-06, [SOP](../sop/2026-10-06-tech-debt.md)), pending merge
+- [x] passlib → pwdlib, python-jose → PyJWT (app tokens), google-generativeai → google-genai
+- [x] Python 3.11 → 3.13 (Docker, CI via `.python-version`, ruff target)
+- [x] Typed response models for verification-status, form-options, the booking action response and the admin caregiver list/detail (no shape change; golden shape test)
+- [x] `TRUSTED_PROXIES=` (as in `.env.example`) crashed Settings; list settings now accept empty, comma-separated or JSON
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
@@ -235,7 +236,8 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] (A0) Per-IP limits and audit `ip` honour `TRUSTED_PROXIES`; set it to the reverse proxy's address when one is deployed
 - [ ] (A0) Admin `POST /prescription/create` is user-only now (an admin used to pass the patient-ownership check); prescription operations move to the console in v1.1
 - [ ] Upgrade Poetry to 2.5.x everywhere (local, Docker, CI)
-- [ ] Docker image size is 828 MB, mostly gRPC and Google libraries; revisit after the `google-genai` swap
+- [x] Docker image size was 828 MB; now 520 MB after the `google-genai` swap and Python 3.13 (2026-10-06)
 - [ ] (C3) `GET /booking/caregiver/bookings?status=new_requests` and `/booking/caregiver/notifications` expose condition, instructions, address and patient contact to caregivers who have not accepted; trim them to the offer fields
-- [ ] (C3) Type the caregiver action response (it is a raw dict with money as strings and internal fields); store `reason` on decline/cancel
+- [x] (C3) Typed the caregiver action response (2026-10-06, `CaregiverActionResponse`)
+- [ ] (C3) Trim the internal fields from the caregiver action response (`paystack_reference`, `*_kobo`, refund fields) and store `reason` on decline/cancel; the typed model now documents them as served today
 - [ ] (C3) Move the Expo push off the settlement request onto the ARQ worker if it ever slows the Paystack webhook; poll Expo receipts to prune late-failing tokens
