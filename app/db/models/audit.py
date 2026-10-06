@@ -20,7 +20,7 @@ class AdminAuditLog(Base):
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    admin_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    admin_user_id = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=False)
     action = Column(String, nullable=False)  # e.g. "caregiver.approve"
     entity_type = Column(String, nullable=False)
     entity_id = Column(String, nullable=True)

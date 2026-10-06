@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.core.security import get_password_hash, verify_password
-from app.db.models.user import User, Caregiver, Admin
+from app.db.models.user import User, Caregiver
 from app.db.models.patient import Patient
 from app.schemas.user import UserCreate, CaregiverCreate
 from app.schemas.patient import PatientCreate

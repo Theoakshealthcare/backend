@@ -97,6 +97,18 @@ class Settings(BaseSettings):
     VISIT_CODE_LOCK_MINUTES: int = 15
     HOME_TIMEZONE: str = "Africa/Lagos"  # what "today" means on the caregiver home screen
 
+    # Admin console auth (AD-FR-81). Admin tokens are separate from app-user tokens (aud="admin").
+    ADMIN_ACCESS_TOKEN_MINUTES: int = 15
+    ADMIN_MFA_TOKEN_MINUTES: int = 5  # how long the password step stays valid while the code is entered
+    ADMIN_IDLE_TIMEOUT_MINUTES: int = 30  # a refresh token not used within this window dies
+    ADMIN_SESSION_MAX_HOURS: int = 12  # absolute cap on one login session, however active
+    ADMIN_INVITE_HOURS: int = 48
+    ADMIN_MAX_FAILED_LOGINS: int = 10  # password or MFA failures before the account locks
+    ADMIN_LOCKOUT_MINUTES: int = 15
+    ADMIN_AUTH_IP_LIMIT: int = 30  # login/MFA/refresh/invite calls per IP per window
+    ADMIN_AUTH_IP_WINDOW_SECONDS: int = 60
+    ADMIN_TOTP_ISSUER: str = "Oakly Admin"
+
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"
 

@@ -79,28 +79,6 @@ class Caregiver(CaregiverBase):
         from_attributes = True
 
 
-# Admin Schemas
-class AdminBase(BaseModel):
-    email: EmailStr
-    full_name: str
-    phone_number: Optional[str] = None
-    permissions: Optional[str] = None
-
-
-class AdminCreate(AdminBase):
-    user_id: uuid.UUID
-
-
-class Admin(AdminBase):
-    id: uuid.UUID
-    user_id: uuid.UUID
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
 # Authentication Schemas
 class UserLogin(BaseModel):
     email_or_phone: str
