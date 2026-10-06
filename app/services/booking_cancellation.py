@@ -73,18 +73,22 @@ def terms(booking: Booking, now: datetime) -> Terms:
 
 @dataclass(frozen=True)
 class Outcome:
-    status: str                       # cancelled | already_cancelled | refused
+    status: str                       # cancelled | already_cancelled | refused | terms_changed
     terms: Optional[Terms] = None
 
 
 def cancel_by_booker(db: Session, booking_id: uuid.UUID, now: Optional[datetime] = None, *,
-                     commit: bool = True) -> Outcome:
+                     commit: bool = True, accepted_fee_kobo: Optional[int] = None) -> Outcome:
     """Cancel a paid booking for its booker. Takes the booking row lock and re-reads everything under it, so a
     caregiver acting at the same moment, or a double tap, gets a single, consistent result.
 
     ``commit=True`` ends the transaction (committing a cancel, rolling back a refusal, both release the lock).
     ``commit=False`` is for a caller that owns the transaction (the chat step holds the conversation lock and
-    commits once at the end): nothing is committed or rolled back here."""
+    commits once at the end): nothing is committed or rolled back here.
+
+    ``accepted_fee_kobo`` is the fee the person was shown and agreed to. When given, the booking is only cancelled if
+    the fee decided *under the lock* is no higher than that; otherwise nothing changes and the outcome is
+    ``terms_changed`` with the new terms (a caregiver may have accepted, or the 12 h line passed, since they looked)."""
     now = now or datetime.utcnow()
 
     def release() -> None:
@@ -102,6 +106,9 @@ def cancel_by_booker(db: Session, booking_id: uuid.UUID, now: Optional[datetime]
     if not decided.allowed:
         release()
         return Outcome("refused", decided)
+    if accepted_fee_kobo is not None and decided.fee_kobo > accepted_fee_kobo:
+        release()
+        return Outcome("terms_changed", decided)
     booking.status = BookingStatus.CANCELLED
     booking.cancel_reason = CANCELLED_BY_BOOKER
     flag_refund(booking, CANCELLED_BY_BOOKER, decided.refund_kobo)

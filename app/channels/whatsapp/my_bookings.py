@@ -162,7 +162,8 @@ def detail_message(ctx: Ctx, booking: Booking) -> OutboundMessage:
 def apply(ctx: Ctx, effect: Any) -> Result:
     if isinstance(effect, ListBookings):
         return Result([list_message(ctx)], State.IDLE)
-    booking = _find(ctx, effect.booking_id)
+    raw_id, _, shown_fee = effect.booking_id.partition(":")  # confirm carries ``<id>:<fee shown, kobo>``
+    booking = _find(ctx, raw_id)
     if booking is None:
         return Result([copy.text(ctx.lang, "bookings_not_found_body"), list_message(ctx)], State.IDLE)
     if isinstance(effect, ShowBooking):
@@ -170,7 +171,7 @@ def apply(ctx: Ctx, effect: Any) -> Result:
     if isinstance(effect, AskCancelBooking):
         return _ask_cancel(ctx, booking)
     if isinstance(effect, ConfirmCancelBooking):
-        return _confirm_cancel(ctx, booking)
+        return _confirm_cancel(ctx, booking, int(shown_fee) if shown_fee.isascii() and shown_fee.isdigit() else None)
     raise TypeError(f"not a my-bookings effect: {type(effect).__name__}")
 
 
@@ -183,36 +184,50 @@ def _refusal(ctx: Ctx, booking: Booking, terms: cancellation.Terms) -> Result:
                              status=status_label(lang, booking).lower())], State.IDLE)
 
 
-def _ask_cancel(ctx: Ctx, booking: Booking) -> Result:
+def _ask_message(ctx: Ctx, booking: Booking, terms: cancellation.Terms, *, changed: bool = False) -> Result:
+    """The cancellation policy for ``terms`` and the buttons. The confirm button carries the fee shown (kobo), so
+    the tap can only cancel on terms the person has actually seen."""
     lang = ctx.lang
-    if not _is_booker(ctx.db, booking, ctx.contact.user_id):
-        return Result([copy.text(lang, "cancel_not_booker_body")], State.IDLE)
-    terms = cancellation.terms(booking, ctx.now)
-    confirm = ((f"bk:confirm:{booking.id}", copy.t(lang, "cancel_yes")),
+    confirm = ((f"bk:confirm:{booking.id}:{terms.fee_kobo}", copy.t(lang, "cancel_yes")),
                (f"bk:keep:{booking.id}", copy.t(lang, "cancel_keep")))
     if terms.refusal == cancellation.REASON_UNPAID and booking.status == BookingStatus.PENDING:
-        return Result([ButtonsMessage(copy.t(lang, "cancel_ask_unpaid", code=booking.booking_code), confirm)],
-                      State.IDLE)
-    if not terms.allowed:
-        return _refusal(ctx, booking, terms)
-    if terms.fee_kobo:
+        text = copy.t(lang, "cancel_ask_unpaid", code=booking.booking_code)
+    elif terms.fee_kobo:
         text = copy.t(lang, "cancel_ask_fee", code=booking.booking_code, hours=str(settings.WHATSAPP_CANCEL_FREE_HOURS),
                       percent=str(max(0, min(100, settings.WHATSAPP_CANCEL_FEE_PERCENT))),
                       fee=rules.naira(terms.fee_kobo), refund=rules.naira(terms.refund_kobo))
     else:
         text = copy.t(lang, "cancel_ask_full", code=booking.booking_code, refund=rules.naira(terms.refund_kobo))
+    if changed:
+        text = copy.t(lang, "cancel_terms_changed") + " " + text
     return Result([ButtonsMessage(text, confirm)], State.IDLE)
 
 
-def _confirm_cancel(ctx: Ctx, booking: Booking) -> Result:
+def _ask_cancel(ctx: Ctx, booking: Booking, *, changed: bool = False) -> Result:
+    if not _is_booker(ctx.db, booking, ctx.contact.user_id):
+        return Result([copy.text(ctx.lang, "cancel_not_booker_body")], State.IDLE)
+    terms = cancellation.terms(booking, ctx.now)
+    if not terms.allowed and not (terms.refusal == cancellation.REASON_UNPAID and booking.status == BookingStatus.PENDING):
+        return _refusal(ctx, booking, terms)
+    return _ask_message(ctx, booking, terms, changed=changed)
+
+
+def _confirm_cancel(ctx: Ctx, booking: Booking, shown_fee_kobo: Optional[int]) -> Result:
+    """``shown_fee_kobo`` is what the button says the person was shown. Missing or malformed (a stale, hand-made or
+    old button): cancel nothing and ask again with the terms as they are now."""
     lang = ctx.lang
     if not _is_booker(ctx.db, booking, ctx.contact.user_id):
         return Result([copy.text(lang, "cancel_not_booker_body")], State.IDLE)
+    if shown_fee_kobo is None:
+        return _ask_cancel(ctx, booking, changed=True)
     code, booking_id, contact_id = booking.booking_code, booking.id, ctx.contact.id
     if booking.status == BookingStatus.PENDING and booking.payment_status == PaymentStatus.PENDING:
         return Result(state=State.IDLE, after_commit=lambda db: _cancel_unpaid(db, contact_id, booking_id))
-    # Under the conversation lock the step already holds; this takes the booking lock and decides afresh.
-    outcome = cancellation.cancel_by_booker(ctx.db, booking_id, ctx.now, commit=False)
+    # Under the conversation lock the step already holds; this takes the booking lock and decides afresh. A fee
+    # higher than the one shown cancels nothing (the caregiver may have accepted, or the 12 h line passed).
+    outcome = cancellation.cancel_by_booker(ctx.db, booking_id, ctx.now, commit=False, accepted_fee_kobo=shown_fee_kobo)
+    if outcome.status == "terms_changed" and outcome.terms is not None:
+        return _ask_message(ctx, booking, outcome.terms, changed=True)
     if outcome.status == "already_cancelled":
         return Result([copy.menu_with_body(lang, copy.t(lang, "cancel_already_body", code=code))], State.IDLE)
     if outcome.status == "refused":

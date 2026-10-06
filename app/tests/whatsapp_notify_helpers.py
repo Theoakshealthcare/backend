@@ -69,6 +69,12 @@ def events_of(db, booking) -> list:
             .order_by(BookingEvent.created_at, BookingEvent.event)]
 
 
+def issuance(booking, caregiver) -> str:
+    from app.services.notification_service import issuance_key
+    assert booking.caregiver_id == caregiver.id
+    return issuance_key(booking)
+
+
 def body_text(body: dict) -> str:
     interactive = body.get("interactive") or {}
     return body.get("text", {}).get("body") or interactive.get("body", {}).get("text") or ""

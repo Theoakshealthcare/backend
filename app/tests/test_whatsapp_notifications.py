@@ -15,7 +15,7 @@ from app.services.notification_service import NotificationService
 from app.tests.factories import make_booking, make_caregiver, make_patient
 from app.tests.fakes import expo  # noqa: F401  (fixture)
 from app.tests.whatsapp_notify_helpers import (  # noqa: F401
-    CONDITION, INSTRUCTIONS, Chat, accepted_booking, act, body_text, events_of, fake_meta, offer, onboarded,
+    CONDITION, INSTRUCTIONS, Chat, accepted_booking, act, body_text, events_of, fake_meta, issuance, offer, onboarded,
     template_params, wa_booking,
 )
 
@@ -43,8 +43,8 @@ def leave_window(db, chat):
 def test_accepting_records_who_is_coming_and_the_visit_code_without_sending(db, chat):
     before = len(chat.fake.bodies)
     booking, caregiver = accepted_booking(db, chat)
-    assert events_of(db, booking) == sorted(
-        [("caregiver_assigned", str(caregiver.id)), ("visit_code_issued", str(caregiver.id))])
+    key = issuance(booking, caregiver)
+    assert events_of(db, booking) == sorted([("caregiver_assigned", key), ("visit_code_issued", key)])
     assert len(chat.fake.bodies) == before  # the transition sends nothing itself
 
 

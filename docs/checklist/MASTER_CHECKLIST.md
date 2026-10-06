@@ -246,7 +246,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] Visit code to the booker (Fernet field, never logged or stored in the outbox; shown again in My bookings to the booker only); no health data in any message (asserted)
   - [x] My bookings: 5 most recent for the contact, their recipients and their app bookings; detail with status-driven actions; stateless buttons, ownership re-checked on every tap
   - [x] Cancel in chat: policy shown before confirming; full refund before assignment or >12 h out; `WHATSAPP_CANCEL_FEE_PERCENT` (20%) of the service fee inside 12 h; in progress hands to a human; refund queued with `refund_amount_kobo`; unpaid reuses W2's verify-before-cancel; race with the caregiver tested (mutation-checked)
-  - [x] Seven templates added to the registry (essential flags decide who still hears after STOP); migration `0006`
+  - [x] Seven templates added to the registry (essential flags decide who still hears after STOP); migration `0007`
   - [ ] **Owner:** submit the 12 templates (list in the [W3 SOP](../sop/2026-10-06-whatsapp-notifications.md#owner-steps-nothing-here-has-been-done)); decide the cancellation fee; check `visit_code` category with Meta
   - [ ] Deferred: visit reminders 24 h/1 h, `matching_delayed`, `no_caregiver_found` (WA-FR-29/31/32/33); re-dispatch after a caregiver drops out; rating buttons, photo header, tracking and View-booking links (W4); A2 must call the admin cancel/refund hooks
 - [ ] **W4** Web companion API and `apps/companion`

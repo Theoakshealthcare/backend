@@ -21,6 +21,7 @@ from app.tests.whatsapp_notify_helpers import (  # noqa: F401
     CONDITION, INSTRUCTIONS, Chat, accepted_booking, act, body_text, contact_patient, fake_meta, make_recipient,
     offer, onboarded, wa_booking,
 )
+from app.tests.factories import make_caregiver
 
 
 @pytest.fixture
@@ -36,6 +37,12 @@ def row_ids(body):
 
 def buttons(body):
     return [b["reply"]["id"] for b in body["interactive"]["action"]["buttons"]]
+
+
+def confirm(chat, booking):
+    """Ask, then tap the confirm button the bot offered (as a person does): the terms they saw are the ones sent."""
+    ask = chat.tap(f"bk:cancel:{booking.id}")
+    return chat.tap(buttons(ask[0])[0])
 
 
 def reload(db, booking):
@@ -142,8 +149,8 @@ def test_before_assignment_the_policy_is_a_full_refund_and_cancelling_flags_it(d
     booking = wa_booking(db, chat, hours_ahead=2)  # paid, nobody assigned yet, even close to the visit
     ask = chat.tap(f"bk:cancel:{booking.id}")
     assert body_text(ask[0]) == f"Cancel booking {booking.booking_code}? You'll get a full refund of ₦44,000."
-    assert buttons(ask[0]) == [f"bk:confirm:{booking.id}", f"bk:keep:{booking.id}"]
-    done = chat.tap(f"bk:confirm:{booking.id}")
+    assert buttons(ask[0]) == [f"bk:confirm:{booking.id}:0", f"bk:keep:{booking.id}"]
+    done = chat.tap(buttons(ask[0])[0])
     assert body_text(done[0]) == f"Booking {booking.booking_code} is cancelled. We've started your refund of ₦44,000."
     booking = reload(db, booking)
     assert booking.status == BookingStatus.CANCELLED and booking.cancel_reason == "cancelled_by_booker"
@@ -160,7 +167,7 @@ def test_assigned_and_more_than_twelve_hours_out_is_a_full_refund_and_the_caregi
     db.commit()
     ask = chat.tap(f"bk:cancel:{booking.id}")
     assert "full refund of ₦44,000" in body_text(ask[0])
-    chat.tap(f"bk:confirm:{booking.id}")
+    confirm(chat, booking)
     assert reload(db, booking).refund_amount_kobo == 4_400_000
     notifications.deliver_pending(db)
     assert [m["data"]["type"] for m in expo.messages] == ["booking_cancelled"]
@@ -173,7 +180,7 @@ def test_assigned_inside_twelve_hours_keeps_the_fee_and_says_so_before_and_after
     text = body_text(ask[0])
     assert "less than 12 hours" in text and "20% fee on the service fee applies" in text
     assert f"₦{fee // 100:,}" in text and f"₦{(booking.total_amount_kobo - fee) // 100:,}" in text
-    done = chat.tap(f"bk:confirm:{booking.id}")
+    done = confirm(chat, booking)
     assert "a fee of" in body_text(done[0])
     booking = reload(db, booking)
     assert booking.refund_amount_kobo == booking.total_amount_kobo - fee and booking.refund_required
@@ -184,7 +191,7 @@ def test_the_fee_and_window_follow_the_settings(db, chat, monkeypatch):
     monkeypatch.setattr(settings, "WHATSAPP_CANCEL_FREE_HOURS", 48)
     booking, _ = accepted_booking(db, chat, hours_ahead=30)
     fee = (booking.service_fee_kobo * 50 + 50) // 100
-    chat.tap(f"bk:confirm:{booking.id}")
+    confirm(chat, booking)
     assert reload(db, booking).refund_amount_kobo == booking.total_amount_kobo - fee
 
 
@@ -192,7 +199,7 @@ def test_a_zero_percent_fee_means_a_full_refund_even_when_close(db, chat, monkey
     monkeypatch.setattr(settings, "WHATSAPP_CANCEL_FEE_PERCENT", 0)
     booking, _ = accepted_booking(db, chat, hours_ahead=3)
     assert "full refund" in body_text(chat.tap(f"bk:cancel:{booking.id}")[0])
-    chat.tap(f"bk:confirm:{booking.id}")
+    confirm(chat, booking)
     assert reload(db, booking).refund_amount_kobo == booking.total_amount_kobo
 
 
@@ -233,8 +240,8 @@ def test_a_finished_booking_cannot_be_cancelled(db, chat, status):
 
 def test_confirming_twice_cancels_once_and_the_second_tap_says_so(db, chat):
     booking, _ = accepted_booking(db, chat, hours_ahead=30)
-    first = chat.tap(f"bk:confirm:{booking.id}")
-    second = chat.tap(f"bk:confirm:{booking.id}")
+    button = buttons(chat.tap(f"bk:cancel:{booking.id}")[0])[0]
+    first, second = chat.tap(button), chat.tap(button)  # a double tap on the same button
     assert "is cancelled" in body_text(first[0]) and "already cancelled" in body_text(second[0])
     assert db.query(BookingEvent).filter_by(event="caregiver_booking_cancelled").count() == 1
 
@@ -292,7 +299,7 @@ def test_cancelling_an_unpaid_booking_asks_nothing_to_be_refunded(db, chat, clie
     ask = chat.tap(f"bk:cancel:{booking.id}")
     assert body_text(ask[0]) == (f"Cancel booking {booking.booking_code}? You haven't paid yet, "
                                  "so nothing will be charged.")
-    done = chat.tap(f"bk:confirm:{booking.id}")
+    done = confirm(chat, booking)
     assert booking_env.paystack.verified == [booking.paystack_reference]  # Paystack was asked first
     assert "cancelled that booking. Nothing was charged" in body_text(done[0])
     booking = reload(db, booking)
@@ -303,7 +310,7 @@ def test_cancelling_an_unpaid_booking_asks_nothing_to_be_refunded(db, chat, clie
 def test_an_unpaid_booking_that_was_paid_on_the_link_is_settled_not_cancelled(db, chat, client, booking_env, dispatched):
     booking = unpaid_booking(db, chat, client, booking_env)
     booking_env.paystack.paid.add(booking.paystack_reference)  # the money is at Paystack; our webhook is late
-    chat.tap(f"bk:confirm:{booking.id}")
+    confirm(chat, booking)
     booking = reload(db, booking)
     assert booking.payment_status == PaymentStatus.PAID and booking.status == BookingStatus.PENDING
     assert dispatched == [booking.id] and not booking.refund_required
@@ -314,6 +321,77 @@ def test_when_paystack_cannot_be_asked_nothing_is_cancelled(db, chat, client, bo
     from app.services import booking_payment
     booking = unpaid_booking(db, chat, client, booking_env)
     monkeypatch.setattr(booking_payment, "verify_and_settle", lambda db, booking_id: booking_payment.SettleOutcome.UNREACHABLE)
-    sent = chat.tap(f"bk:confirm:{booking.id}")
+    sent = confirm(chat, booking)
     assert "couldn't confirm your payment status" in body_text(sent[0])
     assert reload(db, booking).status == BookingStatus.PENDING and chat.state == "idle"
+
+
+# --- the fee the person confirmed is the fee they pay ----------------------------------------------------------------
+def test_the_confirm_button_carries_the_fee_that_was_shown(db, chat):
+    booking, _ = accepted_booking(db, chat, hours_ahead=6)
+    fee = (booking.service_fee_kobo * 20 + 50) // 100
+    ask = chat.tap(f"bk:cancel:{booking.id}")
+    assert buttons(ask[0]) == [f"bk:confirm:{booking.id}:{fee}", f"bk:keep:{booking.id}"]
+    free = wa_booking(db, chat)
+    assert buttons(chat.tap(f"bk:cancel:{free.id}")[0])[0] == f"bk:confirm:{free.id}:0"
+
+
+def test_a_caregiver_accepting_between_the_ask_and_the_tap_does_not_cost_a_surprise_fee(db, chat):
+    booking = wa_booking(db, chat, hours_ahead=6)  # nobody assigned: cancelling is free
+    ask = chat.tap(f"bk:cancel:{booking.id}")
+    confirm_id = buttons(ask[0])[0]
+    assert confirm_id.endswith(":0")
+    caregiver = make_caregiver(db)
+    offer(db, booking, caregiver)
+    act(db, booking, caregiver, "accept")  # now assigned and inside 12 h: a fee applies
+    sent = chat.tap(confirm_id)
+    text = body_text(sent[0])
+    assert "terms have changed" in text and "20% fee" in text
+    after = reload(db, booking)
+    assert after.status == BookingStatus.ACCEPTED and not after.refund_required  # nothing was cancelled
+    fee = (booking.service_fee_kobo * 20 + 50) // 100
+    assert buttons(sent[0])[0] == f"bk:confirm:{booking.id}:{fee}"
+    done = chat.tap(buttons(sent[0])[0])  # confirming the terms they have now seen
+    assert "a fee of" in body_text(done[0]) and reload(db, booking).refund_amount_kobo == booking.total_amount_kobo - fee
+
+
+def test_the_twelve_hour_boundary_passing_between_the_ask_and_the_tap_re_asks(db, chat):
+    booking, _ = accepted_booking(db, chat, hours_ahead=12.5)
+    ask = chat.tap(f"bk:cancel:{booking.id}")
+    assert "full refund" in body_text(ask[0])
+    db.query(Booking).filter_by(id=booking.id).update({"scheduled_date": datetime.utcnow() + timedelta(hours=11)})
+    db.commit()
+    sent = chat.tap(buttons(ask[0])[0])
+    assert "terms have changed" in body_text(sent[0]) and "fee" in body_text(sent[0])
+    assert reload(db, booking).status == BookingStatus.ACCEPTED
+
+
+def test_a_lower_fee_than_shown_is_fine(db, chat, monkeypatch):
+    booking, _ = accepted_booking(db, chat, hours_ahead=6)
+    ask = chat.tap(f"bk:cancel:{booking.id}")
+    monkeypatch.setattr(settings, "WHATSAPP_CANCEL_FEE_PERCENT", 10)  # the fee dropped since it was shown
+    done = chat.tap(buttons(ask[0])[0])
+    fee = (booking.service_fee_kobo * 10 + 50) // 100
+    assert reload(db, booking).refund_amount_kobo == booking.total_amount_kobo - fee
+
+
+@pytest.mark.parametrize("suffix", ["", ":", ":abc", ":-5", ":1.5", ":0:0"])
+def test_a_bare_or_malformed_confirm_button_never_cancels_it_asks_again(db, chat, suffix):
+    booking, _ = accepted_booking(db, chat, hours_ahead=6)
+    sent = chat.tap(f"bk:confirm:{booking.id}{suffix}")
+    assert reload(db, booking).status == BookingStatus.ACCEPTED and not reload(db, booking).refund_required
+    assert "Cancel booking" in body_text(sent[0]) and "20% fee" in body_text(sent[0])
+    assert buttons(sent[0])[0].startswith(f"bk:confirm:{booking.id}:")
+
+
+def test_a_forged_zero_fee_cannot_skip_the_fee(db, chat):
+    booking, _ = accepted_booking(db, chat, hours_ahead=6)
+    sent = chat.tap(f"bk:confirm:{booking.id}:0")
+    assert reload(db, booking).status == BookingStatus.ACCEPTED and "terms have changed" in body_text(sent[0])
+
+
+def test_an_unpaid_booking_confirm_without_the_token_asks_first(db, chat, client, booking_env, dispatched):
+    booking = unpaid_booking(db, chat, client, booking_env)
+    sent = chat.tap(f"bk:confirm:{booking.id}")
+    assert reload(db, booking).status == BookingStatus.PENDING and booking_env.paystack.verified == []
+    assert "haven't paid yet" in body_text(sent[0])

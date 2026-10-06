@@ -16,6 +16,7 @@ from the booking as it is then, so a stale event (a caregiver who has since been
 announced, and no health data is ever copied into the outbox (WA-NFR-6).
 """
 
+import hashlib
 import logging
 from typing import Optional
 
@@ -27,6 +28,17 @@ from app.services import booking_events
 from app.services import push as push_service
 
 logger = logging.getLogger(__name__)
+
+
+def code_fingerprint(booking: Booking) -> str:
+    """Identifies one *issuance* of a visit code. Fernet tokens are randomised, so every accept or reassign gives a
+    new value even when the same caregiver comes back (A, then B, then A again)."""
+    return hashlib.sha256((booking.visit_code_enc or "").encode()).hexdigest()[:16]
+
+
+def issuance_key(booking: Booking) -> str:
+    """``<caregiver id>:<code fingerprint>``: the dedupe key of the events that belong to one assignment."""
+    return f"{booking.caregiver_id}:{code_fingerprint(booking)}"
 
 
 class NotificationService:
@@ -42,16 +54,21 @@ class NotificationService:
     def _caregiver_key(booking: Booking) -> str:
         return str(booking.caregiver_id) if booking.caregiver_id else ""
 
+    @staticmethod
+    def _issuance_key(booking: Booking) -> str:
+        return issuance_key(booking) if booking.caregiver_id else ""
+
     # --- the visit's journey --------------------------------------------------------------------
     def caregiver_accepted(self, booking: Booking) -> None:
         """A caregiver took the booking: tell the booker who is coming, then the visit code (WA-FR-30, WA-FR-35).
-        Keyed by caregiver so a replacement caregiver after a drop-out is announced too."""
-        key = self._caregiver_key(booking)
+        Keyed by the assignment (caregiver and code), so a replacement, or the same caregiver coming back after another,
+        is announced with the code that works now."""
+        key = self._issuance_key(booking)
         self._emit(booking, "caregiver_assigned", key)
         self._emit(booking, "visit_code_issued", key)
 
     def caregiver_on_the_way(self, booking: Booking) -> None:
-        self._emit(booking, "caregiver_en_route", self._caregiver_key(booking))
+        self._emit(booking, "caregiver_en_route", self._issuance_key(booking))
 
     def visit_started(self, booking: Booking) -> None:
         self._emit(booking, "visit_started")
@@ -66,8 +83,8 @@ class NotificationService:
 
     def caregiver_reassigned(self, booking: Booking) -> None:
         """An admin moved the visit to another caregiver (A2 reassign). The booker hears who is coming now and gets
-        the new visit code (the old one died with the old assignment). Keyed by the new caregiver."""
-        key = self._caregiver_key(booking)
+        the new visit code (the old one died with the old assignment). Keyed by the new assignment."""
+        key = self._issuance_key(booking)
         self._emit(booking, "caregiver_reassigned", key)
         self._emit(booking, "visit_code_issued", key)
 

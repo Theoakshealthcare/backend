@@ -14,7 +14,7 @@ from app.tests.test_admin_bookings import (  # noqa: F401
 )
 from app.tests.factories import make_caregiver
 from app.tests.whatsapp_notify_helpers import (  # noqa: F401
-    Chat, accepted_booking, body_text, events_of, fake_meta, offer, onboarded, template_params, wa_booking,
+    Chat, accepted_booking, body_text, events_of, fake_meta, issuance, offer, onboarded, template_params, wa_booking,
 )
 
 
@@ -93,8 +93,9 @@ def test_reassign_tells_the_booker_who_is_coming_now_and_sends_the_new_code(clie
     r = post(client, ops, booking, "reassign", {"caregiver_id": str(new.id), "reason": "Caregiver no-show"})
     assert r.status_code == 200, r.text
     b = fresh(db, booking)
-    assert sorted((e, k) for e, k in events_of(db, booking) if k == str(new.id)) == [
-        ("caregiver_reassigned", str(new.id)), ("visit_code_issued", str(new.id))]
+    key = issuance(b, new)
+    assert sorted((e, k) for e, k in events_of(db, booking) if k == key) == [
+        ("caregiver_reassigned", key), ("visit_code_issued", key)]
     sent = deliver(db, chat)
     texts = [body_text(m) for m in sent]
     first = new.full_name.split()[0]
@@ -130,3 +131,33 @@ def test_an_offer_without_force_announces_nothing_until_the_caregiver_accepts(cl
     cg = candidate(db)
     post(client, ops, booking, "assign", {"caregiver_id": str(cg.id), "reason": "try"})
     assert names(db, booking) == []
+
+
+# --- A -> B -> A: the booker must end up with the code that works ------------------------------------------------
+def test_reassigning_a_to_b_and_back_to_a_sends_the_booker_as_new_code(client, db, ops, chat):
+    booking, a = accepted_booking(db, chat)
+    deliver(db, chat)  # A's first assignment and code
+    b = candidate(db, 1)
+    assert post(client, ops, booking, "reassign", {"caregiver_id": str(b.id), "reason": "x"}).status_code == 200
+    assert post(client, ops, booking, "reassign", {"caregiver_id": str(a.id), "reason": "y"}).status_code == 200
+    current = decrypt(fresh(db, booking).visit_code_enc)
+    texts = [body_text(m) for m in deliver(db, chat)]
+    codes = [t for t in texts if "visit code" in t]
+    assert codes == [f"Your visit code for booking {booking.booking_code} is {current}. "
+                     "Give it to the professional when they arrive, and to no one else."]
+    assert sum("has changed" in t for t in texts) == 1 and any(f"{a.full_name.split()[0]} will now visit" in t for t in texts)
+
+
+def test_a_to_b_to_a_with_the_worker_running_between_each_step(client, db, ops, chat):
+    booking, a = accepted_booking(db, chat)
+    b = candidate(db, 1)
+    deliver(db, chat)
+    post(client, ops, booking, "reassign", {"caregiver_id": str(b.id), "reason": "x"})
+    first = [body_text(m) for m in deliver(db, chat)]
+    code_b = decrypt(fresh(db, booking).visit_code_enc)
+    assert any(code_b in t for t in first)
+    post(client, ops, booking, "reassign", {"caregiver_id": str(a.id), "reason": "y"})
+    second = [body_text(m) for m in deliver(db, chat)]
+    code_a = decrypt(fresh(db, booking).visit_code_enc)
+    assert code_a != code_b
+    assert any(f"is {code_a}." in t for t in second), second  # the booker is not left holding B's dead code

@@ -23,6 +23,7 @@ from app.core.security import decrypt
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.caregiver import Caregiver
 from app.db.models.whatsapp_booking import BookingEvent
+from app.services.notification_service import code_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,11 @@ def refund_amount_kobo(booking: Booking) -> int:
 
 def _caregiver_for(db: Session, event: BookingEvent, booking: Booking) -> Optional[Caregiver]:
     """The caregiver the event was about, but only while they are still the one on the booking."""
-    if not booking.caregiver_id or str(booking.caregiver_id) != event.dedupe_key:
+    caregiver_part, _, issued = event.dedupe_key.partition(":")
+    if not booking.caregiver_id or str(booking.caregiver_id) != caregiver_part:
         return None
+    if issued and issued != code_fingerprint(booking):
+        return None  # an earlier assignment of the same caregiver: a newer event carries the code that works now
     return db.query(Caregiver).filter(Caregiver.id == booking.caregiver_id).first()
 
 

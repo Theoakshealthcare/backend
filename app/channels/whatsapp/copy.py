@@ -179,6 +179,7 @@ STRINGS = {
             "Cancel booking {code}? The visit starts in less than {hours} hours, so a {percent}% fee on the "
             "service fee applies ({fee}). You'll get {refund} back."
         ),
+        "cancel_terms_changed": "The cancellation terms have changed since you asked.",
         "cancel_yes": "Yes, cancel",
         "cancel_keep": "Keep booking",
         "cancel_done_unpaid": "I've cancelled booking {code}. Nothing was charged.",
