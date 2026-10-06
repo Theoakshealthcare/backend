@@ -9,7 +9,7 @@ caller can fall back to a template (see ``templates.choose``).
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -26,7 +26,10 @@ WINDOW_CLOSED = "window_closed"
 
 
 def send_and_record(db: Session, client: MetaCloudClient, contact: WhatsAppContact,
-                    message: OutboundMessage, *, now: Optional[datetime] = None) -> SendResult:
+                    message: OutboundMessage, *, now: Optional[datetime] = None,
+                    on_accepted: Optional[Callable[[SendResult], None]] = None) -> SendResult:
+    """``on_accepted`` runs the instant Meta has accepted the message, before anything else is written, so a
+    caller that must not send twice can record "sent" while the window for a crash is as small as it can be."""
     now = now or datetime.utcnow()
     if not isinstance(message, TemplateMessage) and not within_window(contact.last_inbound_at, now):
         result = SendResult(ok=False, error_code=WINDOW_CLOSED, attempts=0)
@@ -35,6 +38,8 @@ def send_and_record(db: Session, client: MetaCloudClient, contact: WhatsAppConta
         record_outbound(db, contact.id, message, result)
         return result
     result = client.send(contact.wa_id, message)
+    if result.ok and on_accepted is not None:
+        on_accepted(result)
     record_outbound(db, contact.id, message, result)
     return result
 

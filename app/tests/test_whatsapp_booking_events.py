@@ -474,3 +474,50 @@ def test_a_paid_expired_booking_too_close_to_the_visit_to_reinstate_also_tells_t
     notifications.deliver_pending(db)
     texts = [text_of(b) for b in sent_since(chat, before)]
     assert len(texts) == 1 and "We'll refund you" in texts[0]  # and not "was cancelled because payment wasn't completed"
+
+
+# --- a crash after Meta accepted the message must not mean a second copy -------------------------------------------
+def test_an_event_is_marked_sent_the_moment_meta_accepts_it_so_a_crash_afterwards_cannot_resend(db, chat, client, booking_env, monkeypatch):
+    from app.channels.whatsapp import outbound
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    settle_booking_payment(db, booking.id, booking.total_amount_kobo)
+    real_record = outbound.record_outbound
+
+    def crash(*args, **kwargs):
+        raise RuntimeError("worker died after the send")
+
+    monkeypatch.setattr(outbound, "record_outbound", crash)
+    before = len(chat.fake.bodies)
+    notifications.deliver_pending(db)
+    assert len(sent_since(chat, before)) == 1  # Meta got it
+    db.expire_all()
+    event = db.query(BookingEvent).one()
+    assert event.delivered_at is not None and event.meta_message_id  # marked sent before anything else ran
+    monkeypatch.setattr(outbound, "record_outbound", real_record)
+    assert notifications.deliver_pending(db, now=datetime.utcnow() + timedelta(minutes=10)) == 0  # the retry finds it done
+    assert len(sent_since(chat, before)) == 1
+
+
+# --- no link was ever delivered: nothing to say it was cancelled -----------------------------------------------------
+def test_no_cancellation_notice_when_the_person_never_got_a_payment_link(db, chat, client, booking_env):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    quote = db.query(Quote).filter_by(booking_id=booking.id).one()
+    quote.payload = {k: v for k, v in quote.payload.items() if k not in ("payment_url", "access_code")}
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    before = len(chat.fake.bodies)
+    notifications.run_events(db)
+    assert sent_since(chat, before) == []
+    db.expire_all()
+    assert db.query(BookingEvent).one().delivered_at is not None  # settled, not retried
+    assert chat.state == "idle"
+
+
+# --- the pending-events index ------------------------------------------------------------------------------------
+def test_the_pending_events_index_is_partial_on_undelivered_rows(db):
+    definition = db.execute(__import__("sqlalchemy").text(
+        "SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_booking_events_pending'")).scalar_one()
+    assert "(created_at)" in definition and "delivered_at IS NULL" in definition

@@ -151,6 +151,9 @@ def _message_for(db: Session, event: BookingEvent, booking: Booking, contact: Wh
     elif name == "booking_cancelled_unpaid":
         if booking.payment_status == PaymentStatus.PAID:  # paid after the cancel and reinstated: say nothing
             return None, "stale"
+        quote = db.query(Quote).filter(Quote.booking_id == booking.id).first()
+        if not quote or not (quote.payload or {}).get("payment_url"):  # no link ever reached them: nothing to cancel
+            return None, "stale"
     return choose(name, params, in_window=in_window, url=url), None
 
 
@@ -200,8 +203,16 @@ def _deliver_one(db: Session, event_id, now: datetime, client: MetaCloudClient) 
     message, reason = _message_for(db, event, booking, contact, now)
     if message is None:
         _finish(db, event_id, now, reason)
+        if name == "booking_cancelled_unpaid" and booking.payment_status != PaymentStatus.PAID:
+            _reset_conversation(db, contact, booking)  # nothing to say, but the chat is no longer "paying"
         return False
-    result = send_and_record(db, client, contact, message, now=now)
+    def mark_sent(accepted) -> None:
+        # Own commit, straight after Meta said yes: a crash from here on can no longer cause a second copy.
+        db.execute(update(BookingEvent).where(BookingEvent.id == event_id)
+                   .values(delivered_at=now, meta_message_id=accepted.meta_message_id, last_error=None))
+        db.commit()
+
+    result = send_and_record(db, client, contact, message, now=now, on_accepted=mark_sent)
     if not result.ok:
         logger.warning("whatsapp %s for booking %s to contact %s not sent: %s", name, booking.booking_code,
                        contact_ref(contact.wa_id), result.error_code)

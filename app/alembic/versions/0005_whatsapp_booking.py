@@ -72,13 +72,15 @@ def upgrade() -> None:
     sa.Column('delivered_at', sa.DateTime(), nullable=True),
     sa.Column('claimed_at', sa.DateTime(), nullable=True),
     sa.Column('attempts', sa.Integer(), server_default='0', nullable=False),
+    sa.Column('meta_message_id', sa.String(), nullable=True),
     sa.Column('last_error', sa.String(), nullable=True),
     sa.CheckConstraint("event IN ('payment_received', 'payment_link_expiring', 'booking_cancelled_unpaid', 'payment_refund_pending')", name='ck_booking_events_event'),
     sa.ForeignKeyConstraint(['booking_id'], ['bookings.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('booking_id', 'event', name='uq_booking_events_booking_event')
     )
-    op.create_index('ix_booking_events_pending', 'booking_events', ['delivered_at', 'attempts'], unique=False)
+    op.create_index('ix_booking_events_pending', 'booking_events', ['created_at'], unique=False,
+                    postgresql_where=sa.text('delivered_at IS NULL'))
 
     op.drop_constraint('ck_whatsapp_conversations_state', 'whatsapp_conversations', type_='check')
     op.create_check_constraint('ck_whatsapp_conversations_state', 'whatsapp_conversations', f"state IN ({NEW_STATES})")

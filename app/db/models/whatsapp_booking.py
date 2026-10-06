@@ -62,7 +62,8 @@ class BookingEvent(Base):
         CheckConstraint(
             "event IN (" + ", ".join(f"'{e}'" for e in BOOKING_EVENTS) + ")", name="ck_booking_events_event"
         ),
-        Index("ix_booking_events_pending", "delivered_at", "attempts"),
+        # Only undelivered rows are ever scanned, and they are few: index just those, oldest first.
+        Index("ix_booking_events_pending", "created_at", postgresql_where=text("delivered_at IS NULL")),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -74,4 +75,5 @@ class BookingEvent(Base):
     # never send the same one; a claim that dies is retried after a couple of minutes.
     claimed_at = Column(DateTime, nullable=True)
     attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    meta_message_id = Column(String, nullable=True)  # Meta's id, stored the moment it accepted the send
     last_error = Column(String, nullable=True)  # Meta's error code or a short reason; never a message body
