@@ -1,16 +1,24 @@
-from typing import Generator, Optional
+from typing import Callable, Generator, Optional, Union
+from uuid import UUID
+
 from fastapi import Depends, HTTPException, WebSocket, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
 from jose import jwt, JWTError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.admin_security import AdminTokenError, decode_admin_token
 from app.core.config import settings
 from app.core.security import ALGORITHM
 from app.db.session import SessionLocal
-from app.db.models.user import User, Admin
+from app.db.models.admin import AdminRefreshToken, AdminUser
+from app.db.models.user import User
 from app.services.user import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+# Admin routes use their own bearer scheme so the OpenAPI document (and the generated console
+# client) shows that an admin token is a different credential from an app-user token.
+admin_bearer_scheme = HTTPBearer(scheme_name="AdminBearer", auto_error=False)
 
 
 def get_db() -> Generator:
@@ -22,17 +30,15 @@ def get_db() -> Generator:
         db.close()
 
 
-async def get_current_user(
-    db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
-) -> User:
-    """Get current authenticated user"""
+def _user_from_token(db: Session, token: str) -> User:
+    """Resolve an app-user access token. Admin tokens (aud="admin") fail here: python-jose refuses
+    any token that carries an audience when none is expected."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
@@ -43,7 +49,7 @@ async def get_current_user(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     user_service = UserService(db)
     user = user_service.get_user(user_id)
     if user is None:
@@ -55,6 +61,14 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_current_user(
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+) -> User:
+    """Get current authenticated user"""
+    return _user_from_token(db, token)
 
 
 async def get_current_active_user(
@@ -88,22 +102,112 @@ async def get_current_patient(
     return current_user
 
 
-async def get_current_admin(
+# --- admin console auth (AD-FR-81, AD-FR-82) -----------------------------------------------------
+
+
+def _admin_unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _admin_from_token(db: Session, token: str) -> AdminUser:
+    """Resolve an admin access token to an active admin whose session is still live."""
+    try:
+        payload = decode_admin_token(token, "access")
+        admin_id, session_id = UUID(payload["sub"]), UUID(payload["sid"])
+    except (AdminTokenError, KeyError, ValueError):
+        raise _admin_unauthorized()
+    admin = db.get(AdminUser, admin_id)
+    if admin is None or admin.status != "active":
+        raise _admin_unauthorized()
+    # Logout, a disabled account, an MFA reset and refresh-token reuse all revoke the session's
+    # refresh tokens; checking here makes that take effect immediately instead of in 15 minutes.
+    live = db.scalar(
+        select(AdminRefreshToken.id)
+        .where(AdminRefreshToken.family_id == session_id, AdminRefreshToken.revoked_at.is_(None))
+        .limit(1)
+    )
+    if live is None:
+        raise _admin_unauthorized()
+    return admin
+
+
+def _forbidden(permissions: tuple) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access denied. Missing permission: {', '.join(permissions)}",
+    )
+
+
+def get_current_admin_user(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-) -> User:
-    admin = db.query(Admin).filter(Admin.user_id == current_user.id).first()
-    if not admin:
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(admin_bearer_scheme),
+) -> AdminUser:
+    """Any signed-in admin, whatever their permissions (used by /admin/me)."""
+    if credentials is None:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Admin account required."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    return current_user
+    return _admin_from_token(db, credentials.credentials)
 
 
-def user_is_admin(db: Session, user: User) -> bool:
-    """True when the user has an Admin row (admins are not a user_type today)."""
-    return db.query(Admin).filter(Admin.user_id == user.id).first() is not None
+def require_permission(*permissions: str) -> Callable[..., AdminUser]:
+    """The one admin check (AD-FR-82). Use as ``admin = Depends(require_permission("x.y"))``.
+
+    Needs a valid admin access token and every listed permission. A token that is missing or
+    invalid is 401; a valid admin without the permission is 403.
+    """
+    if not permissions:
+        raise ValueError("require_permission needs at least one permission")
+
+    def dependency(admin: AdminUser = Depends(get_current_admin_user)) -> AdminUser:
+        held = admin.permissions
+        if not all(p in held for p in permissions):
+            raise _forbidden(permissions)
+        return admin
+
+    dependency.required_permissions = permissions  # type: ignore[attr-defined]  # read by the permission-matrix test
+    return dependency
+
+
+def get_user_or_admin(permission: str) -> Callable[..., Union[User, AdminUser]]:
+    """For the few routes shared by app users and the console (booking detail, document download,
+    prescription reads): an app-user token, or an admin token holding ``permission``.
+
+    The two token kinds are told apart by the ``aud`` claim and each is verified by its own
+    decoder, so an admin token never authenticates as a user (or the reverse).
+    """
+
+    def dependency(
+        db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    ) -> Union[User, AdminUser]:
+        try:
+            claims = jwt.get_unverified_claims(token)
+        except JWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if claims.get("aud") is not None:
+            admin = _admin_from_token(db, token)
+            if not admin.has_permission(permission):
+                raise _forbidden((permission,))
+            return admin
+        return _user_from_token(db, token)
+
+    dependency.required_permissions = (permission,)  # type: ignore[attr-defined]
+    return dependency
+
+
+def is_admin(actor: Union[User, AdminUser]) -> bool:
+    """True for a console admin acting on a shared route (the permission was already checked)."""
+    return isinstance(actor, AdminUser)
 
 
 WS_CLOSE_UNAUTHENTICATED = 4401

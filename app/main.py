@@ -24,6 +24,8 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # the console reads Retry-After from the 423 (locked) and 429 (rate limited) admin auth answers
+        expose_headers=["Retry-After"],
     )
 
 # Include API router
