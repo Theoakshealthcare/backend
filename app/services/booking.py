@@ -466,6 +466,17 @@ class BookingService:
             else:  # start / complete / cancel: assigned caregiver only
                 if not is_assigned:
                     raise BookingActionForbidden("This booking is not assigned to you")
+                if action in ("on_my_way", "start"):
+                    # A suspended caregiver may still finish a visit already under way (they're with
+                    # the patient), but must not set out for or begin a new one.
+                    status_row = (
+                        self.db.query(Caregiver.profile_status)
+                        .filter(Caregiver.id == caregiver_id)
+                        .with_for_update(read=True)
+                        .scalar()
+                    )
+                    if status_row != "approved":
+                        raise BookingActionForbidden("Your account is not approved to start visits")
 
                 if action == "on_my_way":
                     if booking.status != BookingStatus.ACCEPTED:

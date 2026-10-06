@@ -52,6 +52,9 @@ def redact_offer(booking_dict: dict) -> dict:
     caregiver (after accepting).
     """
     booking_dict["patient_details"] = None
+    # Nor who took it: another caregiver's identity and live location are not theirs to see.
+    booking_dict["caregiver_details"] = None
+    booking_dict["caregiver_id"] = None
     booking_dict["condition"] = None
     booking_dict["special_instructions"] = None
     booking_dict["patient_address"] = f"{booking_dict.get('patient_city')}, {booking_dict.get('patient_state')}"

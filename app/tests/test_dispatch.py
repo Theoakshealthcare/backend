@@ -145,13 +145,14 @@ def test_stationary_caregiver_stays_matchable_when_pinging_identical_coordinates
     cg = make_caregiver(db)
     db.add(CaregiverSkill(caregiver_id=cg.id, service_type="nurse"))
     svc = LocationService(db)
-    svc.update_caregiver_location(cg.id, LAT + 0.002, LON)
+    svc.update_caregiver_location(cg.id, LAT + 0.002, LON, is_available=True)  # opts in
     loc = db.query(CaregiverLocation).filter_by(caregiver_id=cg.id).one()
     loc.updated_at = datetime.utcnow() - timedelta(minutes=settings.LOCATION_FRESHNESS_MINUTES + 5)
     db.commit()  # time passes; the first fix is now stale
     assert find_candidates(db, paid_booking(db), datetime.utcnow()) == []
 
-    svc.update_caregiver_location(cg.id, LAT + 0.002, LON)  # same GPS fix: no column value changes
+    # same GPS fix, no availability flag: no column value changes, availability is kept
+    svc.update_caregiver_location(cg.id, LAT + 0.002, LON)
     db.expire_all()
     assert ids(find_candidates(db, paid_booking(db), datetime.utcnow())) == [cg.id]
 

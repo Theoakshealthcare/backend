@@ -301,10 +301,11 @@ class CaregiverLocationUpdate(BaseModel):
         example=2.5,
         ge=0
     )
-    is_available: bool = Field(
-        True,
-        description="Whether caregiver is available for new bookings",
-        example=True
+    is_available: Optional[bool] = Field(
+        None,
+        description="Set availability for new bookings. Omit to leave it unchanged (a first ping "
+                    "without it creates the record as unavailable). Prefer POST /caregiver/availability.",
+        example=None,
     )
 
 

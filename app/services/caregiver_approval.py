@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import Request
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.db.models.audit import AdminAuditLog
@@ -407,12 +407,14 @@ class CaregiverApprovalService:
         cg.profile_status = "suspended"
         cg.suspended_at = datetime.utcnow()
         cg.suspension_reason = reason
-        # Upcoming accepted bookings need reassignment by ops. There is no ops queue yet, so
+        # Upcoming accepted bookings and any already en route need reassignment by ops. There is no ops queue yet, so
         # they are listed in the response and the audit row.
         affected = [
             row.id for row in self.db.query(Booking.id)
-            .filter(Booking.caregiver_id == cg.id, Booking.status == BookingStatus.ACCEPTED,
-                    Booking.scheduled_date > datetime.utcnow())
+            .filter(Booking.caregiver_id == cg.id,
+                    or_(Booking.status == BookingStatus.EN_ROUTE,
+                        and_(Booking.status == BookingStatus.ACCEPTED,
+                             Booking.scheduled_date > datetime.utcnow())))
             .order_by(Booking.scheduled_date).all()
         ]
         self.audit.record(admin_user_id=admin_user_id, action=action, entity_type="caregiver",
