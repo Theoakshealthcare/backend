@@ -17,7 +17,7 @@ A WhatsApp channel module (`app/channels/whatsapp/`) that, with no booking logic
 - **Conversation engine.** A pure state machine: first contact, consent by buttons, STOP / STOP DATA / START, main menu, two-miss handover, emergency screen on every text, human handover, fixed reply to clinical-advice questions.
 - **Fake Meta + end-to-end script** (`app/tests/fake_meta.py`, `scripts/whatsapp_local_e2e.py`).
 
-Booking is W2: "Book a visit", "My bookings" and "Doctor home visit" reply "coming soon" and open a handover ticket.
+Booking is W2: "Book a visit", "My bookings" and "Doctor home visit" reply "coming soon" and open a handover ticket. *(Update: since W2, "Book a visit" and "Doctor home visit" open the booking Flow when `WHATSAPP_BOOKING_FLOW_ID` is set and the contact has an Oakly account; with no Flow id they still behave as described here. "My bookings" stays a placeholder until W3.)*
 
 ## Why
 The patient app is paused and Meta business verification is pending, so everything the WhatsApp channel needs that does not depend on Meta has to be built and proven locally first: identity without an email, consent that can be evidenced, a webhook that cannot be forged or replayed, an emergency path that cannot be skipped, and a state machine that can be tested exhaustively.
@@ -149,8 +149,7 @@ What you need: a Meta developer account, a Meta developer app with the WhatsApp 
 When this has been done, tick "Real-Meta check" in the master checklist and record any differences found here.
 
 ## Follow-ups
-- **W2:** the consent Flow (three checkboxes) replaces the buttons; booking Flow, quote, Paystack link; one-time-code linking of an existing app account (`context.link_required` marks the contacts waiting for it).
-- Idle-state expiry after 30 minutes (WA-FR-12) is not needed until booking states exist.
+- **W2 (booking in chat) shipped** (see [the booking SOP](2026-10-06-whatsapp-booking.md)): booking Flow, quote, Paystack link, templates, idle expiry (WA-FR-12). **Still open from this list:** the consent Flow (three checkboxes) that replaces the buttons, and one-time-code linking of an existing app account (`context.link_required` marks the contacts waiting for it; they are still handed over when they try to book).
 - Retention jobs (WA-NFR-9): message metadata 12 months, consents life + 6 years **[DECISION with counsel]**.
 - Pidgin copy (`STRINGS["pcm"]`) and Pidgin intent keywords (Phase 2); the emergency lexicon already includes Pidgin.
 - The emergency numbers per state are unverified (PRD warning); only `112` is configured.
