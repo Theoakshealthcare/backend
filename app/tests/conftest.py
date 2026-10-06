@@ -69,7 +69,11 @@ def _schema():
 @pytest.fixture(autouse=True)
 def _clean_tables(_schema):
     yield
-    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    # admin_roles / admin_role_permissions are reference data seeded by the migration; keep them
+    tables = ", ".join(
+        f'"{t.name}"' for t in Base.metadata.sorted_tables
+        if t.name not in ("admin_roles", "admin_role_permissions")
+    )
     with engine.begin() as conn:
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
 
@@ -128,3 +132,4 @@ def client():
 # factories live in a plain module so tests can import them directly
 from app.tests.factories import *  # noqa: E402,F401,F403
 from app.tests.fakes import expo  # noqa: E402,F401  (fixture)
+from app.tests.admin_helpers import admin_clock  # noqa: E402,F401  (fixture)

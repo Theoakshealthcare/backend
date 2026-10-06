@@ -117,9 +117,9 @@ def test_refresh_token_is_rejected(db, client, method, path, body):
 
 @pytest.mark.parametrize("method,path,body", ENDPOINTS)
 @pytest.mark.parametrize("kind", ["patient", "caregiver"])
-def test_non_admin_is_forbidden(db, client, method, path, body, kind):
+def test_app_user_tokens_are_rejected(db, client, method, path, body, kind):
     user = make_patient(db).user if kind == "patient" else make_caregiver(db).user
-    assert client.request(method, path, json=body, headers=auth_headers(user)).status_code == 403
+    assert client.request(method, path, json=body, headers=auth_headers(user)).status_code == 401
     assert audit_rows(db) == []
 
 
