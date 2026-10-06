@@ -746,3 +746,24 @@ def test_two_admins_cancelling_at_once_only_one_succeeds(db):
     assert sorted(results) == ["conflict", "ok"]
     assert len(audit_rows(db, booking, "booking.cancel")) == 1
     assert db.query(BookingEvent).filter_by(booking_id=booking.id).count() == 1
+
+
+def test_search_by_name_or_phone_needs_people_pii(client, db):
+    b = paid(db, make_patient(db, full_name="Ada Okafor", phone_number="+2348031234567"))
+    fin = admin_headers(db, "finance")
+    for q in ("okafor", "08031234567"):
+        assert client.get(BASE, params={"q": q}, headers=fin).json()["total"] == 0
+    assert client.get(BASE, params={"q": b.booking_code}, headers=fin).json()["total"] == 1
+
+
+def test_admin_notices_never_appear_as_new_requests(client, db, ops):
+    old, new = candidate(db), candidate(db, 1)
+    b = paid(db, caregiver=old, status=BookingStatus.ACCEPTED)
+    assert post(client, ops, b, "reassign", {"caregiver_id": str(new.id), "reason": "x"}).status_code == 200
+    r = client.get("/api/v1/booking/caregiver/bookings", params={"status": "new_requests"},
+                   headers=auth_headers(old.user))
+    assert r.status_code == 200 and r.json() == []
+    assert post(client, ops, b, "cancel", cancel_body()).status_code == 200
+    r = client.get("/api/v1/booking/caregiver/bookings", params={"status": "new_requests"},
+                   headers=auth_headers(new.user))
+    assert r.status_code == 200 and r.json() == []

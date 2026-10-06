@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/195e0918-821a-45dc-a0c2-5a9d30182b95/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason_code": "patient_request",
+      "reason": "Patient called to cancel",
+      "refund": "full"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "195e0918-821a-45dc-a0c2-5a9d30182b95",
+      "booking_code": "5939F55D",
+      "status": "cancelled",
+      "payment_status": "paid",
+      "dispatch_state": "dispatching",
+      "caregiver_id": null,
+      "needs_address_check": false,
+      "refund_required": true,
+      "refund_required_reason": "admin_cancelled_full",
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  },
+  "note": "No money moves. refund_required is set for the refund queue; a WhatsApp booker is told a refund is coming."
+}

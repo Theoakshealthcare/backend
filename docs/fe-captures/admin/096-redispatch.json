@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/298911c7-8ff3-470b-895b-218232595b9a/redispatch",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Nurses are online again",
+      "radius_km": 25
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "298911c7-8ff3-470b-895b-218232595b9a",
+      "booking_code": "176803E9",
+      "status": "pending",
+      "payment_status": "paid",
+      "dispatch_state": "dispatching",
+      "caregiver_id": null,
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 2
+    }
+  }
+}

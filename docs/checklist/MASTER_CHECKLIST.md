@@ -200,7 +200,17 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] Security review fixes: proxy segment validation + allowlist (`admin/`, `caregiver/documents/`), 1 MB body cap, CSP with per-request nonce, HSTS in production, open-redirect guard; Opus re-review clean
   - [x] Verified: 121 admin tests, Playwright e2e 8/8 against the local docker stack, production build checked in Chromium (no CSP violations)
   - [ ] Audit log viewer page (API exists; moved to A5)
-- [ ] **A2** Bookings ops: list and detail with timeline, unmatched queue, assign, reassign, cancel, status correction
+- [ ] **A2** Bookings ops: list and detail with timeline, unmatched queue, assign, reassign, cancel, status correction. **Backend done 2026-10-06**, branch `feat/admin-bookings-ops` (not yet merged), migration `0006_admin_bookings_ops`, [SOP](../sop/2026-10-06-admin-bookings-ops.md), [FE guide](../fe-integration-guide-admin.md) section 12. Console screens not built.
+  - [x] 1. `GET /admin/bookings`: filters (status, payment, dispatch state, channel, city, service, caregiver, date ranges, address check, no-show), search (code, names, phone), sort, pagination, masking by permission
+  - [x] 2. `GET /admin/bookings/{id}`: price, payment, dispatch waves and offers, outbox events, timeline, `available_actions`; address behind `bookings.address`; condition decrypted only with `clinical.read` and every reveal audited
+  - [x] 3. Unmatched queue: `address_check` (WhatsApp hold), `unmatched`, `sla_breached` (`UNMATCHED_SLA_MINUTES`)
+  - [x] 4. Re-dispatch (wider radius, re-offer), candidates, assign (offer, or Super Admin force), reassign
+  - [x] 5. Cancel with reason code and refund choice (flags `refund_required`, moves no money), confirm address (starts dispatch), no-show flag, Super Admin status correction
+  - [x] 6. Every action: required reason, permission, booking row lock, audit row in the same transaction
+  - [x] 7. Tests: route x role matrix, each action's effects and audit, clinical masking, two race tests (admin assign vs caregiver accept, two simultaneous cancels)
+  - [x] 8. FE guide section 12 from live captures 079 to 118 (`capture_admin_flow.py --section bookings`), `--check` clean
+  - [x] 9. Opus review of the lock, permission and clinical paths: clean, 2 findings fixed with tests
+  - [ ] 10. Console screens: list, detail with timeline, unmatched queue, action dialogs
 - [ ] **A3** Money: earnings credited on completion, caregiver ledger, Paystack Transfer payouts, refunds v2 queue (`refund_required`), payments and webhook exceptions
 - [ ] **A4** Pricing: versioned price books, service areas, form options, policies
 - [ ] **A5** People (masked), break-glass clinical access, audit viewer, CSV exports
@@ -250,7 +260,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] Chat and notes routes in `endpoints/booking.py` don't let admins in; decide whether support staff should read them (an admin token is rejected there since A0, as an app token was before)
 - [ ] (A0) Admin invites are not emailed: the API returns the token and the console shows the link. Add an email, and an endpoint to re-issue an expired invite (today an expired invite blocks that email)
 - [ ] (A0) MFA recovery codes, and an optional IP allowlist for the console (AD-FR-87)
-- [ ] (A0) Admin access to the live-tracking WebSocket (admins used to reach it with an app token; the console gets its own booking views in A2)
+- [ ] (A0) Admin access to the live-tracking WebSocket (admins used to reach it with an app token; the A2 booking detail does not show live tracking yet)
 - [x] (A0) Per-IP limits and audit `ip` honour `TRUSTED_PROXIES`; set it to the reverse proxy's address when one is deployed
 - [ ] (A0) Admin `POST /prescription/create` is user-only now (an admin used to pass the patient-ownership check); prescription operations move to the console in v1.1
 - [ ] Upgrade Poetry to 2.5.x everywhere (local, Docker, CI)
@@ -259,3 +269,4 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] (C3) Typed the caregiver action response (2026-10-06, `CaregiverActionResponse`)
 - [ ] (C3) Trim the internal fields from the caregiver action response (`paystack_reference`, `*_kobo`, refund fields) and store `reason` on decline/cancel; the typed model now documents them as served today
 - [ ] (C3) Move the Expo push off the settlement request onto the ARQ worker if it ever slows the Paystack webhook; poll Expo receipts to prune late-failing tokens
+- [ ] (A2) Tell the patient about an admin cancel with no refund and about a reassignment (no `booking_events` type yet; with W3's notifications). A partial refund's amount is stored inside `refund_required_reason`; give A3 a real column. See the [A2 SOP](../sop/2026-10-06-admin-bookings-ops.md)

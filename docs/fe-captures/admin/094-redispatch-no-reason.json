@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/298911c7-8ff3-470b-895b-218232595b9a/redispatch",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "reason"
+          ],
+          "msg": "Field required",
+          "input": {}
+        }
+      ]
+    }
+  }
+}

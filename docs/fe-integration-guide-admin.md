@@ -1,9 +1,9 @@
-# FE integration guide: admin console, sign-in and admin management
+# FE integration guide: admin console (sign-in, admin management, bookings operations)
 
 | | |
 |---|---|
-| **Backend work package** | A0, branch `feat/admin-auth`, migration `0003_admin_identity` |
-| **Audience** | `apps/admin` (the console), mainly A1 |
+| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops` |
+| **Audience** | `apps/admin` (the console): A1, A2 |
 | **Base URL** | `http://127.0.0.1:8000` for the local stack; every path below starts with `/api/v1` |
 | **Source of truth** | Every request and response body, status code and error string below was **copied from a real response** captured by `scripts/capture_admin_flow.py` against the running docker compose stack. The files are in [`docs/fe-captures/admin/`](fe-captures/admin/); each example names its file. Anything that could not be exercised live is marked **[not live]** with the reason. |
 
@@ -15,7 +15,7 @@
 - **Some things were seeded or simulated**, because the API cannot do them yet. Each one is marked **[seeded]** or **[db-simulated]** here and has a `note` in its capture:
   - the first Super Admin and a Read-only Analyst were inserted straight into the database (in production the first Super Admin is created with `python -m scripts.create_super_admin`);
   - the 30-minute idle timeout and the 48-hour invite expiry were simulated by moving a timestamp into the past.
-- Section 12 is the table of what is verified live and what is not.
+- Section 13 is the table of what is verified live and what is not.
 
 ## 1. What this is, in the console's terms
 
@@ -481,6 +481,7 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
 | `GET /booking/ws/stats` | `dashboard.read` |
 | `GET /admin/admins`, `POST /admin/admins`, `PATCH /admin/admins/{id}`, `POST /admin/admins/{id}/reset-mfa` | `admins.manage` |
 | `GET /admin/audit` | `audit.read` |
+| `GET /admin/bookings...`, `POST /admin/bookings/{id}/...` | see section 12.1 |
 
 **Routes shared with the apps.** These six existing routes serve patients and caregivers as before, and **also accept an admin token** that holds the permission. For an admin they skip the "is this your own booking/record" check:
 
@@ -858,7 +859,817 @@ Trimmed to the first entry of `items` (the page has three; the real response is 
 
 Actions this package writes: `admin.invite`, `admin.invite_accepted`, `admin.mfa_enrolled`, `admin.login`, `admin.update`, `admin.reset_mfa`, `admin.locked`, `admin.refresh_token_reuse`. Failed sign-ins of an unknown email are not in the log (there is no admin to attribute them to). The existing caregiver actions are in the log too, now attributed to the admin account.
 
-## 12. Verification table
+## 12. Bookings operations (A2)
+
+Backend work package A2, branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops` (two nullable columns for the no-show flag). Captures `079` to `118` come from `poetry run python -m scripts.capture_admin_flow --env-file <env> --section bookings`, which replaces only these captures and leaves 001 to 078 alone. The patients, caregivers and bookings in them are **[seeded]** straight into the database (no API creates a paid booking without a live Paystack account); every request to `/admin/bookings...` is a real HTTP call. A re-run mints new ids and timestamps, so values differ between runs and mean nothing.
+
+### 12.1 What the console gets
+
+| Screen | Call |
+|---|---|
+| Bookings list with filters and search | `GET /admin/bookings` |
+| Unmatched queue | `GET /admin/bookings/unmatched` |
+| Booking detail with its timeline | `GET /admin/bookings/{id}` |
+| "Who can I assign?" picker | `GET /admin/bookings/{id}/candidates` |
+| Actions | `POST /admin/bookings/{id}/` `redispatch`, `assign`, `reassign`, `cancel`, `confirm-address`, `no-show`, `correct-status` |
+
+| Route | Permission | Held by (besides Super Admin) |
+|---|---|---|
+| `GET /admin/bookings`, `GET /admin/bookings/unmatched`, `GET /admin/bookings/{id}` | `bookings.read` | Operations, Finance, Support, Clinical Reviewer |
+| `GET .../candidates`, `POST .../assign`, `POST .../reassign` | `bookings.assign` | Operations |
+| `POST .../redispatch`, `POST .../no-show` | `bookings.dispatch` | Operations |
+| `POST .../cancel` | `bookings.cancel` | Operations |
+| `POST .../confirm-address` | `bookings.address` | Operations |
+| `POST .../correct-status` | `bookings.correct_status` | nobody else |
+
+Do not hard-code that table in the console. **Read `available_actions` from the detail** (12.4): it already combines the admin's permissions with the booking's state.
+
+Two permissions change what a response *contains* rather than whether it is allowed:
+
+| Permission | Without it |
+|---|---|
+| `people.pii` | patient and caregiver `full_name` and `phone` are shortened (`"Chidi E."`, `"+234****2003"`) and `masked` is `true` |
+| `bookings.address` | the detail's `address` has only `city` and `state`; `line`, `latitude` and `longitude` are `null` and `visible` is `false` |
+| `clinical.read` | the condition and special instructions are never sent (12.4) |
+
+### 12.2 The list: `GET /admin/bookings`
+
+Query parameters, all optional: `q` (booking code; with `people.pii` also patient or caregiver name and phone in any format; without it only the booking code is searched, so masked values cannot be confirmed by guessing; `%` and `_` are literal), `status`, `payment_status`, `dispatch_state`, `channel` (`app`, `whatsapp`, `admin`), `city` (case-insensitive, exact), `service_type`, `caregiver_id`, `scheduled_from` / `scheduled_to`, `created_from` / `created_to` (ISO 8601 UTC; `to` is exclusive), `needs_address_check`, `no_show` (`true`: flagged or suspected no-shows, the Attention panel), `sort` (`scheduled_date` default, `created_at`, `total_amount_kobo`), `order` (`desc` default, `asc`), `limit` (1 to 100, default 25), `offset`. Money is **integer kobo** (`total_amount_kobo`), never naira.
+
+<!-- capture: 079-bookings-list.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "c8b9e484-ec10-4339-8ccb-d53a478c9f05",
+    "booking_code": "871705FF",
+    "service_type": "nurse",
+    "scheduled_date": "2026-10-09T08:16:05.556184",
+    "scheduled_end_date": "2026-10-09T10:16:05.556184",
+    "city": "Lagos",
+    "state": "Lagos",
+    "patient": {
+      "id": "3f2eb4aa-17f3-4af2-9086-f2b4971d9d3f",
+      "full_name": "Chidi Eze",
+      "phone": "+2340000780003",
+      "masked": false
+    },
+    "caregiver": null,
+    "status": "pending",
+    "payment_status": "pending",
+    "dispatch_state": null,
+    "total_amount_kobo": 5500000,
+    "channel": "app",
+    "created_at": "2026-10-06T19:36:05.554254",
+    "age_minutes": 40,
+    "needs_address_check": false,
+    "refund_required": false,
+    "no_show_flagged_at": null,
+    "no_show_suspected": false
+  }
+]
+```
+
+The wrapper around `items` is `{"items": [...], "total": N, "limit": N, "offset": N}`, the same as the caregiver queue:
+
+<!-- capture: 079-bookings-list.json response.body keys=total,limit,offset -->
+```json
+{
+  "total": 9,
+  "limit": 3,
+  "offset": 0
+}
+```
+
+The same call as Finance, who lacks `people.pii` (first item):
+
+<!-- capture: 083-bookings-list-masked.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "c8b9e484-ec10-4339-8ccb-d53a478c9f05",
+    "booking_code": "871705FF",
+    "service_type": "nurse",
+    "scheduled_date": "2026-10-09T08:16:05.556184",
+    "scheduled_end_date": "2026-10-09T10:16:05.556184",
+    "city": "Lagos",
+    "state": "Lagos",
+    "patient": {
+      "id": "3f2eb4aa-17f3-4af2-9086-f2b4971d9d3f",
+      "full_name": "Chidi E.",
+      "phone": "+234****0003",
+      "masked": true
+    },
+    "caregiver": null,
+    "status": "pending",
+    "payment_status": "pending",
+    "dispatch_state": null,
+    "total_amount_kobo": 5500000,
+    "channel": "app",
+    "created_at": "2026-10-06T19:36:05.554254",
+    "age_minutes": 40,
+    "needs_address_check": false,
+    "refund_required": false,
+    "no_show_flagged_at": null,
+    "no_show_suspected": false
+  }
+]
+```
+
+`no_show_suspected` is computed on every read: the booking is `accepted` or `en_route`, has no `actual_start_time`, and its start was more than 15 minutes ago. `no_show_flagged_at` is set only by an admin (12.6). They are independent: a flagged booking can stop being suspected once it is cancelled or reassigned.
+
+A bad enum value is a request-validation `422`, whose `detail` is a **list** (section 9):
+
+<!-- capture: 084-bookings-list-bad-status.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "literal_error",
+      "loc": [
+        "query",
+        "status"
+      ],
+      "msg": "Input should be 'pending', 'accepted', 'en_route', 'in_progress', 'completed', 'cancelled' or 'declined'",
+      "input": "nonsense",
+      "ctx": {
+        "expected": "'pending', 'accepted', 'en_route', 'in_progress', 'completed', 'cancelled' or 'declined'"
+      }
+    }
+  ]
+}
+```
+
+### 12.3 The unmatched queue: `GET /admin/bookings/unmatched`
+
+Paid bookings still waiting for a caregiver and needing a person, soonest visit first. Each item is a list item plus two fields:
+
+| `queue_reason` | Meaning |
+|---|---|
+| `address_check` | WhatsApp booking paid but held: the pin is a city-centre placeholder (`needs_address_check`). Dispatch has **not** started. Wins over the other two. |
+| `unmatched` | dispatch gave up (`dispatch_state: "unmatched"`) |
+| `sla_breached` | still `dispatching` after `UNMATCHED_SLA_MINUTES` (default 30) |
+
+`waiting_minutes` counts from when dispatch began (from creation for a held booking). Optional filter `?reason=address_check|unmatched|sla_breached`. A booking appears once, under one reason. Cancelled, unpaid and already-accepted bookings never appear.
+
+<!-- capture: 085-bookings-unmatched.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "298911c7-8ff3-470b-895b-218232595b9a",
+    "booking_code": "176803E9",
+    "service_type": "nurse",
+    "scheduled_date": "2026-10-07T01:16:05.548617",
+    "scheduled_end_date": "2026-10-07T03:16:05.548617",
+    "city": "Lagos",
+    "state": "Lagos",
+    "patient": {
+      "id": "aecb971c-aa74-42d4-9cc9-ab244b17334e",
+      "full_name": "Ada Okafor",
+      "phone": "+2340000780001",
+      "masked": false
+    },
+    "caregiver": null,
+    "status": "pending",
+    "payment_status": "paid",
+    "dispatch_state": "unmatched",
+    "total_amount_kobo": 5500000,
+    "channel": "app",
+    "created_at": "2026-10-06T19:36:05.547492",
+    "age_minutes": 40,
+    "needs_address_check": false,
+    "refund_required": false,
+    "no_show_flagged_at": null,
+    "no_show_suspected": false,
+    "queue_reason": "unmatched",
+    "waiting_minutes": 90
+  }
+]
+```
+
+### 12.4 The detail: `GET /admin/bookings/{id}`
+
+One call returns everything the detail screen needs. As Operations (address visible, condition masked):
+
+<!-- capture: 087-booking-detail-ops.json response.body -->
+```json
+{
+  "id": "298911c7-8ff3-470b-895b-218232595b9a",
+  "booking_code": "176803E9",
+  "service_type": "nurse",
+  "assistance_type": "Placeholder assistance",
+  "booking_for": "myself",
+  "duration_hours": 2,
+  "scheduled_date": "2026-10-07T01:16:05.548617",
+  "scheduled_end_date": "2026-10-07T03:16:05.548617",
+  "actual_start_time": null,
+  "actual_end_time": null,
+  "status": "pending",
+  "channel": "app",
+  "cancel_reason": null,
+  "created_at": "2026-10-06T19:36:05.547492",
+  "updated_at": "2026-10-06T20:16:05.547492",
+  "age_minutes": 40,
+  "patient": {
+    "id": "aecb971c-aa74-42d4-9cc9-ab244b17334e",
+    "full_name": "Ada Okafor",
+    "phone": "+2340000780001",
+    "masked": false
+  },
+  "caregiver": null,
+  "address": {
+    "city": "Lagos",
+    "state": "Lagos",
+    "visible": true,
+    "line": "12 Placeholder Street, Lekki",
+    "latitude": 6.4474,
+    "longitude": 3.4723,
+    "needs_address_check": false
+  },
+  "clinical": {
+    "masked": true,
+    "has_condition": true,
+    "has_special_instructions": true,
+    "condition": null,
+    "special_instructions": null
+  },
+  "price": {
+    "total_kobo": 5500000,
+    "service_fee_kobo": 5000000,
+    "platform_fee_kobo": 500000
+  },
+  "payment": {
+    "status": "paid",
+    "paystack_reference": "BKG_176803E9_72c932bc",
+    "failure_reason": null,
+    "expires_at": null,
+    "refund_required": false,
+    "refund_required_reason": null,
+    "attempts": []
+  },
+  "dispatch": {
+    "state": "unmatched",
+    "started_at": "2026-10-06T18:46:05.549313",
+    "waves": [],
+    "offers": []
+  },
+  "events": [],
+  "no_show_flagged_at": null,
+  "no_show_suspected": false,
+  "note_count": 0,
+  "timeline": [
+    {
+      "at": "2026-10-06T18:46:05.549313",
+      "kind": "dispatch_started",
+      "title": "Dispatch started",
+      "actor": "system",
+      "detail": null
+    },
+    {
+      "at": "2026-10-06T19:36:05.547492",
+      "kind": "booking_created",
+      "title": "Booking created via app",
+      "actor": "system",
+      "detail": null
+    }
+  ],
+  "available_actions": [
+    "redispatch",
+    "assign",
+    "cancel"
+  ]
+}
+```
+
+**Field-nesting traps**
+
+- `patient.phone` and `caregiver.phone` are nested **inside** `patient` / `caregiver`, together with `masked`. The patient's phone comes from the patient row or, for a phone-first WhatsApp patient, from the user row; the console never needs to know which.
+- `address` is an object. With no `bookings.address` it is `{"city", "state", "visible": false, "line": null, "latitude": null, "longitude": null, "needs_address_check"}`: **present but null, not absent**. Finance's view:
+
+<!-- capture: 089-booking-detail-finance.json response.body path=address -->
+```json
+{
+  "city": "Lagos",
+  "state": "Lagos",
+  "visible": false,
+  "line": null,
+  "latitude": null,
+  "longitude": null,
+  "needs_address_check": false
+}
+```
+
+- `caregiver` is `null` until someone accepts. `dispatch.state` is `null` for a booking never dispatched (unpaid, or held).
+- `dispatch.offers[].response` is `null` until the caregiver answers, then `accept`, `declined`, `auto_declined` (someone else took it), `booking_cancelled`, `reassigned` or `assigned_by_admin`.
+- `payment.refund_required_reason` is a free-text code: `paid_after_expiry`, `paid_after_cancellation`, `admin_cancelled_full` or `admin_cancelled_partial:<kobo>` (the amount follows the colon).
+
+**Clinical details are gated and every read is audited.** Without `clinical.read` the response says only that something exists:
+
+<!-- capture: 088-booking-detail-held-whatsapp.json response.body path=clinical -->
+```json
+{
+  "masked": true,
+  "has_condition": true,
+  "has_special_instructions": true,
+  "condition": null,
+  "special_instructions": null
+}
+```
+
+With `clinical.read` (a Clinical Reviewer here) the text comes back, and that call wrote a `booking.clinical_view` audit entry naming the fields, never the content. **Do not cache or log this response in the console, and do not poll it**: each fetch is another audit entry.
+
+<!-- capture: 090-booking-detail-clinical.json response.body path=clinical -->
+```json
+{
+  "masked": false,
+  "has_condition": true,
+  "has_special_instructions": true,
+  "condition": "Placeholder condition (typed in the WhatsApp Flow)",
+  "special_instructions": "Placeholder instructions (gate code 0000)"
+}
+```
+
+<!-- capture: 092-audit-clinical-view.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "3e16c514-650b-4e15-b13a-17c848a6dcc0",
+    "admin_user_id": "a12f9eae-56fb-493e-b610-910e72a01ad5",
+    "admin_email": "clin-7d8bc4ops@example.com",
+    "action": "booking.clinical_view",
+    "entity_type": "booking",
+    "entity_id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+    "before": null,
+    "after": {
+      "fields": [
+        "condition",
+        "special_instructions"
+      ]
+    },
+    "reason": null,
+    "ip": "172.20.0.1",
+    "user_agent": "python-httpx/0.28.1",
+    "created_at": "2026-10-06T20:16:05.711881"
+  }
+]
+```
+
+The condition of a WhatsApp booking is stored encrypted and is never returned to anyone without `clinical.read`; the caregiver's visit notes are not part of this response (only `note_count`).
+
+**`timeline`** is every dated thing that happened, oldest first. `kind` is one of `booking_created`, `dispatch_started`, `wave_sent`, `offer_response`, `notification_queued`, `notification_delivered`, `visit_started`, `visit_completed`, `admin_action`. For `admin_action`, `title` is the audit action (`booking.cancel`) and `detail` is the admin's reason. A booking has no status-history table, so a status change by the caregiver or by the expiry job appears only through the fields it sets (`visit_started`, `visit_completed`, `cancel_reason`), not as its own entry. The timeline after confirming an address (dispatch wave, offers, the admin action):
+
+<!-- capture: 112-booking-detail-after-confirm.json response.body path=timeline -->
+```json
+[
+  {
+    "at": "2026-10-06T19:36:05.549631",
+    "kind": "booking_created",
+    "title": "Booking created via whatsapp",
+    "actor": "system",
+    "detail": null
+  },
+  {
+    "at": "2026-10-06T20:16:05.711881",
+    "kind": "admin_action",
+    "title": "booking.clinical_view",
+    "actor": "admin: Placeholder clinical_reviewer",
+    "detail": null
+  },
+  {
+    "at": "2026-10-06T20:16:05.881099",
+    "kind": "dispatch_started",
+    "title": "Dispatch started",
+    "actor": "system",
+    "detail": null
+  },
+  {
+    "at": "2026-10-06T20:16:05.881099",
+    "kind": "wave_sent",
+    "title": "Wave 1 sent",
+    "actor": "system",
+    "detail": "2 caregiver(s) offered the visit"
+  },
+  {
+    "at": "2026-10-06T20:16:05.881938",
+    "kind": "admin_action",
+    "title": "booking.confirm_address",
+    "actor": "admin: Placeholder operations",
+    "detail": "Called the booker and confirmed the street"
+  }
+]
+```
+
+**`available_actions`** lists what this admin can do to this booking right now: any of `redispatch`, `assign`, `force_assign`, `reassign`, `cancel`, `confirm_address`, `flag_no_show`, `correct_status`. Show exactly those buttons. (`force_assign` is the Super Admin's switch on the assign dialog.) A role with no permission, or a booking in a final state, gets `[]`.
+
+`404` for an unknown id: 
+
+<!-- capture: 091-booking-detail-not-found.json response.body -->
+```json
+{
+  "detail": "Booking not found"
+}
+```
+
+### 12.5 Actions: the rules they share
+
+- **Every action needs a `reason`** (1 to 2000 characters, not blank). Missing or blank is a request-validation `422` (`detail` is a list); the booking is untouched.
+- **Every action writes one audit entry** in the same transaction as the change, with the booking's before and after snapshot and the reason (12.7).
+- **Every action returns the same small object** (what changed; refetch the detail for the rest) with `notified_caregivers` counting caregivers offered the visit (re-dispatch, assign offer, confirm-address):
+- **Errors.** `404` unknown booking or caregiver (string `detail`). `409` the booking is not in a state that allows it (string `detail`, exact wording below; **always show it to the admin**, it says what to do). `403` `Access denied. Missing permission: <permission>` as in section 2, or `Only a Super Admin can force an assignment`. `422` for invalid input.
+- **Two admins at once:** the second one gets a `409` describing the state the first one left. Refetch the detail.
+- **No action moves money.** Cancelling flags the booking for the refund queue; nothing is refunded until that queue (a later work package) acts.
+
+<!-- capture: 096-redispatch.json response.body -->
+```json
+{
+  "id": "298911c7-8ff3-470b-895b-218232595b9a",
+  "booking_code": "176803E9",
+  "status": "pending",
+  "payment_status": "paid",
+  "dispatch_state": "dispatching",
+  "caregiver_id": null,
+  "needs_address_check": false,
+  "refund_required": false,
+  "refund_required_reason": null,
+  "no_show_flagged_at": null,
+  "notified_caregivers": 2
+}
+```
+
+### 12.6 The actions
+
+**Re-dispatch** `POST /admin/bookings/{id}/redispatch` (`bookings.dispatch`). Body `{"reason", "radius_km"?, "include_previously_notified"?}`. For a paid, pending booking with no caregiver and no address hold: restarts dispatch with a new wave. `radius_km` (1 to 100) widens the search for that wave only; `include_previously_notified: true` offers it again to caregivers an earlier wave already notified. If nobody is eligible the call still succeeds with `notified_caregivers: 0` and `dispatch_state: "unmatched"`, and the attempt is audited. Show that as "no one available", not as an error.
+
+<!-- capture: 094-redispatch-no-reason.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "reason"
+      ],
+      "msg": "Field required",
+      "input": {}
+    }
+  ]
+}
+```
+
+<!-- capture: 095-redispatch-held.json response.body -->
+```json
+{
+  "detail": "Confirm the address first: the pin is a city-centre placeholder"
+}
+```
+
+**Candidates** `GET /admin/bookings/{id}/candidates?radius_km=` (`bookings.assign`): approved, available, skilled caregivers near the patient with a recent location, best match first. The caregiver's name is not masked here (they are staff of the platform, not patients).
+
+<!-- capture: 093-booking-candidates.json response.body -->
+```json
+{
+  "items": [
+    {
+      "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+      "full_name": "Placeholder Nurse One",
+      "specialization": "nurse",
+      "distance_km": 0.22,
+      "estimated_arrival_minutes": 5,
+      "match_score": 232.56
+    },
+    {
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "full_name": "Placeholder Nurse Two",
+      "specialization": "nurse",
+      "distance_km": 0.44,
+      "estimated_arrival_minutes": 5,
+      "match_score": 232.12
+    }
+  ]
+}
+```
+
+**Assign** `POST /admin/bookings/{id}/assign` (`bookings.assign`). Body `{"caregiver_id", "reason", "force"?}`. Only for a paid, pending booking with no caregiver. The caregiver must be **approved** (`409` `Caregiver is not approved`).
+
+- **Offer (default).** The visit is offered to that one caregiver, who gets a push and must still accept in the app. The booking **stays `pending`** and keeps dispatching; poll the detail to see the accept. The response shows `notified_caregivers: 1`.
+
+<!-- capture: 097-assign-offer.json response.body -->
+```json
+{
+  "id": "9840bf70-56cd-4786-8a1c-bd7d5628697e",
+  "booking_code": "49E0EF92",
+  "status": "pending",
+  "payment_status": "paid",
+  "dispatch_state": "dispatching",
+  "caregiver_id": null,
+  "needs_address_check": false,
+  "refund_required": false,
+  "refund_required_reason": null,
+  "no_show_flagged_at": null,
+  "notified_caregivers": 1
+}
+```
+
+<!-- capture: 098-assign-unapproved.json response.body -->
+```json
+{
+  "detail": "Caregiver is not approved"
+}
+```
+
+- **Force (`"force": true`, Super Admin only).** No accept step: the booking becomes `accepted` for that caregiver at once, a visit code is generated, every other open offer is closed, and the caregiver is told. Anyone else gets `403`:
+
+<!-- capture: 099-assign-force-as-ops.json response.body -->
+```json
+{
+  "detail": "Only a Super Admin can force an assignment"
+}
+```
+
+<!-- capture: 100-assign-force.json response.body -->
+```json
+{
+  "id": "7b87dae5-da81-48e1-b472-3a93ee299227",
+  "booking_code": "20EB3DF4",
+  "status": "accepted",
+  "payment_status": "paid",
+  "dispatch_state": "matched",
+  "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+  "needs_address_check": false,
+  "refund_required": false,
+  "refund_required_reason": null,
+  "no_show_flagged_at": null,
+  "notified_caregivers": 0
+}
+```
+
+- **A booking someone accepted in the meantime is a `409`, never a silent reassignment.** This is the race between an admin and a caregiver pressing accept: exactly one wins, and the loser sees:
+
+<!-- capture: 103-assign-on-accepted-booking.json response.body -->
+```json
+{
+  "detail": "Only a pending booking without a caregiver can be offered"
+}
+```
+
+**Reassign** `POST /admin/bookings/{id}/reassign` (`bookings.assign`). Body `{"caregiver_id", "reason"}`. For an `accepted` or `en_route` booking that has not started. The new caregiver is assigned directly and told, the old one is told the visit was reassigned, the status goes back to `accepted`, and a no-show flag is cleared. The patient's visit code is kept.
+
+<!-- capture: 102-reassign.json response.body -->
+```json
+{
+  "id": "db418452-c9a7-4da5-9f36-60b2c14ff241",
+  "booking_code": "9B7F0978",
+  "status": "accepted",
+  "payment_status": "paid",
+  "dispatch_state": "matched",
+  "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+  "needs_address_check": false,
+  "refund_required": false,
+  "refund_required_reason": null,
+  "no_show_flagged_at": null,
+  "notified_caregivers": 0
+}
+```
+
+<!-- capture: 101-reassign-same-caregiver.json response.body -->
+```json
+{
+  "detail": "The booking is already assigned to this caregiver"
+}
+```
+
+**Cancel** `POST /admin/bookings/{id}/cancel` (`bookings.cancel`). Body `{"reason_code", "reason", "refund", "refund_amount_kobo"?}`.
+
+| Field | Values |
+|---|---|
+| `reason_code` | `patient_request`, `no_supply`, `caregiver_no_show`, `safety`, `duplicate`, `other` (stored in `cancel_reason`) |
+| `refund` | `full`, `partial` (needs `refund_amount_kobo`, greater than 0 and less than the amount paid) or `none` |
+
+Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid booking is a `422`. The response of a full-refund cancel of a paid WhatsApp booking:
+
+<!-- capture: 105-cancel.json response.body -->
+```json
+{
+  "id": "195e0918-821a-45dc-a0c2-5a9d30182b95",
+  "booking_code": "5939F55D",
+  "status": "cancelled",
+  "payment_status": "paid",
+  "dispatch_state": "dispatching",
+  "caregiver_id": null,
+  "needs_address_check": false,
+  "refund_required": true,
+  "refund_required_reason": "admin_cancelled_full",
+  "no_show_flagged_at": null,
+  "notified_caregivers": 0
+}
+```
+
+<!-- capture: 104-cancel-partial-no-amount.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, refund_amount_kobo is required for a partial refund",
+      "input": {
+        "reason_code": "patient_request",
+        "reason": "Patient called",
+        "refund": "partial"
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 106-cancel-again.json response.body -->
+```json
+{
+  "detail": "A cancelled booking cannot be cancelled"
+}
+```
+
+<!-- capture: 107-cancel-unpaid-with-refund.json response.body -->
+```json
+{
+  "detail": "Nothing to refund: the booking has not been paid for"
+}
+```
+
+**UX the console must surface**
+
+- **Cancelling does not refund.** `refund_required` becomes `true`; the booking's `payment_status` stays `paid`. Say "refund requested", never "refunded".
+- A WhatsApp booker is told "a refund is coming" when a refund was chosen. **A cancel with `refund: none` sends the patient no cancellation message yet** (there is no event for it; follow-up). Tell the admin to contact the patient.
+- A caregiver who had accepted gets a notification and a push; unanswered offers to other caregivers are closed.
+
+**Confirm address** `POST /admin/bookings/{id}/confirm-address` (`bookings.address`). Body `{"reason", "latitude", "longitude", "address"?}`. For a booking with `needs_address_check` (a WhatsApp booking with no map pin: its coordinates are a city-centre placeholder, so it was **paid but not dispatched**). Clears the hold, saves the coordinates (and the street address if given) and **starts dispatch in the same call**; `notified_caregivers` is the first wave's size. The coordinates must be inside a rough box around Nigeria (latitude 3.5 to 14, longitude 2.5 to 15), so a swapped pair is a `422`. On a booking that is not yet paid it only clears the flag.
+
+<!-- capture: 109-confirm-address-outside-nigeria.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, latitude/longitude are outside Nigeria; check they are not swapped",
+      "input": {
+        "reason": "Typo",
+        "latitude": 51.5,
+        "longitude": -0.12
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 110-confirm-address.json response.body -->
+```json
+{
+  "id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+  "booking_code": "06C5304A",
+  "status": "pending",
+  "payment_status": "paid",
+  "dispatch_state": "dispatching",
+  "caregiver_id": null,
+  "needs_address_check": false,
+  "refund_required": false,
+  "refund_required_reason": null,
+  "no_show_flagged_at": null,
+  "notified_caregivers": 2
+}
+```
+
+<!-- capture: 111-confirm-address-again.json response.body -->
+```json
+{
+  "detail": "This booking does not need an address check"
+}
+```
+
+**No-show** `POST /admin/bookings/{id}/no-show` (`bookings.dispatch`). Body `{"reason"}`. Flags an `accepted` or `en_route` booking whose start time has passed and which has not started. It does **not** cancel or reassign: it sets `no_show_flagged_at` so the Attention panel and the audit log have a record, and the admin then reassigns or cancels. A second flag is a `409`.
+
+<!-- capture: 113-no-show.json response.body -->
+```json
+{
+  "id": "8d27d2d6-3ab0-4fc5-a9c5-6d4fbe0fa88b",
+  "booking_code": "5F02D072",
+  "status": "accepted",
+  "payment_status": "paid",
+  "dispatch_state": "matched",
+  "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+  "needs_address_check": false,
+  "refund_required": false,
+  "refund_required_reason": null,
+  "no_show_flagged_at": "2026-10-06T20:16:05.907604",
+  "notified_caregivers": 0
+}
+```
+
+<!-- capture: 114-no-show-again.json response.body -->
+```json
+{
+  "detail": "Already flagged as a no-show"
+}
+```
+
+**Correct status** `POST /admin/bookings/{id}/correct-status` (`bookings.correct_status`, Super Admin only). Body `{"status": "en_route" | "in_progress" | "completed", "reason"}`. Moves forward only: `accepted` to any of the three, `en_route` to `in_progress` or `completed`, `in_progress` to `completed`. It sets the same timestamps the caregiver's own start and complete set (`actual_start_time` when missing, `actual_end_time` on completion). Crediting the caregiver's earnings and the feedback request are not built yet (A3 and later); when they ship they hook onto this transition. Cancelling is not a correction: use cancel, which asks for the refund choice (`422` otherwise).
+
+<!-- capture: 115-correct-status-as-ops.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: bookings.correct_status"
+}
+```
+
+<!-- capture: 116-correct-status.json response.body -->
+```json
+{
+  "id": "5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905",
+  "booking_code": "224AF65E",
+  "status": "completed",
+  "payment_status": "paid",
+  "dispatch_state": "matched",
+  "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+  "needs_address_check": false,
+  "refund_required": false,
+  "refund_required_reason": null,
+  "no_show_flagged_at": null,
+  "notified_caregivers": 0
+}
+```
+
+<!-- capture: 117-correct-status-again.json response.body -->
+```json
+{
+  "detail": "A completed booking cannot be corrected to completed"
+}
+```
+
+### 12.7 The audit trail of these actions
+
+Every action above and every clinical read is in `GET /admin/audit` (section 11), filterable with `entity_type=booking` and `action=booking.<name>`. Actions: `booking.redispatch`, `booking.assign`, `booking.force_assign`, `booking.reassign`, `booking.cancel`, `booking.confirm_address`, `booking.flag_no_show`, `booking.correct_status`, `booking.clinical_view`. The newest entry from the capture run:
+
+<!-- capture: 118-audit-booking-actions.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "d47ba049-7ef0-4fc5-9547-ebdc1e24ba3a",
+    "admin_user_id": "64f146c8-233c-44dd-acb0-00cb2c2686b2",
+    "admin_email": "boss-7d8bc4ops@example.com",
+    "action": "booking.correct_status",
+    "entity_type": "booking",
+    "entity_id": "5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905",
+    "before": {
+      "status": "in_progress",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "cancel_reason": null,
+      "no_show_flagged_at": null
+    },
+    "after": {
+      "status": "completed",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "cancel_reason": null,
+      "no_show_flagged_at": null
+    },
+    "reason": "Caregiver forgot to check out",
+    "ip": "172.20.0.1",
+    "user_agent": "python-httpx/0.28.1",
+    "created_at": "2026-10-06T20:16:05.933118"
+  }
+]
+```
+
+### 12.8 Booking status: who can move it
+
+| Status | How it gets here | Admin can |
+|---|---|---|
+| `pending` | created; paid or not | cancel; if paid and not held: re-dispatch, assign (offer or force); if held: confirm address |
+| `accepted` | a caregiver accepted, or an admin forced the assignment | reassign, cancel, flag no-show, correct status |
+| `en_route` | caregiver pressed "on my way" | the same as `accepted` |
+| `in_progress` | visit started with the visit code | correct status to `completed` |
+| `completed`, `cancelled`, `declined` | final | nothing |
+
+## 13. Verification table
 
 "Live" means a request/response was captured from the running docker stack (the capture number is given). "Test only" means covered by pytest but not captured. "Not live" means neither could be exercised end to end; the shape or behaviour comes from the named source.
 
@@ -899,9 +1710,35 @@ Actions this package writes: `admin.invite`, `admin.invite_accepted`, `admin.mfa
 | Two Super Admins removing each other at once | Test only | concurrency test in `test_admin_users.py` |
 | Two simultaneous submissions of one code | Test only | `test_admin_auth.py` |
 | `403` for a missing permission | Verified live | 040, 041, 043 |
-| Every admin route against every role | Test only | `test_admin_rbac.py` (about 40 routes, 7 roles) |
+| Every admin route against every role | Test only | `test_admin_rbac.py` (about 50 routes, 7 roles) |
 | Shared routes (booking detail, document file, prescriptions) with an admin token | Test only | `test_admin_rbac.py` and the existing access tests |
 | Audit viewer, filters, paging | Verified live | 059, 060, 061 |
+| Bookings list: filters, search, `no_show`, masking without `people.pii`, bad enum `422` | Verified live | 079 to 084 |
+| Date-range filters, sort, pagination, search by phone in each format, LIKE-wildcard escaping | Test only | `test_admin_bookings.py` |
+| Unmatched queue and the `reason` filter | Verified live | 085, 086 |
+| `sla_breached` reason, ordering, exclusions (cancelled, unpaid, accepted), no double counting | Test only | `test_admin_bookings.py` (the live run seeded no booking past the SLA) |
+| Booking detail as Operations, Finance, Clinical Reviewer; `404` | Verified live | 087 to 091 |
+| Clinical read audited; masked reads leave no audit entry | Verified live / Test only | 090, 092 live; "no entry when masked" and the plain-text `condition` path are tests |
+| Payment attempts (`payment.attempts`) | Test only | the capture stack has no wallet transaction for a booking, so `attempts` is `[]` in every capture |
+| Notifications and the outbox (`events`, `notification_*` timeline entries) | Test only | `test_admin_bookings.py`; no worker runs in the capture stack, so nothing was queued or delivered live |
+| Candidates | Verified live | 093 |
+| Re-dispatch: reason required, held `409`, success | Verified live | 094, 095, 096 |
+| Re-dispatch with nobody eligible, wider radius, re-offer to earlier caregivers | Test only | `test_admin_bookings.py` |
+| Assign offer, unapproved caregiver `409`, force as non-Super-Admin `403`, force | Verified live | 097, 098, 099, 100 |
+| Caregiver then accepting an offered booking; admin force-assign racing a caregiver accept (exactly one wins) | Test only | `test_admin_bookings.py` (real threads, real row locks) |
+| Reassign, same-caregiver `409`, assign on an accepted booking `409` | Verified live | 101, 102, 103 |
+| Push notifications to caregivers on assign, reassign, cancel | Test only | fake Expo in `test_admin_bookings.py`; no push token exists in the capture stack |
+| Cancel: full refund, partial without amount, again, unpaid with refund, unpaid | Verified live | 104 to 108 |
+| Cancel partial with an amount, `refund: none`, closing open offers, notifying the caregiver | Test only | `test_admin_bookings.py` |
+| Confirm address: outside Nigeria `422`, success starts dispatch, again `409`, timeline after | Verified live | 109 to 112 |
+| No-show flag and again | Verified live | 113, 114 |
+| No-show preconditions (not due yet, not accepted, already started) | Test only | `test_admin_bookings.py` |
+| Correct status: as Operations `403`, as Super Admin, again `409` | Verified live | 115, 116, 117 |
+| Impossible status moves | Test only | `test_admin_bookings.py` |
+| Every action's audit entry | Verified live (one) / Test only (all) | 118; each action's own entry is asserted in `test_admin_bookings.py` |
+| Every `/admin/bookings` route against every role | Test only | `test_admin_rbac.py` |
+| The patients, caregivers and bookings used | **[seeded]** | 079 note |
+| WhatsApp patient told of a refund after an admin cancel | Test only | the `payment_refund_pending` event is asserted; delivery needs the WhatsApp worker and Meta (W3) |
 | First Super Admin and the Analyst in these captures | **[seeded]** | 004, 043 notes |
 | `Retry-After` readable from the browser (CORS) | **[not live]** | The API exposes the header, but the capture stack has no allowed origin and no browser was used; check it once the console runs |
 | A real authenticator app scanning the QR code | **[not live]** | the captures generate codes with the same TOTP algorithm (`pyotp`), which is what authenticator apps implement |

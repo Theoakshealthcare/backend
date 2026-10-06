@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905/correct-status",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "status": "completed",
+      "reason": "Caregiver forgot to check out"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905",
+      "booking_code": "224AF65E",
+      "status": "completed",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  }
+}

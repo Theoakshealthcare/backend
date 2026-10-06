@@ -1,0 +1,97 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/bookings/b316785e-b27a-44c6-85bd-3246c2ea9648",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+      "booking_code": "06C5304A",
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "booking_for": "myself",
+      "duration_hours": 2,
+      "scheduled_date": "2026-10-08T02:16:05.551407",
+      "scheduled_end_date": "2026-10-08T04:16:05.551407",
+      "actual_start_time": null,
+      "actual_end_time": null,
+      "status": "pending",
+      "channel": "whatsapp",
+      "cancel_reason": null,
+      "created_at": "2026-10-06T19:36:05.549631",
+      "updated_at": "2026-10-06T20:16:05.549631",
+      "age_minutes": 40,
+      "patient": {
+        "id": "3c4bb293-6fc0-49a2-94af-82198d8605d0",
+        "full_name": "Bola A.",
+        "phone": "+234****0002",
+        "masked": true
+      },
+      "caregiver": null,
+      "address": {
+        "city": "Lagos",
+        "state": "Lagos",
+        "visible": false,
+        "line": null,
+        "latitude": null,
+        "longitude": null,
+        "needs_address_check": true
+      },
+      "clinical": {
+        "masked": false,
+        "has_condition": true,
+        "has_special_instructions": true,
+        "condition": "Placeholder condition (typed in the WhatsApp Flow)",
+        "special_instructions": "Placeholder instructions (gate code 0000)"
+      },
+      "price": {
+        "total_kobo": 5500000,
+        "service_fee_kobo": 5000000,
+        "platform_fee_kobo": 500000
+      },
+      "payment": {
+        "status": "paid",
+        "paystack_reference": "BKG_06C5304A_d309d1b3",
+        "failure_reason": null,
+        "expires_at": null,
+        "refund_required": false,
+        "refund_required_reason": null,
+        "attempts": []
+      },
+      "dispatch": {
+        "state": null,
+        "started_at": null,
+        "waves": [],
+        "offers": []
+      },
+      "events": [],
+      "no_show_flagged_at": null,
+      "no_show_suspected": false,
+      "note_count": 0,
+      "timeline": [
+        {
+          "at": "2026-10-06T19:36:05.549631",
+          "kind": "booking_created",
+          "title": "Booking created via whatsapp",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-10-06T20:16:05.711881",
+          "kind": "admin_action",
+          "title": "booking.clinical_view",
+          "actor": "admin: Placeholder clinical_reviewer",
+          "detail": null
+        }
+      ],
+      "available_actions": []
+    }
+  },
+  "note": "Clinical Reviewer: the decrypted condition is returned and this read is written to the audit log."
+}

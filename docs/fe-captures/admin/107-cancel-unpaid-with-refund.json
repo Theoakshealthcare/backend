@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/c8b9e484-ec10-4339-8ccb-d53a478c9f05/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason_code": "duplicate",
+      "reason": "Duplicate booking",
+      "refund": "full"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Nothing to refund: the booking has not been paid for"
+    }
+  }
+}

@@ -241,7 +241,10 @@ class AdminBookingService:
             "no_show_suspected": no_show_suspected(b, now),
         }
 
-    def _search_filter(self, q: str):
+    def _search_filter(self, q: str, pii: bool):
+        if not pii:
+            # Searching by name or phone would let a role that only sees masked values confirm who they are.
+            return Booking.booking_code.icontains(q, autoescape=True)
         like = [
             Booking.booking_code.icontains(q, autoescape=True),
             Patient.full_name.icontains(q, autoescape=True),
@@ -265,7 +268,7 @@ class AdminBookingService:
         now = datetime.utcnow()
         query = self._base_query()
         if q and q.strip():
-            query = query.filter(self._search_filter(q.strip()))
+            query = query.filter(self._search_filter(q.strip(), "people.pii" in admin.permissions))
         if status:
             query = query.filter(Booking.status == BookingStatus(status))
         if payment_status:
@@ -553,7 +556,10 @@ class AdminBookingService:
     def _notify_caregiver(self, booking: Booking, caregiver_id: UUID, title: str, message: str,
                           kind: str = "booking_update") -> None:
         self.db.add(BookingNotification(
-            booking_id=booking.id, caregiver_id=caregiver_id, title=title, message=message, notification_type=kind))
+            booking_id=booking.id, caregiver_id=caregiver_id, title=title, message=message, notification_type=kind,
+            # Informational: a non-null response keeps it out of the caregiver app's "new requests" list, which
+            # is every booking with an unanswered notification of any type.
+            response="info" if kind != "new_booking" else None))
 
     def _push_caregivers(self, notices: List[Tuple[UUID, str, str, str, UUID]]) -> None:
         """(caregiver_id, title, body, type, booking_id) after the commit. The payload names the booking only:

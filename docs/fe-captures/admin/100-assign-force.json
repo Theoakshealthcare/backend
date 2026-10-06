@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/7b87dae5-da81-48e1-b472-3a93ee299227/assign",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "reason": "Patient is waiting",
+      "force": true
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "7b87dae5-da81-48e1-b472-3a93ee299227",
+      "booking_code": "20EB3DF4",
+      "status": "accepted",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  },
+  "note": "Super Admin only: no accept step. The booking is accepted and the caregiver is told."
+}

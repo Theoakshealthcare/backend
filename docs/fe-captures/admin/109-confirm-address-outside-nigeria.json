@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/b316785e-b27a-44c6-85bd-3246c2ea9648/confirm-address",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Typo",
+      "latitude": 51.5,
+      "longitude": -0.12
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, latitude/longitude are outside Nigeria; check they are not swapped",
+          "input": {
+            "reason": "Typo",
+            "latitude": 51.5,
+            "longitude": -0.12
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  }
+}
