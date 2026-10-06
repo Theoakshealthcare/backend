@@ -23,7 +23,7 @@ from app.services.location import LocationService
 from app.services.notification_service import NotificationService
 from app.services.gemini import gemini_service
 from app.services.paystack import PaystackService, paystack_email_for
-from app.services.pricing import PriceBreakdown, compute_price
+from app.services.pricing import PriceBreakdown, compute_price, service_multiplier
 # aliased: `settings` is shadowed by BookingSettings locals in this module's methods
 from app.core.config import settings as app_settings
 from app.core.money import kobo_to_naira
@@ -79,9 +79,7 @@ class BookingService:
             raise Exception("Booking settings not configured.")
         
         # Price in kobo (single source of truth shared with create_booking)
-        multiplier = 1.0
-        if settings.multipliers and preview_data.service_type in settings.multipliers:
-            multiplier = settings.multipliers[preview_data.service_type]
+        multiplier = service_multiplier(settings, preview_data.service_type, channel="app")
         surge_active = bool(settings.surge_pricing and settings.surge_multiplier)
         price = compute_price(
             base_fee_kobo=settings.base_fee_kobo,
@@ -183,9 +181,7 @@ class BookingService:
 
             # Price in kobo. What we store is exactly what we send to Paystack and what settlement
             # later compares against.
-            multiplier = 1.0
-            if settings.multipliers and booking_data.service_type in settings.multipliers:
-                multiplier = settings.multipliers[booking_data.service_type]
+            multiplier = service_multiplier(settings, booking_data.service_type, channel="app")
             price = compute_price(
                 base_fee_kobo=settings.base_fee_kobo,
                 quantity=booking_data.duration_hours,

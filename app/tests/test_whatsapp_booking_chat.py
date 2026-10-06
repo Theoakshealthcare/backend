@@ -281,9 +281,24 @@ def test_after_a_price_change_a_new_quote_uses_the_new_price(db, chat, client, b
     assert "₦88,000" in reply_text(sent[0])
 
 
-def test_a_service_without_a_multiplier_is_refused_at_quote_time_and_a_person_follows_up(db, chat, client, booking_env):
+def test_a_service_without_a_multiplier_is_quoted_at_the_default_like_the_app_does(db, chat, client, booking_env):
     start(chat, client, booking_env)
     booking_env.prices.multipliers = {"caregiver": 0.8}  # the nurse rate is removed between Flow and pin
+    db.commit()
+    sent = pin(chat)
+    quote = the_quote(db)
+    assert chat.state == "quoted" and quote.status == "quoted" and "₦44,000" in reply_text(sent[0])
+    preview = BookingService(db).calculate_booking_preview(BookingPreviewRequest(
+        service_type="nurse", duration_hours=4, patient_latitude=None, patient_longitude=None))
+    assert preview.service_multiplier == 1.0
+    assert quote.total_kobo == round(preview.total_amount * 100)  # no divergence between the channels
+    assert db.query(SupportConversation).filter_by(reason="booking_placeholder").count() == 0
+
+
+def test_with_no_price_settings_at_all_the_quote_is_refused_and_a_person_follows_up(db, chat, client, booking_env):
+    start(chat, client, booking_env)
+    from app.db.models.booking_settings import BookingSettings
+    db.query(BookingSettings).delete()
     db.commit()
     sent = pin(chat)
     assert chat.state == "human" and "can't price" in reply_text(sent[0])

@@ -7,7 +7,7 @@ import pytest
 
 from app.channels.whatsapp import booking_rules as rules
 from app.core.config import settings
-from app.services.pricing import MissingMultiplier, compute_price, explicit_multiplier, offered_services, price_service
+from app.services.pricing import DEFAULT_MULTIPLIER, compute_price, price_service, service_multiplier
 
 # 2026-10-06 12:00 UTC = 13:00 in Lagos
 NOW = datetime(2026, 10, 6, 12, 0, 0)
@@ -20,7 +20,7 @@ def prices(**kw):
     return SimpleNamespace(**base)
 
 
-# --- pricing: strict about the multiplier, otherwise the same function --------------------------------
+# --- pricing: one multiplier lookup, defaulting to 1.0, shared by both channels ---------------------
 def test_an_explicit_multiplier_prices_like_compute_price():
     got = price_service(prices(), "nurse", 4)
     assert got == compute_price(base_fee_kobo=1_000_000, quantity=4, multiplier=1.0, platform_fee_percent=10.0)
@@ -29,17 +29,30 @@ def test_an_explicit_multiplier_prices_like_compute_price():
 
 @pytest.mark.parametrize("multipliers", [None, {}, {"caregiver": 0.8}, {"nurse": None}, {"nurse": 0}, {"nurse": -1},
                                          {"nurse": "1.0"}, {"nurse": True}])
-def test_a_missing_or_unusable_multiplier_is_refused_not_defaulted_to_one(multipliers):
-    with pytest.raises(MissingMultiplier):
-        explicit_multiplier(prices(multipliers=multipliers), "nurse")
-    with pytest.raises(MissingMultiplier):
-        price_service(prices(multipliers=multipliers), "nurse", 2)
+def test_a_missing_or_unusable_multiplier_defaults_to_one_in_both_channels(multipliers, caplog):
+    row = prices(multipliers=multipliers)
+    with caplog.at_level("WARNING", logger="app.services.pricing"):
+        assert service_multiplier(row, "nurse") == DEFAULT_MULTIPLIER == 1.0
+    assert price_service(row, "nurse", 2) == compute_price(base_fee_kobo=1_000_000, quantity=2, multiplier=1.0,
+                                                           platform_fee_percent=10.0)
 
 
-def test_offered_services_are_only_those_with_an_explicit_multiplier_in_the_given_order():
-    row = prices(multipliers={"doctor": 2.0, "nurse": 1.0})
-    assert offered_services(row, ("nurse", "caregiver", "physiotherapist", "doctor")) == ["nurse", "doctor"]
-    assert offered_services(prices(multipliers=None), ("nurse",)) == []
+def test_using_the_default_is_flagged_for_ops_without_personal_data(caplog):
+    with caplog.at_level("WARNING", logger="app.services.pricing"):
+        service_multiplier(prices(multipliers={}), "nurse", channel="whatsapp")
+    lines = [r.getMessage() for r in caplog.records if r.name == "app.services.pricing"]
+    assert len(lines) == 1 and "service=nurse" in lines[0] and "channel=whatsapp" in lines[0]
+
+
+def test_a_configured_multiplier_is_used_and_not_flagged(caplog):
+    with caplog.at_level("WARNING", logger="app.services.pricing"):
+        assert service_multiplier(prices(), "caregiver") == 0.8
+    assert not [r for r in caplog.records if r.name == "app.services.pricing"]
+
+
+def test_every_candidate_service_is_priceable_with_no_multipliers_configured():
+    row = prices(multipliers=None)
+    assert [price_service(row, s, 1).total_kobo for s in rules.SERVICE_ORDER] == [1_100_000] * len(rules.SERVICE_ORDER)
 
 
 def test_surge_and_discount_follow_the_same_rules_as_the_app():
@@ -118,3 +131,24 @@ def test_naira_formatting(kobo, text):
 def test_when_is_shown_in_lagos_time_with_the_end_of_the_visit():
     assert rules.format_when(datetime(2026, 10, 4, 9, 0), 4) == "Sun 4 Oct, 10:00–14:00"
     assert rules.format_when(datetime(2026, 10, 4, 21, 0), 4) == "Sun 4 Oct, 22:00–02:00"
+
+
+@pytest.mark.parametrize("value", [10.01, 25, 1e9, float("inf")])
+def test_an_absurd_multiplier_falls_back_to_the_default_with_a_warning(value, caplog):
+    with caplog.at_level("WARNING", logger="app.services.pricing"):
+        assert service_multiplier(prices(multipliers={"nurse": value}), "nurse") == 1.0
+    assert [r for r in caplog.records if r.name == "app.services.pricing"]
+
+
+def test_a_multiplier_of_exactly_ten_is_allowed():
+    assert service_multiplier(prices(multipliers={"nurse": 10}), "nurse") == 10
+
+
+@pytest.mark.parametrize("city,spelling,ok", [
+    ("Lagos", "Lagos", True), ("Lagos", "Lagos State", True), ("Lagos", " lagos ", True),
+    ("Lagos", "Ogun State", False), ("Lagos", None, False), ("Lagos", "", False),
+    ("Abuja", "Federal Capital Territory", True), ("Abuja", "FCT", True), ("Abuja", "Abuja Federal Capital Territory", True),
+    ("Abuja", "Nasarawa State", False), ("Abuja", "Niger State", False), ("Kano", "Kano", False),
+])
+def test_the_reported_state_must_match_the_served_city(city, spelling, ok):
+    assert rules.state_matches(city, spelling) is ok

@@ -113,6 +113,9 @@ STRINGS = {
             "Sorry, I can't price that visit right now. I'm connecting you with our team, who will reply here "
             "as soon as they can."
         ),
+        "quote_pending_body": (
+            "Sorry, we couldn't price this yet. A person from our team will follow up with you here shortly."
+        ),
         "pay_body": (
             "Tap below to pay securely with card, transfer or USSD. This link expires in {minutes} minutes."
         ),

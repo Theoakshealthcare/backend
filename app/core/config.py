@@ -186,6 +186,11 @@ class Settings(BaseSettings):
     WHATSAPP_MAX_RECIPIENTS: int = 10  # saved recipients per contact (WA-FR-17)
     WHATSAPP_PAYMENT_RETURN_URL: str = "https://www.oaklycare.com/pay/return"  # becomes the web companion in W4
 
+    # Geocoding of typed WhatsApp addresses (app/services/geocoding.py). Empty = off: a booking with no location
+    # pin keeps the city-centre placeholder and is held for an address check.
+    GOOGLE_MAPS_API_KEY: Optional[str] = None
+    GEOCODING_TIMEOUT_SECONDS: float = 3.0
+
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"
 

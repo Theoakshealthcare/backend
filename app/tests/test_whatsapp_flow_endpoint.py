@@ -10,6 +10,7 @@ from app.channels.whatsapp import booking_rules as rules
 from app.channels.whatsapp.flows import token as flow_token
 from app.core.config import settings
 from app.core.security import decrypt
+from app.db.models.booking_settings import BookingSettings
 from app.db.models.care import CareRecipient, CareRelationship
 from app.db.models.whatsapp import WhatsAppContact
 from app.db.models.whatsapp_booking import Quote
@@ -164,24 +165,32 @@ def test_a_complete_booking_for_myself(db, flow):
     assert quote.payload["city"] == "Lagos" and quote.payload["address"] == "12 Test Close, Lekki Phase 1"
 
 
-def test_services_show_the_price_per_hour_and_only_priced_services(db, flow, booking_env):
+def test_services_show_the_price_per_hour_and_an_unconfigured_service_is_offered_at_the_default(db, flow, booking_env):
     flow.call("INIT")
     _, body = flow.exchange("WHO", {"who": "self"})
     offered = {s["id"]: s["description"] for s in body["data"]["services"]}
     assert offered == {"nurse": "₦11,000 per hour", "caregiver": "₦8,800 per hour",
-                       "physiotherapist": "₦13,200 per hour", "doctor": "₦22,000 per hour"}
-    assert "nutritionist" not in offered  # no multiplier configured, so never offered
+                       "physiotherapist": "₦13,200 per hour", "doctor": "₦22,000 per hour",
+                       "nutritionist": "₦11,000 per hour"}  # no multiplier configured: the default of 1.0
 
 
-def test_a_service_without_a_multiplier_cannot_be_chosen_even_if_the_client_sends_it(flow):
+def test_a_service_we_do_not_sell_cannot_be_chosen_even_if_the_client_sends_it(flow):
     flow.call("INIT")
     flow.exchange("WHO", {"who": "self"})
-    status, body = flow.exchange("SERVICE", {"service": "nutritionist"})
+    status, body = flow.exchange("SERVICE", {"service": "surgeon"})
     assert body["screen"] == "SERVICE" and body["data"]["notice"]
 
 
-def test_a_service_row_without_any_multiplier_ends_the_flow_instead_of_an_empty_list(db, flow, booking_env):
+def test_no_multipliers_at_all_still_lists_every_service_at_the_default(db, flow, booking_env):
     booking_env.prices.multipliers = {}
+    db.commit()
+    flow.call("INIT")
+    _, body = flow.exchange("WHO", {"who": "self"})
+    assert {s["id"] for s in body["data"]["services"]} == set(rules.SERVICE_ORDER)
+
+
+def test_no_price_settings_at_all_ends_the_flow_instead_of_an_empty_list(db, flow, booking_env):
+    db.query(BookingSettings).delete()
     db.commit()
     flow.call("INIT")
     status, body = flow.exchange("WHO", {"who": "self"})
