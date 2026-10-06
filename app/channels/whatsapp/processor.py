@@ -51,6 +51,8 @@ def to_inbound(job: Dict[str, Any]) -> Inbound:
     kind = job.get("type")
     if kind == "text":
         return Inbound.text(job.get("text") or "")
+    if kind in ("image", "video", "document"):
+        return Inbound.media(job.get("text"))  # the caption, screened for emergencies only
     if kind == "interactive":
         reply_id = job.get("reply_id")
         if job.get("interactive_type") == "button_reply" and reply_id:

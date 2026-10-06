@@ -8,6 +8,7 @@ Text is normalised first: lower-cased, accents folded, apostrophes dropped (``ca
 every other symbol turned into a space.
 """
 
+import difflib
 import re
 import unicodedata
 
@@ -40,10 +41,21 @@ _EMERGENCY = _compile([
     r"vomit(?:ing|ed)? blood", r"coughing (?:up )?blood",
     r"strokes?", r"heart attack", r"cardiac arrest",
     r"suicid(?:e|al)", r"kill (?:myself|my self)", r"end my life", r"take my own life", r"want to die",
-    r"wanna die", r"harm myself",
+    r"wanna die", r"harm myself", r"hang(?:ing)? (?:myself|my self)", r"end it all", r"tired of (?:life|living)",
+    r"sniper", r"no wan live",
     r"overdos(?:e|ed|ing)", r"took too many (?:pills|tablets)", r"poison(?:ed|ing)?",
     r"chok(?:e|ed|ing)", r"snake ?bite", r"anaphyla\w*",
+    # --- gaps closed after the security review ---
+    r"shortness of breath", r"(?:difficulty|trouble) in breath(?:e|ing)?", r"breathing (?:difficulty|hard|problem)",
+    r"gasping", r"heart (?:is |dey )?(?:paining|pain|hurt|hurting)", r"chest (?:is )?(?:too |very )?tight",
+    r"tight chest",
+    r"(?:not|wont|will not|cant|cannot|doesnt|isnt|never) wak(?:e|ing) up", r"not waking", r"slump(?:ed|ing)?",
+    r"bleeding", r"bleeds", r"blood (?:is )?coming out", r"blood (?:is )?(?:flowing|pouring)",
+    r"(?:having|have|had|got) (?:a )?fits?", r"foam(?:ing)? (?:at|from|in) (?:the |his |her |my |their )?mouth",
+    r"(?:is|are|was|am) dead", r"(?:has|have) died", r"stabbed", r"accident",
     # --- Nigerian Pidgin ---
+    r"dey fit(?:ting)?(?! (?:do|pay|come|go|use|take|make|help|be|see|reach|book|wait|call|bring|send))",
+    r"i no wan live", r"no wan live again",
     r"(?:i|e|he|she|we|dem|im) no fit breath(?:e|ing)?", r"no fit breath(?:e|ing)?",
     r"breath(?:e|ing)? no dey (?:come|enter)(?: out| in)?",
     r"(?:e|he|she|im|dem) no dey breath(?:e|ing)?", r"no dey breath(?:e|ing)?",
@@ -70,8 +82,25 @@ _CLINICAL = _compile([
 ])
 
 
+# Single words that are emergencies on their own; matched with a small typo tolerance so "unconcious",
+# "siezure" and "sucide" are caught. Only longer words are fuzzed so short ordinary words are left alone.
+_FUZZY_KEYWORDS = ("unconscious", "seizure", "seizures", "suicide", "suicidal", "convulsion", "convulsions",
+                   "unresponsive", "overdose", "anaphylaxis", "haemorrhage", "hemorrhage")
+_FUZZY_MIN_LENGTH = 6
+_FUZZY_CUTOFF = 0.84
+
+
+def _fuzzy_hit(normalized: str) -> bool:
+    return any(
+        len(token) >= _FUZZY_MIN_LENGTH and difflib.get_close_matches(token, _FUZZY_KEYWORDS, n=1,
+                                                                      cutoff=_FUZZY_CUTOFF)
+        for token in normalized.split()
+    )
+
+
 def is_emergency(text: str) -> bool:
-    return bool(_EMERGENCY.search(normalize(text)))
+    normalized = normalize(text)
+    return bool(_EMERGENCY.search(normalized)) or _fuzzy_hit(normalized)
 
 
 def is_clinical_advice_request(text: str) -> bool:

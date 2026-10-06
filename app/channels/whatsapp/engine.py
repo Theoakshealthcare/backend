@@ -75,8 +75,8 @@ class Inbound:
         return cls(Kind.LOCATION)
 
     @classmethod
-    def media(cls) -> "Inbound":
-        return cls(Kind.MEDIA)
+    def media(cls, caption: Optional[str] = None) -> "Inbound":
+        return cls(Kind.MEDIA, body=caption or None)  # the caption is screened for emergencies, nothing else
 
     @classmethod
     def ignored(cls) -> "Inbound":
@@ -289,9 +289,9 @@ _HANDLERS = {
 
 
 def step(snapshot: Snapshot, inbound: Inbound, cfg: EngineConfig) -> Outcome:
+    if inbound.kind in (Kind.TEXT, Kind.MEDIA) and inbound.body and is_emergency(inbound.body):
+        return _emergency(snapshot, cfg)
     if inbound.kind == Kind.TEXT and inbound.body:
-        if is_emergency(inbound.body):
-            return _emergency(snapshot, cfg)
         keyword = normalize(inbound.body)
         if keyword in ("stop data", "stopdata"):
             return _stop_data(snapshot)

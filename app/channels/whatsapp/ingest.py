@@ -4,8 +4,8 @@ Payload format: https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks
 
 What happens here is deliberately small and fast (Meta wants a 200 quickly): parse, make sure the
 contact exists, record the inbound message id (the dedupe key) and apply status callbacks. The
-conversation logic runs later in the worker. Message text is passed to the worker inside the job and
-is never written to the database.
+conversation logic runs later in the worker. Message text (and image captions) travel to the worker through a short-lived
+Redis key (see queue.py) and are never written to the database.
 """
 
 import logging
@@ -62,59 +62,92 @@ class IngestResult:
     statuses_applied: int = 0
 
 
+def _dicts(items: Any) -> List[Dict[str, Any]]:
+    """The dict members of a list; anything else (hostile or malformed) is dropped."""
+    return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+
+
+def _dict(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _str(value: Any) -> Optional[str]:
+    return value if isinstance(value, str) else None
+
+
+def _ident(value: Any) -> Optional[str]:
+    """A Meta id / type word: short, printable. A NUL byte would make Postgres raise (a 500 and a retry storm)."""
+    return value if isinstance(value, str) and 0 < len(value) <= 256 and value.isprintable() else None
+
+
+def _name(value: Any) -> Optional[str]:
+    return value.replace("\x00", "").strip()[:200] or None if isinstance(value, str) else None
+
+
 def parse_webhook(payload: Dict[str, Any], expected_phone_number_id: Optional[str] = None) -> ParsedWebhook:
     """Extract messages and status callbacks. Anything malformed is skipped, never raised: a bad
-    entry must not turn into a 500 that makes Meta retry the whole batch forever."""
+    entry must not turn into a 500 that makes Meta retry the whole batch forever. The payload is
+    signed but still untrusted shape-wise (the sender is Meta, the content is a stranger's)."""
     expected = settings.WHATSAPP_PHONE_NUMBER_ID if expected_phone_number_id is None else expected_phone_number_id
     parsed = ParsedWebhook()
     if not isinstance(payload, dict):
         return parsed
-    for entry in payload.get("entry") or []:
-        for change in (entry or {}).get("changes") or []:
-            value = (change or {}).get("value") or {}
+    for entry in _dicts(payload.get("entry")):
+        for change in _dicts(entry.get("changes")):
+            value = _dict(change.get("value"))
             if change.get("field") not in (None, "messages"):
                 continue
-            number_id = (value.get("metadata") or {}).get("phone_number_id")
-            if expected and number_id and number_id != expected:
+            number_id = _dict(value.get("metadata")).get("phone_number_id")
+            if expected and isinstance(number_id, str) and number_id and number_id != expected:
                 logger.warning("whatsapp webhook for another phone number id ignored")
                 continue
-            names = {c.get("wa_id"): (c.get("profile") or {}).get("name") for c in value.get("contacts") or []}
-            for raw in value.get("messages") or []:
-                envelope = _parse_message(raw, names)
+            names = {c.get("wa_id"): _name(_dict(c.get("profile")).get("name"))
+                     for c in _dicts(value.get("contacts")) if isinstance(c.get("wa_id"), str)}
+            for raw in _dicts(value.get("messages")):
+                try:
+                    envelope = _parse_message(raw, names)
+                except Exception:  # a shape nobody anticipated: skip this one item, keep the batch
+                    logger.warning("whatsapp message %s could not be parsed; skipped", _str(raw.get("id")))
+                    continue
                 if envelope:
                     parsed.messages.append(envelope)
-            for raw in value.get("statuses") or []:
+            for raw in _dicts(value.get("statuses")):
                 update = _parse_status(raw)
                 if update:
                     parsed.statuses.append(update)
     return parsed
 
 
+_CAPTIONED = ("image", "video", "document")
+
+
 def _parse_message(raw: Dict[str, Any], names: Dict[str, Optional[str]]) -> Optional[InboundEnvelope]:
-    message_id, wa_id, kind = raw.get("id"), raw.get("from"), raw.get("type")
-    if not (isinstance(message_id, str) and isinstance(wa_id, str) and isinstance(kind, str)):
+    message_id, wa_id, kind = _ident(raw.get("id")), _ident(raw.get("from")), _ident(raw.get("type"))
+    if not (message_id and wa_id and kind):
         return None
     envelope = InboundEnvelope(meta_message_id=message_id, wa_id=wa_id, name=names.get(wa_id), type=kind,
                                timestamp=str(raw.get("timestamp") or ""), referral=bool(raw.get("referral")))
     if kind == "text":
-        envelope.text = ((raw.get("text") or {}).get("body"))
+        envelope.text = _str(_dict(raw.get("text")).get("body"))
+    elif kind in _CAPTIONED:
+        envelope.text = _str(_dict(raw.get(kind)).get("caption"))  # screened for emergencies, nothing else
     elif kind == "interactive":
-        interactive = raw.get("interactive") or {}
-        envelope.interactive_type = interactive.get("type")
-        chosen = interactive.get(envelope.interactive_type or "") or {}
-        envelope.reply_id = chosen.get("id")
+        interactive = _dict(raw.get("interactive"))
+        envelope.interactive_type = _str(interactive.get("type"))
+        chosen = _dict(interactive.get(envelope.interactive_type)) if envelope.interactive_type else {}
+        envelope.reply_id = _str(chosen.get("id"))
     return envelope
 
 
 def _parse_status(raw: Dict[str, Any]) -> Optional[StatusUpdate]:
-    message_id, status, recipient = raw.get("id"), raw.get("status"), raw.get("recipient_id")
-    if not (isinstance(message_id, str) and isinstance(status, str) and isinstance(recipient, str)):
+    message_id, status, recipient = _ident(raw.get("id")), _ident(raw.get("status")), _ident(raw.get("recipient_id"))
+    if not (message_id and status and recipient):
         return None
     if status not in ("sent", "delivered", "read", "failed"):
         return None
-    errors = raw.get("errors") or []
-    code = str(errors[0].get("code")) if errors and isinstance(errors[0], dict) and "code" in errors[0] else None
-    return StatusUpdate(message_id, recipient, status, code, (raw.get("pricing") or {}).get("category"))
+    errors = _dicts(raw.get("errors"))
+    code = str(errors[0]["code"]) if errors and "code" in errors[0] else None
+    return StatusUpdate(message_id, recipient, status, code, _ident(_dict(raw.get("pricing")).get("category")))
 
 
 def _source_for(envelope: InboundEnvelope) -> str:

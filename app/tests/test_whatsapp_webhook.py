@@ -8,6 +8,7 @@ from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation, WhatsA
 from app.tests.factories_whatsapp import make_contact, make_wa_id
 from app.tests.fake_meta import (
     TEST_APP_SECRET, TEST_VERIFY_TOKEN, body_bytes, button_payload, fake_meta, inbound_queue,  # noqa: F401
+    media_payload,
     sign, signed_headers, status_payload, text_payload,
 )
 
@@ -231,3 +232,129 @@ def test_a_batch_with_a_message_and_a_status_handles_both(client, db, fake_meta,
     assert [j["meta_message_id"] for j in inbound_queue.jobs] == ["wamid.MIX"]
     db.expire_all()
     assert db.query(WhatsAppMessage).filter_by(meta_message_id="wamid.OUT1").one().status == "delivered"
+
+
+# --- review fixes ----------------------------------------------------------------------------
+def test_a_chunked_body_over_the_limit_is_refused_before_the_signature_is_checked(
+        client, fake_meta, inbound_queue, monkeypatch):
+    from app.api.v1.endpoints import whatsapp as endpoint
+
+    checked = []
+    monkeypatch.setattr(endpoint, "verify_signature", lambda *a, **k: checked.append(1) or True)
+    chunk = b"x" * 600_000
+
+    def chunks():  # a generator body goes out as chunked transfer: there is no Content-Length to check
+        for _ in range(4):
+            yield chunk
+
+    r = client.post(URL, content=chunks(), headers={"x-hub-signature-256": "sha256=" + "0" * 64})
+    assert r.status_code == 413 and not checked and not inbound_queue.jobs
+
+
+def test_a_chunked_body_under_the_limit_is_still_accepted(client, db, fake_meta, inbound_queue):
+    body = body_bytes(text_payload(make_wa_id(), "Hi", message_id="wamid.CHUNK"))
+
+    def chunks():
+        yield body[:50]
+        yield body[50:]
+
+    r = client.post(URL, content=chunks(), headers=signed_headers(body))
+    assert r.status_code == 200 and [j["meta_message_id"] for j in inbound_queue.jobs] == ["wamid.CHUNK"]
+
+
+def _raw_entry(message_or_value):
+    return {"object": "whatsapp_business_account", "entry": [{"changes": [{"field": "messages",
+            "value": message_or_value}]}]}
+
+
+HOSTILE = [
+    {"entry": "x"}, {"entry": [None, 3, "s", []]}, {"entry": [{"changes": "x"}]},
+    {"entry": [{"changes": [None, 1, "x", {"field": "messages", "value": "oops"}]}]},
+    {"entry": [{"changes": [{"field": "messages", "value": {"metadata": "x", "contacts": "x", "messages": "x"}}]}]},
+    {"entry": [{"changes": [{"field": "messages", "value": {"contacts": [1, None, {"profile": "x"}],
+                                                            "messages": [None, 4, "x", [], {"id": 1}]}}]}]},
+    {"entry": [{"changes": [{"field": "messages", "value": {"statuses": [None, "x", 3, {"id": []}]}}]}]},
+]
+
+
+@pytest.mark.parametrize("payload", HOSTILE)
+def test_hostile_but_validly_signed_payloads_are_a_200_not_a_500(client, db, fake_meta, inbound_queue, payload):
+    assert post(client, payload).status_code == 200 and not inbound_queue.jobs
+
+
+@pytest.mark.parametrize("message", [
+    {"type": "text", "text": "not an object"}, {"type": "text", "text": {"body": 12345}},
+    {"type": "text", "text": {"body": ["a"]}}, {"type": "text"},
+    {"type": "interactive", "interactive": "x"}, {"type": "interactive", "interactive": {"type": ["x"]}},
+    {"type": "interactive", "interactive": {"type": "button_reply", "button_reply": "x"}},
+    {"type": "interactive", "interactive": {"type": "button_reply", "button_reply": {"id": {"a": 1}}}},
+    {"type": "image", "image": "x"}, {"type": "image", "image": {"caption": 7}},
+    {"type": "text", "id": "wamid.NUL\u0000", "text": {"body": "x"}}, {"type": "te\u0000xt", "text": {"body": "x"}},
+])
+def test_a_malformed_message_never_breaks_the_rest_of_the_batch(client, db, fake_meta, inbound_queue, message):
+    wa_id = make_wa_id()
+    good = text_payload(wa_id, "Hi", message_id="wamid.GOOD")["entry"][0]["changes"][0]["value"]
+    bad = {"from": wa_id, "id": "wamid.BAD", "timestamp": "1", **message}
+    good["messages"].insert(0, bad)
+    r = post(client, _raw_entry(good))
+    assert r.status_code == 200
+    ids = [j["meta_message_id"] for j in inbound_queue.jobs]
+    assert "wamid.GOOD" in ids
+    for job in inbound_queue.jobs:
+        assert job["text"] is None or isinstance(job["text"], str)
+        assert job["reply_id"] is None or isinstance(job["reply_id"], str)
+
+
+def test_an_image_caption_travels_with_the_job(client, fake_meta, inbound_queue):
+    payload = media_payload(make_wa_id(), "image", message_id="wamid.IMG")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0]["image"]["caption"] = "she cannot breathe"
+    assert post(client, payload).status_code == 200
+    job = inbound_queue.jobs[0]
+    assert job["type"] == "image" and job["text"] == "she cannot breathe"
+
+
+@pytest.mark.parametrize("kind", ["video", "document"])
+def test_video_and_document_captions_are_read_too(client, fake_meta, inbound_queue, kind):
+    payload = media_payload(make_wa_id(), kind, message_id=f"wamid.{kind}")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0][kind]["caption"] = "not breathing"
+    post(client, payload)
+    assert inbound_queue.jobs[0]["text"] == "not breathing"
+
+
+def test_a_none_from_the_queue_is_treated_as_failure_and_retry_is_processed_exactly_once(
+        client, db, fake_meta, inbound_queue):
+    """enqueue_job writes then raises (or reports the id as taken): the row is forgotten, Meta's retry works."""
+    inbound_queue.fail_after_write = ConnectionError("reset after write")
+    payload = text_payload(make_wa_id(), "Hi", message_id="wamid.AFTERWRITE")
+    assert post(client, payload).status_code == 503
+    assert db.query(WhatsAppMessage).count() == 0
+    inbound_queue.fail_after_write = None
+    assert post(client, payload).status_code == 200
+    assert post(client, payload).status_code == 200  # a further replay is deduped by the database
+    assert [j["meta_message_id"] for j in inbound_queue.jobs] == ["wamid.AFTERWRITE"]  # once, not twice
+    assert db.query(WhatsAppMessage).count() == 1
+
+
+def test_the_body_reader_stops_consuming_the_stream_at_the_cap():
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from app.api.v1.endpoints.whatsapp import MAX_BODY_BYTES, _read_capped_body
+
+    consumed = []
+
+    class FakeRequest:
+        headers: dict = {}
+
+        async def stream(self):  # an endless chunked body
+            while True:
+                consumed.append(1)
+                yield b"x" * (MAX_BODY_BYTES // 2 + 1)
+
+        async def body(self):  # the old code path: must never be used
+            raise AssertionError("request.body() buffers the whole stream")
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(_read_capped_body(FakeRequest()))
+    assert excinfo.value.status_code == 413 and len(consumed) == 2

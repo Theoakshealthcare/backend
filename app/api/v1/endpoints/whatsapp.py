@@ -19,6 +19,24 @@ router = APIRouter()
 MAX_BODY_BYTES = 1_000_000  # Meta's payloads are a few KB; refuse anything absurd before hashing it
 
 
+async def _read_capped_body(request: Request) -> bytes:
+    """The raw body, or a 413 as soon as it passes the cap: a declared Content-Length is checked up front
+    and the stream is counted as it arrives, so a chunked body (no Content-Length) cannot push the whole
+    thing into memory before anyone looks at the size."""
+    too_large = HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+        raise too_large
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > MAX_BODY_BYTES:
+            raise too_large
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.get("/webhook", include_in_schema=False)
 def verify_webhook(
     hub_mode: str = Query("", alias="hub.mode"),
@@ -38,12 +56,7 @@ async def receive_webhook(
     queue: InboundQueue = Depends(get_inbound_queue),
 ) -> dict:
     """Messages and delivery statuses. Verified over the raw body first, recorded and queued fast."""
-    declared = request.headers.get("content-length")
-    if declared and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
-    raw = await request.body()
-    if len(raw) > MAX_BODY_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
+    raw = await _read_capped_body(request)
 
     if not settings.WHATSAPP_APP_SECRET:
         logger.error("whatsapp webhook rejected: WHATSAPP_APP_SECRET is not configured")

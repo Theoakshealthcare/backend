@@ -222,10 +222,14 @@ class FakeInboundQueue:
     def __init__(self):
         self.jobs: list[dict] = []
         self.fail: Optional[Exception] = None
+        self.fail_after_write: Optional[Exception] = None  # the job is stored, then the call raises
 
     async def enqueue(self, job: dict) -> None:
         if self.fail is not None:
             raise self.fail
+        if self.fail_after_write is not None:
+            self.stored = getattr(self, "stored", []) + [job]  # what Redis would have kept; never delivered
+            raise self.fail_after_write
         self.jobs.append(job)
 
 
