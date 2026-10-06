@@ -749,7 +749,7 @@ def notification_scenarios(run: Run) -> None:
     update = chat_step(run, lambda: caregiver_act(run, caregiver3, str(f[0]), "cancel"))
     run.check("the caregiver dropping out refunds in full and tells the booker as booking_update",
               update[0]["type"] == "template" and update[0]["template"]["name"] == "booking_update"
-              and "We've started a refund of ₦44,000." in json.dumps(update[0]), str(update[0]))
+              and "We've started a refund of ₦44,000." in json.dumps(update[0], ensure_ascii=False), str(update[0]))
     drop = db_rows(f"SELECT refund_required, refund_amount_kobo, cancel_reason FROM bookings WHERE id = '{f[0]}'")
     run.check("the booking is in the refund queue for the full amount", drop == [(True, 4_400_000, "caregiver_cancelled")], str(drop))
 
