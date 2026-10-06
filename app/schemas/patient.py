@@ -9,7 +9,7 @@ from app.core.money import to_kobo
 
 # Base Patient Schemas
 class PatientBase(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None  # phone-only (WhatsApp) patients have none
     full_name: str
     phone_number: Optional[str] = None
     date_of_birth: Optional[date] = None
@@ -37,6 +37,7 @@ class PatientBase(BaseModel):
 
 
 class PatientCreate(PatientBase):
+    email: EmailStr  # registration still requires one
     user_id: uuid.UUID
 
 

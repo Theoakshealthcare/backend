@@ -444,3 +444,64 @@ def test_a_blocked_contact_gets_no_reply(chat, db, fake_meta):
     contact.blocked = True
     db.commit()
     assert chat.say("hello") == []
+
+
+# --- review fixes: blocked contacts, failed emergency replies, captions -----------------------
+def test_a_blocked_contact_still_gets_the_emergency_screen(chat, db, fake_meta):
+    chat.say("Hi")
+    contact = chat.contact
+    contact.blocked = True
+    db.commit()
+    sent = chat.say("my father is not breathing")
+    assert len(sent) == 1 and "112" in sent[0]["text"]["body"]
+    ticket = db.query(SupportConversation).one()
+    assert (ticket.reason, ticket.priority) == ("emergency", "urgent")
+    assert chat.say("what are your prices") == []  # anything else stays silent
+
+
+def test_an_emergency_caption_on_a_photo_gets_the_emergency_screen(chat, db, fake_meta):
+    chat.say("Hi")
+    payload = media_payload(chat.wa_id, "image")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0]["image"]["caption"] = "she is unconscious"
+    sent = chat.send(payload)
+    assert len(sent) == 1 and "112" in sent[0]["text"]["body"] and chat.state == "emergency"
+
+
+def test_an_ordinary_caption_is_just_media(chat, db, fake_meta):
+    chat.say("Hi")
+    payload = media_payload(chat.wa_id, "image")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0]["image"]["caption"] = "my prescription"
+    chat.send(payload)
+    assert chat.state != "emergency"
+    assert "prescription" not in str(db.execute(text("SELECT t::text FROM whatsapp_messages t")).all())
+
+
+@pytest.mark.parametrize("failure", ["rejected", "network"])
+def test_a_failed_emergency_reply_escalates_and_logs_only_the_contact_ref(chat, db, fake_meta, caplog, failure):
+    import logging
+
+    from app.core.phone import contact_ref
+    from app.tests.fake_meta import error_response
+
+    caplog.set_level(logging.INFO)
+    if failure == "rejected":
+        fake_meta.script(error_response(400, 131047))
+    else:
+        import httpx
+
+        fake_meta.script(*[httpx.ConnectError("down")] * 10)
+    chat.say("my mother cannot breathe")
+    ticket = db.query(SupportConversation).one()
+    assert (ticket.reason, ticket.priority) == ("emergency", "urgent")
+    assert ticket.reply_failed_at is not None
+    errors = [r for r in caplog.records if r.levelname == "ERROR" and "EMERGENCY reply" in r.getMessage()]
+    assert len(errors) == 1 and contact_ref(chat.wa_id) in errors[0].getMessage()
+    assert chat.wa_id not in caplog.text and "breathe" not in caplog.text
+
+
+def test_a_failed_ordinary_reply_does_not_flag_a_ticket(chat, db, fake_meta):
+    from app.tests.fake_meta import error_response
+
+    fake_meta.script(error_response(400, 131047))
+    chat.say("Hi")
+    assert db.query(SupportConversation).count() == 0

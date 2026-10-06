@@ -141,7 +141,7 @@ class UserProfileUpdate(BaseModel):
 class UserProfileResponse(BaseModel):
     id: UUID
     full_name: str
-    email: EmailStr
+    email: Optional[EmailStr] = None  # phone-only (WhatsApp) users have none
     phone_number: Optional[str]
     profile_image_url: Optional[str]
     user_type: str

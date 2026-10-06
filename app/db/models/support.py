@@ -39,5 +39,7 @@ class SupportConversation(Base):
     assigned_agent_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     resolved_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     resolved_at = Column(DateTime, nullable=True)
+    # Set when the automatic emergency reply could not be delivered: a human must reach the person by phone.
+    reply_failed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

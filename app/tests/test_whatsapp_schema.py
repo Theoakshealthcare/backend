@@ -1,6 +1,7 @@
 """W1: the schema rules (phone-first users, unique identities) and the worker job wiring."""
 
 import asyncio
+import json
 
 import pytest
 from sqlalchemy import text
@@ -149,9 +150,29 @@ def test_a_data_withdrawal_task_does_not_block_a_handover_ticket(db):
 def test_worker_registers_the_inbound_job():
     from app import worker
 
-    names = {f.__name__ for f in worker.WorkerSettings.functions}
+    names = {getattr(f, "name", None) or f.__name__ for f in worker.WorkerSettings.functions}
     assert "process_whatsapp_inbound_job" in names
     assert worker.WorkerSettings.max_tries >= 3
+    inbound = next(f for f in worker.WorkerSettings.functions if getattr(f, "name", "") == "process_whatsapp_inbound_job")
+    assert inbound.keep_result_s == 0  # a result record would keep the job's arguments
+    assert worker.WorkerSettings.keep_result == 0 and worker.WorkerSettings.log_results is False
+
+
+class FakeRedis:
+    """Just the three calls the job makes; the real thing is covered in test_whatsapp_queue.py."""
+
+    def __init__(self, body=None):
+        self.store = {} if body is None else {"wa:inbound-body:" + body[0]: json.dumps(body[1]).encode()}
+        self.expired = []
+
+    async def get(self, key):
+        return self.store.get(key)
+
+    async def expire(self, key, seconds):
+        self.expired.append(key)
+
+    async def delete(self, key):
+        self.store.pop(key, None)
 
 
 def test_the_job_runs_the_processor_with_a_fresh_session(db, fake_meta):
@@ -160,7 +181,9 @@ def test_the_job_runs_the_processor_with_a_fresh_session(db, fake_meta):
 
     wa_id = make_wa_id()
     jobs = ingest(db, parse_webhook(text_payload(wa_id, "Hi", message_id="wamid.JOB1"))).jobs
-    asyncio.run(worker.process_whatsapp_inbound_job({"job_try": 1}, jobs[0]))
+    redis = FakeRedis(("wamid.JOB1", {"type": "text", "text": "Hi"}))
+    asyncio.run(worker.process_whatsapp_inbound_job({"job_try": 1, "redis": redis}, {"meta_message_id": "wamid.JOB1"}))
+    assert redis.store == {}  # the body is gone once the job is done
     db.expire_all()
     assert db.query(WhatsAppConversation).one().state == "consent_pending"
     assert len(fake_meta.bodies) == 1
@@ -175,12 +198,15 @@ def test_a_failing_job_is_retried_with_backoff_until_it_runs_out_of_tries(db, fa
         raise RuntimeError("db hiccup")
 
     monkeypatch.setattr(worker, "process_inbound", boom)
+    redis = FakeRedis(("wamid.X", {"type": "text", "text": "Hi"}))
     with pytest.raises(Retry) as retry:
-        asyncio.run(worker.process_whatsapp_inbound_job({"job_try": 1}, {"meta_message_id": "wamid.X"}))
+        asyncio.run(worker.process_whatsapp_inbound_job({"job_try": 1, "redis": redis}, {"meta_message_id": "wamid.X"}))
     assert retry.value.defer_score and retry.value.defer_score > 0
-    with pytest.raises(RuntimeError):  # last try: surface the failure (it lands in ARQ's failed results)
-        asyncio.run(worker.process_whatsapp_inbound_job({"job_try": worker.WorkerSettings.max_tries},
-                                                        {"meta_message_id": "wamid.X"}))
+    assert "wa:inbound-body:wamid.X" in redis.store and redis.expired  # a retry keeps the body and refreshes it
+    with pytest.raises(RuntimeError):  # last try: surface the failure, and let go of the body
+        asyncio.run(worker.process_whatsapp_inbound_job(
+            {"job_try": worker.WorkerSettings.max_tries, "redis": redis}, {"meta_message_id": "wamid.X"}))
+    assert redis.store == {}
 
 
 def test_the_job_payload_survives_the_json_serializer(db):
@@ -194,3 +220,9 @@ def test_the_job_payload_survives_the_json_serializer(db):
 def test_resolve_endpoint_is_not_exposed_in_w1(client):
     """Agent actions arrive with the Admin console inbox; nothing in W1 lets a caller resolve tickets."""
     assert client.post("/api/v1/whatsapp/support/resolve").status_code in (404, 405)
+
+
+def test_consents_cannot_be_truncated(db):
+    with pytest.raises(DBAPIError, match="append-only"):
+        db.execute(text("TRUNCATE consents"))
+    db.rollback()

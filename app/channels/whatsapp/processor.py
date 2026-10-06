@@ -20,14 +20,16 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.channels.whatsapp.engine import (
-    PAUSED_STATES, EngineConfig, Inbound, OpenTicket, RecordConsent, SetOptOut, Snapshot, State, step,
+    PAUSED_STATES, EngineConfig, Inbound, Kind, OpenTicket, RecordConsent, SetOptOut, Snapshot, State, step,
 )
 from app.channels.whatsapp.identity import ensure_user
+from app.channels.whatsapp.lexicon import is_emergency
 from app.channels.whatsapp.messages import OutboundMessage
 from app.channels.whatsapp.meta_client import MetaCloudClient
 from app.channels.whatsapp.outbound import send_and_record
 from app.core.config import settings
 from app.core.phone import contact_ref
+from app.db.models.support import SupportConversation
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation, WhatsAppMessage
 from app.services.consent import ConsentService
 from app.services.support import SupportService
@@ -76,23 +78,48 @@ def process_inbound(db: Session, job: Dict[str, Any], client: Optional[MetaCloud
         raise
     if applied is None:
         return
-    contact, replies = applied
+    contact, replies, emergency = applied
     if not replies:
         return
     client = client or MetaCloudClient.from_settings()
     for message in replies:
+        delivered = False
         try:
-            send_and_record(db, client, contact, message)
+            delivered = send_and_record(db, client, contact, message).ok
         except Exception:
             db.rollback()
             logger.exception("whatsapp reply for contact %s could not be recorded", contact_ref(contact.wa_id))
+        if emergency and not delivered:
+            _escalate_failed_emergency_reply(db, contact)
+
+
+def _escalate_failed_emergency_reply(db: Session, contact: WhatsAppContact) -> None:
+    """The emergency screen is the one reply that must not silently fail: flag the urgent ticket so a human
+    phones the person, and shout in the log (the line a pager hooks onto). Contact ref only, never the number."""
+    ref = contact_ref(contact.wa_id)
+    try:
+        ticket = (db.query(SupportConversation)
+                  .filter(SupportConversation.contact_id == contact.id, SupportConversation.reason == "emergency",
+                          SupportConversation.status != "resolved")
+                  .with_for_update().first())
+        if ticket is not None:
+            ticket.reply_failed_at = datetime.utcnow()
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("whatsapp could not flag the failed emergency reply for contact %s", ref)
+    logger.error("whatsapp EMERGENCY reply could not be delivered to contact %s: a person must reach out", ref)
+
+
+def _is_emergency_input(inbound: Inbound) -> bool:
+    return inbound.kind in (Kind.TEXT, Kind.MEDIA) and bool(inbound.body) and is_emergency(inbound.body)
 
 
 def _short(job: Dict[str, Any]) -> str:
     return str(job.get("meta_message_id"))
 
 
-def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, List[OutboundMessage]]]:
+def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, List[OutboundMessage], bool]]:
     message = (
         db.query(WhatsAppMessage)
         .filter(WhatsAppMessage.meta_message_id == job["meta_message_id"], WhatsAppMessage.direction == "inbound")
@@ -111,7 +138,9 @@ def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, 
         db.query(WhatsAppConversation).filter_by(contact_id=contact.id).populate_existing().with_for_update().one()
     )
     now = datetime.utcnow()
-    if contact.blocked:
+    inbound = to_inbound(job)
+    if contact.blocked and not _is_emergency_input(inbound):
+        # Blocked contacts get nothing, except the emergency screen: a person in danger is not a spammer.
         message.processed_at = now
         db.commit()
         return None
@@ -128,7 +157,7 @@ def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, 
         consent_ok=consents.has_required_consent(contact_id=contact.id),
         opted_out=contact.opted_out_at is not None, language=contact.language,
     )
-    outcome = step(snapshot, to_inbound(job), engine_config())
+    outcome = step(snapshot, inbound, engine_config())
 
     for effect in outcome.effects:
         if isinstance(effect, RecordConsent):
@@ -153,4 +182,5 @@ def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, 
     db.commit()
     logger.info("whatsapp contact=%s %s -> %s", contact_ref(contact.wa_id), snapshot.state.value,
                 outcome.state.value)
-    return contact, list(outcome.replies)
+    emergency = any(isinstance(e, OpenTicket) and e.reason == "emergency" for e in outcome.effects)
+    return contact, list(outcome.replies), emergency

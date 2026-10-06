@@ -160,6 +160,7 @@ def upgrade() -> None:
     sa.Column('assigned_agent_id', sa.UUID(), nullable=True),
     sa.Column('resolved_by_user_id', sa.UUID(), nullable=True),
     sa.Column('resolved_at', sa.DateTime(), nullable=True),
+    sa.Column('reply_failed_at', sa.DateTime(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.CheckConstraint("priority IN ('normal', 'urgent')", name='ck_support_conversations_priority'),
@@ -192,9 +193,18 @@ def upgrade() -> None:
         FOR EACH ROW EXECUTE FUNCTION consents_immutable()
         """
     )
+    # Row triggers do not fire on TRUNCATE; a statement-level one closes that door too.
+    op.execute(
+        """
+        CREATE TRIGGER consents_no_truncate
+        BEFORE TRUNCATE ON consents
+        FOR EACH STATEMENT EXECUTE FUNCTION consents_immutable()
+        """
+    )
 
 
 def downgrade() -> None:
+    op.execute("DROP TRIGGER IF EXISTS consents_no_truncate ON consents")
     op.execute("DROP TRIGGER IF EXISTS consents_no_change ON consents")
     op.execute("DROP FUNCTION IF EXISTS consents_immutable()")
     op.drop_index('uq_support_conversations_one_open_handover', table_name='support_conversations',

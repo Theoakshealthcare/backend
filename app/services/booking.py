@@ -20,7 +20,7 @@ from app.db.models.patient import Patient
 from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPreviewRequest, BookingPreviewResponse
 from app.services.location import LocationService
 from app.services.gemini import gemini_service
-from app.services.paystack import PaystackService
+from app.services.paystack import PaystackService, paystack_email_for
 from app.services.pricing import compute_price
 # aliased: `settings` is shadowed by BookingSettings locals in this module's methods
 from app.core.config import settings as app_settings
@@ -202,12 +202,12 @@ class BookingService:
         
         # Get patient email for payment
         patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
-        if not patient or not patient.email:
-            raise Exception("Patient email not found for payment processing.")
+        if not patient:
+            raise Exception("Patient not found for payment processing.")
         
         # Initialize Paystack payment
         payment_response = self.paystack_service.initialize_transaction(
-            email=patient.email,
+            email=paystack_email_for(patient),
             amount_kobo=booking.total_amount_kobo,
             reference=paystack_reference,
             callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete",
