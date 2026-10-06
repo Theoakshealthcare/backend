@@ -1,7 +1,7 @@
 """WhatsApp notifications and cancellation (W3): more outbox events, a dedupe key, and the refund amount.
 
-Revision ID: 0006_whatsapp_notifications
-Revises: 0005_whatsapp_booking
+Revision ID: 0007_whatsapp_notifications
+Revises: 0006_admin_bookings_ops
 Create Date: 2026-10-06
 
 - ``booking_events``: ``dedupe_key`` (so an event that can recur for one booking, e.g. a replacement caregiver, is
@@ -11,15 +11,14 @@ Create Date: 2026-10-06
   module decides, as before).
 
 Downgrade removes the W3 events (they are notifications nobody can still be waiting for), the key and the amount.
-Renumber ``down_revision`` if another migration lands first.
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = '0006_whatsapp_notifications'
-down_revision: Union[str, None] = '0005_whatsapp_booking'
+revision: str = '0007_whatsapp_notifications'
+down_revision: Union[str, None] = '0006_admin_bookings_ops'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -27,7 +26,7 @@ OLD_EVENTS = ("payment_received", "payment_link_expiring", "booking_cancelled_un
 NEW_EVENTS = OLD_EVENTS + (
     "caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
     "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "refund_flagged", "refund_processed",
-    "caregiver_booking_cancelled",
+    "caregiver_reassigned", "caregiver_booking_cancelled",
 )
 
 

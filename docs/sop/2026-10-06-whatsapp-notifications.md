@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Date** | 2026-10-06 |
-| **Branch** | `feat/whatsapp-notifications` (base `main` at `aade294`, which includes W1 and W2) |
-| **Migration** | `0006_whatsapp_notifications` (down_revision `0005_whatsapp_booking`). **Renumber at merge if Admin A2 lands a migration first.** |
+| **Branch** | `feat/whatsapp-notifications` (rebased onto A2, `origin/feat/admin-bookings-ops`, on `main` at `aade294`) |
+| **Migration** | `0007_whatsapp_notifications` (down_revision `0006_admin_bookings_ops`, A2's) |
 | **Plan / spec** | [plan W3](../plans/2026-10-06-whatsapp-channel.md) · [PRD](../prd/PRD-whatsapp-patient-channel.md) WA-FR-30 to WA-FR-39, WA-NFR-6 |
 | **Status** | Verified locally: unit/integration tests, CI checks, and the Docker end-to-end script against a fake Meta and a fake Paystack. Not pushed. **Not run against real Meta.** |
 
@@ -35,7 +35,10 @@ booking_cancellation.cancel_by_booker                                           
 | complete | `visit_completed` | `visit_completed_feedback` |
 | caregiver cancels (WhatsApp bookings) | `booking_cancelled_by_caregiver`, plus the refund flag on the booking | `booking_update` |
 | booker cancels in chat | `caregiver_booking_cancelled` (caregiver push) | the chat reply itself |
-| admin cancel / refund (hooks, see follow-ups) | `NotificationService.cancelled_by_admin / refund_flagged / refund_processed` | `booking_update`, `refund_update` |
+| admin cancel (A2, wired) | `booking_cancelled_by_admin`, plus `refund_flagged` when a refund was chosen (the amount is stored in `bookings.refund_amount_kobo`) | `booking_update`, then `refund_update` |
+| admin reassign (A2, wired) | `caregiver_reassigned` + `visit_code_issued`, keyed by the new caregiver (the old code dies with the old assignment) | `booking_update` ("Your professional has changed..."), `visit_code` |
+| admin force-assign (A2, wired) | as a caregiver accept: `caregiver_assigned` + `visit_code_issued` | `caregiver_assigned`, `visit_code` |
+| refund paid out (A3, not built) | `NotificationService.refund_processed` | `refund_update` |
 
 ### Decisions and tradeoffs
 | Decision | Choice | Why / alternatives rejected |
@@ -129,7 +132,7 @@ Decide the cancellation fee (default 20% of the service fee is a placeholder, PR
 - **Not built (W3 scope as scoped):** `visit_reminder_24h` / `visit_reminder_1h` (WA-FR-32/33), `matching_delayed` (WA-FR-29), `no_caregiver_found` with Full refund / Pick another time buttons (WA-FR-31). They need time-driven scans like W2's reminder; the outbox and template registry are ready for them.
 - **Re-dispatch after a caregiver drops out** (WA-FR-37 offers "automatic re-dispatch or refund"). Today it is refund. Needs a decision and a change to the mobile cancel contract.
 - **Rating buttons** on `visit_completed_feedback` (1 to 5), visit notes link, caregiver photo header, rating in `caregiver_assigned`, ETA and tracking link in `caregiver_en_route`, View booking links: need ratings storage and the W4 web companion.
-- **Admin hooks:** `NotificationService.cancelled_by_admin`, `refund_flagged` and `refund_processed` exist and are tested, but nothing calls them yet because the admin cancel and refund screens are Admin A2's. **A2 must call them in the same transaction as the change** and set `refund_amount_kobo` when it flags a refund.
+- **Admin hooks:** cancel, reassign and force-assign are wired (A2). **A3's refund payout must call `NotificationService.refund_processed`** in the same transaction. Admin status correction to started/completed does not notify the booker yet. A2's cancel now emits no `payment_refund_pending` (that wording, "your payment arrived after the booking was cancelled", was wrong for an admin cancel).
 - App bookings: a caregiver cancelling still does **not** flag a refund (kept as before). Decide whether it should.
 - The caregiver app should handle the `booking_cancelled` push (open the bookings list).
 - Reschedule (WA-FR-39a, Phase 2).

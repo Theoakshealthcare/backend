@@ -191,6 +191,7 @@ class PaymentOut(BaseModel):
     expires_at: Optional[datetime] = None
     refund_required: bool
     refund_required_reason: Optional[str] = None
+    refund_amount_kobo: Optional[int] = None  # null = the refund module decides (see the booking's reason)
     attempts: List[PaymentAttemptOut]
 
 
@@ -294,5 +295,6 @@ class BookingActionOut(BaseModel):
     needs_address_check: bool
     refund_required: bool
     refund_required_reason: Optional[str] = None
+    refund_amount_kobo: Optional[int] = None
     no_show_flagged_at: Optional[datetime] = None
     notified_caregivers: int = 0  # redispatch, assign (offer), confirm-address: how many caregivers were offered the visit

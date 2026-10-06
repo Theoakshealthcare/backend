@@ -64,9 +64,21 @@ class NotificationService:
         """The caregiver dropped out. The booker is told the next step (the booking's refund fields say which)."""
         self._emit(booking, "booking_cancelled_by_caregiver", self._caregiver_key(booking))
 
-    def cancelled_by_admin(self, booking: Booking) -> None:
+    def caregiver_reassigned(self, booking: Booking) -> None:
+        """An admin moved the visit to another caregiver (A2 reassign). The booker hears who is coming now and gets
+        the new visit code (the old one died with the old assignment). Keyed by the new caregiver."""
+        key = self._caregiver_key(booking)
+        self._emit(booking, "caregiver_reassigned", key)
+        self._emit(booking, "visit_code_issued", key)
+
+    def cancelled_by_admin(self, booking: Booking, *, caregiver_pushed: bool = False) -> None:
+        """An admin cancelled. The booker is told, and told about the refund as its own message when one was chosen
+        (``booking.refund_required``). ``caregiver_pushed``: the caller already pushes the caregiver itself."""
         self._emit(booking, "booking_cancelled_by_admin")
-        self._tell_caregiver_it_is_off(booking)
+        if booking.refund_required:
+            self._emit(booking, "refund_flagged")
+        if not caregiver_pushed:
+            self._tell_caregiver_it_is_off(booking)
 
     def cancelled_by_booker(self, booking: Booking) -> None:
         """The booker cancelled in chat. They already have the answer on screen, so only the caregiver is told."""

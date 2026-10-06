@@ -263,8 +263,9 @@ def test_admin_cancel_and_refund_events_are_worded_from_the_booking(db, chat):
     db.commit()
     texts = sorted(body_text(b) for b in deliver(db, chat))
     assert texts == sorted([
-        f"Update on booking {booking.booking_code}: Our team has cancelled this visit. We've started a refund of "
-        "₦35,200. Reply here if you need help.",
+        f"Update on booking {booking.booking_code}: Our team has cancelled this visit. Reply here if you need help.",
+        f"Your refund of ₦35,200 for booking {booking.booking_code} is being processed. "
+        "Reply here if you have questions.",
         f"Your refund of ₦35,200 for booking {booking.booking_code} is complete. Reply here if you have questions."])
 
 

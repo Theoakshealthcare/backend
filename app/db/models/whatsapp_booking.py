@@ -53,6 +53,7 @@ BOOKER_EVENTS = (
     "payment_received", "payment_link_expiring", "booking_cancelled_unpaid", "payment_refund_pending",  # W2
     "caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
     "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "refund_flagged", "refund_processed",  # W3
+    "caregiver_reassigned",  # W3, from the admin console (A2)
 )
 CAREGIVER_EVENTS = ("caregiver_booking_cancelled",)
 BOOKING_EVENTS = BOOKER_EVENTS + CAREGIVER_EVENTS

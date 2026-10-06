@@ -32,11 +32,13 @@ TEMPLATE_FOR = {
     "visit_completed": "visit_completed_feedback",
     "booking_cancelled_by_caregiver": "booking_update",
     "booking_cancelled_by_admin": "booking_update",
+    "caregiver_reassigned": "booking_update",
     "refund_flagged": "refund_update",
     "refund_processed": "refund_update",
 }
 JOURNEY_EVENTS = ("caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
-                  "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "refund_flagged", "refund_processed")
+                  "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "caregiver_reassigned",
+                  "refund_flagged", "refund_processed")
 
 _HAS_CAREGIVER = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
 Built = Tuple[Optional[OutboundMessage], Optional[str]]
@@ -70,8 +72,9 @@ def _caregiver_for(db: Session, event: BookingEvent, booking: Booking) -> Option
 
 
 def _update_sentence(event: str, booking: Booking) -> str:
-    who = "Your professional can no longer attend, so the visit is cancelled." \
-        if event == "booking_cancelled_by_caregiver" else "Our team has cancelled this visit."
+    if event == "booking_cancelled_by_admin":
+        return "Our team has cancelled this visit."  # the refund, if any, follows as its own refund_update message
+    who = "Your professional can no longer attend, so the visit is cancelled."
     if booking.refund_required and booking.refund_amount_kobo is None and booking.payment_status == PaymentStatus.PAID \
             and booking.actual_start_time is not None:
         return "The visit ended early. Our team will contact you about any refund."  # started, so no automatic amount
@@ -85,7 +88,7 @@ def build(db: Session, event: BookingEvent, booking: Booking, now: datetime, *, 
     code = booking.booking_code
     status = booking.status
 
-    if name in ("caregiver_assigned", "visit_code_issued", "caregiver_en_route"):
+    if name in ("caregiver_assigned", "visit_code_issued", "caregiver_en_route", "caregiver_reassigned"):
         caregiver = _caregiver_for(db, event, booking)
         if caregiver is None or status not in _HAS_CAREGIVER:
             return None, "stale"
@@ -98,6 +101,11 @@ def build(db: Session, event: BookingEvent, booking: Booking, now: datetime, *, 
                       "experience": _experience(caregiver.years_of_experience)}
         elif name == "caregiver_en_route":
             params = {"booking_code": code, "caregiver_first_name": _first_name(caregiver.full_name)}
+        elif name == "caregiver_reassigned":
+            start = rules.to_lagos(booking.scheduled_date)
+            params = {"booking_code": code, "update": (
+                f"Your professional has changed. {_first_name(caregiver.full_name)} will now visit on "
+                f"{start:%a} {start.day} {start:%b} at {start:%H:%M}.")}
         else:
             if status == BookingStatus.IN_PROGRESS or not booking.visit_code_enc:
                 return None, "stale"

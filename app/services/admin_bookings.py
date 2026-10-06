@@ -68,6 +68,8 @@ from app.schemas.admin_booking import (
     WaveOut,
 )
 from app.services import booking_events, dispatch
+from app.services.booking_cancellation import flag_refund
+from app.services.notification_service import NotificationService
 from app.services import push as push_service
 from app.services.audit import AuditService
 
@@ -466,6 +468,7 @@ class AdminBookingService:
                 status=b.payment_status.value, paystack_reference=b.paystack_reference,
                 failure_reason=b.payment_failure_reason, expires_at=b.payment_expires_at,
                 refund_required=b.refund_required, refund_required_reason=b.refund_required_reason,
+                refund_amount_kobo=b.refund_amount_kobo,
                 attempts=[PaymentAttemptOut(
                     id=t.id, type=t.type, status=t.status, amount_kobo=t.amount_kobo,
                     paystack_reference=t.paystack_reference, created_at=t.created_at) for t in attempts]),
@@ -546,7 +549,8 @@ class AdminBookingService:
             id=b.id, booking_code=b.booking_code, status=b.status.value, payment_status=b.payment_status.value,
             dispatch_state=b.dispatch_state, caregiver_id=b.caregiver_id,
             needs_address_check=b.needs_address_check, refund_required=b.refund_required,
-            refund_required_reason=b.refund_required_reason, no_show_flagged_at=b.no_show_flagged_at,
+            refund_required_reason=b.refund_required_reason, refund_amount_kobo=b.refund_amount_kobo,
+            no_show_flagged_at=b.no_show_flagged_at,
             notified_caregivers=notified)
 
     def _finish(self, booking: Booking) -> None:
@@ -657,6 +661,7 @@ class AdminBookingService:
             self._lock_caregiver(body.caregiver_id)
             if body.force:
                 self._accept_effects(booking, body.caregiver_id, now, "assigned_by_admin")
+                NotificationService(self.db).caregiver_accepted(booking)  # the booker hears who is coming + the code
                 pushes.append((body.caregiver_id, "Visit assigned", "A visit was assigned to you",
                                "job_assigned", booking.id))
             else:
@@ -700,6 +705,7 @@ class AdminBookingService:
             self._accept_effects(booking, body.caregiver_id, now, "assigned_by_admin")
             booking.no_show_flagged_at = None
             booking.no_show_flagged_by = None
+            NotificationService(self.db).caregiver_reassigned(booking)  # the booker: new professional and new code
             self._notify_caregiver(booking, previous, "Visit reassigned",
                                    "A visit you accepted was reassigned by Oakly operations")
             pushes += [
@@ -754,13 +760,12 @@ class AdminBookingService:
             booking.status = BookingStatus.CANCELLED
             booking.cancel_reason = body.reason_code
             if body.refund != "none":
-                # Money is not moved here. The refund queue (A3) reads this; the amount of a partial refund rides
-                # in the reason as "admin_cancelled_partial:<kobo>".
-                booking.refund_required = True
-                booking.refund_required_reason = (
-                    "admin_cancelled_full" if body.refund == "full"
-                    else f"admin_cancelled_partial:{body.refund_amount_kobo}")
-                booking_events.emit(self.db, booking, "payment_refund_pending")  # tells a WhatsApp booker
+                # Money is not moved here. The refund queue (A3) reads these: the reason says which kind, and
+                # ``refund_amount_kobo`` says how much (the whole payment for a full refund).
+                flag_refund(
+                    booking, "admin_cancelled_full" if body.refund == "full" else "admin_cancelled_partial",
+                    booking.total_amount_kobo if body.refund == "full" else body.refund_amount_kobo)
+            NotificationService(self.db).cancelled_by_admin(booking, caregiver_pushed=True)  # same transaction
             now = datetime.utcnow()
             for n in self.db.query(BookingNotification).filter(
                     BookingNotification.booking_id == booking.id, BookingNotification.notification_type == "new_booking",
