@@ -14,7 +14,8 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.base import Base
 
-CONVERSATION_STATES = ("new", "consent_pending", "declined", "idle", "human", "emergency")
+CONVERSATION_STATES = ("new", "consent_pending", "declined", "idle", "human", "emergency",
+                       "booking_flow", "awaiting_location", "quoted", "awaiting_payment")
 MESSAGE_STATUSES = ("received", "sent", "delivered", "read", "failed", "body_lost")
 
 

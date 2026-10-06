@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
+from app.services import booking_events
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def expire_unpaid_bookings(db: Session, now: Optional[datetime] = None) -> int:
                 continue
             booking.status = BookingStatus.CANCELLED
             booking.cancel_reason = CANCEL_REASON_UNPAID_TIMEOUT
+            booking_events.emit(db, booking, "booking_cancelled_unpaid")  # same transaction as the cancel
             db.commit()
             cancelled += 1
             logger.info("Booking %s cancelled: payment not received in time", booking_id)

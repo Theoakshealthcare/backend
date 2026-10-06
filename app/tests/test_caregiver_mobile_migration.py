@@ -15,7 +15,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
 
 from app.core.security import encrypt
-from app.db.models.booking import Booking, BookingStatus, PaymentStatus
+from app.db.models.booking import BookingStatus, PaymentStatus
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.push_token import PushToken
@@ -75,18 +75,21 @@ def _seed(eng, status):
         s.add_all([patient, cg])
         s.flush()
         start = datetime.utcnow() + timedelta(days=1)
-        booking = Booking(
-            booking_code=tag.upper(), patient_id=patient.id, caregiver_id=cg.id, service_type="nurse",
-            assistance_type="x", duration_hours=1, scheduled_date=start, scheduled_end_date=start,
-            patient_address="a", patient_latitude=1.0, patient_longitude=1.0, patient_city="Lagos",
-            patient_state="Lagos", total_amount_kobo=100, service_fee_kobo=90, platform_fee_kobo=10,
-            booking_for="myself", status=status, payment_status=PaymentStatus.PAID,
-            visit_code_enc=encrypt("4821"),
-        )
-        s.add(booking)
+        # Raw SQL, not the ORM model: this test runs at the 0002 schema and the model has since gained columns
+        # (channel, booked_by_user_id, ...) that do not exist there yet.
+        booking_id = uuid.uuid4()
+        s.execute(text(
+            "INSERT INTO bookings (id, booking_code, patient_id, caregiver_id, service_type, assistance_type, "
+            "duration_hours, scheduled_date, scheduled_end_date, patient_address, patient_latitude, "
+            "patient_longitude, patient_city, patient_state, total_amount_kobo, service_fee_kobo, "
+            "platform_fee_kobo, booking_for, status, payment_status, visit_code_enc) VALUES "
+            "(:id, :code, :patient, :caregiver, 'nurse', 'x', 1, :start, :start, 'a', 1.0, 1.0, 'Lagos', 'Lagos', "
+            "100, 90, 10, 'myself', :status, :payment, :code4821)"),
+            {"id": booking_id, "code": tag.upper(), "patient": patient.id, "caregiver": cg.id, "start": start,
+             "status": status.name, "payment": PaymentStatus.PAID.name, "code4821": encrypt("4821")})
         s.add(PushToken(user_id=pu.id, token=f"ExponentPushToken[placeholder-{tag}]", platform="ios"))
         s.commit()
-        return booking.id
+        return booking_id
 
 
 def test_upgrade_adds_everything_and_downgrade_removes_it_cleanly(scratch):

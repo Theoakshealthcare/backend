@@ -150,3 +150,15 @@ def test_webhook_db_work_runs_off_the_event_loop(db, client, monkeypatch):
     assert client.post("/api/v1/payment/paystack/webhook", content=body,
                        headers={"x-paystack-signature": sig}).status_code == 200
     assert on_loop == [False]
+
+
+def test_production_startup_pins_the_paystack_base_url():
+    # The secret key is sent as a Bearer token to this URL and its "success" is trusted: it must be Paystack.
+    good = dict(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_live_placeholder")
+    assert Settings(**good).PAYSTACK_BASE_URL == "https://api.paystack.co"
+    assert Settings(**good, PAYSTACK_BASE_URL="https://api.paystack.co/").ENVIRONMENT == "production"
+    for bad in ("http://evil.example", "https://api.paystack.co.evil.example", "http://localhost:9999"):
+        with pytest.raises(ValueError, match="PAYSTACK_BASE_URL"):
+            Settings(**good, PAYSTACK_BASE_URL=bad)
+    # development may point at a fake (the local end-to-end script does)
+    assert Settings(ENVIRONMENT="development", PAYSTACK_BASE_URL="http://fake:9999").PAYSTACK_BASE_URL == "http://fake:9999"

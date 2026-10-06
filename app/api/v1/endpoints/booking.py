@@ -58,6 +58,9 @@ def redact_offer(booking_dict: dict) -> dict:
     booking_dict["caregiver_id"] = None
     booking_dict["condition"] = None
     booking_dict["special_instructions"] = None
+    # Who booked, and for whom (WhatsApp bookings), is identity too.
+    booking_dict["booked_by_user_id"] = None
+    booking_dict["care_recipient_id"] = None
     booking_dict["patient_address"] = f"{booking_dict.get('patient_city')}, {booking_dict.get('patient_state')}"
     for key in ("patient_latitude", "patient_longitude"):
         if booking_dict.get(key) is not None:
@@ -80,6 +83,14 @@ def enrich_booking_with_details(
     for secret in ("visit_code_enc", "visit_code_failed_attempts", "visit_code_locked_until"):
         booking_dict.pop(secret, None)
     booking_dict["visit_code"] = None
+    # A WhatsApp booking keeps the condition encrypted; the ciphertext never leaves, the plain text goes only to
+    # whoever may see the condition (redact_offer below removes it for caregivers who only hold an offer).
+    condition_cipher = booking_dict.pop("condition_encrypted", None)
+    if condition_cipher and not booking_dict.get("condition"):
+        try:
+            booking_dict["condition"] = decrypt(condition_cipher)
+        except InvalidToken:
+            log.error("Booking %s: condition cannot be decrypted", booking.id)
     # Money is stored as kobo; responses keep the naira field names mobile clients already use.
     booking_dict["total_amount"] = booking.total_amount
     booking_dict["service_fee"] = booking.service_fee

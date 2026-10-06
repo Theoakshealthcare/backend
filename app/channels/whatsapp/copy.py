@@ -70,6 +70,79 @@ STRINGS = {
             "Reply START if you change your mind."
         ),
         "start_body": "Welcome back.",
+        # --- W2: booking in chat. Variables are config values, money, dates, codes and first names only. ---
+        "expired_body": "It's been a while, so I've cleared that booking. What would you like to do?",
+        "cancelled_body": "No problem, I've cancelled that. What would you like to do?",
+        "flow_body": "Tap below to tell us about the visit. It takes about a minute.",
+        "flow_cta": "Book a visit",
+        "flow_resume_body": "Please finish the booking form with the button below, or reply CANCEL to stop.",
+        "flow_stale_body": "That booking form has expired. Choose Book a visit to start again.",
+        "flow_emergency_notice": (
+            "If this is an emergency, please call {numbers} now or go to the nearest hospital. "
+            "If you want a visit booked as well, tap Continue again."
+        ),
+        "no_services_body": (
+            "Sorry, we can't take bookings in chat right now. I'm connecting you with our team, who will "
+            "reply here as soon as they can."
+        ),
+        "location_body": (
+            "Please share the location for this visit so we can find the address. If you'd rather not, "
+            "reply SKIP and we'll confirm the address with you."
+        ),
+        "location_resume_body": (
+            "Please tap the button to share the location, or reply SKIP and we'll confirm the address with you."
+        ),
+        "quote_intro_self": "Here's your quote:",
+        "quote_intro_other": "Here's your quote for {name}:",
+        "quote_service_line": "{service} \u00b7 {when}",
+        "quote_base": "Base fee ({hours} h)",
+        "quote_surge": "Busy-time pricing",
+        "quote_discount": "Discount",
+        "quote_service_fee": "Service fee",
+        "quote_platform_fee": "Platform fee",
+        "quote_total": "Total",
+        "quote_cancellation": "Free cancellation until {hours} hours before the visit.",
+        "quote_confirm": "Confirm & pay",
+        "quote_change": "Change",
+        "quote_cancel": "Cancel",
+        "quote_reminder": "Please choose an option below.",
+        "quote_expired_body": (
+            "That quote has expired, so I've cleared it. Choose Book a visit and we'll get you a fresh price."
+        ),
+        "quote_no_price_body": (
+            "Sorry, I can't price that visit right now. I'm connecting you with our team, who will reply here "
+            "as soon as they can."
+        ),
+        "pay_body": (
+            "Tap below to pay securely with card, transfer or USSD. This link expires in {minutes} minutes."
+        ),
+        "pay_cta": "Pay now",
+        "pay_preparing_body": "One moment, we're getting your payment link ready.",
+        "pay_waiting_body": (
+            "We haven't received your payment yet. You can still pay with the button below. This link expires "
+            "in {minutes} minutes from when it was sent."
+        ),
+        "pay_failed_body": (
+            "Sorry, we couldn't create your payment link just now. Nothing has been charged. "
+            "Please choose Confirm & pay to try again."
+        ),
+        "pay_cancelled_body": "I've cancelled that booking. Nothing was charged.",
+        "pay_cancel_paid_body": (
+            "That booking is already paid, so I can't cancel it here. Our team can help: choose Talk to a person."
+        ),
+        "pay_check_failed_body": "We couldn't confirm your payment status right now. Please try again in a minute.",
+        "waitlist_offer_body": (
+            "We don't cover {city} yet. We're in Lagos and Abuja. Would you like us to message you when "
+            "we arrive?"
+        ),
+        "waitlist_offer_body_unnamed": (
+            "We don't cover that area yet. We're in Lagos and Abuja. Would you like us to message you when "
+            "we arrive?"
+        ),
+        "waitlist_yes": "Yes, add me",
+        "waitlist_no": "No thanks",
+        "waitlist_thanks_body": "Thank you, we've added you to the list and will message you when we reach you.",
+        "waitlist_declined_body": "No problem. What would you like to do?",
     },
 }
 

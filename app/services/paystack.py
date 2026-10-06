@@ -33,7 +33,7 @@ class PaystackService:
     def __init__(self):
         self.secret_key = settings.PAYSTACK_SECRET_KEY
         self.public_key = settings.PAYSTACK_PUBLIC_KEY
-        self.base_url = "https://api.paystack.co"
+        self.base_url = settings.PAYSTACK_BASE_URL.rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {self.secret_key}",
             "Content-Type": "application/json"
@@ -145,13 +145,22 @@ class PaystackService:
                 }
                 
         except requests.RequestException as e:
-            return {
+            # "unreachable" = we could not get an answer (timeout, connection, 5xx, rate limit), as opposed to
+            # Paystack answering definitively that the transaction is not a success (e.g. 404 for an unknown reference).
+            reply = getattr(e, "response", None)
+            code = getattr(reply, "status_code", None)
+            definitive = code is not None and 400 <= code < 500 and code != 429
+            result = {
                 "status": False,
                 "message": f"Network error: {str(e)}"
             }
+            if not definitive:
+                result["unreachable"] = True
+            return result
         except Exception as e:
             return {
                 "status": False,
+                "unreachable": True,
                 "message": f"Unexpected error: {str(e)}"
             }
 

@@ -103,6 +103,9 @@ class FlowMessage:
     cta: str
     screen: Optional[str] = None
     data: dict = field(default_factory=dict)
+    # "navigate" opens a given screen with the data we send; "data_exchange" lets the Flow's data endpoint
+    # (WA-FR-16) choose the first screen and its data on INIT.
+    action: str = "navigate"
     kind = "interactive"
 
     def __post_init__(self):
@@ -158,7 +161,7 @@ def to_payload(to: str, msg: OutboundMessage) -> dict[str, Any]:
                        "action": {"name": "send_location"}}
     elif isinstance(msg, FlowMessage):
         parameters: dict[str, Any] = {"flow_message_version": "3", "flow_token": msg.flow_token,
-                                      "flow_id": msg.flow_id, "flow_cta": msg.cta, "flow_action": "navigate"}
+                                      "flow_id": msg.flow_id, "flow_cta": msg.cta, "flow_action": msg.action}
         if msg.screen:
             parameters["flow_action_payload"] = {"screen": msg.screen, "data": msg.data}
         interactive = {"type": "flow", "body": {"text": msg.body},

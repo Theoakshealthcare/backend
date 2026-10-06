@@ -21,7 +21,7 @@ from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPrev
 from app.services.location import LocationService
 from app.services.gemini import gemini_service
 from app.services.paystack import PaystackService, paystack_email_for
-from app.services.pricing import compute_price
+from app.services.pricing import PriceBreakdown, compute_price
 # aliased: `settings` is shadowed by BookingSettings locals in this module's methods
 from app.core.config import settings as app_settings
 from app.core.money import kobo_to_naira
@@ -146,39 +146,64 @@ class BookingService:
 
     def create_booking(self, patient_id: UUID, booking_data: BookingCreate) -> Dict[str, Any]:
         """Create a new booking with payment initiation"""
-        
+        booking = self.insert_booking(patient_id, booking_data, commit=True)
+        return self.start_payment(
+            booking, callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete"
+        )
+
+    def insert_booking(
+        self,
+        patient_id: UUID,
+        booking_data: BookingCreate,
+        *,
+        commit: bool = True,
+        locked_price: Optional[PriceBreakdown] = None,
+        channel: str = "app",
+        booked_by_user_id: Optional[UUID] = None,
+        care_recipient_id: Optional[UUID] = None,
+        condition_encrypted: Optional[str] = None,
+        needs_address_check: bool = False,
+    ) -> Booking:
+        """Price and insert the booking row. ``commit=False`` only flushes, so a caller (the WhatsApp channel)
+        can link it to its quote in the same transaction. ``locked_price`` is a price that was shown to the
+        person and has not been recomputed since (WA-FR-20); without it the current settings decide."""
+
         # Calculate end time
         scheduled_end = booking_data.scheduled_date + timedelta(hours=booking_data.duration_hours)
-        
-        # Fetch latest booking settings
-        settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
-        if not settings:
-            raise Exception("Booking settings not configured.")
-        
-        # Price in kobo. What we store is exactly what we send to Paystack and what settlement
-        # later compares against.
-        multiplier = 1.0
-        if settings.multipliers and booking_data.service_type in settings.multipliers:
-            multiplier = settings.multipliers[booking_data.service_type]
-        price = compute_price(
-            base_fee_kobo=settings.base_fee_kobo,
-            quantity=booking_data.duration_hours,
-            multiplier=multiplier,
-            surge_multiplier=settings.surge_multiplier if settings.surge_pricing else None,
-            discount_percent=settings.discount,
-            platform_fee_percent=settings.platform_fee_percent,
-        )
+
+        if locked_price is not None:
+            price = locked_price
+        else:
+            # Fetch latest booking settings
+            settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+            if not settings:
+                raise Exception("Booking settings not configured.")
+
+            # Price in kobo. What we store is exactly what we send to Paystack and what settlement
+            # later compares against.
+            multiplier = 1.0
+            if settings.multipliers and booking_data.service_type in settings.multipliers:
+                multiplier = settings.multipliers[booking_data.service_type]
+            price = compute_price(
+                base_fee_kobo=settings.base_fee_kobo,
+                quantity=booking_data.duration_hours,
+                multiplier=multiplier,
+                surge_multiplier=settings.surge_multiplier if settings.surge_pricing else None,
+                discount_percent=settings.discount,
+                platform_fee_percent=settings.platform_fee_percent,
+            )
 
         # Generate unique payment reference
         booking_code = self.generate_booking_code()
         paystack_reference = f"BKG_{booking_code}_{patient_id.hex[:8]}"
-        
+
         booking = Booking(
             booking_code=booking_code,
             patient_id=patient_id,
             service_type=booking_data.service_type,
             assistance_type=booking_data.assistance_type,
             condition=booking_data.condition,
+            condition_encrypted=condition_encrypted,
             duration_hours=booking_data.duration_hours,
             scheduled_date=booking_data.scheduled_date,
             scheduled_end_date=scheduled_end,
@@ -187,51 +212,61 @@ class BookingService:
             patient_longitude=booking_data.patient_longitude,
             patient_city=booking_data.patient_city,
             patient_state=booking_data.patient_state,
+            needs_address_check=needs_address_check,
             special_instructions=booking_data.special_instructions,
             booking_for=booking_data.booking_for,
+            channel=channel,
+            booked_by_user_id=booked_by_user_id,
+            care_recipient_id=care_recipient_id,
             total_amount_kobo=price.total_kobo,
             service_fee_kobo=price.service_fee_kobo,
             platform_fee_kobo=price.platform_fee_kobo,
             paystack_reference=paystack_reference,
             payment_expires_at=datetime.utcnow() + timedelta(minutes=app_settings.PAYMENT_LINK_TTL_MINUTES),
         )
-        
+
         self.db.add(booking)
-        self.db.commit()
-        self.db.refresh(booking)
-        
-        # Get patient email for payment
-        patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
+        if commit:
+            self.db.commit()
+            self.db.refresh(booking)
+        else:
+            self.db.flush()
+        return booking
+
+    def start_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
+        """Initialise the Paystack transaction for a booking that already exists."""
+        patient = self.db.query(Patient).filter(Patient.id == booking.patient_id).first()
         if not patient:
             raise Exception("Patient not found for payment processing.")
-        
+        patient_id = booking.patient_id
+
         # Initialize Paystack payment
         payment_response = self.paystack_service.initialize_transaction(
             email=paystack_email_for(patient),
             amount_kobo=booking.total_amount_kobo,
-            reference=paystack_reference,
-            callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete",
+            reference=booking.paystack_reference,
+            callback_url=callback_url,
             metadata={
                 "booking_id": str(booking.id),
                 "patient_id": str(patient_id),
-                "service_type": booking_data.service_type,
-                "booking_code": booking_code
+                "service_type": booking.service_type,
+                "booking_code": booking.booking_code
             }
         )
-        
+
         if not payment_response.get("status"):
             # If payment initialization fails, mark booking as cancelled
             booking.status = BookingStatus.CANCELLED
             booking.payment_status = PaymentStatus.FAILED
             self.db.commit()
             self.db.refresh(booking)
-            
+
             return {
                 "booking": booking,
                 "payment_url": None,
                 "payment_error": payment_response.get("message", "Payment initialization failed")
             }
-        
+
         return {
             "booking": booking,
             "payment_url": payment_response.get("authorization_url"),

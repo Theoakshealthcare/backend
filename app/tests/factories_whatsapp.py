@@ -15,8 +15,8 @@ def make_wa_id() -> str:
 
 def make_contact(db: Session, wa_id: str | None = None, state: str = "new", **overrides) -> WhatsAppContact:
     wa_id = wa_id or make_wa_id()
-    contact = WhatsAppContact(wa_id=wa_id, phone_e164="+" + wa_id, last_inbound_at=datetime.utcnow(),
-                              **overrides)
+    overrides.setdefault("last_inbound_at", datetime.utcnow())
+    contact = WhatsAppContact(wa_id=wa_id, phone_e164="+" + wa_id, **overrides)
     db.add(contact)
     db.flush()
     db.add(WhatsAppConversation(contact_id=contact.id, state=state, context={}))

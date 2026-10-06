@@ -2,6 +2,8 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
+**Update (2026-10-06, evening):** Admin A0 and A1 merged; tech debt merged (#23: Python 3.13, pwdlib, PyJWT, google-genai, typed responses). WhatsApp W1 merged, W2 (booking in chat) in review. See sections 9–11.
+
 **Update (2026-10-06):** Phase 0 is done. Phase C (caregiver app) is code-complete: C0–C4 merged. A device/Simulator run is pending a newer Xcode, and real push needs an EAS project. See section 8.
 
 **Snapshot (2026-09-30):**
@@ -115,13 +117,13 @@ Spec: [PRD](../prd/PRD-whatsapp-patient-channel.md) · [proposal](../proposals/2
   - [ ] Redis
   - [ ] Worker queue and scheduler
   - [ ] Non-sleeping hosting plan
-- [ ] **Data model:** contacts, conversations, message metadata, care recipients and relationships, consents, quotes, dispatch waves, ratings, templates (PRD §10)
-- [ ] **Webhook, Flow data endpoint and outbound sender** using PyWa (WA-FR-1–4, §11)
+- [ ] **Data model:** contacts, conversations, message metadata, care recipients and relationships, consents, quotes, dispatch waves, ratings, templates (PRD §10). Done: W1 tables, `quotes` and booking columns (W2, `0005_whatsapp_booking`), dispatch waves (earlier). Missing: ratings, a `message_templates` table (the registry is code for now)
+- [x] **Webhook, Flow data endpoint and outbound sender** (WA-FR-1–4, §11). Webhook and sender 2026-10-06, W1 (own httpx client, not PyWa); Flow data endpoint (RSA-OAEP + AES-GCM, signature, ping/INIT/data_exchange/BACK) 2026-10-06, W2
 - [ ] **Consent and opt-out** (WA-FR-5–9)
-- [ ] **Menu and navigation** (WA-FR-10–12)
-- [ ] **Booking Flow and location request** (WA-FR-13–17)
-- [ ] **Quote with 30-minute price lock** (WA-FR-18–21)
-- [ ] **Paystack link, expiry and webhook confirmation** (WA-FR-22–27)
+- [x] **Menu and navigation** (WA-FR-10–12). Menu and two-miss handover W1; 30-minute idle expiry that never loses a created booking W2
+- [x] **Booking Flow and location request** (WA-FR-13–17). 2026-10-06, W2, branch `feat/whatsapp-booking` (verified locally against the fake Meta; not yet on Meta's Flow builder). Geocoding of a typed address is out of scope: no pin means the booking is held for an address check
+- [x] **Quote with 30-minute price lock** (WA-FR-18–21). 2026-10-06, W2. The app's own preview/create still default a missing multiplier to 1.0 (follow-up)
+- [x] **Paystack link, expiry and webhook confirmation** (WA-FR-22–27). 2026-10-06, W2 (WA-FR-26 callback page waits for the web companion, W4)
 - [ ] **Matching and assignment notifications** (WA-FR-28–31)
 - [ ] **Visit lifecycle notifications and visit code** (WA-FR-32–37)
 - [ ] **My bookings and cancellation policy** (WA-FR-38–39)
@@ -192,8 +194,12 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] 10. Tests: permission matrix (about 40 routes x 7 roles), token audience both ways, MFA replay, refresh reuse, lockout, invite, last Super Admin (with a race test), CLI, migration
   - [x] 11. FE guide from live captures (`scripts/capture_admin_flow.py`, `docs/fe-captures/admin/`), `--check` in CI
   - [x] 12. Opus review (auth and permission code): 1 high, 1 medium, 4 low findings fixed with tests, 2026-10-06
-  - [ ] 13. Final read of the review-fix diff before merge
-- [ ] **A1** Console scaffold (`apps/admin`, Next.js 16): login and MFA, permission-gated shell, caregiver queue and detail with all decisions, admin users
+  - [x] 13. Final read of the review-fix diff before merge (merged as #21)
+- [x] **A1** Console scaffold (`apps/admin`, Next.js 16): login and MFA, permission-gated shell, caregiver queue and detail with all decisions, admin users — merged 2026-10-06 (innocent98/oaklycare-caregiver-mobile#6, 8267a0b)
+  - [x] BFF with httpOnly refresh cookie, single-flight refresh (browser + per-token in the BFF, 2 s late-caller grace)
+  - [x] Security review fixes: proxy segment validation + allowlist (`admin/`, `caregiver/documents/`), 1 MB body cap, CSP with per-request nonce, HSTS in production, open-redirect guard; Opus re-review clean
+  - [x] Verified: 121 admin tests, Playwright e2e 8/8 against the local docker stack, production build checked in Chromium (no CSP violations)
+  - [ ] Audit log viewer page (API exists; moved to A5)
 - [ ] **A2** Bookings ops: list and detail with timeline, unmatched queue, assign, reassign, cancel, status correction
 - [ ] **A3** Money: earnings credited on completion, caregiver ledger, Paystack Transfer payouts, refunds v2 queue (`refund_required`), payments and webhook exceptions
 - [ ] **A4** Pricing: versioned price books, service areas, form options, policies
@@ -211,7 +217,19 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] Fake Meta (`app/tests/fake_meta.py`) and the Docker end-to-end script
   - [ ] **Owner:** real-Meta check with a developer test number and a tunnel ([steps in the SOP](../sop/2026-10-06-whatsapp-foundations.md#local-testing-with-a-meta-developer-test-number--tunnel))
   - [ ] Deferred to W2: consent Flow (checkboxes) replaces the buttons; one-time-code linking of an existing app account; idle expiry (WA-FR-12)
-- [ ] **W2** Booking in chat: booking Flow and encrypted data endpoint, location, locked quote, Paystack link, templates
+- [x] **W2** Booking in chat: booking Flow and encrypted data endpoint, location, locked quote, Paystack link, templates. 2026-10-06, branch `feat/whatsapp-booking` (base `186cfd1`), migration `0005_whatsapp_booking`, [SOP](../sop/2026-10-06-whatsapp-booking.md). Verified locally and by `scripts/whatsapp_local_e2e.py` on the Docker stack against a fake Meta and a fake Paystack; not yet merged, not yet run against real Meta.
+  - [x] Booking Flow JSON (`app/channels/whatsapp/flows/booking.json`, version 6.3) with a structure test; six screens (who, new recipient, service with per-hour price, date and slots, duration/condition/instructions, address and city)
+  - [x] Flow data endpoint `POST /api/v1/whatsapp/flows/data`: signature (432), RSA-OAEP + AES-128-GCM with flipped-IV reply (421 on tamper), ping, INIT, data_exchange, BACK; the condition is encrypted straight into the draft and never returned
+  - [x] Location request after the Flow; no pin = placeholder coordinates, `needs_address_check`, paid but not dispatched
+  - [x] Service-area check (Lagos, Abuja, from a setting) with a waitlist offer for anywhere else
+  - [x] Quote: `price_service` (same `compute_price`, strict about the multiplier), `quotes` row locked 30 minutes, itemised in naira with the cancellation line; price change after the lock does not change the booking
+  - [x] Confirm creates one booking (conversation, quote and unique `quotes.booking_id` locks; two-worker test), Paystack link with `paystack_email_for`, "Pay now" CTA
+  - [x] Payment journey: reminder at 20 minutes, cancellation at 30 (existing expiry job), `payment_received`; Paystack verify when the person returns first; `booking_events` outbox
+  - [x] Template registry in code (5 W2 templates, utility; `payment_refund_pending` added by the security review) and the 24-hour window rule enforced in `send_and_record`
+  - [x] Conversation states `booking_flow -> awaiting_location -> quoted -> awaiting_payment -> idle`; 30-minute idle expiry
+  - [x] Condition encrypted on the booking (`condition_encrypted`), never in a message, table, log or Redis (asserted)
+  - [ ] **Owner:** upload the Flow to Meta's builder, set the endpoint, upload the public key, submit the 4 templates, set `WHATSAPP_BOOKING_FLOW_ID` (steps in the SOP)
+  - [ ] Deferred: operator action to clear `needs_address_check` and start dispatch (no admin UI yet); supply-aware time slots; web-companion payment return page (W4); `message_templates` table with Meta approval status
 - [ ] **W3** Notifications (channel-agnostic) and my bookings/cancel
 - [ ] **W4** Web companion API and `apps/companion`
 - [ ] **W5** FallGuard Flow, vitals reminders, care circle, Pidgin
