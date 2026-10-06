@@ -81,7 +81,7 @@ declares them and `poetry.lock` pins exact versions — always commit both toget
 
 ### Prerequisites
 
-- Python 3.11 (see `.python-version`)
+- Python 3.13 (see `.python-version`)
 - Poetry 2.2.1 — `pipx install poetry==2.2.1`
 - Docker (optional, for the container build)
 
@@ -91,7 +91,7 @@ declares them and `poetry.lock` pins exact versions — always commit both toget
 git clone git@github.com:innocent98/backend.git
 cd backend
 cp .env.example .env            # then fill in real values
-poetry env use python3.11
+poetry env use python3.13
 poetry install                  # creates .venv/ in the project (see poetry.toml)
 poetry run alembic upgrade head
 poetry run uvicorn app.main:app --reload

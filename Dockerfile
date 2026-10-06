@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-ARG PYTHON_VERSION=3.11-slim-bookworm
+ARG PYTHON_VERSION=3.13-slim-bookworm
 
 # ---- Build stage: resolve and install dependencies with Poetry ----
 FROM python:${PYTHON_VERSION} AS builder
