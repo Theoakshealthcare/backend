@@ -46,3 +46,19 @@ def test_contact_ref_is_stable_and_not_the_number():
     ref = contact_ref("2348012345678")
     assert ref == contact_ref("2348012345678") and len(ref) == 12
     assert "2348012345678" not in ref
+
+
+def test_contact_ref_is_keyed_so_a_number_cannot_be_recovered_by_hashing_candidates():
+    import hashlib
+
+    ref = contact_ref("2348012345678")
+    assert ref != hashlib.sha256(b"2348012345678").hexdigest()[:12]
+    assert ref == contact_ref("2348012345678") and ref != contact_ref("2348012345679")
+
+
+def test_contact_ref_depends_on_the_server_secret(monkeypatch):
+    from app.core.config import settings
+
+    before = contact_ref("2348012345678")
+    monkeypatch.setattr(settings, "SECRET_KEY", settings.SECRET_KEY + "-rotated")
+    assert contact_ref("2348012345678") != before

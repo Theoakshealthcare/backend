@@ -5,8 +5,11 @@ Oakly is Nigeria-first, so a national number (``0801 234 5678``) is read as Nige
 """
 
 import hashlib
+import hmac
 import re
 from typing import Any, Optional, Set
+
+from app.core.config import settings
 
 _E164 = re.compile(r"^\+[1-9]\d{7,14}$")
 _NG_PREFIX = "+234"
@@ -62,6 +65,12 @@ def mask_phone(value: Optional[str]) -> str:
     return f"{plus}{digits[:3]}****{digits[-4:]}"
 
 
+def _contact_ref_key() -> bytes:
+    # Domain-separated from every other use of SECRET_KEY, so this key is useless anywhere else.
+    return hmac.new(settings.SECRET_KEY.encode(), b"oakly-contact-ref:", hashlib.sha256).digest()
+
+
 def contact_ref(wa_id: str) -> str:
-    """A stable, non-reversible handle for a contact, for logs and metrics (never the number)."""
-    return hashlib.sha256(wa_id.encode()).hexdigest()[:12]
+    """A stable handle for a contact, for logs and metrics (never the number). Keyed (HMAC-SHA256), because
+    phone numbers are a tiny search space: an unkeyed hash of one can be reversed by trying them all."""
+    return hmac.new(_contact_ref_key(), wa_id.encode(), hashlib.sha256).hexdigest()[:12]
