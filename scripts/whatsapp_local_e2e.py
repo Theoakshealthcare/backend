@@ -705,12 +705,14 @@ def notification_scenarios(run: Run) -> None:
     run.check("the policy is shown before the person confirms",
               to_naira_text(ask[0]) == f"Cancel booking {e[1]}? You'll get a full refund of ₦44,000.", to_naira_text(ask[0]))
     run.check("nothing is cancelled by asking", booking_row(WA_ID_CANCEL)[3].lower() == "pending")
-    done = tap(run, WA_ID_CANCEL, f"bk:confirm:{e[0]}", "E2")
+    confirm_id = ask[0]["interactive"]["action"]["buttons"][0]["reply"]["id"]
+    run.check("the confirm button carries the fee that was shown (none here)", confirm_id == f"bk:confirm:{e[0]}:0", confirm_id)
+    done = tap(run, WA_ID_CANCEL, confirm_id, "E2")
     run.check("confirming cancels and starts the refund", to_naira_text(done[0]) == f"Booking {e[1]} is cancelled. We've started your refund of ₦44,000.", to_naira_text(done[0]))
     flagged = db_rows(f"SELECT status, cancel_reason, refund_required, refund_required_reason, refund_amount_kobo FROM bookings WHERE id = '{e[0]}'")
     run.check("the booking is cancelled and in the refund queue for the full amount",
               flagged[0][0].lower() == "cancelled" and flagged[0][1:] == ("cancelled_by_booker", True, "cancelled_by_booker", 4_400_000), str(flagged))
-    again = tap(run, WA_ID_CANCEL, f"bk:confirm:{e[0]}", "E3")
+    again = tap(run, WA_ID_CANCEL, confirm_id, "E3")
     run.check("a second Confirm is harmless", "already cancelled" in to_naira_text(again[0]))
     run.check("the refund was queued once", db_rows(f"SELECT refund_amount_kobo FROM bookings WHERE id = '{e[0]}'") == [(4_400_000,)])
 
@@ -727,7 +729,12 @@ def notification_scenarios(run: Run) -> None:
     text = to_naira_text(ask[0])
     run.check("the fee is stated before confirming", "less than 12 hours" in text and "20% fee" in text
               and f"₦{fee_kobo // 100:,}" in text and f"₦{(fee[1] - fee_kobo) // 100:,}" in text, text)
-    done = tap(run, WA_ID_RETURN, f"bk:confirm:{c[0]}", "C2")
+    confirm_c = ask[0]["interactive"]["action"]["buttons"][0]["reply"]["id"]
+    run.check("the confirm button carries the fee in kobo", confirm_c == f"bk:confirm:{c[0]}:{fee_kobo}", confirm_c)
+    bare = tap(run, WA_ID_RETURN, f"bk:confirm:{c[0]}:0", "C1b")
+    run.check("a forged zero-fee confirm cancels nothing and asks again", "terms have changed" in to_naira_text(bare[0])
+              and booking_row(WA_ID_RETURN)[3].lower() == "accepted")
+    done = tap(run, WA_ID_RETURN, confirm_c, "C2")
     run.check("the fee is kept and the refund is the rest", "a fee of" in to_naira_text(done[0])
               and db_rows(f"SELECT refund_amount_kobo FROM bookings WHERE id = '{c[0]}'") == [(fee[1] - fee_kobo,)])
     run.settle(16)
