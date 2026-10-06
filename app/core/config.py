@@ -210,6 +210,14 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _pin_paystack_base_url_in_production(self):
+        # The secret key goes out as a Bearer token to this URL and its "success" answer is trusted to mark a
+        # booking paid, so in production it can only be Paystack. Other environments may point at a fake.
+        if self.ENVIRONMENT.lower() == "production" and self.PAYSTACK_BASE_URL.rstrip("/") != "https://api.paystack.co":
+            raise ValueError("PAYSTACK_BASE_URL must be https://api.paystack.co when ENVIRONMENT=production")
+        return self
+
+    @model_validator(mode="after")
     def _warn_without_trusted_proxies_in_production(self):
         # Behind a reverse proxy every client otherwise shares the proxy's IP, so one attacker
         # could throttle an admin's logins for everyone. Not fatal: a direct deployment is valid.
