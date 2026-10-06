@@ -1,0 +1,34 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/bookings/298911c7-8ff3-470b-895b-218232595b9a/candidates",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+          "full_name": "Placeholder Nurse One",
+          "specialization": "nurse",
+          "distance_km": 0.22,
+          "estimated_arrival_minutes": 5,
+          "match_score": 232.56
+        },
+        {
+          "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+          "full_name": "Placeholder Nurse Two",
+          "specialization": "nurse",
+          "distance_km": 0.44,
+          "estimated_arrival_minutes": 5,
+          "match_score": 232.12
+        }
+      ]
+    }
+  }
+}

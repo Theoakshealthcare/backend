@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     MATCH_RADIUS_KM: float = 20
     DISPATCH_WAVE_SIZE: int = 8  # caregivers notified per wave
     DISPATCH_WAVE_MINUTES: int = 10  # how long a wave waits for an accept before the next one
+    UNMATCHED_SLA_MINUTES: int = 30  # a paid booking nobody accepted within this long is in the admin unmatched queue
+    NO_SHOW_GRACE_MINUTES: int = 15  # an accepted booking not started this long after its start time is flagged
     DISPATCH_ESCALATE_MINUTES: int = 30  # total dispatch time before the booking is unmatched
 
     # Caregiver app: push notifications (Expo), visit code and home summary.

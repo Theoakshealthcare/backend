@@ -26,6 +26,7 @@ import re
 import shutil
 import time
 import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -34,6 +35,8 @@ from cryptography.fernet import Fernet
 
 from scripts.capture_caregiver_flow import (
     DB,
+    LAT,
+    LON,
     PLACEHOLDER_PASSWORD,
     Recorder,
     hash_password,
@@ -133,15 +136,232 @@ def login_and_verify(rec: Recorder, admins: Admins, label: str, email: str, pass
     return body
 
 
+# --- A2: bookings operations ---------------------------------------------------------------------------------
+
+
+class OpsSeed:
+    """Rows the bookings section needs and no API creates: patients, approved caregivers with a fresh location,
+    and bookings in each state. Every seeded row is placeholder data."""
+
+    def __init__(self, db: DB, env: Dict[str, str], tag: str):
+        self.db, self.tag, self.n = db, tag, 0
+        self.fernet = Fernet(env["VITALS_ENCRYPTION_KEY"].split(",")[0].strip().encode())
+
+    def _phone(self) -> str:
+        self.n += 1
+        return f"+2340000{int(self.tag, 16) % 1000:03d}{self.n:03d}"
+
+    def _user(self, kind: str, name: str) -> str:
+        uid = str(uuid.uuid4())
+        self.db.run("INSERT INTO users (id, email, phone_number, full_name, hashed_password, user_type, is_active,"
+                    " is_verified, created_at, updated_at) VALUES (%s,%s,%s,%s,%s,%s,true,true,now(),now())",
+                    (uid, f"{kind}-{uid[:8]}-{self.tag}@example.com", self._phone(), name, hash_password(PLACEHOLDER_PASSWORD), kind))
+        return uid
+
+    def patient(self, name: str) -> str:
+        uid = self._user("patient", name)
+        pid = str(uuid.uuid4())
+        (phone, email), = self.db.run("SELECT phone_number, email FROM users WHERE id = %s", (uid,))
+        self.db.run("INSERT INTO patients (id, user_id, email, full_name, phone_number, city, state, is_active,"
+                    " created_at, updated_at) VALUES (%s,%s,%s,%s,%s,'Lagos','Lagos',true,now(),now())",
+                    (pid, uid, email, name, phone))
+        return pid
+
+    def caregiver(self, name: str, approved: bool = True, located: bool = True, offset: float = 0.002) -> str:
+        uid = self._user("caregiver", name)
+        cid = str(uuid.uuid4())
+        (phone, email), = self.db.run("SELECT phone_number, email FROM users WHERE id = %s", (uid,))
+        self.db.run(
+            "INSERT INTO caregivers (id, user_id, email, full_name, phone_number, state, specialization,"
+            " years_of_experience, profile_completion_step, identity_verification_status, background_check_status,"
+            " profile_status, created_at, updated_at) VALUES (%s,%s,%s,%s,%s,'Lagos','nurse',5,3,%s,'cleared',%s,"
+            " now(), now())",
+            (cid, uid, email, name, phone, "verified" if approved else "pending",
+             "approved" if approved else "under_review"))
+        self.db.run("INSERT INTO caregiver_skills (id, caregiver_id, service_type, created_at)"
+                    " VALUES (%s,%s,'nurse',now())", (str(uuid.uuid4()), cid))
+        if located:
+            self.db.run("INSERT INTO caregiver_locations (id, caregiver_id, latitude, longitude, is_active,"
+                        " is_available, recorded_at, updated_at) VALUES (%s,%s,%s,%s,true,true,now(),now())",
+                        (str(uuid.uuid4()), cid, LAT + offset, LON))
+        return cid
+
+    def booking(self, patient_id: str, *, status: str = "PENDING", payment: str = "PAID", hours_ahead: float = 26,
+                caregiver_id: Optional[str] = None, channel: str = "app", held: bool = False,
+                dispatch_state: Optional[str] = None, dispatch_started_ago_min: Optional[int] = None,
+                condition: Optional[str] = "Placeholder condition (plain)", encrypted: Optional[str] = None,
+                started: bool = False, lat: float = LAT, lon: float = LON) -> Dict[str, Any]:
+        bid, code = str(uuid.uuid4()), uuid.uuid4().hex[:8].upper()
+        start = datetime.utcnow() + timedelta(hours=hours_ahead)
+        started_at = datetime.utcnow() + timedelta(minutes=-dispatch_started_ago_min) if dispatch_started_ago_min \
+            else None
+        self.db.run(
+            "INSERT INTO bookings (id, booking_code, patient_id, caregiver_id, service_type, assistance_type,"
+            " condition, condition_encrypted, duration_hours, scheduled_date, scheduled_end_date, actual_start_time,"
+            " patient_address, patient_latitude, patient_longitude, patient_city, patient_state, needs_address_check,"
+            " channel, status, payment_status, dispatch_state, dispatch_started_at, total_amount_kobo,"
+            " service_fee_kobo, platform_fee_kobo, paystack_reference, booking_for, special_instructions,"
+            " refund_required, visit_code_failed_attempts, created_at, updated_at)"
+            " VALUES (%s,%s,%s,%s,'nurse','Placeholder assistance',%s,%s,2,%s,%s,%s,"
+            " '12 Placeholder Street, Lekki',%s,%s,'Lagos','Lagos',%s,%s,%s,%s,%s,%s,5500000,5000000,500000,%s,"
+            " 'myself','Placeholder instructions (gate code 0000)',false,0,now() - interval '40 minutes',now())",
+            (bid, code, patient_id, caregiver_id, condition, encrypted and self.fernet.encrypt(encrypted.encode()).decode(),
+             start, start + timedelta(hours=2), datetime.utcnow() if started else None, lat, lon, held, channel,
+             status, payment, dispatch_state, started_at, f"BKG_{code}_{uuid.uuid4().hex[:8]}"))
+        return {"id": bid, "code": code}
+
+
+def bookings_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
+    """A2: the bookings list, detail, unmatched queue and every action, as the roles that use them."""
+    admins = Admins(db, env, tag + "ops")
+    seed = OpsSeed(db, env, tag)
+    wait_for_new_rate_window()
+    rec.quiet = True
+    tokens = {}
+    for who, role in (("boss", "super_admin"), ("ops", "operations"), ("fin", "finance"),
+                      ("clin", "clinical_reviewer")):
+        tokens[who] = login_and_verify(rec, admins, who, admins.seed(who, role, f"Placeholder {role}"))["access_token"]
+    rec.quiet = False
+    boss, ops, fin, clin = tokens["boss"], tokens["ops"], tokens["fin"], tokens["clin"]
+    B = f"{ADMIN}/bookings"
+    seeded = ("SEEDED: patients, caregivers and bookings are inserted directly (no API creates them without a live "
+              "Paystack account). Everything is placeholder data.")
+
+    ada, bola, chi = seed.patient("Ada Okafor"), seed.patient("Bola Adeyemi"), seed.patient("Chidi Eze")
+    cg1 = seed.caregiver("Placeholder Nurse One", offset=0.002)
+    cg2 = seed.caregiver("Placeholder Nurse Two", offset=0.004)
+    cg_far = seed.caregiver("Placeholder Nurse Far", offset=0.3)
+    cg_unapproved = seed.caregiver("Placeholder Applicant", approved=False, located=False)
+    unmatched = seed.booking(ada, dispatch_state="unmatched", dispatch_started_ago_min=90, hours_ahead=5)
+    held = seed.booking(bola, channel="whatsapp", held=True, hours_ahead=30, lat=6.5244, lon=3.3792,
+                        condition=None, encrypted="Placeholder condition (typed in the WhatsApp Flow)")
+    late = seed.booking(chi, status="ACCEPTED", caregiver_id=cg1, dispatch_state="matched", hours_ahead=-0.5)
+    running = seed.booking(ada, status="IN_PROGRESS", caregiver_id=cg2, dispatch_state="matched", hours_ahead=-1,
+                           started=True)
+    to_cancel = seed.booking(bola, channel="whatsapp", dispatch_state="dispatching", dispatch_started_ago_min=5,
+                             hours_ahead=40)
+    to_offer = seed.booking(chi, dispatch_state="dispatching", dispatch_started_ago_min=3, hours_ahead=48)
+    to_force = seed.booking(ada, dispatch_state="unmatched", dispatch_started_ago_min=60, hours_ahead=50)
+    to_reassign = seed.booking(bola, status="ACCEPTED", caregiver_id=cg1, dispatch_state="matched", hours_ahead=28)
+    unpaid = seed.booking(chi, payment="PENDING", hours_ahead=60)
+
+    # --- reading ---------------------------------------------------------------------------------------
+    rec.call("bookings-list", "GET", B, token=ops, params={"limit": 3},
+             note="Operations holds people.pii, so names and phones are in full. " + seeded)
+    rec.call("bookings-list-filtered", "GET", B, token=ops, params={
+        "status": "pending", "payment_status": "paid", "channel": "whatsapp", "sort": "created_at", "order": "desc"})
+    rec.call("bookings-list-search", "GET", B, token=ops, params={"q": "okafor"})
+    rec.call("bookings-list-no-show", "GET", B, token=ops, params={"no_show": "true"},
+             note="Flagged or suspected no-shows: an accepted visit 15 minutes past its start with no check-in.")
+    rec.call("bookings-list-masked", "GET", B, token=fin, params={"limit": 2},
+             note="Finance holds bookings.read but not people.pii: names and phones are shortened.")
+    rec.call("bookings-list-bad-status", "GET", B, token=ops, expect=422, params={"status": "nonsense"})
+    rec.call("bookings-unmatched", "GET", f"{B}/unmatched", token=ops)
+    rec.call("bookings-unmatched-held", "GET", f"{B}/unmatched", token=ops, params={"reason": "address_check"})
+
+    rec.call("booking-detail-ops", "GET", f"{B}/{unmatched['id']}", token=ops,
+             note="Operations may see the address (bookings.address) but not the condition (clinical.read).")
+    rec.call("booking-detail-held-whatsapp", "GET", f"{B}/{held['id']}", token=ops,
+             note="A WhatsApp booking held for an address check: the pin is a city-centre placeholder.")
+    rec.call("booking-detail-finance", "GET", f"{B}/{unmatched['id']}", token=fin,
+             note="Finance: no bookings.address, no people.pii, no clinical.read.")
+    rec.call("booking-detail-clinical", "GET", f"{B}/{held['id']}", token=clin,
+             note="Clinical Reviewer: the decrypted condition is returned and this read is written to the audit log.")
+    rec.call("booking-detail-not-found", "GET", f"{B}/{uuid.uuid4()}", token=ops, expect=404)
+    rec.call("audit-clinical-view", "GET", f"{ADMIN}/audit", token=boss, params={
+        "entity_type": "booking", "action": "booking.clinical_view", "limit": 1})
+    rec.call("booking-candidates", "GET", f"{B}/{unmatched['id']}/candidates", token=ops)
+
+    # --- re-dispatch -------------------------------------------------------------------------------------
+    rec.call("redispatch-no-reason", "POST", f"{B}/{unmatched['id']}/redispatch", token=ops, expect=422, json_body={})
+    rec.call("redispatch-held", "POST", f"{B}/{held['id']}/redispatch", token=ops, expect=409,
+             json_body={"reason": "Try again"})
+    rec.call("redispatch", "POST", f"{B}/{unmatched['id']}/redispatch", token=ops,
+             json_body={"reason": "Nurses are online again", "radius_km": 25})
+
+    # --- assign / reassign -----------------------------------------------------------------------------------
+    rec.call("assign-offer", "POST", f"{B}/{to_offer['id']}/assign", token=ops,
+             json_body={"caregiver_id": cg1, "reason": "Known to the patient"},
+             note="An offer: the caregiver still has to accept in the app. The booking stays pending.")
+    rec.call("assign-unapproved", "POST", f"{B}/{to_offer['id']}/assign", token=ops, expect=409,
+             json_body={"caregiver_id": cg_unapproved, "reason": "Trying"})
+    rec.call("assign-force-as-ops", "POST", f"{B}/{to_force['id']}/assign", token=ops, expect=403,
+             json_body={"caregiver_id": cg2, "reason": "Patient is waiting", "force": True})
+    rec.call("assign-force", "POST", f"{B}/{to_force['id']}/assign", token=boss,
+             json_body={"caregiver_id": cg2, "reason": "Patient is waiting", "force": True},
+             note="Super Admin only: no accept step. The booking is accepted and the caregiver is told.")
+    rec.call("reassign-same-caregiver", "POST", f"{B}/{to_reassign['id']}/reassign", token=ops, expect=409,
+             json_body={"caregiver_id": cg1, "reason": "Same one"})
+    rec.call("reassign", "POST", f"{B}/{to_reassign['id']}/reassign", token=ops,
+             json_body={"caregiver_id": cg2, "reason": "First caregiver is unwell"})
+    rec.call("assign-on-accepted-booking", "POST", f"{B}/{to_reassign['id']}/assign", token=ops, expect=409,
+             json_body={"caregiver_id": cg_far, "reason": "Wrong endpoint"},
+             note="/assign never turns into a reassignment: an accepted booking is a 409.")
+
+    # --- cancel ---------------------------------------------------------------------------------------------------
+    rec.call("cancel-partial-no-amount", "POST", f"{B}/{to_cancel['id']}/cancel", token=ops, expect=422,
+             json_body={"reason_code": "patient_request", "reason": "Patient called", "refund": "partial"})
+    rec.call("cancel", "POST", f"{B}/{to_cancel['id']}/cancel", token=ops, json_body={
+        "reason_code": "patient_request", "reason": "Patient called to cancel", "refund": "full"},
+        note="No money moves. refund_required is set for the refund queue; a WhatsApp booker is told a refund is coming.")
+    rec.call("cancel-again", "POST", f"{B}/{to_cancel['id']}/cancel", token=ops, expect=409,
+             json_body={"reason_code": "patient_request", "reason": "Again", "refund": "none"})
+    rec.call("cancel-unpaid-with-refund", "POST", f"{B}/{unpaid['id']}/cancel", token=ops, expect=422,
+             json_body={"reason_code": "duplicate", "reason": "Duplicate booking", "refund": "full"})
+    rec.call("cancel-unpaid", "POST", f"{B}/{unpaid['id']}/cancel", token=ops, json_body={
+        "reason_code": "duplicate", "reason": "Duplicate booking", "refund": "none"})
+
+    # --- confirm address ----------------------------------------------------------------------------------------------
+    rec.call("confirm-address-outside-nigeria", "POST", f"{B}/{held['id']}/confirm-address", token=ops, expect=422,
+             json_body={"reason": "Typo", "latitude": 51.5, "longitude": -0.12})
+    rec.call("confirm-address", "POST", f"{B}/{held['id']}/confirm-address", token=ops, json_body={
+        "reason": "Called the booker and confirmed the street", "latitude": LAT, "longitude": LON,
+        "address": "14 Placeholder Close, Lekki"},
+        note="Clears the hold and starts dispatch in the same call (wave 1 goes to nearby caregivers).")
+    rec.call("confirm-address-again", "POST", f"{B}/{held['id']}/confirm-address", token=ops, expect=409,
+             json_body={"reason": "Again", "latitude": LAT, "longitude": LON})
+    rec.call("booking-detail-after-confirm", "GET", f"{B}/{held['id']}", token=ops,
+             note="The timeline now shows the dispatch wave, the offers and the admin action.")
+
+    # --- no-show and status correction --------------------------------------------------------------------------------------
+    rec.call("no-show", "POST", f"{B}/{late['id']}/no-show", token=ops, json_body={"reason": "Caregiver not reachable"})
+    rec.call("no-show-again", "POST", f"{B}/{late['id']}/no-show", token=ops, expect=409,
+             json_body={"reason": "Again"})
+    rec.call("correct-status-as-ops", "POST", f"{B}/{running['id']}/correct-status", token=ops, expect=403,
+             json_body={"status": "completed", "reason": "Forgot to check out"})
+    rec.call("correct-status", "POST", f"{B}/{running['id']}/correct-status", token=boss,
+             json_body={"status": "completed", "reason": "Caregiver forgot to check out"})
+    rec.call("correct-status-again", "POST", f"{B}/{running['id']}/correct-status", token=boss, expect=409,
+             json_body={"status": "completed", "reason": "Again"})
+    rec.call("audit-booking-actions", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "booking", "limit": 5},
+             note="Every action above wrote one entry, newest first.")
+
+
 def run(args) -> None:
     out = Path(args.out)
-    if out.exists():
-        shutil.rmtree(out)
-    out.mkdir(parents=True)
     env = read_env(args.env_file)
     rec = AdminRecorder(args.base_url, out)
     db = DB(args.db_url)
     tag = uuid.uuid4().hex[:6]
+    if args.section == "bookings":
+        # Replace only the A2 captures: everything numbered from the section's first file is deleted and made
+        # again after the earlier ones, which stay as they are.
+        index = json.loads((out / "000-index.json").read_text())
+        first = index.get("sections", {}).get("bookings", len(index["captures"]) + 1)
+        for stale in out.glob("*.json"):
+            if stale.name != "000-index.json" and int(stale.name[:3]) >= first:
+                stale.unlink()
+        rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
+        rec.n = first - 1
+        index.setdefault("sections", {})["bookings"] = first
+        bookings_ops(rec, db, env, tag)
+        index["captures"] = rec.index
+        (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
+        print(f"wrote {len(rec.index)} captures to {out}")
+        return
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
     admins = Admins(db, env, tag)
     seeded = "SEEDED: the first Super Admin is inserted directly (production uses scripts.create_super_admin). MFA is already enrolled."
 
@@ -381,8 +601,12 @@ def run(args) -> None:
              note="Refresh is not part of the per-IP limit: it still works while login and verify are limited.",
              json_body={"refresh_token": late["refresh_token"]})
 
+    first_bookings = rec.n + 1
+    bookings_ops(rec, db, env, tag)
+
     (out / "000-index.json").write_text(json.dumps({
-        "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")
+        "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag, "sections": {"bookings": first_bookings},
+        "captures": rec.index}, indent=2) + "\n")
     print(f"wrote {len(rec.index)} captures to {out}")
 
 
@@ -392,6 +616,8 @@ def main() -> None:
     p.add_argument("--db-url", default="postgresql://oakly:oakly@127.0.0.1:5432/oakly")
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Fernet key)")
     p.add_argument("--out", default="docs/fe-captures/admin")
+    p.add_argument("--section", choices=["all", "bookings"], default="all",
+                   help="'bookings' re-captures only the A2 section and appends it to the existing captures")
     run(p.parse_args())
 
 

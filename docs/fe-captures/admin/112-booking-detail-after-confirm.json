@@ -1,0 +1,144 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/bookings/b316785e-b27a-44c6-85bd-3246c2ea9648",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+      "booking_code": "06C5304A",
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "booking_for": "myself",
+      "duration_hours": 2,
+      "scheduled_date": "2026-10-08T02:16:05.551407",
+      "scheduled_end_date": "2026-10-08T04:16:05.551407",
+      "actual_start_time": null,
+      "actual_end_time": null,
+      "status": "pending",
+      "channel": "whatsapp",
+      "cancel_reason": null,
+      "created_at": "2026-10-06T19:36:05.549631",
+      "updated_at": "2026-10-06T20:16:05.882432",
+      "age_minutes": 40,
+      "patient": {
+        "id": "3c4bb293-6fc0-49a2-94af-82198d8605d0",
+        "full_name": "Bola Adeyemi",
+        "phone": "+2340000780002",
+        "masked": false
+      },
+      "caregiver": null,
+      "address": {
+        "city": "Lagos",
+        "state": "Lagos",
+        "visible": true,
+        "line": "14 Placeholder Close, Lekki",
+        "latitude": 6.4474,
+        "longitude": 3.4723,
+        "needs_address_check": false
+      },
+      "clinical": {
+        "masked": true,
+        "has_condition": true,
+        "has_special_instructions": true,
+        "condition": null,
+        "special_instructions": null
+      },
+      "price": {
+        "total_kobo": 5500000,
+        "service_fee_kobo": 5000000,
+        "platform_fee_kobo": 500000
+      },
+      "payment": {
+        "status": "paid",
+        "paystack_reference": "BKG_06C5304A_d309d1b3",
+        "failure_reason": null,
+        "expires_at": null,
+        "refund_required": false,
+        "refund_required_reason": null,
+        "attempts": []
+      },
+      "dispatch": {
+        "state": "dispatching",
+        "started_at": "2026-10-06T20:16:05.881099",
+        "waves": [
+          {
+            "wave_no": 1,
+            "sent_at": "2026-10-06T20:16:05.881099",
+            "expires_at": "2026-10-06T20:26:05.881099",
+            "notified_count": 2
+          }
+        ],
+        "offers": [
+          {
+            "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+            "caregiver_name": "Placeholder Nurse One",
+            "offered_at": "2026-10-06T20:16:05.886817",
+            "response": null,
+            "response_at": null
+          },
+          {
+            "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+            "caregiver_name": "Placeholder Nurse Two",
+            "offered_at": "2026-10-06T20:16:05.886821",
+            "response": null,
+            "response_at": null
+          }
+        ]
+      },
+      "events": [],
+      "no_show_flagged_at": null,
+      "no_show_suspected": false,
+      "note_count": 0,
+      "timeline": [
+        {
+          "at": "2026-10-06T19:36:05.549631",
+          "kind": "booking_created",
+          "title": "Booking created via whatsapp",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-10-06T20:16:05.711881",
+          "kind": "admin_action",
+          "title": "booking.clinical_view",
+          "actor": "admin: Placeholder clinical_reviewer",
+          "detail": null
+        },
+        {
+          "at": "2026-10-06T20:16:05.881099",
+          "kind": "dispatch_started",
+          "title": "Dispatch started",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-10-06T20:16:05.881099",
+          "kind": "wave_sent",
+          "title": "Wave 1 sent",
+          "actor": "system",
+          "detail": "2 caregiver(s) offered the visit"
+        },
+        {
+          "at": "2026-10-06T20:16:05.881938",
+          "kind": "admin_action",
+          "title": "booking.confirm_address",
+          "actor": "admin: Placeholder operations",
+          "detail": "Called the booker and confirmed the street"
+        }
+      ],
+      "available_actions": [
+        "redispatch",
+        "assign",
+        "cancel"
+      ]
+    }
+  },
+  "note": "The timeline now shows the dispatch wave, the offers and the admin action."
+}

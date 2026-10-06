@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/195e0918-821a-45dc-a0c2-5a9d30182b95/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason_code": "patient_request",
+      "reason": "Again",
+      "refund": "none"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "A cancelled booking cannot be cancelled"
+    }
+  }
+}

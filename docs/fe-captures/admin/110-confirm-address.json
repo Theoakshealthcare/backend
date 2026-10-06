@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/b316785e-b27a-44c6-85bd-3246c2ea9648/confirm-address",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Called the booker and confirmed the street",
+      "latitude": 6.4474,
+      "longitude": 3.4723,
+      "address": "14 Placeholder Close, Lekki"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+      "booking_code": "06C5304A",
+      "status": "pending",
+      "payment_status": "paid",
+      "dispatch_state": "dispatching",
+      "caregiver_id": null,
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 2
+    }
+  },
+  "note": "Clears the hold and starts dispatch in the same call (wave 1 goes to nearby caregivers)."
+}

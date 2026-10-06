@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/db418452-c9a7-4da5-9f36-60b2c14ff241/assign",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "caregiver_id": "37dcc6e6-5876-4a0a-8451-809bf7393d06",
+      "reason": "Wrong endpoint"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Only a pending booking without a caregiver can be offered"
+    }
+  },
+  "note": "/assign never turns into a reassignment: an accepted booking is a 409."
+}

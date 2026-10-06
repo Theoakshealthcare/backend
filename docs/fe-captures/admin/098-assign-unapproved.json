@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/9840bf70-56cd-4786-8a1c-bd7d5628697e/assign",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "caregiver_id": "e4cccfb2-9603-48cc-b906-9bb5f206b5a0",
+      "reason": "Trying"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Caregiver is not approved"
+    }
+  }
+}

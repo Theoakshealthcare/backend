@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/db418452-c9a7-4da5-9f36-60b2c14ff241/reassign",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+      "reason": "Same one"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "The booking is already assigned to this caregiver"
+    }
+  }
+}

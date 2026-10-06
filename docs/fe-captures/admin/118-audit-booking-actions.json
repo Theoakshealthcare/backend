@@ -1,0 +1,202 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=booking&limit=5",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "d47ba049-7ef0-4fc5-9547-ebdc1e24ba3a",
+          "admin_user_id": "64f146c8-233c-44dd-acb0-00cb2c2686b2",
+          "admin_email": "boss-7d8bc4ops@example.com",
+          "action": "booking.correct_status",
+          "entity_type": "booking",
+          "entity_id": "5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905",
+          "before": {
+            "status": "in_progress",
+            "payment_status": "paid",
+            "dispatch_state": "matched",
+            "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": null
+          },
+          "after": {
+            "status": "completed",
+            "payment_status": "paid",
+            "dispatch_state": "matched",
+            "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": null
+          },
+          "reason": "Caregiver forgot to check out",
+          "ip": "172.20.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-06T20:16:05.933118"
+        },
+        {
+          "id": "630fce12-e14d-4647-b9a7-eb6732ca6b9d",
+          "admin_user_id": "d204cef7-0076-44e8-8a54-2f1b2982690a",
+          "admin_email": "ops-7d8bc4ops@example.com",
+          "action": "booking.flag_no_show",
+          "entity_type": "booking",
+          "entity_id": "8d27d2d6-3ab0-4fc5-a9c5-6d4fbe0fa88b",
+          "before": {
+            "status": "accepted",
+            "payment_status": "paid",
+            "dispatch_state": "matched",
+            "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": null
+          },
+          "after": {
+            "status": "accepted",
+            "payment_status": "paid",
+            "dispatch_state": "matched",
+            "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": "2026-10-06T20:16:05.907604"
+          },
+          "reason": "Caregiver not reachable",
+          "ip": "172.20.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-06T20:16:05.908372"
+        },
+        {
+          "id": "538231aa-4dde-4f5e-bc83-6bd45a9b3478",
+          "admin_user_id": "d204cef7-0076-44e8-8a54-2f1b2982690a",
+          "admin_email": "ops-7d8bc4ops@example.com",
+          "action": "booking.confirm_address",
+          "entity_type": "booking",
+          "entity_id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+          "before": {
+            "status": "pending",
+            "payment_status": "paid",
+            "dispatch_state": null,
+            "caregiver_id": null,
+            "needs_address_check": true,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": null,
+            "latitude": 6.5244,
+            "longitude": 3.3792
+          },
+          "after": {
+            "status": "pending",
+            "payment_status": "paid",
+            "dispatch_state": "dispatching",
+            "caregiver_id": null,
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": null,
+            "latitude": 6.4474,
+            "longitude": 3.4723
+          },
+          "reason": "Called the booker and confirmed the street",
+          "ip": "172.20.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-06T20:16:05.881938"
+        },
+        {
+          "id": "6aa833cb-99dd-465b-b402-3c3d0eb5ca1b",
+          "admin_user_id": "d204cef7-0076-44e8-8a54-2f1b2982690a",
+          "admin_email": "ops-7d8bc4ops@example.com",
+          "action": "booking.cancel",
+          "entity_type": "booking",
+          "entity_id": "c8b9e484-ec10-4339-8ccb-d53a478c9f05",
+          "before": {
+            "status": "pending",
+            "payment_status": "pending",
+            "dispatch_state": null,
+            "caregiver_id": null,
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": null
+          },
+          "after": {
+            "status": "cancelled",
+            "payment_status": "pending",
+            "dispatch_state": null,
+            "caregiver_id": null,
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": "duplicate",
+            "no_show_flagged_at": null,
+            "reason_code": "duplicate",
+            "refund": "none",
+            "refund_amount_kobo": null
+          },
+          "reason": "Duplicate booking",
+          "ip": "172.20.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-06T20:16:05.868601"
+        },
+        {
+          "id": "81f5c064-3f63-4539-b6ad-b3dd785f2344",
+          "admin_user_id": "d204cef7-0076-44e8-8a54-2f1b2982690a",
+          "admin_email": "ops-7d8bc4ops@example.com",
+          "action": "booking.cancel",
+          "entity_type": "booking",
+          "entity_id": "195e0918-821a-45dc-a0c2-5a9d30182b95",
+          "before": {
+            "status": "pending",
+            "payment_status": "paid",
+            "dispatch_state": "dispatching",
+            "caregiver_id": null,
+            "needs_address_check": false,
+            "refund_required": false,
+            "refund_required_reason": null,
+            "cancel_reason": null,
+            "no_show_flagged_at": null
+          },
+          "after": {
+            "status": "cancelled",
+            "payment_status": "paid",
+            "dispatch_state": "dispatching",
+            "caregiver_id": null,
+            "needs_address_check": false,
+            "refund_required": true,
+            "refund_required_reason": "admin_cancelled_full",
+            "cancel_reason": "patient_request",
+            "no_show_flagged_at": null,
+            "reason_code": "patient_request",
+            "refund": "full",
+            "refund_amount_kobo": null
+          },
+          "reason": "Patient called to cancel",
+          "ip": "172.20.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-06T20:16:05.848550"
+        }
+      ],
+      "total": 10,
+      "limit": 5,
+      "offset": 0
+    }
+  },
+  "note": "Every action above wrote one entry, newest first."
+}

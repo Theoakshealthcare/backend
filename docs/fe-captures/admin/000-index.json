@@ -391,6 +391,209 @@
       "file": "078-refresh-while-ip-limited.json",
       "label": "refresh-while-ip-limited",
       "status": 200
+    },
+    {
+      "file": "079-bookings-list.json",
+      "label": "bookings-list",
+      "status": 200
+    },
+    {
+      "file": "080-bookings-list-filtered.json",
+      "label": "bookings-list-filtered",
+      "status": 200
+    },
+    {
+      "file": "081-bookings-list-search.json",
+      "label": "bookings-list-search",
+      "status": 200
+    },
+    {
+      "file": "082-bookings-list-no-show.json",
+      "label": "bookings-list-no-show",
+      "status": 200
+    },
+    {
+      "file": "083-bookings-list-masked.json",
+      "label": "bookings-list-masked",
+      "status": 200
+    },
+    {
+      "file": "084-bookings-list-bad-status.json",
+      "label": "bookings-list-bad-status",
+      "status": 422
+    },
+    {
+      "file": "085-bookings-unmatched.json",
+      "label": "bookings-unmatched",
+      "status": 200
+    },
+    {
+      "file": "086-bookings-unmatched-held.json",
+      "label": "bookings-unmatched-held",
+      "status": 200
+    },
+    {
+      "file": "087-booking-detail-ops.json",
+      "label": "booking-detail-ops",
+      "status": 200
+    },
+    {
+      "file": "088-booking-detail-held-whatsapp.json",
+      "label": "booking-detail-held-whatsapp",
+      "status": 200
+    },
+    {
+      "file": "089-booking-detail-finance.json",
+      "label": "booking-detail-finance",
+      "status": 200
+    },
+    {
+      "file": "090-booking-detail-clinical.json",
+      "label": "booking-detail-clinical",
+      "status": 200
+    },
+    {
+      "file": "091-booking-detail-not-found.json",
+      "label": "booking-detail-not-found",
+      "status": 404
+    },
+    {
+      "file": "092-audit-clinical-view.json",
+      "label": "audit-clinical-view",
+      "status": 200
+    },
+    {
+      "file": "093-booking-candidates.json",
+      "label": "booking-candidates",
+      "status": 200
+    },
+    {
+      "file": "094-redispatch-no-reason.json",
+      "label": "redispatch-no-reason",
+      "status": 422
+    },
+    {
+      "file": "095-redispatch-held.json",
+      "label": "redispatch-held",
+      "status": 409
+    },
+    {
+      "file": "096-redispatch.json",
+      "label": "redispatch",
+      "status": 200
+    },
+    {
+      "file": "097-assign-offer.json",
+      "label": "assign-offer",
+      "status": 200
+    },
+    {
+      "file": "098-assign-unapproved.json",
+      "label": "assign-unapproved",
+      "status": 409
+    },
+    {
+      "file": "099-assign-force-as-ops.json",
+      "label": "assign-force-as-ops",
+      "status": 403
+    },
+    {
+      "file": "100-assign-force.json",
+      "label": "assign-force",
+      "status": 200
+    },
+    {
+      "file": "101-reassign-same-caregiver.json",
+      "label": "reassign-same-caregiver",
+      "status": 409
+    },
+    {
+      "file": "102-reassign.json",
+      "label": "reassign",
+      "status": 200
+    },
+    {
+      "file": "103-assign-on-accepted-booking.json",
+      "label": "assign-on-accepted-booking",
+      "status": 409
+    },
+    {
+      "file": "104-cancel-partial-no-amount.json",
+      "label": "cancel-partial-no-amount",
+      "status": 422
+    },
+    {
+      "file": "105-cancel.json",
+      "label": "cancel",
+      "status": 200
+    },
+    {
+      "file": "106-cancel-again.json",
+      "label": "cancel-again",
+      "status": 409
+    },
+    {
+      "file": "107-cancel-unpaid-with-refund.json",
+      "label": "cancel-unpaid-with-refund",
+      "status": 422
+    },
+    {
+      "file": "108-cancel-unpaid.json",
+      "label": "cancel-unpaid",
+      "status": 200
+    },
+    {
+      "file": "109-confirm-address-outside-nigeria.json",
+      "label": "confirm-address-outside-nigeria",
+      "status": 422
+    },
+    {
+      "file": "110-confirm-address.json",
+      "label": "confirm-address",
+      "status": 200
+    },
+    {
+      "file": "111-confirm-address-again.json",
+      "label": "confirm-address-again",
+      "status": 409
+    },
+    {
+      "file": "112-booking-detail-after-confirm.json",
+      "label": "booking-detail-after-confirm",
+      "status": 200
+    },
+    {
+      "file": "113-no-show.json",
+      "label": "no-show",
+      "status": 200
+    },
+    {
+      "file": "114-no-show-again.json",
+      "label": "no-show-again",
+      "status": 409
+    },
+    {
+      "file": "115-correct-status-as-ops.json",
+      "label": "correct-status-as-ops",
+      "status": 403
+    },
+    {
+      "file": "116-correct-status.json",
+      "label": "correct-status",
+      "status": 200
+    },
+    {
+      "file": "117-correct-status-again.json",
+      "label": "correct-status-again",
+      "status": 409
+    },
+    {
+      "file": "118-audit-booking-actions.json",
+      "label": "audit-booking-actions",
+      "status": 200
     }
-  ]
+  ],
+  "sections": {
+    "bookings": 79
+  }
 }

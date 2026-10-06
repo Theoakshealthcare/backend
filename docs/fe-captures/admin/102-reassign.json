@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/db418452-c9a7-4da5-9f36-60b2c14ff241/reassign",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "reason": "First caregiver is unwell"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "db418452-c9a7-4da5-9f36-60b2c14ff241",
+      "booking_code": "9B7F0978",
+      "status": "accepted",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  }
+}

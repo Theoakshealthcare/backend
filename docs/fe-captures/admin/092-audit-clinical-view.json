@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=booking&action=booking.clinical_view&limit=1",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "3e16c514-650b-4e15-b13a-17c848a6dcc0",
+          "admin_user_id": "a12f9eae-56fb-493e-b610-910e72a01ad5",
+          "admin_email": "clin-7d8bc4ops@example.com",
+          "action": "booking.clinical_view",
+          "entity_type": "booking",
+          "entity_id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+          "before": null,
+          "after": {
+            "fields": [
+              "condition",
+              "special_instructions"
+            ]
+          },
+          "reason": null,
+          "ip": "172.20.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-06T20:16:05.711881"
+        }
+      ],
+      "total": 1,
+      "limit": 1,
+      "offset": 0
+    }
+  }
+}
