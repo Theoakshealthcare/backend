@@ -21,9 +21,11 @@ POSITIVE = [
     "my brother drank sniper", "sniper", "I will hang myself", "i no wan live again", "I want to end it all",
     "I am tired of life",
     # seizures
-    "he is having fit", "the child dey fit", "foaming at the mouth", "she is foaming at her mouth",
+    "he is having fit", "e dey fit", "she dey fitting", "she is having a fit",
+    "foaming at the mouth", "she is foaming at her mouth",
     # death / trauma
-    "my father is dead", "grandma has died", "he was stabbed", "there was an accident",
+    "my father is dead", "grandma has died", "he was stabbed", "there was an accident", "my son had an accident", "he was in an accident", "accident now", "bleeding heavily",
+    "I think she is having a stroke", "she had a stroke now", "stroke symptoms", "his face is drooping",
     # misspellings
     "he is unconcious", "she had a siezure", "thinking of sucide", "unconsious", "convulsions",
     # emphasis / spacing
@@ -33,7 +35,9 @@ POSITIVE = [
 NEGATIVE = [
     "book a nurse for my mum next week", "I want to book a visit on Friday", "how do I pay",
     "wound dressing for my mum", "she dey fit pay on Friday", "reading glasses", "my appointment is on Friday",
-    "booking", "please call me", "what time will she come", "hi", "menu",
+    "physio for my dad after his accident", "bleeding gums", "is she conscious", "he is responsive now",
+    "the shoe dey fit", "fits of laughter", "post stroke care", "after her accident last year", "stroke rehab",
+    "consciousness", "conscious", "responsive", "accident and emergency insurance quote", "booking", "please call me", "what time will she come", "hi", "menu",
 ]
 
 

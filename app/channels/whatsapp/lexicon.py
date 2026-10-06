@@ -39,7 +39,10 @@ _EMERGENCY = _compile([
     r"heavy bleeding", r"bleeding (?:heavily|badly|profusely|a lot|too much|non stop)",
     r"(?:wont|will not|cant|cannot) stop bleeding", r"bleeding (?:wont|will not) stop", r"blood everywhere",
     r"vomit(?:ing|ed)? blood", r"coughing (?:up )?blood",
-    r"strokes?", r"heart attack", r"cardiac arrest",
+    r"(?:having|has|have) (?:a )?stroke", r"(?:had|has had) (?:a )?stroke (?:now|just|today|this morning|just now)",
+    r"stroke (?:symptoms?|signs?|now)", r"face (?:is )?droop(?:ing|s)", r"(?:its|it is) (?:a )?stroke",
+    r"think (?:he|she|they|mum|dad|mom|my \w+) (?:has |had |is having )(?:a )?stroke",
+    r"heart attack", r"cardiac arrest",
     r"suicid(?:e|al)", r"kill (?:myself|my self)", r"end my life", r"take my own life", r"want to die",
     r"wanna die", r"harm myself", r"hang(?:ing)? (?:myself|my self)", r"end it all", r"tired of (?:life|living)",
     r"sniper", r"no wan live",
@@ -50,11 +53,13 @@ _EMERGENCY = _compile([
     r"gasping", r"heart (?:is |dey )?(?:paining|pain|hurt|hurting)", r"chest (?:is )?(?:too |very )?tight",
     r"tight chest",
     r"(?:not|wont|will not|cant|cannot|doesnt|isnt|never) wak(?:e|ing) up", r"not waking", r"slump(?:ed|ing)?",
-    r"bleeding", r"bleeds", r"blood (?:is )?coming out", r"blood (?:is )?(?:flowing|pouring)",
-    r"(?:having|have|had|got) (?:a )?fits?", r"foam(?:ing)? (?:at|from|in) (?:the |his |her |my |their )?mouth",
-    r"(?:is|are|was|am) dead", r"(?:has|have) died", r"stabbed", r"accident",
+    r"(?:is|was|am|are|keeps|keep|still|started|starts|she|he) bleeding(?! gums?)", r"^bleeding$",
+    r"pregnant and bleeding", r"blood (?:is )?coming out", r"blood (?:is )?(?:flowing|pouring)",
+    r"having (?:a )?fits?(?! of)", r"foam(?:ing)? (?:at|from|in) (?:the |his |her |my |their )?mouth",
+    r"(?:is|are|was|am) dead", r"(?:has|have) died", r"stabbed",
+    r"(?:had|has|was|is|in|been in|were in|just had) an? (?:\w+ )?accident", r"accident (?:now|just happened|scene)",
     # --- Nigerian Pidgin ---
-    r"dey fit(?:ting)?(?! (?:do|pay|come|go|use|take|make|help|be|see|reach|book|wait|call|bring|send))",
+    r"(?:e|he|she|im|dem|person) dey fitting", r"(?:e|he|she|im) dey fit$",
     r"i no wan live", r"no wan live again",
     r"(?:i|e|he|she|we|dem|im) no fit breath(?:e|ing)?", r"no fit breath(?:e|ing)?",
     r"breath(?:e|ing)? no dey (?:come|enter)(?: out| in)?",
@@ -84,15 +89,17 @@ _CLINICAL = _compile([
 
 # Single words that are emergencies on their own; matched with a small typo tolerance so "unconcious",
 # "siezure" and "sucide" are caught. Only longer words are fuzzed so short ordinary words are left alone.
-_FUZZY_KEYWORDS = ("unconscious", "seizure", "seizures", "suicide", "suicidal", "convulsion", "convulsions",
-                   "unresponsive", "overdose", "anaphylaxis", "haemorrhage", "hemorrhage")
+_FUZZY_KEYWORDS = ("unconscious", "unresponsive", "seizure", "seizures", "suicide", "suicidal")
+# Only typos of these words, by their first letters, so bare "conscious" / "responsive" are never fuzzed
+# into "unconscious" / "unresponsive".
+_FUZZY_PREFIXES = ("un", "se", "si", "su")
 _FUZZY_MIN_LENGTH = 6
 _FUZZY_CUTOFF = 0.84
 
 
 def _fuzzy_hit(normalized: str) -> bool:
     return any(
-        len(token) >= _FUZZY_MIN_LENGTH and difflib.get_close_matches(token, _FUZZY_KEYWORDS, n=1,
+        len(token) >= _FUZZY_MIN_LENGTH and token.startswith(_FUZZY_PREFIXES) and difflib.get_close_matches(token, _FUZZY_KEYWORDS, n=1,
                                                                       cutoff=_FUZZY_CUTOFF)
         for token in normalized.split()
     )
