@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/81c8eb6b-ce63-4066-99d4-f265d88da590/reject",
+    "path": "/api/v1/admin/caregivers/c40b426c-80c5-4339-8dfe-4d169a9ea661/reject",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Placeholder: licence could not be verified."
@@ -13,7 +13,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "81c8eb6b-ce63-4066-99d4-f265d88da590",
+      "id": "c40b426c-80c5-4339-8dfe-4d169a9ea661",
       "profile_status": "rejected",
       "identity_verification_status": "pending",
       "background_check_status": "in_progress"

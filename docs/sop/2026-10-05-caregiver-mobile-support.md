@@ -93,3 +93,15 @@ alembic upgrade (live stack)   Running upgrade 0001_baseline -> 0002_caregiver_m
 - **Suspending a caregiver** lists only upcoming `accepted` bookings as affected; an `en_route` booking is not included.
 - `profile_status` `suspended` and the invalid-token WebSocket close are covered by tests but not captured live.
 - The visit code is a 4-digit value; the lock (3 tries per 15 minutes) is the real control. Moving it to the patient's WhatsApp message (WA-FR-34) is still to do.
+
+## Addendum 2026-10-06: security review fixes
+An Opus review returned approve-with-fixes. It verified the visit code, push privacy, `en_route` coverage, the home endpoint and migration `0002`. Fixes, each tested in `app/tests/test_c3_review_fixes.py`:
+
+| Finding | Fix |
+|---|---|
+| **Medium.** The offer view still carried the *accepting* caregiver's name, photo and live location, so other offered caregivers could track them through `/caregiver/notifications`. | `redact_offer` also sets `caregiver_details` and `caregiver_id` to `null`. |
+| **Low–medium.** `is_available` on a location ping defaulted to `true`, so any ping without it (an old build, a background task, a WebSocket) switched an unavailable caregiver back on. | The field is now optional. Omitting it leaves availability unchanged, and a first ping without it creates the record as **unavailable**. Only an explicit value or `POST /caregiver/availability` changes it. |
+| **Low.** Suspension listed only upcoming `accepted` bookings, and a suspended caregiver could still `on_my_way` or `start`. | `en_route` bookings are now listed for reassignment. `on_my_way` and `start` require `approved` (403 "Your account is not approved to start visits"). A visit already `in_progress` can still be completed. |
+| **Low (accepted risk).** `POST /devices/push-token` re-points an existing token to whoever registers it, so someone holding another device's Expo token could redirect its job-offer pushes. | **Accepted.** Push payloads carry only booking ID, area and time; Expo tokens aren't exposed by the API; and the real device re-registers on every login. Revisit if push payloads ever carry more. |
+
+The captures were re-taken live, and the guide was re-rendered with `scripts/render_fe_guide.py`.

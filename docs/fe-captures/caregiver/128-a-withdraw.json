@@ -14,7 +14,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "transaction_id": "9adf6a18-46de-4cb5-a7e6-2cc6c6384280",
+      "transaction_id": "b4994f0e-9edc-479d-97ad-7a8419fc7902",
       "status": "pending",
       "message": "Withdrawal request submitted. Processing will be completed soon."
     }

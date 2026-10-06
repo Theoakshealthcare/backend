@@ -1,11 +1,11 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/4ba27a99-a245-47d5-aca8-49796c5e7fa4",
+    "path": "/api/v1/booking/caregiver/action/d4055373-bee6-431e-977a-11b01af19a96",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "start",
-      "visit_code": "4722"
+      "visit_code": "1092"
     }
   },
   "response": {
@@ -16,24 +16,24 @@
     "body": {
       "message": "Booking start successfully",
       "booking": {
-        "caregiver_id": "6645f20d-b435-4fdc-b284-853f171e16bc",
-        "scheduled_date": "2026-10-06T08:05:36.285753",
+        "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+        "scheduled_date": "2026-10-06T08:38:27.862624",
         "patient_state": "Lagos",
         "dispatch_state": "matched",
         "platform_fee_kobo": 500000,
-        "id": "4ba27a99-a245-47d5-aca8-49796c5e7fa4",
-        "booking_code": "3849A6E7",
-        "scheduled_end_date": "2026-10-06T10:05:36.285753",
+        "id": "d4055373-bee6-431e-977a-11b01af19a96",
+        "booking_code": "ECCADB9F",
+        "scheduled_end_date": "2026-10-06T10:38:27.862624",
         "status": "in_progress",
-        "dispatch_started_at": "2026-10-06T07:50:38.029824",
-        "paystack_reference": "BKG_3849A6E7_326a3f89",
-        "patient_id": "43499f1d-e8a1-48f5-9e7d-f81dc81c25f7",
+        "dispatch_started_at": "2026-10-06T08:23:29.589757",
+        "paystack_reference": "BKG_ECCADB9F_4b1aefe6",
+        "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
         "service_type": "nurse",
-        "actual_start_time": "2026-10-06T07:50:38.260172",
+        "actual_start_time": "2026-10-06T08:23:29.841234",
         "payment_status": "paid",
         "payment_failure_reason": null,
         "actual_end_time": null,
-        "payment_expires_at": "2026-10-06T08:20:36.285763",
+        "payment_expires_at": "2026-10-06T08:53:27.862634",
         "special_instructions": "Placeholder instructions",
         "patient_address": "12 Placeholder Street, Lekki",
         "cancel_reason": null,
@@ -41,12 +41,12 @@
         "assistance_type": "Placeholder assistance",
         "patient_latitude": 6.4474,
         "refund_required": false,
-        "created_at": "2026-10-06T07:50:36.285383",
+        "created_at": "2026-10-06T08:23:27.862475",
         "condition": "Placeholder condition",
         "patient_longitude": 3.4723,
         "refund_required_reason": null,
         "total_amount_kobo": 5500000,
-        "updated_at": "2026-10-06T07:50:38.260482",
+        "updated_at": "2026-10-06T08:23:29.841600",
         "duration_hours": 2,
         "patient_city": "Lagos",
         "service_fee_kobo": 5000000,
@@ -55,22 +55,22 @@
         "service_fee": "50000.00",
         "platform_fee": "5000.00",
         "patient_details": {
-          "patient_id": "43499f1d-e8a1-48f5-9e7d-f81dc81c25f7",
+          "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
           "full_name": "Placeholder Patient",
-          "phone_number": "+2340000182004",
+          "phone_number": "+2340000035004",
           "profile_image_url": null,
           "emergency_contact_name": null,
           "emergency_contact_phone": null
         },
         "caregiver_details": {
-          "caregiver_id": "6645f20d-b435-4fdc-b284-853f171e16bc",
+          "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
           "full_name": "Placeholder Caregiver A",
           "specialization": "Elderly Care",
           "profile_image_url": null,
           "current_latitude": 6.4474,
           "current_longitude": 3.4723,
           "is_online": true,
-          "last_location_update": "2026-10-06T07:50:34.184445",
+          "last_location_update": "2026-10-06T08:23:25.756428",
           "distance_from_patient": 0.0,
           "estimated_arrival_time": 5
         }

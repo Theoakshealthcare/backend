@@ -19,11 +19,11 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "6645f20d-b435-4fdc-b284-853f171e16bc",
-      "user_id": "19dc9e2c-f682-4a2f-a78e-a73e20e427cf",
-      "email": "caregiver-a-c632fe@example.com",
+      "id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+      "user_id": "98e42e70-0859-4bd4-891f-27c255fd98ab",
+      "email": "caregiver-a-dc333b@example.com",
       "full_name": "Placeholder Caregiver A",
-      "phone_number": "+2340000182001",
+      "phone_number": "+2340000035001",
       "date_of_birth": "1990-01-01",
       "gender": "female",
       "state": "Lagos",
@@ -43,8 +43,8 @@
       "terms_accepted": false,
       "privacy_policy_accepted": false,
       "background_check_consent": false,
-      "created_at": "2026-10-06T07:50:31.478390",
-      "updated_at": "2026-10-06T07:50:32.162128"
+      "created_at": "2026-10-06T08:23:21.357015",
+      "updated_at": "2026-10-06T08:23:23.691503"
     }
   }
 }

@@ -13,16 +13,16 @@
     "body": {
       "profile_status": "approved",
       "is_available": true,
-      "location_updated_at": "2026-10-06T07:50:34.184445",
+      "location_updated_at": "2026-10-06T08:23:25.756428",
       "today_visits": [
         {
-          "id": "4ba27a99-a245-47d5-aca8-49796c5e7fa4",
-          "booking_code": "3849A6E7",
+          "id": "d4055373-bee6-431e-977a-11b01af19a96",
+          "booking_code": "ECCADB9F",
           "service_type": "nurse",
           "status": "accepted",
           "dispatch_state": "matched",
-          "scheduled_date": "2026-10-06T08:05:36.285753",
-          "scheduled_end_date": "2026-10-06T10:05:36.285753",
+          "scheduled_date": "2026-10-06T08:38:27.862624",
+          "scheduled_end_date": "2026-10-06T10:38:27.862624",
           "duration_hours": 2,
           "patient_name": "Placeholder Patient",
           "patient_address": "12 Placeholder Street, Lekki",
@@ -33,14 +33,14 @@
       "upcoming_visits": [],
       "open_offers": [
         {
-          "booking_id": "8de4fae2-e843-4b8b-bb44-3d6136cec7da",
+          "booking_id": "d63f2ad6-2f83-4d58-98cd-3c241fc8e354",
           "service_type": "nurse",
-          "scheduled_date": "2026-10-06T08:05:36.289068",
-          "scheduled_end_date": "2026-10-06T10:05:36.289068",
+          "scheduled_date": "2026-10-06T08:38:27.867152",
+          "scheduled_end_date": "2026-10-06T10:38:27.867152",
           "duration_hours": 2,
           "area": "Lagos",
           "state": "Lagos",
-          "offered_at": "2026-10-06T07:50:38.099053"
+          "offered_at": "2026-10-06T08:23:29.659045"
         }
       ],
       "wallet_balance_naira": 0.0,

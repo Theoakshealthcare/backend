@@ -13,19 +13,19 @@
     "body": {
       "profile_status": "approved",
       "is_available": true,
-      "location_updated_at": "2026-10-06T07:50:34.184445",
+      "location_updated_at": "2026-10-06T08:23:25.756428",
       "today_visits": [],
       "upcoming_visits": [],
       "open_offers": [
         {
-          "booking_id": "e48f827a-e0bc-44bd-98ba-487fc3cee8ba",
+          "booking_id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
           "service_type": "nurse",
-          "scheduled_date": "2026-10-06T08:05:36.281977",
-          "scheduled_end_date": "2026-10-06T10:05:36.281977",
+          "scheduled_date": "2026-10-06T08:38:27.858997",
+          "scheduled_end_date": "2026-10-06T10:38:27.858997",
           "duration_hours": 2,
           "area": "Lagos",
           "state": "Lagos",
-          "offered_at": "2026-10-06T07:50:36.349922"
+          "offered_at": "2026-10-06T08:23:27.927274"
         }
       ],
       "wallet_balance_naira": 0.0,

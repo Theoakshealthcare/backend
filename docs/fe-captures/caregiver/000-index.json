@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/capture_caregiver_flow.py",
-  "run_tag": "c632fe",
+  "run_tag": "dc333b",
   "captures": [
     {
       "file": "001-a-auth-register.json",
@@ -253,13 +253,13 @@
       "status": 200
     },
     {
-      "file": "051-a-location-ping-with-is-available-true.json",
-      "label": "a-location-ping-with-is-available-true",
+      "file": "051-a-location-ping-without-flag.json",
+      "label": "a-location-ping-without-flag",
       "status": 200
     },
     {
-      "file": "052-a-home-after-ping-true.json",
-      "label": "a-home-after-ping-true",
+      "file": "052-a-home-after-ping-without-flag.json",
+      "label": "a-home-after-ping-without-flag",
       "status": 200
     },
     {

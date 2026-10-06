@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/295be0c3-0d25-46ef-bf95-b3648475fc06",
+    "path": "/api/v1/booking/caregiver/action/a618eb64-8c35-45b5-8ffc-da9fdf1c7433",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "decline",
@@ -17,23 +17,23 @@
       "message": "Booking decline successfully",
       "booking": {
         "caregiver_id": null,
-        "scheduled_date": "2026-10-06T08:05:36.287411",
+        "scheduled_date": "2026-10-06T08:38:27.865455",
         "patient_state": "Lagos",
         "dispatch_state": "dispatching",
         "platform_fee_kobo": 500000,
-        "id": "295be0c3-0d25-46ef-bf95-b3648475fc06",
-        "booking_code": "28963888",
-        "scheduled_end_date": "2026-10-06T10:05:36.287411",
+        "id": "a618eb64-8c35-45b5-8ffc-da9fdf1c7433",
+        "booking_code": "C07D767B",
+        "scheduled_end_date": "2026-10-06T10:38:27.865455",
         "status": "pending",
-        "dispatch_started_at": "2026-10-06T07:50:38.063120",
-        "paystack_reference": "BKG_28963888_e6cd6735",
-        "patient_id": "43499f1d-e8a1-48f5-9e7d-f81dc81c25f7",
+        "dispatch_started_at": "2026-10-06T08:23:29.621801",
+        "paystack_reference": "BKG_C07D767B_5a7cc358",
+        "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
         "service_type": "nurse",
         "actual_start_time": null,
         "payment_status": "paid",
         "payment_failure_reason": null,
         "actual_end_time": null,
-        "payment_expires_at": "2026-10-06T08:20:36.287430",
+        "payment_expires_at": "2026-10-06T08:53:27.865480",
         "special_instructions": null,
         "patient_address": "Lagos, Lagos",
         "cancel_reason": null,
@@ -41,12 +41,12 @@
         "assistance_type": "Placeholder assistance",
         "patient_latitude": 6.45,
         "refund_required": false,
-        "created_at": "2026-10-06T07:50:36.287088",
+        "created_at": "2026-10-06T08:23:27.865481",
         "condition": null,
         "patient_longitude": 3.47,
         "refund_required_reason": null,
         "total_amount_kobo": 5500000,
-        "updated_at": "2026-10-06T07:50:38.063759",
+        "updated_at": "2026-10-06T08:23:29.622446",
         "duration_hours": 2,
         "patient_city": "Lagos",
         "service_fee_kobo": 5000000,
@@ -54,7 +54,8 @@
         "total_amount": "55000.00",
         "service_fee": "50000.00",
         "platform_fee": "5000.00",
-        "patient_details": null
+        "patient_details": null,
+        "caregiver_details": null
       }
     }
   }

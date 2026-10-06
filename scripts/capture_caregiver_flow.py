@@ -328,9 +328,13 @@ def pay_booking(ctx: Ctx, booking: Dict[str, Any], label: str) -> None:
         sys.exit(f"webhook failed: {r.status_code} {r.text}")
 
 
-def post_location(ctx: Ctx, label: str, token: str, available: bool, offset: float = 0.002, expect: int = 200):
-    return ctx.rec.call(label, "POST", "/api/v1/booking/caregiver/location", token=token, expect=expect, json_body={
-        "latitude": LAT + offset, "longitude": LON, "accuracy": 10.0, "is_available": available})
+def post_location(ctx: Ctx, label: str, token: str, available: Optional[bool], offset: float = 0.002,
+                  expect: int = 200):
+    body = {"latitude": LAT + offset, "longitude": LON, "accuracy": 10.0}
+    if available is not None:  # None = omit the field (the ping leaves availability unchanged)
+        body["is_available"] = available
+    return ctx.rec.call(label, "POST", "/api/v1/booking/caregiver/location", token=token, expect=expect,
+                        json_body=body)
 
 
 def ws_probe(ctx: Ctx, label: str, base_url: str, token: Optional[str]) -> None:
@@ -447,10 +451,9 @@ def run(args) -> None:
     rec.call("a-location-get", "GET", "/api/v1/booking/caregiver/location", token=ta)
     rec.call("a-availability-off", "POST", "/api/v1/caregiver/availability", token=ta, json_body={"is_available": False})
     rec.call("a-home-unavailable", "GET", "/api/v1/caregiver/home", token=ta)
-    post_location(ctx, "a-location-ping-with-is-available-true", ta, available=True)
-    rec.call("a-home-after-ping-true", "GET", "/api/v1/caregiver/home", token=ta,
-             note="TRAP: availability was switched off above, but this location ping said is_available=true "
-                  "(also the default when the field is omitted), so the caregiver is available again.")
+    post_location(ctx, "a-location-ping-without-flag", ta, available=None)
+    rec.call("a-home-after-ping-without-flag", "GET", "/api/v1/caregiver/home", token=ta,
+             note="Availability was switched off above; a ping that omits is_available leaves it off.")
     rec.call("a-availability-off-2", "POST", "/api/v1/caregiver/availability", token=ta, json_body={"is_available": False})
     post_location(ctx, "a-location-ping-with-is-available-false", ta, available=False)
     rec.call("a-home-after-ping-false", "GET", "/api/v1/caregiver/home", token=ta)
