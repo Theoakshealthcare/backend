@@ -15,9 +15,11 @@ Signature (``X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the raw body, keyed
 All ids, numbers and names below are obviously fake placeholders.
 """
 
+import base64
 import hashlib
 import hmac
 import json
+import os
 import threading
 import uuid
 from collections import deque
@@ -26,6 +28,9 @@ from typing import Any, Optional
 
 import httpx
 import pytest
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.core.config import settings
 
@@ -100,6 +105,26 @@ def media_payload(wa_id: str, kind: str = "image", *, name: str = "Test Person",
                   message_id: Optional[str] = None) -> dict:
     return _envelope(_message_value(wa_id, name, {
         "id": message_id, "type": kind, kind: {"id": "media-placeholder", "mime_type": "image/jpeg"},
+    }))
+
+
+def flow_reply_payload(wa_id: str, flow_token: str, *, name: str = "Test Person",
+                       message_id: Optional[str] = None) -> dict:
+    """What Meta posts when someone finishes a Flow: an ``nfm_reply`` whose ``response_json`` carries the
+    parameters the Flow completed with. Ours completes with only the flow token (the answers went to the
+    encrypted data endpoint)."""
+    return _envelope(_message_value(wa_id, name, {
+        "id": message_id, "type": "interactive",
+        "interactive": {"type": "nfm_reply", "nfm_reply": {
+            "name": "flow", "body": "Sent", "response_json": json.dumps({"flow_token": flow_token})}},
+    }))
+
+
+def template_button_payload(wa_id: str, payload: str, text: str = "Book again", *, name: str = "Test Person",
+                            message_id: Optional[str] = None) -> dict:
+    """A tap on a quick-reply button of a template message (inbound type ``button``, not ``interactive``)."""
+    return _envelope(_message_value(wa_id, name, {
+        "id": message_id, "type": "button", "button": {"payload": payload, "text": text},
     }))
 
 
@@ -265,6 +290,155 @@ def serve_fake_meta(graph: FakeMetaGraph, host: str = "0.0.0.0", port: int = 991
             self.wfile.write(out)
 
         def log_message(self, *args):  # keep the script output readable
+            pass
+
+    server = ThreadingHTTPServer((host, port), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+# --- Flows: the client half of the data-endpoint encryption (what Meta does) ----------------------
+def make_flow_keypair() -> tuple[str, str]:
+    """A throwaway RSA keypair (private PEM, public PEM) for tests and the local end-to-end script."""
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                serialization.NoEncryption()).decode()
+    public = key.public_key().public_bytes(serialization.Encoding.PEM,
+                                           serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    return private, public
+
+
+class FlowClient:
+    """Encrypts a Flow request the way Meta does and decrypts our response (flipped IV). It remembers the AES
+    key and IV of the last request, since a response can only be read with them."""
+
+    def __init__(self, public_pem: str):
+        self._public = serialization.load_pem_public_key(public_pem.encode())
+        self._aes_key = b""
+        self._iv = b""
+
+    def encrypt_raw(self, plaintext: bytes, aes_key: Optional[bytes] = None) -> dict:
+        self._aes_key = aes_key or os.urandom(16)
+        self._iv = os.urandom(16)
+        wrapped = self._public.encrypt(self._aes_key, padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None))
+        sealed = AESGCM(self._aes_key if len(self._aes_key) in (16, 24, 32) else os.urandom(16)).encrypt(
+            self._iv, plaintext, None)
+        return {"encrypted_flow_data": base64.b64encode(sealed).decode(),
+                "encrypted_aes_key": base64.b64encode(wrapped).decode(),
+                "initial_vector": base64.b64encode(self._iv).decode()}
+
+    def encrypt(self, payload: dict, aes_key: Optional[bytes] = None) -> dict:
+        return self.encrypt_raw(json.dumps(payload).encode(), aes_key)
+
+    def decrypt_response(self, body: str, iv: Optional[bytes] = None) -> dict:
+        flipped = iv if iv is not None else bytes(b ^ 0xFF for b in self._iv)
+        return json.loads(AESGCM(self._aes_key).decrypt(flipped, base64.b64decode(body), None))
+
+
+def flow_request(action: str, screen: Optional[str] = None, data: Optional[dict] = None,
+                 flow_token: str = "token") -> dict:
+    payload: dict[str, Any] = {"version": "3.0", "action": action, "flow_token": flow_token}
+    if screen:
+        payload["screen"] = screen
+    if data is not None:
+        payload["data"] = data
+    return payload
+
+
+# --- a fake Paystack ----------------------------------------------------------------------------
+class FakePaystack:
+    """Stands in for the two Paystack calls the booking flow makes. ``handle`` is plain request-in,
+    response-out (also served over HTTP for the Docker script); ``install`` swaps the service methods in tests."""
+
+    def __init__(self):
+        self.initialised: list[dict] = []
+        self.verified: list[str] = []
+        self.paid: set[str] = set()
+        self.fail_init: Optional[str] = None  # the error message to return from initialize
+
+    def handle(self, method: str, path: str, body: bytes) -> tuple[int, dict]:
+        if method == "POST" and path.endswith("/transaction/initialize"):
+            return 200, self._initialize(json.loads(body or b"{}"))
+        if method == "GET" and "/transaction/verify/" in path:
+            return 200, self._verify(path.rsplit("/", 1)[1])
+        return 404, {"status": False, "message": "not found"}
+
+    def _initialize(self, payload: dict) -> dict:
+        if self.fail_init:
+            return {"status": False, "message": self.fail_init}
+        self.initialised.append(payload)
+        code = "ac_" + uuid.uuid4().hex[:12]
+        return {"status": True, "message": "Authorization URL created", "data": {
+            "authorization_url": f"https://checkout.paystack.com/{code}", "access_code": code,
+            "reference": payload["reference"]}}
+
+    def _verify(self, reference: str) -> dict:
+        self.verified.append(reference)
+        original = next((p for p in self.initialised if p["reference"] == reference), None)
+        if original is None:
+            return {"status": False, "message": "Transaction reference not found"}
+        return {"status": True, "message": "Verification successful", "data": {
+            "id": 1, "reference": reference, "amount": original["amount"], "currency": "NGN",
+            "status": "success" if reference in self.paid else "abandoned", "channel": "card",
+            "paid_at": "2026-10-06T10:00:00.000Z", "customer": {"email": original["email"]},
+            "authorization": {}, "metadata": original.get("metadata", {})}}
+
+    # direct stand-ins for PaystackService methods (the tests never touch HTTP)
+    def initialize_transaction(self, _service, email, amount_kobo, reference, callback_url=None, metadata=None):
+        if self.fail_init:
+            return {"status": False, "message": self.fail_init}
+        data = self._initialize({"email": email, "amount": amount_kobo, "reference": reference,
+                                 "callback_url": callback_url, "metadata": metadata or {}})["data"]
+        return {"status": True, "authorization_url": data["authorization_url"],
+                "access_code": data["access_code"], "reference": reference}
+
+    def verify_transaction(self, _service, reference):
+        body = self._verify(reference)
+        if not body["status"]:
+            return {"status": False, "message": body["message"]}
+        d = body["data"]
+        return {"status": True, "data": {"id": d["id"], "reference": reference, "amount_kobo": d["amount"],
+                                         "status": d["status"], "paid_at": d["paid_at"], "channel": d["channel"],
+                                         "currency": "NGN", "customer": d["customer"], "authorization": {},
+                                         "metadata": d["metadata"]}}
+
+
+@pytest.fixture
+def fake_paystack(monkeypatch):
+    from app.services.paystack import PaystackService
+
+    fake = FakePaystack()
+    monkeypatch.setattr(PaystackService, "initialize_transaction",
+                        lambda self, *a, **kw: fake.initialize_transaction(self, *a, **kw))
+    monkeypatch.setattr(PaystackService, "verify_transaction",
+                        lambda self, *a, **kw: fake.verify_transaction(self, *a, **kw))
+    return fake
+
+
+def serve_fake_paystack(fake: FakePaystack, host: str = "0.0.0.0", port: int = 9912) -> ThreadingHTTPServer:
+    lock = threading.Lock()
+
+    class Handler(BaseHTTPRequestHandler):
+        def _reply(self, method: str):
+            length = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(length) if length else b""
+            with lock:
+                status, payload = fake.handle(method, self.path.split("?")[0], body)
+            out = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+        def do_POST(self):  # noqa: N802 (http.server API)
+            self._reply("POST")
+
+        def do_GET(self):  # noqa: N802
+            self._reply("GET")
+
+        def log_message(self, *args):
             pass
 
     server = ThreadingHTTPServer((host, port), Handler)

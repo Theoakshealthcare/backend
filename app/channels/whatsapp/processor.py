@@ -11,17 +11,23 @@ Shape of ``process_inbound``
 
 The row lock on the conversation serialises two messages from the same contact handled by two workers.
 Nothing the user typed is stored or logged: only counters, flags and Meta ids.
+
+Booking effects (W2) are applied by ``booking_chat``. Most finish inside the transaction. The slow part of a
+few (asking Paystack for the checkout link, verifying a payment when the person comes back) is returned as an
+``after_commit`` step and runs between the commit and the replies: it never runs while the conversation row is
+locked, and what it returns is sent after the engine's own replies.
 """
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.channels.whatsapp import copy
+from app.channels.whatsapp import booking_chat, copy
 from app.channels.whatsapp.engine import (
-    PAUSED_STATES, EngineConfig, Inbound, Kind, OpenTicket, RecordConsent, SetOptOut, Snapshot, State, step,
+    BOOKING_EFFECTS, PAUSED_STATES, EngineConfig, Inbound, Kind, OpenTicket, RecordConsent, SetOptOut, Snapshot,
+    State, step,
 )
 from app.channels.whatsapp.identity import ensure_user
 from app.channels.whatsapp.lexicon import is_emergency
@@ -62,9 +68,16 @@ def to_inbound(job: Dict[str, Any]) -> Inbound:
             return Inbound.button(reply_id)
         if job.get("interactive_type") == "list_reply" and reply_id:
             return Inbound.list_choice(reply_id)
+        if job.get("interactive_type") == "nfm_reply" and reply_id:
+            return Inbound.flow(reply_id)  # a finished Flow: only our flow token travels in it
         return Inbound.media()
+    if kind == "button":  # a tap on a template's quick-reply button
+        reply_id = job.get("reply_id")
+        return Inbound.button(reply_id) if reply_id else Inbound.media()
     if kind == "location":
-        return Inbound.location()
+        lat, lng = job.get("latitude"), job.get("longitude")
+        return Inbound.location(lat if isinstance(lat, (int, float)) else None,
+                                lng if isinstance(lng, (int, float)) else None)
     if kind in ("reaction", "system"):
         return Inbound.ignored()
     return Inbound.media()
@@ -79,7 +92,8 @@ def process_inbound(db: Session, job: Dict[str, Any], client: Optional[MetaCloud
         raise
     if applied is None:
         return
-    contact, replies, emergency = applied
+    contact, replies, emergency, followups = applied
+    replies = replies + _run_followups(db, contact, followups, job)
     if not replies:
         return
     client = client or MetaCloudClient.from_settings()
@@ -92,6 +106,22 @@ def process_inbound(db: Session, job: Dict[str, Any], client: Optional[MetaCloud
             logger.exception("whatsapp reply for contact %s could not be recorded", contact_ref(contact.wa_id))
         if emergency and not delivered:
             _escalate_failed_emergency_reply(db, contact)
+
+
+def _run_followups(db: Session, contact: WhatsAppContact, followups: List[Callable], job: Dict[str, Any]
+                   ) -> List[OutboundMessage]:
+    """The slow half of a booking step, after the commit. A crash here must not undo the step (the message is
+    already marked processed) and must not leave the person without an answer."""
+    replies: List[OutboundMessage] = []
+    for followup in followups:
+        try:
+            result = booking_chat.apply_after_commit(db, contact.id, followup(db))
+            replies.extend(result.replies)
+        except Exception:
+            db.rollback()
+            logger.exception("whatsapp booking follow-up for %s failed", _short(job))
+            replies.append(copy.text(contact.language, "pay_failed_body"))
+    return replies
 
 
 def _escalate_failed_emergency_reply(db: Session, contact: WhatsAppContact) -> None:
@@ -112,7 +142,7 @@ def _escalate_failed_emergency_reply(db: Session, contact: WhatsAppContact) -> N
     logger.error("whatsapp EMERGENCY reply could not be delivered to contact %s: a person must reach out", ref)
 
 
-CONTENT_TYPES = ("text", "interactive", "image", "video", "document")  # their body key holds what was said
+CONTENT_TYPES = ("text", "interactive", "image", "video", "document", "location", "button")  # the body key holds what was said
 
 
 def _handle_missing_body(db: Session, message: WhatsAppMessage, job: Dict[str, Any]):
@@ -151,7 +181,8 @@ def _short(job: Dict[str, Any]) -> str:
     return str(job.get("meta_message_id"))
 
 
-def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, List[OutboundMessage], bool]]:
+def _apply(db: Session, job: Dict[str, Any]
+           ) -> Optional[Tuple[WhatsAppContact, List[OutboundMessage], bool, List[Callable]]]:
     message = (
         db.query(WhatsAppMessage)
         .filter(WhatsAppMessage.meta_message_id == job["meta_message_id"], WhatsAppMessage.direction == "inbound")
@@ -168,7 +199,7 @@ def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, 
     if job.get("body_missing"):
         lost = _handle_missing_body(db, message, job)
         if lost is not None:
-            return lost if lost[1] else None
+            return (*lost, []) if lost[1] else None
         job = {**job, "type": message.type}  # nothing to read in this kind of message: carry on from the row
 
     contact = db.query(WhatsAppContact).filter_by(id=message.contact_id).populate_existing().one()
@@ -189,21 +220,49 @@ def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, 
     else:
         context["link_required"] = True
 
+    # WA-FR-12: an unfinished booking that has sat idle past the limit starts fresh from the menu. A booking
+    # that already exists is never touched here; it follows its own payment expiry.
+    expired = booking_chat.idle_expired(conversation, now)
+    if expired:
+        booking_chat.expire_idle(db, conversation)
+        conversation.state = State.IDLE.value
+        context = {k: v for k, v in context.items() if k not in ("quote_id", "booking_id", "waitlist_quote_id")}
+        conversation.context = dict(context)
+
     consents = ConsentService(db)
     snapshot = Snapshot(
         state=State(conversation.state), context=context,
         consent_ok=consents.has_required_consent(contact_id=contact.id),
         opted_out=contact.opted_out_at is not None, language=contact.language,
+        can_book=contact.user_id is not None and bool(settings.WHATSAPP_BOOKING_FLOW_ID), expired=expired,
     )
     outcome = step(snapshot, inbound, engine_config())
 
+    replies = list(outcome.replies)
+    state, new_context = outcome.state, dict(outcome.context)
+    followups: List[Callable] = []
+    ctx = booking_chat.Ctx(db, contact, conversation, now)
     for effect in outcome.effects:
+        if isinstance(effect, BOOKING_EFFECTS):
+            result = booking_chat.apply(ctx, effect)
+            replies.extend(result.replies)
+            state = result.state or state
+            for key, value in result.context.items():
+                if value is None:
+                    new_context.pop(key, None)
+                else:
+                    new_context[key] = value
+            if result.after_commit is not None:
+                followups.append(result.after_commit)
+            continue
         if isinstance(effect, RecordConsent):
             consents.record(
                 types=effect.types, decision=effect.decision, channel=CONSENT_CHANNEL,
                 evidence_ref=message.meta_message_id, contact_id=contact.id,
                 subject_user_id=contact.user_id, granted_by_user_id=contact.user_id,
             )
+            if effect.decision == "withdrawn":
+                booking_chat.close_open_quotes(db, contact.id)  # consent gone: no draft of health answers stays
             if effect.decision == "granted" and contact.opted_in_at is None:
                 contact.opted_in_at = now
         elif isinstance(effect, SetOptOut):
@@ -213,12 +272,12 @@ def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, 
         elif isinstance(effect, OpenTicket):
             SupportService(db).open(contact_id=contact.id, reason=effect.reason, priority=effect.priority)
 
-    conversation.state = outcome.state.value
-    conversation.context = dict(outcome.context)
-    conversation.automation_paused = outcome.state in PAUSED_STATES
+    conversation.state = state.value
+    conversation.context = new_context
+    conversation.automation_paused = state in PAUSED_STATES
+    conversation.updated_at = now
     message.processed_at = now
     db.commit()
-    logger.info("whatsapp contact=%s %s -> %s", contact_ref(contact.wa_id), snapshot.state.value,
-                outcome.state.value)
+    logger.info("whatsapp contact=%s %s -> %s", contact_ref(contact.wa_id), snapshot.state.value, state.value)
     emergency = any(isinstance(e, OpenTicket) and e.reason == "emergency" for e in outcome.effects)
-    return contact, list(outcome.replies), emergency
+    return contact, replies, emergency, followups

@@ -1,0 +1,229 @@
+{
+  "version": "6.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "WHO": ["RECIPIENT", "SERVICE"],
+    "RECIPIENT": ["SERVICE"],
+    "SERVICE": ["WHEN"],
+    "WHEN": ["DETAILS"],
+    "DETAILS": ["ADDRESS"],
+    "ADDRESS": []
+  },
+  "screens": [
+    {
+      "id": "WHO",
+      "title": "Book a visit",
+      "data": {
+        "recipients": {
+          "type": "array",
+          "items": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}}},
+          "__example__": [{"id": "self", "title": "Myself"}, {"id": "new", "title": "Someone new"}]
+        },
+        "notice": {"type": "string", "__example__": ""}
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {"type": "TextHeading", "text": "Who is this visit for?"},
+          {"type": "TextCaption", "text": "${data.notice}"},
+          {
+            "type": "Form",
+            "name": "who_form",
+            "children": [
+              {"type": "RadioButtonsGroup", "name": "who", "label": "Choose one", "required": true,
+               "data-source": "${data.recipients}"},
+              {"type": "Footer", "label": "Continue",
+               "on-click-action": {"name": "data_exchange", "payload": {"who": "${form.who}"}}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "RECIPIENT",
+      "title": "About them",
+      "refresh_on_back": true,
+      "data": {
+        "relationships": {
+          "type": "array",
+          "items": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}}},
+          "__example__": [{"id": "parent", "title": "Parent"}]
+        },
+        "genders": {
+          "type": "array",
+          "items": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}}},
+          "__example__": [{"id": "female", "title": "Female"}]
+        },
+        "notice": {"type": "string", "__example__": ""}
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {"type": "TextHeading", "text": "Who are we visiting?"},
+          {"type": "TextCaption", "text": "${data.notice}"},
+          {
+            "type": "Form",
+            "name": "recipient_form",
+            "children": [
+              {"type": "TextInput", "name": "full_name", "label": "Their full name", "input-type": "text",
+               "required": true},
+              {"type": "Dropdown", "name": "relationship", "label": "Your relationship to them", "required": true,
+               "data-source": "${data.relationships}"},
+              {"type": "TextInput", "name": "age", "label": "Their age (approximately)", "input-type": "number",
+               "required": true},
+              {"type": "Dropdown", "name": "gender", "label": "Gender", "required": true,
+               "data-source": "${data.genders}"},
+              {"type": "TextInput", "name": "emergency_phone", "label": "Emergency contact phone (optional)",
+               "input-type": "phone", "required": false},
+              {"type": "Footer", "label": "Continue",
+               "on-click-action": {"name": "data_exchange", "payload": {
+                 "full_name": "${form.full_name}", "relationship": "${form.relationship}", "age": "${form.age}",
+                 "gender": "${form.gender}", "emergency_phone": "${form.emergency_phone}"}}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "SERVICE",
+      "title": "Choose a service",
+      "refresh_on_back": true,
+      "data": {
+        "services": {
+          "type": "array",
+          "items": {"type": "object", "properties": {
+            "id": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}}},
+          "__example__": [{"id": "nurse", "title": "Nurse", "description": "From ₦5,500 per hour"}]
+        },
+        "notice": {"type": "string", "__example__": ""}
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {"type": "TextHeading", "text": "What kind of visit?"},
+          {"type": "TextCaption", "text": "${data.notice}"},
+          {
+            "type": "Form",
+            "name": "service_form",
+            "children": [
+              {"type": "RadioButtonsGroup", "name": "service", "label": "Service (price per hour)",
+               "required": true, "data-source": "${data.services}"},
+              {"type": "Footer", "label": "Continue",
+               "on-click-action": {"name": "data_exchange", "payload": {"service": "${form.service}"}}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "WHEN",
+      "title": "Date and time",
+      "refresh_on_back": true,
+      "data": {
+        "min_date": {"type": "string", "__example__": "2026-10-06"},
+        "max_date": {"type": "string", "__example__": "2026-11-05"},
+        "first_date": {"type": "string", "__example__": "2026-10-06"},
+        "slots": {
+          "type": "array",
+          "items": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}}},
+          "__example__": [{"id": "10:00", "title": "10:00 AM"}]
+        },
+        "notice": {"type": "string", "__example__": ""}
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {"type": "TextHeading", "text": "When should we come?"},
+          {"type": "TextCaption", "text": "${data.notice}"},
+          {
+            "type": "Form",
+            "name": "when_form",
+            "children": [
+              {"type": "CalendarPicker", "name": "date", "label": "Date", "mode": "single", "required": true,
+               "min-date": "${data.min_date}", "max-date": "${data.max_date}", "init-value": "${data.first_date}",
+               "on-select-action": {"name": "data_exchange",
+                                    "payload": {"trigger": "date_selected", "date": "${form.date}"}}},
+              {"type": "Dropdown", "name": "time", "label": "Start time (Lagos time)", "required": true,
+               "data-source": "${data.slots}"},
+              {"type": "Footer", "label": "Continue",
+               "on-click-action": {"name": "data_exchange", "payload": {
+                 "trigger": "submit", "date": "${form.date}", "time": "${form.time}"}}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "DETAILS",
+      "title": "Visit details",
+      "refresh_on_back": true,
+      "data": {
+        "durations": {
+          "type": "array",
+          "items": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}}},
+          "__example__": [{"id": "4", "title": "4 hours"}]
+        },
+        "notice": {"type": "string", "__example__": ""}
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {"type": "TextHeading", "text": "How long, and what do they need?"},
+          {"type": "TextCaption", "text": "${data.notice}"},
+          {
+            "type": "Form",
+            "name": "details_form",
+            "children": [
+              {"type": "Dropdown", "name": "duration", "label": "How long", "required": true,
+               "data-source": "${data.durations}"},
+              {"type": "TextArea", "name": "condition", "label": "Their condition or what they need help with",
+               "helper-text": "Only the care team sees this. It is kept encrypted and never sent in chat.",
+               "required": true, "max-length": 500},
+              {"type": "TextArea", "name": "instructions", "label": "Anything else we should know (optional)",
+               "required": false, "max-length": 300},
+              {"type": "Footer", "label": "Continue",
+               "on-click-action": {"name": "data_exchange", "payload": {
+                 "duration": "${form.duration}", "condition": "${form.condition}",
+                 "instructions": "${form.instructions}"}}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADDRESS",
+      "title": "Address",
+      "refresh_on_back": true,
+      "data": {
+        "cities": {
+          "type": "array",
+          "items": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}}},
+          "__example__": [{"id": "Lagos", "title": "Lagos"}, {"id": "other", "title": "Somewhere else"}]
+        },
+        "notice": {"type": "string", "__example__": ""}
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {"type": "TextHeading", "text": "Where should we go?"},
+          {"type": "TextCaption", "text": "${data.notice}"},
+          {
+            "type": "Form",
+            "name": "address_form",
+            "children": [
+              {"type": "TextInput", "name": "street", "label": "House number and street", "input-type": "text",
+               "required": true},
+              {"type": "TextInput", "name": "area", "label": "Area or landmark", "input-type": "text",
+               "required": true},
+              {"type": "Dropdown", "name": "city", "label": "City", "required": true,
+               "data-source": "${data.cities}"},
+              {"type": "Footer", "label": "Finish",
+               "on-click-action": {"name": "data_exchange", "payload": {
+                 "street": "${form.street}", "area": "${form.area}", "city": "${form.city}"}}}
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

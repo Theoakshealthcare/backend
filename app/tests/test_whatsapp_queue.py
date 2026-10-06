@@ -26,8 +26,9 @@ def _worker(redis_url):
     from app import worker
 
     # Built from the production WorkerSettings, so the test exercises the real result/retention wiring.
+    # No cron jobs: a scheduled job that happens to fire during the run would be counted as a completed job.
     return create_worker(worker.WorkerSettings, redis_settings=RedisSettings.from_dsn(redis_url),
-                         burst=True, poll_delay=0.1)
+                         burst=True, poll_delay=0.1, cron_jobs=[])
 
 
 async def _run_worker(redis_url):

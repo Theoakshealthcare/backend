@@ -14,6 +14,7 @@ from arq import Retry, cron, func
 from arq.connections import RedisSettings
 from sqlalchemy.orm import Session
 
+from app.channels.whatsapp.notifications import run_events
 from app.channels.whatsapp.processor import process_inbound
 from app.channels.whatsapp.queue import body_key
 from app.core.config import settings
@@ -44,6 +45,15 @@ async def dispatch_tick_job(ctx: dict) -> int:
     if advanced:
         logger.info("dispatch_tick: advanced %d booking(s)", advanced)
     return advanced
+
+
+async def whatsapp_events_job(ctx: dict) -> dict:
+    """Booking messages that are due (payment received, link expiring, booking cancelled unpaid) and the sweep of
+    drafts nobody finished. Runs every 15 seconds; claims make overlapping runs safe."""
+    counts = await asyncio.to_thread(_run_with_session, run_events)
+    if any(counts.values()):
+        logger.info("whatsapp_events: %s", counts)
+    return counts
 
 
 WHATSAPP_RETRY_BASE_SECONDS = 5
@@ -83,12 +93,14 @@ def json_deserializer(data: bytes) -> Any:
 
 
 class WorkerSettings:
-    functions = [expire_unpaid_bookings_job, dispatch_tick_job, func(process_whatsapp_inbound_job, keep_result=0)]
+    functions = [expire_unpaid_bookings_job, dispatch_tick_job, whatsapp_events_job,
+                 func(process_whatsapp_inbound_job, keep_result=0)]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
     cron_jobs = [
         cron(expire_unpaid_bookings_job, second=0),
         cron(dispatch_tick_job, second=0),
+        cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     job_serializer = staticmethod(json_serializer)

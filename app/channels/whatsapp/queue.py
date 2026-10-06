@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 JOB_NAME = "process_whatsapp_inbound_job"
 BODY_KEY_PREFIX = "wa:inbound-body:"
-BODY_FIELDS = ("type", "text", "reply_id", "interactive_type")
+BODY_FIELDS = ("type", "text", "reply_id", "interactive_type", "latitude", "longitude")
 
 
 class QueueRefused(RuntimeError):

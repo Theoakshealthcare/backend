@@ -14,10 +14,14 @@ def test_worker_settings_import_and_register_the_cron_jobs():
     from app import worker
 
     names = {c.coroutine.__name__ for c in worker.WorkerSettings.cron_jobs}
-    assert names == {"expire_unpaid_bookings_job", "dispatch_tick_job"}
+    assert names == {"expire_unpaid_bookings_job", "dispatch_tick_job", "whatsapp_events_job"}
     assert worker.WorkerSettings.redis_settings.host
     for cron_job in worker.WorkerSettings.cron_jobs:
-        assert cron_job.minute is None and cron_job.second == 0  # every minute
+        assert cron_job.minute is None
+        if cron_job.coroutine.__name__ == "whatsapp_events_job":
+            assert cron_job.second == {0, 15, 30, 45}  # booking messages are time-sensitive
+        else:
+            assert cron_job.second == 0  # every minute
 
 
 def test_redis_url_setting_has_a_local_default():

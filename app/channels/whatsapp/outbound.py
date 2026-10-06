@@ -1,5 +1,13 @@
-"""Send a message and write down its metadata (never its body)."""
+"""Send a message and write down its metadata (never its body).
 
+The 24-hour rule lives here, in the one function every send goes through: free-form messages (text, buttons,
+lists, CTA, Flow, location request) are only sent while the contact has written to us in the last 24 hours;
+outside it only a template goes out. A free-form send outside the window is not attempted (Meta would refuse it
+with 131047 and it would count against our quality); it is recorded as failed with ``window_closed`` so the
+caller can fall back to a template (see ``templates.choose``).
+"""
+
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -8,11 +16,24 @@ from sqlalchemy.orm import Session
 
 from app.channels.whatsapp.messages import OutboundMessage, TemplateMessage
 from app.channels.whatsapp.meta_client import MetaCloudClient, SendResult
+from app.channels.whatsapp.templates import within_window
+from app.core.phone import contact_ref
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppMessage
+
+logger = logging.getLogger(__name__)
+
+WINDOW_CLOSED = "window_closed"
 
 
 def send_and_record(db: Session, client: MetaCloudClient, contact: WhatsAppContact,
-                    message: OutboundMessage) -> SendResult:
+                    message: OutboundMessage, *, now: Optional[datetime] = None) -> SendResult:
+    now = now or datetime.utcnow()
+    if not isinstance(message, TemplateMessage) and not within_window(contact.last_inbound_at, now):
+        result = SendResult(ok=False, error_code=WINDOW_CLOSED, attempts=0)
+        logger.warning("whatsapp free-form message to contact %s refused: outside the 24 h window",
+                       contact_ref(contact.wa_id))
+        record_outbound(db, contact.id, message, result)
+        return result
     result = client.send(contact.wa_id, message)
     record_outbound(db, contact.id, message, result)
     return result

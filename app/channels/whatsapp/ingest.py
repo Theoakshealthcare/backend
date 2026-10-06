@@ -8,6 +8,7 @@ conversation logic runs later in the worker. Message text (and image captions) t
 Redis key (see queue.py) and are never written to the database.
 """
 
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -36,6 +37,8 @@ class InboundEnvelope:
     text: Optional[str] = None
     reply_id: Optional[str] = None
     interactive_type: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     timestamp: Optional[str] = None
     referral: bool = False
 
@@ -135,8 +138,34 @@ def _parse_message(raw: Dict[str, Any], names: Dict[str, Optional[str]]) -> Opti
         interactive = _dict(raw.get("interactive"))
         envelope.interactive_type = _str(interactive.get("type"))
         chosen = _dict(interactive.get(envelope.interactive_type)) if envelope.interactive_type else {}
-        envelope.reply_id = _str(chosen.get("id"))
+        if envelope.interactive_type == "nfm_reply":
+            envelope.reply_id = _flow_token(chosen.get("response_json"))
+        else:
+            envelope.reply_id = _str(chosen.get("id"))
+    elif kind == "button":  # a tap on a template's quick-reply button
+        button = _dict(raw.get("button"))
+        envelope.interactive_type = "template_button"
+        envelope.reply_id = _ident(button.get("payload"))
+    elif kind == "location":
+        location = _dict(raw.get("location"))
+        envelope.latitude, envelope.longitude = _coordinate(location.get("latitude")), _coordinate(
+            location.get("longitude"))
     return envelope
+
+
+def _flow_token(response_json: Any) -> Optional[str]:
+    """The flow token out of a completed Flow's ``response_json`` (a JSON string). Our Flow completes with
+    nothing else: the answers went to the encrypted data endpoint, so no answer is ever in this webhook."""
+    try:
+        decoded = json.loads(response_json) if isinstance(response_json, str) and len(response_json) < 4096 else {}
+    except ValueError:
+        return None
+    token = decoded.get("flow_token") if isinstance(decoded, dict) else None
+    return token if isinstance(token, str) and 0 < len(token) <= 200 and token.isprintable() else None
+
+
+def _coordinate(value: Any) -> Optional[float]:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _parse_status(raw: Dict[str, Any]) -> Optional[StatusUpdate]:
@@ -203,7 +232,8 @@ def ingest(db: Session, parsed: ParsedWebhook) -> IngestResult:
         result.jobs.append({
             "meta_message_id": envelope.meta_message_id, "wa_id": envelope.wa_id, "name": envelope.name,
             "type": envelope.type, "text": envelope.text, "reply_id": envelope.reply_id,
-            "interactive_type": envelope.interactive_type, "timestamp": envelope.timestamp,
+            "interactive_type": envelope.interactive_type, "latitude": envelope.latitude,
+            "longitude": envelope.longitude, "timestamp": envelope.timestamp,
         })
     for update in parsed.statuses:
         if _apply_status(db, update):
