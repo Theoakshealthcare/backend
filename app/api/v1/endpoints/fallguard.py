@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 import json
 
-from app.api.deps import get_db, get_current_user, get_current_admin, get_current_patient
+from app.api.deps import get_db, get_current_user, get_current_patient, require_permission
 from app.db.models.fallguard import FallGuardQuestion
 from app.db.models.patient import Patient
 from app.schemas.fallguard import (
@@ -96,7 +96,7 @@ def get_history(
 @router.post("/admin/question", response_model=FallGuardQuestionResponse)
 def admin_create_question(
     data: FallGuardQuestionCreate,
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_permission("fallguard.write")),
     service: FallGuardService = Depends(get_fallguard_service)
 ):
     question = service.create_question(data.dict())
@@ -107,7 +107,7 @@ def admin_create_question(
 def admin_update_question(
     question_id: UUID,
     data: FallGuardQuestionUpdate,
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_permission("fallguard.write")),
     service: FallGuardService = Depends(get_fallguard_service)
 ):
     question = service.update_question(question_id, data.dict())
@@ -117,7 +117,7 @@ def admin_update_question(
 @router.delete("/admin/question/{question_id}")
 def admin_delete_question(
     question_id: UUID,
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_permission("fallguard.write")),
     service: FallGuardService = Depends(get_fallguard_service)
 ):
     service.delete_question(question_id)
@@ -125,7 +125,7 @@ def admin_delete_question(
 
 @router.get("/admin/questions", response_model=List[FallGuardQuestionResponse])
 def admin_get_questions(
-    current_user=Depends(get_current_admin),
+    current_user=Depends(require_permission("fallguard.write")),
     service: FallGuardService = Depends(get_fallguard_service)
 ):
     questions = service.get_questions(active_only=False)

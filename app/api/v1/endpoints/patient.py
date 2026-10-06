@@ -8,7 +8,8 @@ import csv
 from io import StringIO
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_admin, get_current_user, get_db
+from app.api.deps import get_current_user, get_db, require_permission
+from app.db.models.admin import AdminUser
 from app.core.money import kobo_to_naira
 from app.db.models.user import User
 from app.db.models.patient import Patient
@@ -327,7 +328,7 @@ def get_refund_requests(
 @router.get("/admin/refund/requests")
 def get_all_refund_requests(
     status_filter: Optional[str] = Query(None, description="Filter by status: pending, approved, rejected"),
-    current_user: User = Depends(get_current_admin),
+    current_user: AdminUser = Depends(require_permission("refunds.approve")),
     db: Session = Depends(get_db),
 ):
     """Get all refund requests (Admin only)"""
@@ -363,7 +364,7 @@ def get_all_refund_requests(
 def process_refund_request(
     request_id: UUID,
     action_data: Dict[str, Any],  # {"action": "approve/reject", "admin_notes": "..."}
-    current_user: User = Depends(get_current_admin),
+    current_user: AdminUser = Depends(require_permission("refunds.approve")),
     wallet_service: PatientWalletService = Depends(get_patient_wallet_service),
 ):
     """Process refund request (Admin only)"""

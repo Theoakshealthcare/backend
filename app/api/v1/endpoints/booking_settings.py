@@ -5,7 +5,7 @@ from app.db.models.booking_settings import BookingSettings
 from app.schemas.booking_settings import (
     BookingSettingsCreate, BookingSettingsUpdate, BookingSettingsResponse
 )
-from app.api.deps import get_db, get_current_admin, get_current_user
+from app.api.deps import get_db, get_current_user, require_permission
 
 router = APIRouter()
 
@@ -27,7 +27,7 @@ def get_latest_booking_settings(db: Session = Depends(get_db)):
 def create_booking_settings(
     settings_in: BookingSettingsCreate,
     db: Session = Depends(get_db),
-    current_admin=Depends(get_current_admin)
+    current_admin=Depends(require_permission("pricing.write"))
 ):
     settings = BookingSettings(**settings_in.dict())
     db.add(settings)
@@ -40,7 +40,7 @@ def update_booking_settings(
     settings_id: str,
     settings_in: BookingSettingsUpdate,
     db: Session = Depends(get_db),
-    current_admin=Depends(get_current_admin)
+    current_admin=Depends(require_permission("pricing.write"))
 ):
     settings = db.query(BookingSettings).filter(BookingSettings.id == settings_id).first()
     if not settings:
@@ -55,7 +55,7 @@ def update_booking_settings(
 def delete_booking_settings(
     settings_id: str,
     db: Session = Depends(get_db),
-    current_admin=Depends(get_current_admin)
+    current_admin=Depends(require_permission("pricing.write"))
 ):
     settings = db.query(BookingSettings).filter(BookingSettings.id == settings_id).first()
     if not settings:
