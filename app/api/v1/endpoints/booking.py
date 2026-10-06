@@ -44,8 +44,31 @@ def get_location_service(db: Session = Depends(get_db)) -> LocationService:
     return LocationService(db)
 
 
-def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
-    """Helper function to enrich booking with patient and caregiver details"""
+def redact_offer(booking_dict: dict) -> dict:
+    """What a caregiver sees of a job they've been offered but don't hold: the job, not the patient.
+
+    No patient identity or contact, no exact address, no clinical notes; the location is rounded
+    to ~1 km so distance and area still work. Full details appear once they are the assigned
+    caregiver (after accepting).
+    """
+    booking_dict["patient_details"] = None
+    booking_dict["condition"] = None
+    booking_dict["special_instructions"] = None
+    booking_dict["patient_address"] = f"{booking_dict.get('patient_city')}, {booking_dict.get('patient_state')}"
+    for key in ("patient_latitude", "patient_longitude"):
+        if booking_dict.get(key) is not None:
+            booking_dict[key] = round(booking_dict[key], 2)
+    return booking_dict
+
+
+def enrich_booking_with_details(
+    booking: Booking, db: Session, viewer_caregiver_id: Optional[UUID] = None
+) -> dict:
+    """Helper function to enrich booking with patient and caregiver details.
+
+    Pass ``viewer_caregiver_id`` when a caregiver is viewing: unless they are the booking's
+    assigned caregiver, the result is redacted to an offer view (see ``redact_offer``).
+    """
     booking_dict = booking.__dict__.copy()
     booking_dict.pop("_sa_instance_state", None)
     # The visit code never leaves through this helper (the action endpoint returns this dict as-is,
@@ -113,6 +136,8 @@ def enrich_booking_with_details(booking: Booking, db: Session) -> dict:
             
             booking_dict['caregiver_details'] = caregiver_details
     
+    if viewer_caregiver_id is not None and booking.caregiver_id != viewer_caregiver_id:
+        booking_dict = redact_offer(booking_dict)
     return booking_dict
 
 
@@ -402,7 +427,9 @@ def get_caregiver_bookings(
     # Enrich bookings with patient and caregiver details
     enriched_bookings = []
     for booking in bookings:
-        enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+        enriched_booking = enrich_booking_with_details(
+            booking, booking_service.db, viewer_caregiver_id=caregiver.id
+        )
         enriched_bookings.append(enriched_booking)
     
     return enriched_bookings
@@ -439,7 +466,21 @@ def get_caregiver_notifications(
         )
     
     notifications = booking_service.get_booking_notifications(caregiver.id, unread_only)
-    return notifications
+    return [
+        {
+            "id": n.id,
+            "booking_id": n.booking_id,
+            "title": n.title,
+            "message": n.message,
+            "notification_type": n.notification_type,
+            "is_read": n.is_read,
+            "created_at": n.created_at,
+            "booking": enrich_booking_with_details(
+                n.booking, booking_service.db, viewer_caregiver_id=caregiver.id
+            ),
+        }
+        for n in notifications
+    ]
 
 
 @router.post(
@@ -481,7 +522,9 @@ async def handle_booking_action(
             booking_id, caregiver.id, action_data
         )
         # Enrich booking with patient and caregiver details
-        enriched_booking = enrich_booking_with_details(booking, booking_service.db)
+        enriched_booking = enrich_booking_with_details(
+            booking, booking_service.db, viewer_caregiver_id=caregiver.id
+        )
         return {"message": f"Booking {action_data.action} successfully", "booking": enriched_booking}
     except BookingActionForbidden as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
