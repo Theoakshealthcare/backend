@@ -1,7 +1,7 @@
 """WhatsApp foundations: phone-first users and the channel tables (W1).
 
-Revision ID: 0003_whatsapp_foundations
-Revises: 0002_caregiver_mobile
+Revision ID: 0004_whatsapp_foundations
+Revises: 0003_admin_identity
 Create Date: 2026-10-06
 
 - ``users.email`` and ``patients.email`` become nullable (a WhatsApp patient may have no email).
@@ -20,8 +20,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '0003_whatsapp_foundations'
-down_revision: Union[str, None] = '0002_caregiver_mobile'
+revision: str = '0004_whatsapp_foundations'
+down_revision: Union[str, None] = '0003_admin_identity'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

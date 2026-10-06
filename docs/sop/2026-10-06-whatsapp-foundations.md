@@ -4,7 +4,7 @@
 |---|---|
 | **Date** | 2026-10-06 |
 | **Branch** | `feat/whatsapp-foundations` (base `main` at `343978a`) |
-| **Migration** | `0003_whatsapp_foundations` (down_revision `0002_caregiver_mobile`; re-parent at merge if the admin auth migration lands first) |
+| **Migration** | `0004_whatsapp_foundations` (down_revision `0003_admin_identity`; re-parent at merge if the admin auth migration lands first) |
 | **Plan / spec** | [plan W1](../plans/2026-10-06-whatsapp-channel.md) · [PRD](../prd/PRD-whatsapp-patient-channel.md) §8.1–8.3, §8.10, §9, §10, §11.1–11.2, §12 |
 | **Status** | Verified locally (unit/integration tests and the Docker end-to-end script). Not pushed. Not tested against real Meta: see "Local testing with a Meta developer test number" below. |
 
@@ -50,7 +50,7 @@ Rejected: PyWa (the PRD mentions it) because the plan asks for a thin httpx clie
 - **Models:** `app/db/models/{whatsapp,care,consent,support}.py`; `users.email` and `patients.email` nullable; `UserInDBBase.email` optional in responses (`app/schemas/user.py`).
 - **Helper:** `app/core/phone.py` (`normalize_e164`, `phone_variants`, `mask_phone`, `contact_ref`).
 - **Worker:** `app/worker.py` adds `process_whatsapp_inbound_job` (retry with 5/20/45/80 s delays, `max_tries = 5`).
-- **Migration:** `app/alembic/versions/0003_whatsapp_foundations.py`.
+- **Migration:** `app/alembic/versions/0004_whatsapp_foundations.py`.
 - **Compose:** the API container now gets `REDIS_URL` (it enqueues) and waits for Redis, in `docker-compose.yml` and `docker-compose.prod.yml`; dev adds `host.docker.internal` for the fake Meta.
 - **Tests and tooling:** `app/tests/fake_meta.py`, `app/tests/factories_whatsapp.py`, `app/tests/test_whatsapp_*.py`, `scripts/whatsapp_local_e2e.py`.
 
