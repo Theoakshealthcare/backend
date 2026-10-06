@@ -125,7 +125,7 @@ Spec: [PRD](../prd/PRD-whatsapp-patient-channel.md) · [proposal](../proposals/2
 - [ ] **Matching and assignment notifications** (WA-FR-28–31)
 - [ ] **Visit lifecycle notifications and visit code** (WA-FR-32–37)
 - [ ] **My bookings and cancellation policy** (WA-FR-38–39)
-- [ ] **Emergency screen, human handover, no-medical-advice guard** (WA-FR-40–42)
+- [x] **Emergency screen, human handover, no-medical-advice guard** (WA-FR-40–42). 2026-10-06, W1 (state emergency numbers still to be verified)
 - [ ] **Web companion:** magic links, step-up authentication, tracking and booking pages (WA-FR-43–48)
 - [ ] **Phase 2:**
   - [ ] FallGuard via a WhatsApp Flow, scored on the server (WA-FR-49–51)
@@ -202,7 +202,15 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
 
 ## 10. Phase W: WhatsApp patient channel (same backend) — 🟡 starting
 Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp-channel.md). Built and tested locally against a fake Meta; real phone tests later need a Meta developer test number (not business verification).
-- [ ] **W1** Foundations: phone-first users, contacts, conversations, message metadata, consents, care recipients, support conversations; signed webhook and queue; Cloud API client; state machine with consent, STOP/START, menu, emergency screen, handover; fake Meta
+- [x] **W1** Foundations: phone-first users, contacts, conversations, message metadata, consents, care recipients, support conversations; signed webhook and queue; Cloud API client; state machine with consent, STOP/START, menu, emergency screen, handover; fake Meta. 2026-10-06, branch `feat/whatsapp-foundations`, migration `0003_whatsapp_foundations`, [SOP](../sop/2026-10-06-whatsapp-foundations.md). Verified locally and by `scripts/whatsapp_local_e2e.py` on the Docker stack; not yet merged.
+  - [x] Phone-first users (`users.email` nullable, E.164 helper); app registration still requires an email
+  - [x] Seven tables; `consents` append-only (trigger + ORM guard); `whatsapp_messages` has no body column
+  - [x] Webhook: handshake, HMAC over the raw body (empty secret refused), dedupe on Meta message id, ARQ job, status callbacks
+  - [x] `MetaCloudClient`: timeout, retry on 429/5xx and connect errors, metadata recorded
+  - [x] Pure conversation engine: first contact, button consent, STOP / STOP DATA / START, menu, two-miss handover, emergency screen (English + Pidgin), clinical-advice guard
+  - [x] Fake Meta (`app/tests/fake_meta.py`) and the Docker end-to-end script
+  - [ ] **Owner:** real-Meta check with a developer test number and a tunnel ([steps in the SOP](../sop/2026-10-06-whatsapp-foundations.md#local-testing-with-a-meta-developer-test-number--tunnel))
+  - [ ] Deferred to W2: consent Flow (checkboxes) replaces the buttons; one-time-code linking of an existing app account; idle expiry (WA-FR-12)
 - [ ] **W2** Booking in chat: booking Flow and encrypted data endpoint, location, locked quote, Paystack link, templates
 - [ ] **W3** Notifications (channel-agnostic) and my bookings/cancel
 - [ ] **W4** Web companion API and `apps/companion`
