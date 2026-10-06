@@ -1,0 +1,66 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "auth": null,
+    "body": {
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "<TOTP_CODE>"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "access_token": "<ACCESS_TOKEN_JWT>",
+      "refresh_token": "<REFRESH_TOKEN>",
+      "token_type": "bearer",
+      "expires_in": 900,
+      "admin": {
+        "id": "b35b9297-18d5-4e1c-b57e-c30def0a2ceb",
+        "email": "boss-ee5e3e@example.com",
+        "full_name": "Placeholder Super Admin",
+        "roles": [
+          "super_admin"
+        ],
+        "permissions": [
+          "admins.manage",
+          "audit.read",
+          "bookings.address",
+          "bookings.assign",
+          "bookings.cancel",
+          "bookings.cancel_request",
+          "bookings.correct_status",
+          "bookings.dispatch",
+          "bookings.read",
+          "caregivers.approve",
+          "caregivers.read",
+          "caregivers.suspend",
+          "clinical.read",
+          "dashboard.read",
+          "documents.read",
+          "exports.pii",
+          "fallguard.write",
+          "ledger.adjust",
+          "ledger.adjust_request",
+          "payments.read",
+          "payments.reconcile",
+          "payouts.execute",
+          "people.pii",
+          "people.read",
+          "people.suspend",
+          "prescriptions.manage",
+          "pricing.request",
+          "pricing.write",
+          "refunds.approve",
+          "refunds.request",
+          "settings.write",
+          "support.inbox",
+          "whatsapp.read"
+        ]
+      }
+    }
+  }
+}

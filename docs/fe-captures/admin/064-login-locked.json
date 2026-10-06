@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/login",
+    "auth": null,
+    "body": {
+      "email": "lockme-ee5e3e@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 423,
+    "headers": {
+      "retry-after": "900",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Account temporarily locked. Try again later."
+    }
+  },
+  "note": "The 11th attempt: the account is locked."
+}

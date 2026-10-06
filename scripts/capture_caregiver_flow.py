@@ -197,6 +197,27 @@ def hash_password(pw: str) -> str:
     return CryptContext(schemes=["bcrypt"]).hash(pw)
 
 
+def seed_admin_session(rec: "Recorder", db: "DB", env: Dict[str, str], email: str,
+                       role: str = "super_admin") -> str:
+    """Insert an admin_users row with MFA already enrolled (the console needs an existing admin to
+    invite another one), then sign in through the real login + MFA endpoints. Returns the access token."""
+    import pyotp
+    from cryptography.fernet import Fernet
+
+    secret = pyotp.random_base32()
+    key = env["VITALS_ENCRYPTION_KEY"].split(",")[0].strip()
+    admin_id = str(uuid.uuid4())
+    db.run("INSERT INTO admin_users (id, email, full_name, password_hash, status, mfa_secret_enc, mfa_enabled,"
+           " failed_logins, created_at, updated_at) VALUES (%s,%s,'Placeholder Admin',%s,'active',%s,true,0,now(),now())",
+           (admin_id, email, hash_password(PLACEHOLDER_PASSWORD), Fernet(key.encode()).encrypt(secret.encode()).decode()))
+    db.run("INSERT INTO admin_user_roles (admin_user_id, role_id) SELECT %s, id FROM admin_roles WHERE key = %s",
+           (admin_id, role))
+    step1 = rec.call("admin-login", "POST", "/api/v1/admin/auth/login",
+                     json_body={"email": email, "password": PLACEHOLDER_PASSWORD}).json()
+    return rec.call("admin-mfa-verify", "POST", "/api/v1/admin/auth/mfa/verify", json_body={
+        "mfa_token": step1["mfa_token"], "code": pyotp.TOTP(secret).now()}).json()["access_token"]
+
+
 class Ctx:
     def __init__(self, rec: Recorder, db: DB, env: Dict[str, str], expo: FakeExpo, tag: str):
         self.rec, self.db, self.env, self.expo, self.tag = rec, db, env, expo, tag
@@ -382,17 +403,9 @@ def run(args) -> None:
     ctx = Ctx(rec, db, env, expo, tag)
     mail = lambda who: f"{who}-{tag}@example.com"  # noqa: E731
 
-    # --- admin (seeded directly: there is no API to create one) ----------------------------------
-    admin_id, admin_email = uuid.uuid4(), mail("admin")
-    db.run("INSERT INTO users (id, email, full_name, hashed_password, user_type, is_active, is_verified, created_at,"
-           " updated_at) VALUES (%s,%s,'Placeholder Admin',%s,'patient',true,true,now(),now())",
-           (str(admin_id), admin_email, hash_password(PLACEHOLDER_PASSWORD)))
-    db.run("INSERT INTO admins (id, user_id, email, full_name, permissions, created_at, updated_at)"
-           " VALUES (%s,%s,%s,'Placeholder Admin','{}',now(),now())",
-           (str(uuid.uuid4()), str(admin_id), admin_email))
+    # --- admin (seeded directly: the only API to create one needs an existing admin) --------------
     rec.quiet = True
-    admin = rec.call("admin-login", "POST", "/api/v1/auth/login/mobile",
-                     json_body={"email_or_phone": admin_email, "password": PLACEHOLDER_PASSWORD}).json()["access_token"]
+    admin = seed_admin_session(rec, db, env, mail("admin"))
     rec.quiet = False
 
     # --- caregiver A: the main character, every step captured ------------------------------------

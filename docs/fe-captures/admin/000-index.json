@@ -1,0 +1,336 @@
+{
+  "generated_by": "scripts/capture_admin_flow.py",
+  "run_tag": "ee5e3e",
+  "captures": [
+    {
+      "file": "001-login-wrong-password.json",
+      "label": "login-wrong-password",
+      "status": 401
+    },
+    {
+      "file": "002-login-unknown-email.json",
+      "label": "login-unknown-email",
+      "status": 401
+    },
+    {
+      "file": "003-login-invalid-email.json",
+      "label": "login-invalid-email",
+      "status": 422
+    },
+    {
+      "file": "004-login.json",
+      "label": "login",
+      "status": 200
+    },
+    {
+      "file": "005-mfa-verify-wrong-code.json",
+      "label": "mfa-verify-wrong-code",
+      "status": 401
+    },
+    {
+      "file": "006-mfa-verify-bad-token.json",
+      "label": "mfa-verify-bad-token",
+      "status": 401
+    },
+    {
+      "file": "007-mfa-verify.json",
+      "label": "mfa-verify",
+      "status": 200
+    },
+    {
+      "file": "008-login-again.json",
+      "label": "login-again",
+      "status": 200
+    },
+    {
+      "file": "009-mfa-verify-replay.json",
+      "label": "mfa-verify-replay",
+      "status": 401
+    },
+    {
+      "file": "010-me.json",
+      "label": "me",
+      "status": 200
+    },
+    {
+      "file": "011-me-no-token.json",
+      "label": "me-no-token",
+      "status": 401
+    },
+    {
+      "file": "012-me-refresh-token-as-bearer.json",
+      "label": "me-refresh-token-as-bearer",
+      "status": 401
+    },
+    {
+      "file": "013-me-garbage-token.json",
+      "label": "me-garbage-token",
+      "status": 401
+    },
+    {
+      "file": "014-admin-route-with-app-token.json",
+      "label": "admin-route-with-app-token",
+      "status": 401
+    },
+    {
+      "file": "015-app-route-with-admin-token.json",
+      "label": "app-route-with-admin-token",
+      "status": 401
+    },
+    {
+      "file": "016-refresh.json",
+      "label": "refresh",
+      "status": 200
+    },
+    {
+      "file": "017-me-after-refresh.json",
+      "label": "me-after-refresh",
+      "status": 200
+    },
+    {
+      "file": "018-refresh-reuse.json",
+      "label": "refresh-reuse",
+      "status": 401
+    },
+    {
+      "file": "019-refresh-after-reuse-sibling-token.json",
+      "label": "refresh-after-reuse-sibling-token",
+      "status": 401
+    },
+    {
+      "file": "020-me-after-reuse.json",
+      "label": "me-after-reuse",
+      "status": 401
+    },
+    {
+      "file": "021-refresh-unknown-token.json",
+      "label": "refresh-unknown-token",
+      "status": 401
+    },
+    {
+      "file": "022-logout.json",
+      "label": "logout",
+      "status": 204
+    },
+    {
+      "file": "023-me-after-logout.json",
+      "label": "me-after-logout",
+      "status": 401
+    },
+    {
+      "file": "024-me-other-session-after-logout.json",
+      "label": "me-other-session-after-logout",
+      "status": 200
+    },
+    {
+      "file": "025-invite.json",
+      "label": "invite",
+      "status": 201
+    },
+    {
+      "file": "026-invite-duplicate.json",
+      "label": "invite-duplicate",
+      "status": 409
+    },
+    {
+      "file": "027-invite-unknown-role.json",
+      "label": "invite-unknown-role",
+      "status": 422
+    },
+    {
+      "file": "028-invite-no-roles.json",
+      "label": "invite-no-roles",
+      "status": 422
+    },
+    {
+      "file": "029-login-before-accepting-invite.json",
+      "label": "login-before-accepting-invite",
+      "status": 401
+    },
+    {
+      "file": "030-invite-accept-weak-password.json",
+      "label": "invite-accept-weak-password",
+      "status": 422
+    },
+    {
+      "file": "031-invite-accept-password-contains-email.json",
+      "label": "invite-accept-password-contains-email",
+      "status": 422
+    },
+    {
+      "file": "032-invite-accept.json",
+      "label": "invite-accept",
+      "status": 200
+    },
+    {
+      "file": "033-invite-accept-again.json",
+      "label": "invite-accept-again",
+      "status": 400
+    },
+    {
+      "file": "034-login-first-time.json",
+      "label": "login-first-time",
+      "status": 200
+    },
+    {
+      "file": "035-mfa-verify-enrolment.json",
+      "label": "mfa-verify-enrolment",
+      "status": 200
+    },
+    {
+      "file": "036-login-after-enrolment.json",
+      "label": "login-after-enrolment",
+      "status": 200
+    },
+    {
+      "file": "037-invite-second.json",
+      "label": "invite-second",
+      "status": 201
+    },
+    {
+      "file": "038-invite-accept-expired.json",
+      "label": "invite-accept-expired",
+      "status": 400
+    },
+    {
+      "file": "039-verifier-me.json",
+      "label": "verifier-me",
+      "status": 200
+    },
+    {
+      "file": "040-forbidden-admins-list.json",
+      "label": "forbidden-admins-list",
+      "status": 403
+    },
+    {
+      "file": "041-forbidden-audit.json",
+      "label": "forbidden-audit",
+      "status": 403
+    },
+    {
+      "file": "042-caregiver-queue-as-verifier.json",
+      "label": "caregiver-queue-as-verifier",
+      "status": 200
+    },
+    {
+      "file": "043-caregiver-queue-as-analyst.json",
+      "label": "caregiver-queue-as-analyst",
+      "status": 403
+    },
+    {
+      "file": "044-caregiver-approve-no-token.json",
+      "label": "caregiver-approve-no-token",
+      "status": 401
+    },
+    {
+      "file": "045-admins-list.json",
+      "label": "admins-list",
+      "status": 200
+    },
+    {
+      "file": "046-admin-update-roles.json",
+      "label": "admin-update-roles",
+      "status": 200
+    },
+    {
+      "file": "047-admin-update-invalid-status.json",
+      "label": "admin-update-invalid-status",
+      "status": 422
+    },
+    {
+      "file": "048-admin-update-unknown.json",
+      "label": "admin-update-unknown",
+      "status": 404
+    },
+    {
+      "file": "049-last-super-admin-demote.json",
+      "label": "last-super-admin-demote",
+      "status": 409
+    },
+    {
+      "file": "050-disable-self.json",
+      "label": "disable-self",
+      "status": 409
+    },
+    {
+      "file": "051-admin-disable.json",
+      "label": "admin-disable",
+      "status": 200
+    },
+    {
+      "file": "052-disabled-admin-token.json",
+      "label": "disabled-admin-token",
+      "status": 401
+    },
+    {
+      "file": "053-disabled-admin-login.json",
+      "label": "disabled-admin-login",
+      "status": 401
+    },
+    {
+      "file": "054-admin-reactivate.json",
+      "label": "admin-reactivate",
+      "status": 200
+    },
+    {
+      "file": "055-admin-activate-never-accepted.json",
+      "label": "admin-activate-never-accepted",
+      "status": 409
+    },
+    {
+      "file": "056-reset-mfa.json",
+      "label": "reset-mfa",
+      "status": 200
+    },
+    {
+      "file": "057-login-after-mfa-reset.json",
+      "label": "login-after-mfa-reset",
+      "status": 200
+    },
+    {
+      "file": "058-reset-mfa-unknown.json",
+      "label": "reset-mfa-unknown",
+      "status": 404
+    },
+    {
+      "file": "059-audit.json",
+      "label": "audit",
+      "status": 200
+    },
+    {
+      "file": "060-audit-filtered.json",
+      "label": "audit-filtered",
+      "status": 200
+    },
+    {
+      "file": "061-audit-bad-limit.json",
+      "label": "audit-bad-limit",
+      "status": 422
+    },
+    {
+      "file": "062-refresh-after-idle-timeout.json",
+      "label": "refresh-after-idle-timeout",
+      "status": 401
+    },
+    {
+      "file": "063-login-failure-10.json",
+      "label": "login-failure-10",
+      "status": 401
+    },
+    {
+      "file": "064-login-locked.json",
+      "label": "login-locked",
+      "status": 423
+    },
+    {
+      "file": "065-login-locked-correct-password.json",
+      "label": "login-locked-correct-password",
+      "status": 423
+    },
+    {
+      "file": "066-rate-limited.json",
+      "label": "rate-limited",
+      "status": 429
+    }
+  ]
+}

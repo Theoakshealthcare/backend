@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/logout",
+    "auth": null,
+    "body": {
+      "refresh_token": "<REFRESH_TOKEN>"
+    }
+  },
+  "response": {
+    "status_code": 204,
+    "headers": {},
+    "body": ""
+  }
+}

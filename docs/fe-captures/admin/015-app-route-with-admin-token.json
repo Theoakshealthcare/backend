@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/auth/me",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Could not validate credentials"
+    }
+  },
+  "note": "An admin's access token on an app route."
+}

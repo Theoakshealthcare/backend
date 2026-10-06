@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/admins/922791db-8198-47c9-ae72-8a86fbc1fd5d",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "status": "disabled"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Admin not found"
+    }
+  }
+}

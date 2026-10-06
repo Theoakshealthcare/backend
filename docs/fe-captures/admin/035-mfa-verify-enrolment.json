@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "auth": null,
+    "body": {
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "<TOTP_CODE>"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "access_token": "<ACCESS_TOKEN_JWT>",
+      "refresh_token": "<REFRESH_TOKEN>",
+      "token_type": "bearer",
+      "expires_in": 900,
+      "admin": {
+        "id": "b182c6ed-f1dd-4d24-ab4b-4f0bcb3dee95",
+        "email": "verifier-ee5e3e@example.com",
+        "full_name": "Placeholder Verifier",
+        "roles": [
+          "verification"
+        ],
+        "permissions": [
+          "caregivers.approve",
+          "caregivers.read",
+          "caregivers.suspend",
+          "dashboard.read",
+          "documents.read",
+          "people.read"
+        ]
+      }
+    }
+  }
+}

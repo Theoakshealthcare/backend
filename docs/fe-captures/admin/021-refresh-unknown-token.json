@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/refresh",
+    "auth": null,
+    "body": {
+      "refresh_token": "<REFRESH_TOKEN>"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid or expired refresh token"
+    }
+  }
+}

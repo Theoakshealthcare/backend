@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: caregivers.read"
+    }
+  },
+  "note": "SEEDED: analyst-ee5e3e@example.com is a Read-only Analyst, inserted directly."
+}

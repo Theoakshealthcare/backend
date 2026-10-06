@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/83f40284-18ed-44e2-ba00-179610a65ea1/approve",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Not authenticated"
+    }
+  }
+}

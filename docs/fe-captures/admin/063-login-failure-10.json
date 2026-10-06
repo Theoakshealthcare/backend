@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/login",
+    "auth": null,
+    "body": {
+      "email": "lockme-ee5e3e@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid email or password"
+    }
+  },
+  "note": "The 10th wrong password."
+}
