@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -152,6 +153,17 @@ class Settings(BaseSettings):
         # An empty key makes webhook HMACs forgeable by anyone; refuse to boot.
         if self.ENVIRONMENT.lower() == "production" and not self.PAYSTACK_SECRET_KEY:
             raise ValueError("PAYSTACK_SECRET_KEY must be set when ENVIRONMENT=production")
+        return self
+
+    @model_validator(mode="after")
+    def _warn_without_trusted_proxies_in_production(self):
+        # Behind a reverse proxy every client otherwise shares the proxy's IP, so one attacker
+        # could throttle an admin's logins for everyone. Not fatal: a direct deployment is valid.
+        if self.ENVIRONMENT.lower() == "production" and not self.TRUSTED_PROXIES:
+            logging.getLogger("app.config").warning(
+                "TRUSTED_PROXIES is empty with ENVIRONMENT=production: if the API runs behind a "
+                "reverse proxy, set it to the proxy CIDR(s) or all clients share one rate-limit IP."
+            )
         return self
 
     class Config:
