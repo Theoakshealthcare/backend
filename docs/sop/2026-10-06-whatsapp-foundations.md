@@ -80,7 +80,7 @@ Rejected: PyWa (the PRD mentions it) because the plan asks for a thin httpx clie
 - End-to-end on the Docker stack: `poetry run python -m scripts.whatsapp_local_e2e --up --down`. See the result block below.
 
 ### End-to-end result (Docker stack, fake Meta)
-`poetry run python -m scripts.whatsapp_local_e2e --up --down` built the stack from scratch, ran, and tore it down (`docker compose down -v`). **23 of 23 checks passed**:
+`poetry run python -m scripts.whatsapp_local_e2e --up --down` built the stack from scratch, ran, and tore it down (`docker compose down -v`). **23 of 23 checks passed** (now 30; see the addendum):
 
 | Step | Checked |
 |---|---|
@@ -98,9 +98,27 @@ The script found two bugs in itself while being written (reused message ids look
 - The webhook is useless until `WHATSAPP_APP_SECRET` and `WHATSAPP_VERIFY_TOKEN` are set: that is the fail-closed default, not a bug.
 - Logs: `docker compose logs worker` shows `whatsapp contact=<12-char ref> idle -> human`; the API logs `whatsapp webhook rejected` for bad signatures. Contacts appear only as a hash prefix, never a number. An urgent handover logs at ERROR (`whatsapp URGENT handover opened`): that is the line to wire to paging once alerting exists.
 - Open handovers: `SELECT reason, priority, created_at FROM support_conversations WHERE status <> 'resolved' ORDER BY priority DESC, created_at;`
-- Failed inbound jobs (after five tries) stay in ARQ's failed results in Redis; the message row keeps `processed_at IS NULL`: `SELECT meta_message_id, created_at FROM whatsapp_messages WHERE direction='inbound' AND processed_at IS NULL AND created_at < now() - interval '10 minutes';`
+- Failed inbound jobs (after five tries) leave nothing in Redis (no result record, body key deleted, by design: see the review-fixes addendum). The dead letter is the database: the message row keeps `processed_at IS NULL`, and the worker log has the failure (message id only): `SELECT meta_message_id, created_at FROM whatsapp_messages WHERE direction='inbound' AND processed_at IS NULL AND created_at < now() - interval '10 minutes';`
 - Roll back: `alembic downgrade -1` drops the seven tables and the consents trigger, and makes the email columns NOT NULL again after giving any NULL email a `wa-<id>@placeholder.invalid` address. All WhatsApp data is lost; nothing else is touched. Old code ignores the new tables.
 - Deploy order: migration and API together (the API imports the new models); the worker must run the new code too or inbound jobs will sit in Redis with "unknown function".
+
+## Review-fixes addendum (Opus security review, 2026-10-06)
+
+| Finding | Fix | Where |
+|---|---|---|
+| Message text persisted in Redis (ARQ keeps job args in the result key for an hour and logs them) | The ARQ job carries only the Meta message id. Text, reply id and type go in `wa:inbound-body:<id>` with a 300 s TTL; the worker reads it, deletes it when the job finishes for good (success or last try), refreshes the TTL on a retry. `keep_result = 0` on the worker and the function, `log_results = False`. If the key has expired the message is handled as unreadable media (logged by id). A test inspects every Redis key (any type) while queued and after success and after five failures: only the body key holds the text while queued, nothing afterwards, nor in logs. The phone number and profile name are no longer in the job at all. | `queue.py`, `app/worker.py` |
+| `contact_ref` was an unsalted truncated SHA-256 (a phone number is a tiny search space) | HMAC-SHA256 keyed from `SECRET_KEY` with the domain label `oakly-contact-ref:`; still 12 hex characters. Rotating `SECRET_KEY` changes every ref (log correlation only). | `app/core/phone.py` |
+| Emergency lexicon gaps | Phrase list widened (breathing, chest/heart, not waking, slumped, bleeding, sniper, hang myself, "i no wan live again", fits, foaming, dead/died/stabbed/accident...) and a small fuzzy match (difflib, 0.84) on single-word emergencies for typos (unconcious, siezure, sucide). Biased to false positives on purpose ("conscious", "responsive" also match). Captions on image, video and document messages are screened too (screen only; a caption never drives a menu choice). | `lexicon.py`, `engine.py`, `ingest.py` |
+| Message lost after a 503 | `QueueRefused` when `enqueue_job` returns `None`; the body key is removed on any enqueue failure. With no kept results a job id is free again once the job has run, and the database row is the dedupe. Sequence tested against real Redis: write-then-raise, compensate, retry sees the orphan (503 again), orphan runs and finds no row, next retry is processed once. | `queue.py`, `ingest.compensate` |
+| Body-size cap bypass with chunked transfer | The body is read from `request.stream()` with a running count and refused with 413 at 1 MB, before the signature is checked. | `endpoints/whatsapp.py` |
+| Hostile but signed payloads gave 500 | `isinstance` guards on every level (entry, changes, value, messages, text, interactive, statuses); ids and types must be short printable strings (a NUL byte would make Postgres raise); a malformed item is skipped (logged by id) and the rest of the batch is processed. | `ingest.py` |
+| Blocked contact got no emergency screen; failed emergency reply was silent; phone-only payer broke Paystack and responses; TRUNCATE on consents | A blocked contact still gets the emergency screen and nothing else. A failed emergency send (rejected, network, or recording error) sets `support_conversations.reply_failed_at` and logs `whatsapp EMERGENCY reply could not be delivered to contact <ref>` at ERROR. `PatientBase.email` and `UserProfileResponse.email` are optional (create schema still requires one). `paystack_email_for(user)` returns the real email, else `wa-<contact_ref>@pay.oaklycare.com` (used by booking creation and wallet deposit). Statement-level trigger on `consents` blocks TRUNCATE; the test teardown bypasses it with `session_replication_role = replica` for its own transaction. | `processor.py`, `app/services/paystack.py`, `booking.py`, `patient_wallet.py`, migration `0003` (edited in place: unmerged), `conftest.py` |
+
+Operate: `SELECT id, contact_id, created_at FROM support_conversations WHERE reply_failed_at IS NOT NULL AND status <> 'resolved';` lists emergencies a person must phone. Paystack customers for phone-only payers show as `wa-<ref>@pay.oaklycare.com`; that address is not deliverable, so Paystack receipts for them go nowhere (the bot sends its own confirmations in W2).
+
+Verification: full suite 889 tests green; `scripts/whatsapp_local_e2e.py --up --down` 30 of 30 (adds a photo caption emergency, a Pidgin self-harm phrase, and a dump of every Redis key and value showing no message text, phone number, profile name, body key or result record).
+
+Follow-up: Retry-after-503 convergence relies on Meta retrying; a never-retried half-written enqueue costs one message (the user can write again).
 
 ## Local testing with a Meta developer test number + tunnel
 

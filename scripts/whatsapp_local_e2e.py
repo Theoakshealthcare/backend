@@ -46,7 +46,8 @@ import httpx  # noqa: E402
 import psycopg2  # noqa: E402
 
 from app.tests.fake_meta import (  # noqa: E402
-    FakeMetaGraph, body_bytes, button_payload, list_payload, serve_fake_meta, signed_headers, text_payload,
+    FakeMetaGraph, body_bytes, button_payload, list_payload, media_payload, serve_fake_meta, signed_headers,
+    text_payload,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,6 +55,8 @@ ENV_DIR = Path(tempfile.gettempdir()) / "oakly-wa-e2e"
 ENV_FILE = ENV_DIR / "stack.env"
 PHONE_NUMBER_ID = "100000000000001"
 WA_ID = "23480" + "".join(secrets.choice("0123456789") for _ in range(8))  # fresh placeholder number per run, so reruns never collide
+WA_ID_CAPTION = "23481" + "".join(secrets.choice("0123456789") for _ in range(8))  # second and third contacts
+WA_ID_PIDGIN = "23482" + "".join(secrets.choice("0123456789") for _ in range(8))
 RUN = secrets.token_hex(4)  # makes the Meta message ids unique per run too (a reused id is a replay)
 DB_DSN = "postgresql://oakly:oakly@127.0.0.1:5432/oakly"  # the compose db, loopback only
 
@@ -126,6 +129,19 @@ def db_rows(sql: str) -> list:
     with psycopg2.connect(DB_DSN) as conn, conn.cursor() as cur:
         cur.execute(sql)
         return cur.fetchall()
+
+
+def redis_dump() -> str:
+    """Every key in the stack's Redis with its full value, whatever the type (redis-cli picks up the password
+    from REDISCLI_AUTH inside the container). Used to prove no message text lingers there."""
+    script = ('for k in $(redis-cli --scan); do t=$(redis-cli type "$k"); echo "KEY $k $t"; case $t in '
+              'string) redis-cli get "$k";; hash) redis-cli hgetall "$k";; list) redis-cli lrange "$k" 0 -1;; '
+              'set) redis-cli smembers "$k";; zset) redis-cli zrange "$k" 0 -1 withscores;; esac; done')
+    env = {k: v for k, v in os.environ.items() if k not in _SET_HERE}
+    env["OAKLY_ENV_FILE_PATH"] = str(ENV_FILE)
+    out = subprocess.run(["docker", "compose", "exec", "-T", "redis", "sh", "-c", script], cwd=ROOT, env=env,
+                         check=True, capture_output=True, text=True)
+    return out.stdout
 
 
 def scenario(run: Run) -> None:
@@ -216,6 +232,41 @@ def scenario(run: Run) -> None:
     run.check("every bot reply is recorded as metadata", len(outbound) == len(graph.bodies), str(len(outbound)))
 
 
+def more_emergencies(run: Run) -> None:
+    env, graph = run.env, run.graph
+
+    print("emergency in a photo caption and in Pidgin")
+    sent = len(graph.bodies)
+    photo = media_payload(WA_ID_CAPTION, "image", name="E2E Caption", message_id=f"wamid.E2E.{RUN}.CAPTION")
+    photo["entry"][0]["changes"][0]["value"]["messages"][0]["image"]["caption"] = "my grandfather is unconscious"
+    run.check("a captioned photo is accepted", run.post(photo).status_code == 200)
+    reply = run.next_reply(sent)
+    run.check("the caption alone triggers the emergency reply", reply["to"] == WA_ID_CAPTION
+              and "112" in reply["text"]["body"] and "grandfather" not in reply["text"]["body"].lower())
+
+    sent = len(graph.bodies)
+    run.post(text_payload(WA_ID_PIDGIN, "i no wan live again", name="E2E Pidgin",
+                          message_id=f"wamid.E2E.{RUN}.PIDGIN"))
+    reply = run.next_reply(sent)
+    run.check("a Pidgin self-harm phrase triggers the emergency reply",
+              reply["to"] == WA_ID_PIDGIN and "112" in reply["text"]["body"])
+    tickets = db_rows("SELECT s.reason, s.priority FROM support_conversations s JOIN whatsapp_contacts w "
+                      f"ON w.id = s.contact_id WHERE w.wa_id IN ('{WA_ID_CAPTION}', '{WA_ID_PIDGIN}') ORDER BY 1")
+    run.check("both opened an urgent emergency ticket", tickets == [("emergency", "urgent")] * 2, str(tickets))
+
+    print("nothing the user typed is left in Redis")
+    run.settle(3)
+    dump = redis_dump()
+    run.check("the Redis dump is readable (so an empty match means something)", "KEY " in dump)
+    needles = ("chest pain", "mother", "wake up", "hello?", "unconscious", "grandfather", "no wan live",
+               WA_ID, WA_ID_CAPTION, WA_ID_PIDGIN, "E2E Person", "E2E Pidgin", "E2E Caption")
+    run.check("no message text, phone number or profile name in any Redis key or value",
+              not any(n.lower() in dump.lower() for n in needles),
+              str([n for n in needles if n.lower() in dump.lower()]))
+    run.check("no leftover body keys or ARQ result records",
+              "wa:inbound-body:" not in dump and "arq:result:" not in dump)
+
+
 def wait_for_api(base: str, timeout: float = 240.0) -> None:
     def up() -> bool:
         try:
@@ -257,6 +308,7 @@ def main() -> int:
         wait_for_api(args.base_url)
         run = Run(args.base_url, env, graph)
         scenario(run)
+        more_emergencies(run)
         print(f"\nALL {len(run.results)} CHECKS PASSED")
         code = 0
     except AssertionError as exc:
