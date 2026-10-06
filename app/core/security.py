@@ -4,12 +4,22 @@ from datetime import datetime, timedelta
 from typing import Any, Optional, Union
 
 from jose import jwt
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.bcrypt import BcryptHasher
 from cryptography.fernet import Fernet, MultiFernet
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt only reads the first 72 bytes of a password. passlib silently cut longer ones there, and
+# every stored hash was made that way, so we cut explicitly: bcrypt>=5 would otherwise raise, and
+# a long-password user who registered under passlib could no longer sign in.
+BCRYPT_MAX_BYTES = 72
+
+_password_hash = PasswordHash((BcryptHasher(rounds=12),))
+
+
+def _bcrypt_input(password: str) -> bytes:
+    return password.encode("utf-8")[:BCRYPT_MAX_BYTES]
 
 ALGORITHM = "HS256"
 
@@ -82,11 +92,11 @@ def verify_refresh_token(token: str) -> Optional[str]:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return _password_hash.verify(_bcrypt_input(plain_password), hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return _password_hash.hash(_bcrypt_input(password))
 
 
 def generate_otp(length: int = 5) -> str:

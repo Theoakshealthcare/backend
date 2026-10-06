@@ -25,10 +25,6 @@ dependencies = [
 
     # Auth / crypto
     "python-jose[cryptography] (>=3.5.0,<4.0.0)",
-    # passlib 1.7.4 is unmaintained and breaks on bcrypt>=4.1; keep this pair
-    # pinned together until the move to pwdlib.
-    "passlib[bcrypt] (==1.7.4)",
-    "bcrypt (==4.0.1)",
     "cryptography (>=46.0.0)",
 
     # Email templates
@@ -45,6 +41,7 @@ dependencies = [
     "arq (==0.26.3)",
     "pyjwt (>=2.10,<3)",
     "pyotp (>=2.9,<3)",
+    "pwdlib[bcrypt] (>=0.3.1,<0.4.0)",
 ]
 
 [tool.poetry]
