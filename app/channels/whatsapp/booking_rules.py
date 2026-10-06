@@ -13,8 +13,8 @@ from app.core.config import settings
 
 LAGOS = ZoneInfo("Africa/Lagos")
 
-# The order services are offered in, and what the person sees. Only services that have an explicit multiplier
-# in the booking settings are offered at all (WA-FR-21): the label table is not the price list.
+# The order services are offered in, and what the person sees. Every service is offered; one without a configured
+# multiplier is priced at the default of 1.0, the same as in the app (see services/pricing.service_multiplier).
 SERVICE_ORDER: Tuple[str, ...] = ("nurse", "caregiver", "physiotherapist", "doctor", "nutritionist")
 SERVICE_LABELS: Dict[str, str] = {
     "nurse": "Nurse",
@@ -28,6 +28,13 @@ SERVICE_LABELS: Dict[str, str] = {
 # placeholder pin goes when nobody shares a location (the booking is then held for an address check).
 CITY_STATE: Dict[str, str] = {"Lagos": "Lagos", "Abuja": "FCT"}
 CITY_CENTRE: Dict[str, Tuple[float, float]] = {"Lagos": (6.5244, 3.3792), "Abuja": (9.0765, 7.3986)}
+
+# Where a geocoded address must fall to count as being in the served city: (south, north, west, east), generous
+# enough for the built-up area and its suburbs, tight enough that another city or state is outside.
+CITY_BOUNDS: Dict[str, Tuple[float, float, float, float]] = {
+    "Lagos": (6.38, 6.72, 3.10, 3.72),
+    "Abuja": (8.85, 9.25, 7.00, 7.65),
+}
 
 BOOKING_WINDOW_DAYS = 30  # WA-FR-13: today and up to 30 days ahead
 NIGERIA_LAT = (4.0, 14.0)
@@ -58,6 +65,15 @@ def pin_is_plausible(lat: object, lng: object) -> bool:
     return (isinstance(lat, (int, float)) and isinstance(lng, (int, float))
             and not isinstance(lat, bool) and not isinstance(lng, bool)
             and NIGERIA_LAT[0] <= lat <= NIGERIA_LAT[1] and NIGERIA_LNG[0] <= lng <= NIGERIA_LNG[1])
+
+
+def in_city(city: Optional[str], lat: object, lng: object) -> bool:
+    """Is the point inside the box of a served city? False for a city we have no box for."""
+    box = CITY_BOUNDS.get(city or "")
+    if box is None or not pin_is_plausible(lat, lng):
+        return False
+    south, north, west, east = box
+    return south <= lat <= north and west <= lng <= east
 
 
 # --- time ------------------------------------------------------------------------------------

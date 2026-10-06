@@ -6,9 +6,12 @@ Decimal end to end; every amount that leaves this module is an integer number of
 rounded half-up. ``total = service_fee + platform_fee`` always holds exactly.
 """
 
+import logging
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 _ONE = Decimal("1")
 _HUNDRED = Decimal("100")
@@ -75,39 +78,34 @@ def compute_price(
     )
 
 
-class MissingMultiplier(ValueError):
-    """The service has no explicit multiplier in the booking settings, so it cannot be priced (WA-FR-21)."""
+DEFAULT_MULTIPLIER = 1.0
 
 
-def explicit_multiplier(settings: Any, service_type: str) -> Any:
-    """The multiplier configured for ``service_type``. Raises ``MissingMultiplier`` instead of defaulting to
-    1.0: a service nobody priced must not be sold at the base rate by accident."""
+def service_multiplier(settings: Any, service_type: str, *, channel: str = "app") -> float:
+    """The price multiplier for ``service_type``: the one in the booking settings, else ``DEFAULT_MULTIPLIER``.
+
+    The single lookup for every channel (the app's preview and booking, WhatsApp quotes and the Flow's price
+    list), so they cannot quietly disagree. A service nobody has configured yet (admins will manage multipliers
+    later) is sold at the default rather than refused; a missing, non-numeric, boolean or non-positive stored
+    value counts as "not configured". Falling back is flagged with a structured warning (service and channel
+    only, no personal data) so ops can see which services still run on the default.
+    """
     multipliers = getattr(settings, "multipliers", None) or {}
-    value = multipliers.get(service_type)
+    value = multipliers.get(service_type) if isinstance(multipliers, dict) else None
     if value is None or isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
-        raise MissingMultiplier(service_type)
+        logger.warning("pricing: no usable multiplier configured, using default %s service=%s channel=%s",
+                       DEFAULT_MULTIPLIER, service_type, channel)
+        return DEFAULT_MULTIPLIER
     return value
 
 
-def offered_services(settings: Any, candidates: "tuple[str, ...]") -> "list[str]":
-    """The candidates that have an explicit multiplier, in the order given."""
-    offered = []
-    for service in candidates:
-        try:
-            explicit_multiplier(settings, service)
-        except MissingMultiplier:
-            continue
-        offered.append(service)
-    return offered
-
-
-def price_service(settings: Any, service_type: str, hours: int) -> PriceBreakdown:
-    """Price ``hours`` of ``service_type`` from a ``BookingSettings`` row. The same ``compute_price`` and the
-    same surge and discount rules as the app's preview and booking creation, but strict about the multiplier."""
+def price_service(settings: Any, service_type: str, hours: int, *, channel: str = "whatsapp") -> PriceBreakdown:
+    """Price ``hours`` of ``service_type`` from a ``BookingSettings`` row: ``compute_price`` with the shared
+    multiplier lookup and the same surge and discount rules as the app's preview and booking creation."""
     return compute_price(
         base_fee_kobo=settings.base_fee_kobo,
         quantity=hours,
-        multiplier=explicit_multiplier(settings, service_type),
+        multiplier=service_multiplier(settings, service_type, channel=channel),
         surge_multiplier=settings.surge_multiplier if (settings.surge_pricing and settings.surge_multiplier) else None,
         discount_percent=settings.discount,
         platform_fee_percent=settings.platform_fee_percent,

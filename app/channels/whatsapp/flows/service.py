@@ -39,7 +39,7 @@ from app.db.models.booking_settings import BookingSettings
 from app.db.models.care import CareRecipient, CareRelationship
 from app.db.models.whatsapp import WhatsAppContact
 from app.db.models.whatsapp_booking import Quote
-from app.services.pricing import offered_services, price_service
+from app.services.pricing import price_service
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +186,7 @@ class FlowService:
 
     def _services(self) -> List[str]:
         row = self._settings()
-        return offered_services(row, rules.SERVICE_ORDER) if row is not None else []
+        return list(rules.SERVICE_ORDER) if row is not None else []
 
     def _settings(self) -> Optional[BookingSettings]:
         return self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
@@ -194,7 +194,7 @@ class FlowService:
     def _render_service(self, quote: Quote, notice: str = "") -> FlowResult:
         row = self._settings()
         options = []
-        for service in (offered_services(row, rules.SERVICE_ORDER) if row is not None else []):
+        for service in (rules.SERVICE_ORDER if row is not None else ()):
             per_hour = price_service(row, service, 1).total_kobo
             options.append({"id": service, "title": rules.SERVICE_LABELS[service],
                             "description": f"{rules.naira(per_hour)} per hour"})

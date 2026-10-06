@@ -47,7 +47,8 @@ from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation
 from app.db.models.whatsapp_booking import OPEN_QUOTE_STATUSES, Quote
 from app.schemas.booking import BookingCreate
 from app.services.booking import BookingService
-from app.services.pricing import MissingMultiplier, PriceBreakdown, price_service
+from app.services.geocoding import build_geocoder
+from app.services.pricing import PriceBreakdown, price_service
 from app.services.support import SupportService
 
 logger = logging.getLogger(__name__)
@@ -206,14 +207,69 @@ def shared_location(ctx: Ctx, effect: SharedLocation) -> Result:
         return _stale(ctx)
     payload = dict(quote.payload or {})
     if not effect.skipped and rules.pin_is_plausible(effect.lat, effect.lng):
-        payload.update(lat=float(effect.lat), lng=float(effect.lng), needs_address_check=False)
-    else:
-        # No usable pin (skipped, or somewhere that is not Nigeria): the booking gets the city centre as a
-        # placeholder and is held for a person to confirm the address before any caregiver is offered it (WA-FR-14).
-        lat, lng = rules.CITY_CENTRE.get(payload.get("city", ""), rules.CITY_CENTRE["Lagos"])
-        payload.update(lat=lat, lng=lng, needs_address_check=True)
+        payload.update(lat=float(effect.lat), lng=float(effect.lng), needs_address_check=False, location_source="pin")
+        quote.payload = payload
+        return _price(ctx, quote)
+    # No usable pin (skipped, or somewhere that is not Nigeria). Try the typed address first; that is an HTTP call,
+    # so it runs after this step commits, with no row locked (``_geocode_then_price``). With no geocoder
+    # configured, or no address to look up, it is the placeholder straight away.
+    if build_geocoder().enabled and payload.get("address") and payload.get("city"):
+        contact_id, quote_id = ctx.contact.id, quote.id
+        return Result(state=State.AWAITING_LOCATION,  # stay put until the lookup has answered
+                      after_commit=lambda db: _geocode_then_price(db, contact_id, quote_id))
+    _use_placeholder(payload)
     quote.payload = payload
     return _price(ctx, quote)
+
+
+def _use_placeholder(payload: Dict[str, Any]) -> None:
+    """The city centre as a stand-in, and the booking held for a person to confirm the address before any
+    caregiver is offered it (WA-FR-14)."""
+    lat, lng = rules.CITY_CENTRE.get(payload.get("city", ""), rules.CITY_CENTRE["Lagos"])
+    payload.update(lat=lat, lng=lng, needs_address_check=True, location_source="placeholder")
+
+
+def _geocode_then_price(db: Session, contact_id: uuid.UUID, quote_id: uuid.UUID) -> Result:
+    """No pin: look the typed address up, off every lock and outside any open transaction, then price the quote.
+
+    Only a confident result inside the booking's own city is used (and the booking is not held); anything else,
+    including a timeout or an error, is the placeholder and the hold. The quote is locked again for the update
+    and re-checked, because the person may have cancelled or moved on while the lookup ran."""
+    quote = db.query(Quote).filter(Quote.id == quote_id, Quote.contact_id == contact_id).populate_existing().first()
+    if quote is None or quote.status != "submitted":
+        db.rollback()
+        return Result()
+    address, city = (quote.payload or {}).get("address"), (quote.payload or {}).get("city")
+    state = (quote.payload or {}).get("state") or rules.CITY_STATE.get(city or "", city or "")
+    db.rollback()  # end the read transaction: no connection or snapshot is held across the HTTP call
+
+    found = None
+    try:
+        found = build_geocoder().geocode(str(address), city=str(city), state=str(state))
+    except Exception:  # the geocoder promises not to raise; a bug in it must not lose the booking
+        logger.exception("whatsapp geocoder raised for quote %s; treated as no result", quote_id)
+    if found is not None and not rules.in_city(city, found.lat, found.lng):
+        logger.info("whatsapp quote %s: geocoded address is outside %s; held for an address check", quote_id, city)
+        found = None
+
+    quote = (db.query(Quote).filter(Quote.id == quote_id, Quote.contact_id == contact_id)
+             .populate_existing().with_for_update().first())
+    if quote is None or quote.status != "submitted":
+        db.rollback()
+        return Result()
+    payload = dict(quote.payload or {})
+    if found is not None:
+        payload.update(lat=found.lat, lng=found.lng, needs_address_check=False, location_source="geocoded")
+    else:
+        _use_placeholder(payload)
+    quote.payload = payload
+    logger.info("whatsapp quote %s location source=%s precision=%s", quote_id, payload["location_source"],
+                found.precision if found else "none")
+    contact = db.get(WhatsAppContact, contact_id)
+    conversation = db.query(WhatsAppConversation).filter_by(contact_id=contact_id).one()
+    result = _price(Ctx(db, contact, conversation, datetime.utcnow()), quote)
+    db.commit()
+    return result
 
 
 def _recipient(ctx: Ctx, quote: Quote) -> Optional[CareRecipient]:
@@ -237,9 +293,9 @@ def _price(ctx: Ctx, quote: Quote) -> Result:
     row = ctx.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
     try:
         if row is None:
-            raise MissingMultiplier(payload.get("service", ""))
+            raise ValueError("booking settings not configured")
         price = price_service(row, payload["service"], int(payload["duration_hours"]))  # the same compute_price
-    except (MissingMultiplier, KeyError, ValueError):
+    except (KeyError, ValueError):
         logger.error("whatsapp quote %s could not be priced (service %s)", quote.id, payload.get("service"))
         close_quote(quote, "cancelled")
         SupportService(ctx.db).open(contact_id=ctx.contact.id, reason="booking_placeholder", priority="normal")

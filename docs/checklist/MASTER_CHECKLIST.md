@@ -121,8 +121,8 @@ Spec: [PRD](../prd/PRD-whatsapp-patient-channel.md) · [proposal](../proposals/2
 - [x] **Webhook, Flow data endpoint and outbound sender** (WA-FR-1–4, §11). Webhook and sender 2026-10-06, W1 (own httpx client, not PyWa); Flow data endpoint (RSA-OAEP + AES-GCM, signature, ping/INIT/data_exchange/BACK) 2026-10-06, W2
 - [ ] **Consent and opt-out** (WA-FR-5–9)
 - [x] **Menu and navigation** (WA-FR-10–12). Menu and two-miss handover W1; 30-minute idle expiry that never loses a created booking W2
-- [x] **Booking Flow and location request** (WA-FR-13–17). 2026-10-06, W2, branch `feat/whatsapp-booking` (verified locally against the fake Meta; not yet on Meta's Flow builder). Geocoding of a typed address is out of scope: no pin means the booking is held for an address check
-- [x] **Quote with 30-minute price lock** (WA-FR-18–21). 2026-10-06, W2. The app's own preview/create still default a missing multiplier to 1.0 (follow-up)
+- [x] **Booking Flow and location request** (WA-FR-13–17). 2026-10-06, W2, branch `feat/whatsapp-booking` (verified locally against the fake Meta; not yet on Meta's Flow builder). No pin: the typed address is geocoded (Google, optional key) and a confident in-city result is used; otherwise the booking is held for an address check (2026-10-06, branch `feat/default-multipliers-geocode`)
+- [x] **Quote with 30-minute price lock** (WA-FR-18–21). 2026-10-06, W2. A service with no configured multiplier is priced at the default 1.0 in both channels, one shared lookup, logged for ops (2026-10-06, branch `feat/default-multipliers-geocode`); admins make multipliers configurable in A4
 - [x] **Paystack link, expiry and webhook confirmation** (WA-FR-22–27). 2026-10-06, W2 (WA-FR-26 callback page waits for the web companion, W4)
 - [ ] **Matching and assignment notifications** (WA-FR-28–31)
 - [ ] **Visit lifecycle notifications and visit code** (WA-FR-32–37)
@@ -231,6 +231,8 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] Booking Flow JSON (`app/channels/whatsapp/flows/booking.json`, version 6.3) with a structure test; six screens (who, new recipient, service with per-hour price, date and slots, duration/condition/instructions, address and city)
   - [x] Flow data endpoint `POST /api/v1/whatsapp/flows/data`: signature (432), RSA-OAEP + AES-128-GCM with flipped-IV reply (421 on tamper), ping, INIT, data_exchange, BACK; the condition is encrypted straight into the draft and never returned
   - [x] Location request after the Flow; no pin = placeholder coordinates, `needs_address_check`, paid but not dispatched
+  - [x] No pin: geocode the typed address (`app/services/geocoding.py`, optional `GOOGLE_MAPS_API_KEY`), accept street-level results inside the city box, run off every lock after the commit; `location_source` pin / geocoded / placeholder on the quote payload. [SOP](../sop/2026-10-06-default-multipliers-and-geocoding.md)
+  - [x] Default multiplier 1.0 for every service in both channels (`pricing.service_multiplier`)
   - [x] Service-area check (Lagos, Abuja, from a setting) with a waitlist offer for anywhere else
   - [x] Quote: `price_service` (same `compute_price`, strict about the multiplier), `quotes` row locked 30 minutes, itemised in naira with the cancellation line; price change after the lock does not change the booking
   - [x] Confirm creates one booking (conversation, quote and unique `quotes.booking_id` locks; two-worker test), Paystack link with `paystack_email_for`, "Pay now" CTA
