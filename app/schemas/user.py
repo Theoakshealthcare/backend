@@ -34,6 +34,7 @@ class UserUpdate(BaseModel):
 
 
 class UserInDBBase(UserBase):
+    email: Optional[EmailStr] = None  # phone-first (WhatsApp) users have none; registration stays strict
     id: uuid.UUID
     is_active: bool
     is_verified: bool
