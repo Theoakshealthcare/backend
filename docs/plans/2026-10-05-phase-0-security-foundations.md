@@ -5,7 +5,7 @@
 | **Date** | 2026-10-05 |
 | **Goal** | Make the backend safe, and able to complete a booking end to end, before the WhatsApp channel and the admin console are built |
 | **Inputs** | Review of 2026-09-24/30; [WhatsApp PRD §6 prerequisites](../prd/PRD-whatsapp-patient-channel.md); [Admin PRD](../prd/PRD-admin-console.md); [master checklist](../checklist/MASTER_CHECKLIST.md) §1–2 |
-| **Deployment target** | Docker containers. Render is being retired, so `render.yaml` is ignored. |
+| **Deployment target** | Docker containers. Render is retired and `render.yaml` has been deleted. |
 
 ## Ground rules for every work package (WP)
 

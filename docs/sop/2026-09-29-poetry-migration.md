@@ -8,11 +8,11 @@
 
 ## What shipped
 
-`requirements.txt` has been replaced by `pyproject.toml` plus `poetry.lock`, managed by Poetry 2.2.1. The Dockerfile, Render config and boot script now install from the lock file. The repo also gets its first CI workflow and a `.gitignore`. Two crash bugs were fixed because the new lint gate flagged them.
+`requirements.txt` has been replaced by `pyproject.toml` plus `poetry.lock`, managed by Poetry 2.2.1. The Dockerfile and boot script now install from the lock file. The repo also gets its first CI workflow and a `.gitignore`. Two crash bugs were fixed because the new lint gate flagged them.
 
 ## Why
 
-- `requirements.txt` used only `>=` floors. So **every Render build pulled the newest versions** of every package, which is non-reproducible and already brittle. passlib only works because `bcrypt==4.0.1` was hand-pinned.
+- `requirements.txt` used only `>=` floors. So **every deploy build pulled the newest versions** of every package, which is non-reproducible and already brittle. passlib only works because `bcrypt==4.0.1` was hand-pinned.
 - It listed four packages the code never imports: `asyncpg`, `emails`, `tenacity` and `pytest-asyncio`. It also missed `requests`, which Paystack needs and which only arrived by accident as a sub-dependency.
 - It installed plain `uvicorn`, which has no WebSocket library. The `/booking/ws/*` endpoints relied on `websockets` arriving transitively.
 - There was no CI and no `.gitignore`.
@@ -39,11 +39,11 @@
 | `pyproject.toml` | **New.** Dependencies, dev group (pytest, httpx, ruff), ruff and pytest config |
 | `poetry.lock` | **New.** Exact resolved versions |
 | `poetry.toml` | **New.** `virtualenvs.in-project = true` |
-| `.python-version` | **New.** `3.11` (read by Render and `actions/setup-python`) |
+| `.python-version` | **New.** `3.11` (read by `actions/setup-python`) |
 | `requirements.txt` | **Deleted** |
 | `Dockerfile` | Two-stage Poetry build; venv at `/app/.venv` |
 | `boot/docker-run.sh` | Activates `/app/.venv` instead of `/opt/venv` |
-| `render.yaml` | Build: `poetry install --only main --no-root`. Start: `poetry run uvicorn …`. Env `POETRY_VERSION=2.2.1`. |
+| `render.yaml` | Removed on `feat/admin-auth` (2026-10-06): Render is retired and everything runs in local Docker. |
 | `.github/workflows/ci.yml` | **New.** Lock check, install, bug-class lint, smoke test |
 | `scripts/ci_smoke.py` | **New.** Boots the app in-process, checks `/health`, the OpenAPI spec and password hashing. Makes no DB connection. |
 | `.gitignore` | **New.** `.env*`, `__pycache__`, `.venv`, `uploads/`, caches |
@@ -73,16 +73,12 @@
 
 ## Operate / roll back
 
-- **Render — important.** `render.yaml` only takes effect if the service is managed as a Render Blueprint. If `fastapi-service` was created manually in the dashboard, update it there too:
-  - Build command: `poetry install --only main --no-root --no-interaction`
-  - Start command: `poetry run uvicorn app.main:app --host 0.0.0.0 --port 10000`
-  - Environment variable: `POETRY_VERSION=2.2.1`
-- **Render — secrets.** Production currently reads secrets from the committed `.env`. This change adds `.env` to `.gitignore` but does **not** untrack it, so deploys still see it. Before untracking it, copy every key into Render's Environment settings. That belongs to the secret-rotation task.
-- **Roll back:** revert the merge commit. `requirements.txt` comes back and Render's old build command works again.
+- **Render:** retired. `render.yaml` and the Render notes that used to be here were removed on 2026-10-06; the app runs from the Docker image / `docker-compose.yml`.
+- **Roll back:** revert the merge commit. `requirements.txt` comes back and the old install command works again.
 
 ## Follow-ups
 
-- [ ] Rotate all leaked secrets, move them to Render env vars, `git rm --cached .env`, and remove the hardcoded DB password from `config.py`, `alembic.ini` and `docker-compose.yml`
+- [ ] Rotate all leaked secrets, move them to the Docker env file, `git rm --cached .env`, and remove the hardcoded DB password from `config.py`, `alembic.ini` and `docker-compose.yml`
 - [ ] Remove the committed `__pycache__/*.pyc` files (`git rm -r --cached '**/__pycache__'`)
 - [ ] passlib → `pwdlib[bcrypt]`, python-jose → `PyJWT`, google-generativeai → `google-genai`
 - [ ] Python 3.11 → 3.12 or 3.13

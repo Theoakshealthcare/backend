@@ -84,7 +84,7 @@ Two pre-existing 500s on these paths were fixed because the happy path couldn't 
   docker compose exec api python -m scripts.migrate_private_documents
   ```
   Until it runs, old documents return 404 from the new endpoint (and are no longer served from `/uploads` either). Take a copy of `uploads/caregivers` first.
-- Needs the `private_uploads` volume from `docker-compose.yml`. On a host without Docker volumes (for example Render), set `PRIVATE_UPLOAD_DIR` to a persistent disk path. Local disk is wiped on redeploy (see the checklist item on moving documents to Cloudinary or S3).
+- Needs the `private_uploads` volume from `docker-compose.yml`. If the container is run without the compose volume, set `PRIVATE_UPLOAD_DIR` to a persistent path. Local disk is wiped on redeploy (see the checklist item on moving documents to Cloudinary or S3).
 - Roll back: revert the commits. Migrated files would then need to be moved back to `uploads/caregivers/...` and `file_path` prefixed with `uploads/` (the script has no reverse mode).
 
 ## Review fixes (same branch)
