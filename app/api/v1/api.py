@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, admin_auth, admin_users, devices, caregiver_app
+from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, devices, caregiver_app, whatsapp
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
@@ -17,3 +18,4 @@ api_router.include_router(patient.router, prefix="/patient", tags=["patient"])
 api_router.include_router(admin_caregivers.router, prefix="/admin/caregivers", tags=["admin-caregivers"])
 api_router.include_router(admin_auth.router, prefix="/admin/auth", tags=["admin-auth"])
 api_router.include_router(admin_users.router, prefix="/admin", tags=["admin-users"])
+api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
