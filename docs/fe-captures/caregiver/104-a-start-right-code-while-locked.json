@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/4ba27a99-a245-47d5-aca8-49796c5e7fa4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "start",
+      "visit_code": "4722"
+    }
+  },
+  "response": {
+    "status_code": 423,
+    "headers": {
+      "retry-after": "900",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Too many incorrect attempts. The visit code is locked for 15 minutes"
+    }
+  }
+}

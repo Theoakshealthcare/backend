@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/documents/upload",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "multipart": {
+        "document_type": "license",
+        "file": {
+          "filename": "license.png",
+          "content_type": "image/png",
+          "bytes": 67
+        }
+      }
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "e517d44a-5d9c-49aa-8cc7-f57ebd6115d1",
+      "document_type": "license",
+      "document_name": "license.png",
+      "file_path": "caregivers/6645f20d-b435-4fdc-b284-853f171e16bc/documents/6c4df8ae-a78e-4158-b322-1715d59e8ec6.png",
+      "verification_status": "pending",
+      "uploaded_at": "2026-10-06T07:50:32.175676"
+    }
+  }
+}

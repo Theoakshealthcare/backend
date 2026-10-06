@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/4ba27a99-a245-47d5-aca8-49796c5e7fa4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "start",
+      "visit_code": "12ab"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "visit_code"
+          ],
+          "msg": "String should match pattern '^[0-9]{4}$'",
+          "input": "12ab",
+          "ctx": {
+            "pattern": "^[0-9]{4}$"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT notified_caregiver_ids FROM booking_dispatch_waves WHERE booking_id = <booking 5>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "caregiver_A_offered": false,
+      "caregiver_D_offered": true,
+      "pushes_sent_to_expo_for_this_wave": 0
+    }
+  },
+  "note": "A was unavailable when the booking was paid, so was not offered it (and got no push)."
+}

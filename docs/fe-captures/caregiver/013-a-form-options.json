@@ -1,0 +1,89 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/form-options",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "specializations": [
+        "Elderly Care",
+        "Disability Support",
+        "Chronic Illness Care",
+        "Post-Surgery Care",
+        "Dementia Care",
+        "Palliative Care",
+        "Mental Health Support",
+        "Physical Therapy Assistance",
+        "Medication Management",
+        "Companionship"
+      ],
+      "service_areas": [
+        "Personal Care",
+        "Household Tasks",
+        "Transportation",
+        "Meal Preparation",
+        "Medication Reminders",
+        "Exercise Assistance",
+        "Social Activities",
+        "Medical Appointments",
+        "Emergency Response",
+        "24/7 Care"
+      ],
+      "work_hours": [
+        "Morning (6 AM - 12 PM)",
+        "Afternoon (12 PM - 6 PM)",
+        "Evening (6 PM - 12 AM)",
+        "Night (12 AM - 6 AM)",
+        "Weekdays Only",
+        "Weekends Only",
+        "Flexible Hours",
+        "24/7 Availability"
+      ],
+      "states": [
+        "Abia",
+        "Adamawa",
+        "Akwa Ibom",
+        "Anambra",
+        "Bauchi",
+        "Bayelsa",
+        "Benue",
+        "Borno",
+        "Cross River",
+        "Delta",
+        "Ebonyi",
+        "Edo",
+        "Ekiti",
+        "Enugu",
+        "Gombe",
+        "Imo",
+        "Jigawa",
+        "Kaduna",
+        "Kano",
+        "Katsina",
+        "Kebbi",
+        "Kogi",
+        "Kwara",
+        "Lagos",
+        "Nasarawa",
+        "Niger",
+        "Ogun",
+        "Ondo",
+        "Osun",
+        "Oyo",
+        "Plateau",
+        "Rivers",
+        "Sokoto",
+        "Taraba",
+        "Yobe",
+        "Zamfara",
+        "Federal Capital Territory"
+      ]
+    }
+  }
+}

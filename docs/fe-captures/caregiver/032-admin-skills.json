@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/caregivers/6645f20d-b435-4fdc-b284-853f171e16bc/skills",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "skills": [
+        {
+          "service_type": "nurse"
+        },
+        {
+          "service_type": "caregiver"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "skills": [
+        {
+          "service_type": "nurse",
+          "sub_specialty": null
+        },
+        {
+          "service_type": "caregiver",
+          "sub_specialty": null
+        }
+      ]
+    }
+  }
+}

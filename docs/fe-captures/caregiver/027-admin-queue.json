@@ -1,0 +1,34 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "6645f20d-b435-4fdc-b284-853f171e16bc",
+          "full_name": "Placeholder Caregiver A",
+          "state": "Lagos",
+          "specialization": "Elderly Care",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-06T07:50:32.182780",
+          "age_in_days": 0,
+          "document_count": 1,
+          "identity_verification_status": "pending",
+          "background_check_status": "in_progress",
+          "profile_status": "under_review"
+        }
+      ],
+      "total": 1,
+      "limit": 25,
+      "offset": 0
+    }
+  }
+}

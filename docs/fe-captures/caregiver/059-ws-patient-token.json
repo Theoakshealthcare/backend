@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "WEBSOCKET",
+    "path": "/api/v1/booking/ws/caregiver/location?token=<ACCESS_TOKEN_JWT>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "frames_received": [],
+      "closed_by_server": {
+        "code": 4403,
+        "reason": "Wrong account type"
+      }
+    }
+  }
+}

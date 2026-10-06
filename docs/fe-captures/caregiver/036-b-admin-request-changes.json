@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/81c8eb6b-ce63-4066-99d4-f265d88da590/request-changes",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "items": [
+        "Upload a clearer licence photo"
+      ],
+      "note": "Placeholder: the licence image is blurry."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "81c8eb6b-ce63-4066-99d4-f265d88da590",
+      "profile_status": "changes_requested",
+      "identity_verification_status": "pending",
+      "background_check_status": "in_progress",
+      "changes_requested": {
+        "items": [
+          "Upload a clearer licence photo"
+        ],
+        "note": "Placeholder: the licence image is blurry."
+      }
+    }
+  }
+}

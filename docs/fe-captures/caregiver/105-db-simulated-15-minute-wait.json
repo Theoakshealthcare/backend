@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "UPDATE bookings SET visit_code_locked_until = <1 second ago> WHERE id = <booking 2>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SIMULATION: stands in for waiting 15 minutes so the capture can continue."
+}

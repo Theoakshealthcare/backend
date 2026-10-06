@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/wallet/withdraw",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "amount": 200000,
+      "narration": "Placeholder"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "transaction_id": "9adf6a18-46de-4cb5-a7e6-2cc6c6384280",
+      "status": "pending",
+      "message": "Withdrawal request submitted. Processing will be completed soon."
+    }
+  }
+}

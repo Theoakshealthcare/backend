@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/verification-status",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile_completion_step": 2,
+      "identity_verification_status": "pending",
+      "background_check_status": "in_progress",
+      "profile_status": "rejected",
+      "rejection_reason": "Placeholder: licence could not be verified.",
+      "changes_requested": null
+    }
+  }
+}

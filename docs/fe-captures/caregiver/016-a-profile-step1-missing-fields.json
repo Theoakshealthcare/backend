@@ -1,0 +1,64 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/profile/step1",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "gender": "female"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "date_of_birth"
+          ],
+          "msg": "Field required",
+          "input": {
+            "gender": "female"
+          }
+        },
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "state"
+          ],
+          "msg": "Field required",
+          "input": {
+            "gender": "female"
+          }
+        },
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "address"
+          ],
+          "msg": "Field required",
+          "input": {
+            "gender": "female"
+          }
+        },
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "emergency_contact_phone"
+          ],
+          "msg": "Field required",
+          "input": {
+            "gender": "female"
+          }
+        }
+      ]
+    }
+  }
+}

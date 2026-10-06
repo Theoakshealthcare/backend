@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/4ba27a99-a245-47d5-aca8-49796c5e7fa4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "start"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "A visit code is required to start the visit"
+    }
+  }
+}

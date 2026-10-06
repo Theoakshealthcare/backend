@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/devices/push-token",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "token": "not-an-expo-token",
+      "platform": "ios"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "token"
+          ],
+          "msg": "String should match pattern '^Expo(nent)?PushToken\\[[^\\[\\]\\s]{1,200}\\]$'",
+          "input": "not-an-expo-token",
+          "ctx": {
+            "pattern": "^Expo(nent)?PushToken\\[[^\\[\\]\\s]{1,200}\\]$"
+          }
+        }
+      ]
+    }
+  }
+}

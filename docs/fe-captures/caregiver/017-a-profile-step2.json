@@ -1,0 +1,50 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/profile/step2",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "specialization": "Elderly Care",
+      "years_of_experience": 5,
+      "preferred_work_hours": "weekdays",
+      "service_areas": [
+        "Personal Care",
+        "Medication Reminders"
+      ]
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "6645f20d-b435-4fdc-b284-853f171e16bc",
+      "user_id": "19dc9e2c-f682-4a2f-a78e-a73e20e427cf",
+      "email": "caregiver-a-c632fe@example.com",
+      "full_name": "Placeholder Caregiver A",
+      "phone_number": "+2340000182001",
+      "date_of_birth": "1990-01-01",
+      "gender": "female",
+      "state": "Lagos",
+      "address": "1 Placeholder Street, Lekki",
+      "emergency_contact_phone": "+2340000000999",
+      "specialization": "Elderly Care",
+      "years_of_experience": 5,
+      "preferred_work_hours": "weekdays",
+      "service_areas": [
+        "Personal Care",
+        "Medication Reminders"
+      ],
+      "profile_completion_step": 2,
+      "identity_verification_status": "pending",
+      "background_check_status": "pending",
+      "profile_status": "incomplete",
+      "terms_accepted": false,
+      "privacy_policy_accepted": false,
+      "background_check_consent": false,
+      "created_at": "2026-10-06T07:50:31.478390",
+      "updated_at": "2026-10-06T07:50:32.162128"
+    }
+  }
+}

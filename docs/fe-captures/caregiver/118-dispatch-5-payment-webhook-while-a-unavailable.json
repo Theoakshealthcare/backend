@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/payment/paystack/webhook",
+    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>",
+    "body": {
+      "event": "charge.success",
+      "data": {
+        "reference": "BKG_E6EFA077_a445f0f8",
+        "amount": 5500000,
+        "status": "success",
+        "channel": "card",
+        "customer": {
+          "email": "placeholder@example.com"
+        }
+      }
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {},
+    "body": {
+      "status": "success",
+      "message": "Webhook processed successfully"
+    }
+  },
+  "note": "Signed with the stack's (placeholder) Paystack key. Settling a booking is what starts dispatch wave 1."
+}

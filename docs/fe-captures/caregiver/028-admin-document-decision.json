@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/documents/e517d44a-5d9c-49aa-8cc7-f57ebd6115d1/decision",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "decision": "verified"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "auto_suspended": false,
+      "affected_bookings": [],
+      "id": "e517d44a-5d9c-49aa-8cc7-f57ebd6115d1",
+      "caregiver_id": "6645f20d-b435-4fdc-b284-853f171e16bc",
+      "verification_status": "verified",
+      "rejection_reason": null,
+      "expires_on": null,
+      "verified_at": "2026-10-06T07:50:32.238552"
+    }
+  }
+}
