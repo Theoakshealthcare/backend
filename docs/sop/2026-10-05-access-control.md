@@ -7,6 +7,8 @@
 | **Commits** | `e43fadb` token type, `3fb9836` prescriptions, `35624e2` booking reads and actions, `33fdc2a` WebSockets, `e2b422f` private documents |
 | **Status** | Verified locally (103 tests pass); not pushed |
 
+> **Updated by A0 (2026-10-06):** the admin check described below is gone. Admins are `admin_users` accounts with their own tokens (`aud=admin`), not a `users` row plus an `admins` row. `get_current_admin` and `user_is_admin` were replaced by `require_permission(...)`; the booking, document and prescription routes that also served admins now use `get_user_or_admin(permission)` (`bookings.read`, `documents.read`, `prescriptions.manage`). An app-user token on an admin route is `401` (it was `403`). See [admin auth](2026-10-06-admin-auth.md).
+
 ## What shipped
 Seven access-control fixes, each with tests for no token, wrong user, right user and a refresh token.
 

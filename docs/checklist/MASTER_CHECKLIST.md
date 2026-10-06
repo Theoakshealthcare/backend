@@ -138,8 +138,8 @@ Spec: [PRD](../prd/PRD-whatsapp-patient-channel.md) · [proposal](../proposals/2
 
 ## 7. Admin Console — 📝 specified, not started
 Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp closed pilot.
-- [ ] **Admin auth:** separate admin identity, TOTP MFA, a single `require_permission` check, roles and permissions, invite flow. Remove `create_test_admin.py` and the default credentials. (AD-FR-81–84)
-- [ ] **Append-only audit log and audit viewer** (AD-FR-85)
+- [x] **Admin auth:** separate admin identity, TOTP MFA, a single `require_permission` check, roles and permissions, invite flow, bootstrap CLI. (AD-FR-81–84) Done in A0, see section 9. `create_test_admin.py` and the default credentials were already removed in Phase 0.
+- [x] **Append-only audit log and audit viewer** (AD-FR-85): the log was Phase 0; the viewer API `GET /admin/audit` is A0. The console screen is A1.
 - [ ] **Overview:** KPIs, items needing attention, current supply (AD-FR-1–6)
 - [ ] **Caregiver verification:** queue, detail, document, identity and background decisions, approve/reject, structured skills, suspend (AD-FR-7–14)
 - [ ] **Private document storage:** signed URLs, migrate existing files, remove the public `/uploads` access (AD-FR-15–18)
@@ -179,13 +179,25 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
 
 ## 9. Phase A: Admin Console v1 — 🟡 starting
 Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-console.md). PRD: [`docs/prd/PRD-admin-console.md`](../prd/PRD-admin-console.md).
-- [ ] **A0** Admin identity: separate `admin_users`, TOTP MFA, roles and permissions, `require_permission` on every admin route, invites, bootstrap CLI, rate limits and lockout
+- [x] **A0** Admin identity: separate `admin_users`, TOTP MFA, roles and permissions, `require_permission` on every admin route, invites, bootstrap CLI, rate limits and lockout. 2026-10-06, branch `feat/admin-auth` (not yet merged), migration `0003_admin_identity`, [SOP](../sop/2026-10-06-admin-auth.md), [FE guide](../fe-integration-guide-admin.md). Needs the Opus review before merge.
+  - [x] 1. Tables: `admin_users`, `admin_roles`, `admin_role_permissions`, `admin_user_roles`, `admin_refresh_tokens`, `admin_rate_limits`; old `admins` dropped; audit and approval columns re-pointed at `admin_users`
+  - [x] 2. Roles and 33 permissions seeded from PRD 8.2 (code catalogue + frozen copy in the migration, drift test)
+  - [x] 3. Admin JWT (`aud=admin`, 15 minutes) and rotating refresh tokens with reuse detection, 30-minute idle timeout, 12-hour cap
+  - [x] 4. TOTP MFA (Fernet-encrypted secret, forced enrolment, replay refusal per time step)
+  - [x] 5. Login lockout (10 failures, 423 + `Retry-After`) and per-IP rate limit in Postgres
+  - [x] 6. `require_permission` on every existing admin route (caregivers, booking settings, prescription settings and writes, FallGuard, refund admin, `ws/stats`); shared booking, document and prescription reads accept an admin token with the permission
+  - [x] 7. Invites (single use, 48 hours), admin list, role and status changes, MFA reset, last-Super-Admin guard
+  - [x] 8. `GET /admin/audit` (filter by entity, admin, action, date; paginated)
+  - [x] 9. Bootstrap CLI `python -m scripts.create_super_admin`
+  - [x] 10. Tests: permission matrix (about 40 routes x 7 roles), token audience both ways, MFA replay, refresh reuse, lockout, invite, last Super Admin (with a race test), CLI, migration
+  - [x] 11. FE guide from live captures (`scripts/capture_admin_flow.py`, `docs/fe-captures/admin/`), `--check` in CI
+  - [ ] 12. Opus review (auth and permission code)
 - [ ] **A1** Console scaffold (`apps/admin`, Next.js 16): login and MFA, permission-gated shell, caregiver queue and detail with all decisions, admin users
 - [ ] **A2** Bookings ops: list and detail with timeline, unmatched queue, assign, reassign, cancel, status correction
 - [ ] **A3** Money: earnings credited on completion, caregiver ledger, Paystack Transfer payouts, refunds v2 queue (`refund_required`), payments and webhook exceptions
 - [ ] **A4** Pricing: versioned price books, service areas, form options, policies
 - [ ] **A5** People (masked), break-glass clinical access, audit viewer, CSV exports
-- [ ] **FE integration guide for admin** (`docs/fe-integration-guide-admin.md`), generated from live captures
+- [ ] **FE integration guide for admin** (`docs/fe-integration-guide-admin.md`), generated from live captures. A0 part done (sign-in, admin management, audit, permissions); extend it with each later package
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
@@ -193,8 +205,13 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
-- [ ] `patient.py:320,362` admin routes check `user_type != "admin"` (never true); use `get_current_admin` (WP-D covers the refund route only)
-- [ ] Chat and notes routes in `endpoints/booking.py` don't let admins in; decide whether support staff should read them
+- [x] `patient.py` admin refund routes checked `user_type != "admin"` (never true). Fixed: they use `require_permission("refunds.approve")` (A0)
+- [ ] Chat and notes routes in `endpoints/booking.py` don't let admins in; decide whether support staff should read them (an admin token is rejected there since A0, as an app token was before)
+- [ ] (A0) Admin invites are not emailed: the API returns the token and the console shows the link. Add an email, and an endpoint to re-issue an expired invite (today an expired invite blocks that email)
+- [ ] (A0) MFA recovery codes, and an optional IP allowlist for the console (AD-FR-87)
+- [ ] (A0) Admin access to the live-tracking WebSocket (admins used to reach it with an app token; the console gets its own booking views in A2)
+- [ ] (A0) Per-IP limits use the direct peer address; behind a reverse proxy configure trusted proxy headers before relying on them
+- [ ] (A0) Admin `POST /prescription/create` is user-only now (an admin used to pass the patient-ownership check); prescription operations move to the console in v1.1
 - [ ] Upgrade Poetry to 2.5.x everywhere (local, Render `POETRY_VERSION`, CI)
 - [ ] Docker image size is 828 MB, mostly gRPC and Google libraries; revisit after the `google-genai` swap
 - [ ] (C3) `GET /booking/caregiver/bookings?status=new_requests` and `/booking/caregiver/notifications` expose condition, instructions, address and patient contact to caregivers who have not accepted; trim them to the offer fields

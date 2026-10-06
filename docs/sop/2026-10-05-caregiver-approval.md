@@ -7,6 +7,8 @@
 | **Migration** | `2e543a04ee5d` (down_revision `68b8941cfc28`, E2) |
 | **Status** | Verified locally; not pushed. Needs the Opus permission-path review before merge. |
 
+> **Updated by A0 (2026-10-06):** the routes below need an admin token (not an app-user token) with `caregivers.read`, `caregivers.approve` or `caregivers.suspend`. `admin_audit_log.admin_user_id`, `caregivers.approved_by`, `background_check_decided_by`, `caregiver_documents.reviewed_by` and `caregiver_skills.created_by_admin_id` now reference `admin_users`. See [admin auth](2026-10-06-admin-auth.md).
+
 ## What shipped
 Admins can now review caregiver applications through `/api/v1/admin/caregivers`, and nobody becomes bookable without an admin decision. A **cleared background check is mandatory** before approval. Every admin action writes an `admin_audit_log` row.
 
