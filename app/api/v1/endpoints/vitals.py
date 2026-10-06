@@ -12,7 +12,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.patient_vital import PatientVital
 from app.schemas.patient_vital import PatientVitalCreate, PatientVitalUpdate, PatientVitalResponse
 from app.services.patient_vital import PatientVitalService
-from app.services.gemini import GeminiService
+from app.services.gemini import GeminiService, gemini_service
 from app.services.patient_caregiver_access import PatientCaregiverAccessService
 from app.schemas.patient_caregiver_access import (
     PatientCaregiverAccessGrant, PatientCaregiverAccessRevoke, PatientCaregiverAccessResponse
@@ -24,7 +24,7 @@ def get_vital_service(db: Session = Depends(get_db)):
     return PatientVitalService(db)
 
 def get_gemini_service():
-    return GeminiService()
+    return gemini_service
 
 def get_access_service(db: Session = Depends(get_db)):
     return PatientCaregiverAccessService(db)

@@ -1,18 +1,31 @@
-import google.generativeai as genai
+from google import genai
 from typing import Dict, Any, List, Optional
 import json
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
+import logging
 import re
 
 from app.core.config import settings
 
+log = logging.getLogger(__name__)
+
+MODEL = "gemini-2.5-flash"
+
 
 class GeminiService:
     def __init__(self):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
-        self.executor = ThreadPoolExecutor(max_workers=3)
+        # Built on first use: the client refuses to construct without a key, and the module-level
+        # service is created at import time (CI and tests have no key).
+        self._client: Optional[genai.Client] = None
+
+    @property
+    def client(self) -> genai.Client:
+        if self._client is None:
+            self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        return self._client
+
+    async def _generate_text(self, prompt: str) -> str:
+        response = await self.client.aio.models.generate_content(model=MODEL, contents=prompt)
+        return response.text
 
     async def transcribe_and_analyze_audio(self, audio_transcript: str, 
                                          patient_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -48,20 +61,14 @@ class GeminiService:
         """
         
         try:
-            # Run the AI generation in a thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self.executor, 
-                self._generate_content, 
-                prompt
-            )
-            
+            raw_text = await self._generate_text(prompt)
+
             # Parse the JSON response
-            result = json.loads(response.text)
+            result = json.loads(raw_text)
             return result
             
         except Exception as e:
-            print(f"Error analyzing audio transcript: {e}")
+            log.exception("Error analyzing audio transcript")
             return {
                 "summary": "Unable to analyze transcript",
                 "observations": [],
@@ -70,10 +77,6 @@ class GeminiService:
                 "urgency_level": "low",
                 "follow_up_required": False
             }
-
-    def _generate_content(self, prompt: str):
-        """Synchronous method to generate content"""
-        return self.model.generate_content(prompt)
 
     def _extract_json_from_markdown(self, text):
         match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
@@ -99,17 +102,11 @@ class GeminiService:
         Please provide specific, actionable care recommendations for the caregiver.
         """
         try:
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self.executor, 
-                self._generate_content, 
-                prompt
-            )
-            raw_text = response.text
+            raw_text = await self._generate_text(prompt)
             json_text = self._extract_json_from_markdown(raw_text)
             return json_text  # Return the extracted JSON or text
         except Exception as e:
-            print(f"Error generating recommendations: {e}")
+            log.exception("Error generating recommendations")
             return "Unable to generate recommendations at this time."
 
     async def analyze_care_patterns(self, notes: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -132,17 +129,11 @@ class GeminiService:
         }}
         """
         try:
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self.executor, 
-                self._generate_content, 
-                prompt
-            )
-            raw_text = response.text
+            raw_text = await self._generate_text(prompt)
             json_text = self._extract_json_from_markdown(raw_text)
             return json.loads(json_text)
         except Exception as e:
-            print(f"Error analyzing care patterns: {e}")
+            log.exception("Error analyzing care patterns")
             return {
                 "improvement_trends": [],
                 "concerning_patterns": [],
@@ -165,18 +156,12 @@ class GeminiService:
         Respond in JSON with keys: summary, concerns, recommendations, key_vitals.
         """
         try:
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self.executor,
-                self._generate_content,
-                prompt
-            )
-            raw_text = response.text
+            raw_text = await self._generate_text(prompt)
             json_text = self._extract_json_from_markdown(raw_text)
             result = json.loads(json_text)
             return result
         except Exception as e:
-            print(f"Error analyzing vitals: {e}")
+            log.exception("Error analyzing vitals")
             return {
                 "summary": "Unable to analyze vitals.",
                 "concerns": [],
@@ -200,18 +185,12 @@ class GeminiService:
         }}
         """
         try:
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self.executor,
-                self._generate_content,
-                prompt
-            )
-            raw_text = response.text
+            raw_text = await self._generate_text(prompt)
             json_text = self._extract_json_from_markdown(raw_text)
             result = json.loads(json_text)
             return result
         except Exception as e:
-            print(f"Error analyzing fallguard assessment: {e}")
+            log.exception("Error analyzing fallguard assessment")
             return {"summary": "Unable to analyze", "recommendations": []}
 
 
