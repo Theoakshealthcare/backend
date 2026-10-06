@@ -96,9 +96,9 @@ Rejected: letting the quote message recompute the price on every show; geocoding
 - Migration: `app/tests/test_migrations.py` (single head, models match, downgrade to base, upgrade again) passes.
 
 ### Result
-- Full suite: **1420 passed** (`poetry run pytest -q -p no:warnings`; 324 new, baseline 1096). The only existing test that had to change is `test_caregiver_mobile_migration.py` (it inserted a booking through the ORM at the old 0002 schema and the model has since gained columns, so it now inserts with plain SQL), plus two worker tests that name the cron jobs / count completed jobs.
+- Full suite: **1438 passed** after the security-review fixes (1420 before) (`poetry run pytest -q -p no:warnings`; 324 new, baseline 1096). The only existing test that had to change is `test_caregiver_mobile_migration.py` (it inserted a booking through the ORM at the old 0002 schema and the model has since gained columns, so it now inserts with plain SQL), plus two worker tests that name the cron jobs / count completed jobs.
 - `poetry check --lock`, `ruff check --select E9,F63,F7,F82 .`, `scripts.ci_smoke` (115 operations; the new endpoint is hidden from the schema) and both `render_fe_guide --check` pass. One alembic head (`0005_whatsapp_booking`); `test_migrations.py` round-trips it.
-- **Docker end-to-end** (`poetry run python -m scripts.whatsapp_local_e2e --up --down`): **125 of 125 checks passed** (the 30 from W1 plus 95 new). It builds the stack, serves a fake Meta and a fake Paystack, and covers:
+- **Docker end-to-end** (`poetry run python -m scripts.whatsapp_local_e2e --up --down`): **144 of 144 checks passed** (the security-review fixes added the pay-then-cancel scenario, booking E). It builds the stack, serves a fake Meta and a fake Paystack, and covers:
 
 | Booking | What it proved |
 |---|---|
@@ -106,6 +106,7 @@ Rejected: letting the quote message recompute the price on every show; geocoding
 | A (happy path) | consent, menu, Flow, completion, pin, itemised quote (₦40,000 + ₦4,000 = ₦44,000, cancellation line, three buttons); the admin doubles the rate; Confirm still creates the booking at ₦44,000 and asks Paystack for 4,400,000 kobo with the internal email; condition encrypted, plain column empty; a second Confirm makes nothing new; signed `charge.success` settles it; dispatch started; the receipt arrives once from the worker; chat is idle |
 | B (no pin) | the booking is flagged for an address check; reminder at 20 minutes with Pay now; at 30 minutes the real expiry job cancels it (`unpaid_timeout`); outside the 24 h window the notice is the `booking_cancelled_unpaid` template with a Book again button |
 | C (return first) | not paid: the API calls the fake Paystack, says it has not arrived, resends the link; paid but no webhook: verify settles it, dispatch starts, the receipt comes straight away |
+| E (pay, then Cancel) | Paystack has the money, the webhook has not arrived, the person taps Cancel: the booking is settled and dispatching, the receipt arrives, nothing is cancelled or flagged for refund |
 | D (waitlist) | a city outside Lagos/Abuja gets the waitlist offer; joining keeps no address and makes no booking |
 | Privacy | the condition is in no bot message, no WhatsApp table, no plain booking column, and not in Redis (nor the pin) |
 
