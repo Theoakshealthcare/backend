@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "INSERT INTO caregiver_wallets ... balance = 2500000 (kobo)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SEEDED: nothing in the API credits a caregiver wallet yet, so the balance was inserted directly."
+}

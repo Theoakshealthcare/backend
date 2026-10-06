@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/devices/push-token",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "token": "ExponentPushToken[placeholder-logout-dc333b]"
+    }
+  },
+  "response": {
+    "status_code": 204,
+    "headers": {},
+    "body": ""
+  }
+}

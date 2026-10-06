@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/home",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile_status": "approved",
+      "is_available": false,
+      "location_updated_at": "2026-10-06T08:23:25.756428",
+      "today_visits": [],
+      "upcoming_visits": [
+        {
+          "id": "4bb037c1-819d-4997-8536-c9db18f05ce5",
+          "booking_code": "E76C1B08",
+          "service_type": "nurse",
+          "status": "accepted",
+          "dispatch_state": "matched",
+          "scheduled_date": "2026-10-09T08:23:29.909849",
+          "scheduled_end_date": "2026-10-09T10:23:29.909849",
+          "duration_hours": 2,
+          "patient_name": "Placeholder Patient",
+          "patient_address": "12 Placeholder Street, Lekki",
+          "patient_city": "Lagos",
+          "patient_state": "Lagos"
+        }
+      ],
+      "open_offers": [],
+      "wallet_balance_naira": 23000.0,
+      "currency": "NGN"
+    }
+  }
+}

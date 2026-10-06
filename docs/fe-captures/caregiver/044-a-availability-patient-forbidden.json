@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/availability",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "is_available": true
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Caregiver account required."
+    }
+  }
+}

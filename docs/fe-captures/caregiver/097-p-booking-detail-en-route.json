@@ -1,0 +1,65 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/booking/d4055373-bee6-431e-977a-11b01af19a96",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "d4055373-bee6-431e-977a-11b01af19a96",
+      "booking_code": "ECCADB9F",
+      "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+      "patient_details": {
+        "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+        "full_name": "Placeholder Patient",
+        "phone_number": "+2340000035004",
+        "profile_image_url": null,
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null
+      },
+      "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+      "caregiver_details": {
+        "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+        "full_name": "Placeholder Caregiver A",
+        "specialization": "Elderly Care",
+        "profile_image_url": null,
+        "current_latitude": 6.4474,
+        "current_longitude": 3.4723,
+        "distance_from_patient": 0.0,
+        "estimated_arrival_time": 5,
+        "last_location_update": "2026-10-06T08:23:25.756428",
+        "is_online": true
+      },
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "condition": "Placeholder condition",
+      "duration_hours": 2,
+      "scheduled_date": "2026-10-06T08:38:27.862624",
+      "scheduled_end_date": "2026-10-06T10:38:27.862624",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "status": "en_route",
+      "payment_status": "paid",
+      "total_amount": 55000.0,
+      "service_fee": 50000.0,
+      "platform_fee": 5000.0,
+      "special_instructions": "Placeholder instructions",
+      "booking_for": "myself",
+      "created_at": "2026-10-06T08:23:27.862475",
+      "updated_at": "2026-10-06T08:23:29.757587",
+      "dispatch_state": "matched",
+      "visit_code": "1092",
+      "payment_url": null,
+      "payment_access_code": null,
+      "payment_error": null
+    }
+  }
+}

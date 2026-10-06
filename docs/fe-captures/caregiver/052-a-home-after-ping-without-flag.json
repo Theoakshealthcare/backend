@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/home",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile_status": "approved",
+      "is_available": false,
+      "location_updated_at": "2026-10-06T08:23:25.654625",
+      "today_visits": [],
+      "upcoming_visits": [],
+      "open_offers": [],
+      "wallet_balance_naira": 0.0,
+      "currency": "NGN"
+    }
+  },
+  "note": "Availability was switched off above; a ping that omits is_available leaves it off."
+}

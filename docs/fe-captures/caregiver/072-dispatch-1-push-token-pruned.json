@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT count(*) FROM push_tokens WHERE user_id = <caregiver A>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "count": 1
+    }
+  },
+  "note": "A had 2 tokens before the wave (live + dead). The dead one was pruned after Expo said DeviceNotRegistered."
+}

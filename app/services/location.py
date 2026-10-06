@@ -108,7 +108,10 @@ class LocationService:
             location.accuracy = kwargs.get('accuracy')
             location.heading = kwargs.get('heading')
             location.speed = kwargs.get('speed')
-            location.is_available = kwargs.get('is_available', True)
+            # A ping only changes availability when it says so explicitly (None = leave as is), so an
+            # older client or a background location task can't switch an unavailable caregiver on.
+            if kwargs.get('is_available') is not None:
+                location.is_available = kwargs['is_available']
             # onupdate only fires when a column value changes; a stationary caregiver re-sending the
             # same fix must still count as fresh for matching.
             location.updated_at = datetime.utcnow()
@@ -120,7 +123,7 @@ class LocationService:
                 accuracy=kwargs.get('accuracy'),
                 heading=kwargs.get('heading'),
                 speed=kwargs.get('speed'),
-                is_available=kwargs.get('is_available', True)
+                is_available=bool(kwargs.get('is_available')),  # opt in explicitly
             )
             self.db.add(location)
         

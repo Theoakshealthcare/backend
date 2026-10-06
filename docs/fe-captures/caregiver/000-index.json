@@ -1,0 +1,671 @@
+{
+  "generated_by": "scripts/capture_caregiver_flow.py",
+  "run_tag": "dc333b",
+  "captures": [
+    {
+      "file": "001-a-auth-register.json",
+      "label": "a-auth-register",
+      "status": 200
+    },
+    {
+      "file": "002-a-auth-register-duplicate.json",
+      "label": "a-auth-register-duplicate",
+      "status": 400
+    },
+    {
+      "file": "003-a-auth-register-invalid-email.json",
+      "label": "a-auth-register-invalid-email",
+      "status": 422
+    },
+    {
+      "file": "004-a-auth-verify-email-wrong-code.json",
+      "label": "a-auth-verify-email-wrong-code",
+      "status": 400
+    },
+    {
+      "file": "005-a-auth-verify-email.json",
+      "label": "a-auth-verify-email",
+      "status": 200
+    },
+    {
+      "file": "006-a-auth-login-wrong-password.json",
+      "label": "a-auth-login-wrong-password",
+      "status": 401
+    },
+    {
+      "file": "007-a-auth-login-mobile.json",
+      "label": "a-auth-login-mobile",
+      "status": 200
+    },
+    {
+      "file": "008-a-auth-me.json",
+      "label": "a-auth-me",
+      "status": 200
+    },
+    {
+      "file": "009-a-auth-me-no-token.json",
+      "label": "a-auth-me-no-token",
+      "status": 401
+    },
+    {
+      "file": "010-a-auth-me-refresh-token-as-bearer.json",
+      "label": "a-auth-me-refresh-token-as-bearer",
+      "status": 401
+    },
+    {
+      "file": "011-a-auth-refresh.json",
+      "label": "a-auth-refresh",
+      "status": 200
+    },
+    {
+      "file": "012-a-auth-refresh-invalid.json",
+      "label": "a-auth-refresh-invalid",
+      "status": 401
+    },
+    {
+      "file": "013-a-form-options.json",
+      "label": "a-form-options",
+      "status": 200
+    },
+    {
+      "file": "014-a-verification-status-initial.json",
+      "label": "a-verification-status-initial",
+      "status": 200
+    },
+    {
+      "file": "015-a-profile-step1.json",
+      "label": "a-profile-step1",
+      "status": 200
+    },
+    {
+      "file": "016-a-profile-step1-missing-fields.json",
+      "label": "a-profile-step1-missing-fields",
+      "status": 422
+    },
+    {
+      "file": "017-a-profile-step2.json",
+      "label": "a-profile-step2",
+      "status": 200
+    },
+    {
+      "file": "018-a-documents-upload-bad-type.json",
+      "label": "a-documents-upload-bad-type",
+      "status": 400
+    },
+    {
+      "file": "019-a-documents-upload.json",
+      "label": "a-documents-upload",
+      "status": 200
+    },
+    {
+      "file": "020-a-consent.json",
+      "label": "a-consent",
+      "status": 200
+    },
+    {
+      "file": "021-a-profile.json",
+      "label": "a-profile",
+      "status": 200
+    },
+    {
+      "file": "022-a-verification-status-under-review.json",
+      "label": "a-verification-status-under-review",
+      "status": 200
+    },
+    {
+      "file": "023-a-profile-after.json",
+      "label": "a-profile-after",
+      "status": 200
+    },
+    {
+      "file": "024-a-availability-before-approval.json",
+      "label": "a-availability-before-approval",
+      "status": 403
+    },
+    {
+      "file": "025-a-home-under-review.json",
+      "label": "a-home-under-review",
+      "status": 200
+    },
+    {
+      "file": "026-a-accept-unknown-booking-before-approval.json",
+      "label": "a-accept-unknown-booking-before-approval",
+      "status": 404
+    },
+    {
+      "file": "027-admin-queue.json",
+      "label": "admin-queue",
+      "status": 200
+    },
+    {
+      "file": "028-admin-document-decision.json",
+      "label": "admin-document-decision",
+      "status": 200
+    },
+    {
+      "file": "029-admin-identity-decision.json",
+      "label": "admin-identity-decision",
+      "status": 200
+    },
+    {
+      "file": "030-admin-background-check-decision.json",
+      "label": "admin-background-check-decision",
+      "status": 200
+    },
+    {
+      "file": "031-admin-approve-no-skills.json",
+      "label": "admin-approve-no-skills",
+      "status": 409
+    },
+    {
+      "file": "032-admin-skills.json",
+      "label": "admin-skills",
+      "status": 200
+    },
+    {
+      "file": "033-admin-approve.json",
+      "label": "admin-approve",
+      "status": 200
+    },
+    {
+      "file": "034-a-verification-status-approved.json",
+      "label": "a-verification-status-approved",
+      "status": 200
+    },
+    {
+      "file": "035-a-home-approved-empty.json",
+      "label": "a-home-approved-empty",
+      "status": 200
+    },
+    {
+      "file": "036-b-admin-request-changes.json",
+      "label": "b-admin-request-changes",
+      "status": 200
+    },
+    {
+      "file": "037-b-verification-status-changes-requested.json",
+      "label": "b-verification-status-changes-requested",
+      "status": 200
+    },
+    {
+      "file": "038-b-consent-resubmit.json",
+      "label": "b-consent-resubmit",
+      "status": 200
+    },
+    {
+      "file": "039-b-admin-reject.json",
+      "label": "b-admin-reject",
+      "status": 200
+    },
+    {
+      "file": "040-b-verification-status-rejected.json",
+      "label": "b-verification-status-rejected",
+      "status": 200
+    },
+    {
+      "file": "041-b-availability-rejected.json",
+      "label": "b-availability-rejected",
+      "status": 403
+    },
+    {
+      "file": "042-b-home-rejected.json",
+      "label": "b-home-rejected",
+      "status": 200
+    },
+    {
+      "file": "043-a-availability-on-without-location.json",
+      "label": "a-availability-on-without-location",
+      "status": 409
+    },
+    {
+      "file": "044-a-availability-patient-forbidden.json",
+      "label": "a-availability-patient-forbidden",
+      "status": 403
+    },
+    {
+      "file": "045-a-availability-no-auth.json",
+      "label": "a-availability-no-auth",
+      "status": 401
+    },
+    {
+      "file": "046-a-availability-bad-body.json",
+      "label": "a-availability-bad-body",
+      "status": 422
+    },
+    {
+      "file": "047-a-location-post.json",
+      "label": "a-location-post",
+      "status": 200
+    },
+    {
+      "file": "048-a-location-get.json",
+      "label": "a-location-get",
+      "status": 200
+    },
+    {
+      "file": "049-a-availability-off.json",
+      "label": "a-availability-off",
+      "status": 200
+    },
+    {
+      "file": "050-a-home-unavailable.json",
+      "label": "a-home-unavailable",
+      "status": 200
+    },
+    {
+      "file": "051-a-location-ping-without-flag.json",
+      "label": "a-location-ping-without-flag",
+      "status": 200
+    },
+    {
+      "file": "052-a-home-after-ping-without-flag.json",
+      "label": "a-home-after-ping-without-flag",
+      "status": 200
+    },
+    {
+      "file": "053-a-availability-off-2.json",
+      "label": "a-availability-off-2",
+      "status": 200
+    },
+    {
+      "file": "054-a-location-ping-with-is-available-false.json",
+      "label": "a-location-ping-with-is-available-false",
+      "status": 200
+    },
+    {
+      "file": "055-a-home-after-ping-false.json",
+      "label": "a-home-after-ping-false",
+      "status": 200
+    },
+    {
+      "file": "056-a-availability-on.json",
+      "label": "a-availability-on",
+      "status": 200
+    },
+    {
+      "file": "057-a-location-ping-with-is-available-true-again.json",
+      "label": "a-location-ping-with-is-available-true-again",
+      "status": 200
+    },
+    {
+      "file": "058-ws-no-token.json",
+      "label": "ws-no-token",
+      "status": null
+    },
+    {
+      "file": "059-ws-patient-token.json",
+      "label": "ws-patient-token",
+      "status": null
+    },
+    {
+      "file": "060-ws-caregiver-ok.json",
+      "label": "ws-caregiver-ok",
+      "status": null
+    },
+    {
+      "file": "061-devices-push-token-no-auth.json",
+      "label": "devices-push-token-no-auth",
+      "status": 401
+    },
+    {
+      "file": "062-devices-push-token-register.json",
+      "label": "devices-push-token-register",
+      "status": 200
+    },
+    {
+      "file": "063-devices-push-token-refresh.json",
+      "label": "devices-push-token-refresh",
+      "status": 200
+    },
+    {
+      "file": "064-devices-push-token-invalid-format.json",
+      "label": "devices-push-token-invalid-format",
+      "status": 422
+    },
+    {
+      "file": "065-devices-push-token-invalid-platform.json",
+      "label": "devices-push-token-invalid-platform",
+      "status": 422
+    },
+    {
+      "file": "066-devices-push-token-register-second-device.json",
+      "label": "devices-push-token-register-second-device",
+      "status": 200
+    },
+    {
+      "file": "067-devices-push-token-register-for-logout.json",
+      "label": "devices-push-token-register-for-logout",
+      "status": 200
+    },
+    {
+      "file": "068-devices-push-token-delete.json",
+      "label": "devices-push-token-delete",
+      "status": 204
+    },
+    {
+      "file": "069-devices-push-token-delete-again.json",
+      "label": "devices-push-token-delete-again",
+      "status": 204
+    },
+    {
+      "file": "070-dispatch-1-payment-webhook.json",
+      "label": "dispatch-1-payment-webhook",
+      "status": 200
+    },
+    {
+      "file": "071-dispatch-1-push-received-by-fake-expo.json",
+      "label": "dispatch-1-push-received-by-fake-expo",
+      "status": 200
+    },
+    {
+      "file": "072-dispatch-1-push-token-pruned.json",
+      "label": "dispatch-1-push-token-pruned",
+      "status": null
+    },
+    {
+      "file": "073-a-home-with-offer.json",
+      "label": "a-home-with-offer",
+      "status": 200
+    },
+    {
+      "file": "074-a-notifications.json",
+      "label": "a-notifications",
+      "status": 200
+    },
+    {
+      "file": "075-a-bookings-new-requests.json",
+      "label": "a-bookings-new-requests",
+      "status": 200
+    },
+    {
+      "file": "076-a-booking-detail-not-assigned.json",
+      "label": "a-booking-detail-not-assigned",
+      "status": 403
+    },
+    {
+      "file": "077-d-accept-b1.json",
+      "label": "d-accept-b1",
+      "status": 200
+    },
+    {
+      "file": "078-a-accept-taken-by-someone-else.json",
+      "label": "a-accept-taken-by-someone-else",
+      "status": 409
+    },
+    {
+      "file": "079-b-accept-not-approved.json",
+      "label": "b-accept-not-approved",
+      "status": 403
+    },
+    {
+      "file": "080-a-accept-unknown-booking.json",
+      "label": "a-accept-unknown-booking",
+      "status": 404
+    },
+    {
+      "file": "081-a-action-invalid-enum.json",
+      "label": "a-action-invalid-enum",
+      "status": 422
+    },
+    {
+      "file": "082-a-action-as-patient.json",
+      "label": "a-action-as-patient",
+      "status": 403
+    },
+    {
+      "file": "083-a-action-no-auth.json",
+      "label": "a-action-no-auth",
+      "status": 401
+    },
+    {
+      "file": "084-a-decline-b3.json",
+      "label": "a-decline-b3",
+      "status": 200
+    },
+    {
+      "file": "085-a-home-after-decline.json",
+      "label": "a-home-after-decline",
+      "status": 200
+    },
+    {
+      "file": "086-a-accept-b2.json",
+      "label": "a-accept-b2",
+      "status": 200
+    },
+    {
+      "file": "087-a-accept-b2-again.json",
+      "label": "a-accept-b2-again",
+      "status": 409
+    },
+    {
+      "file": "088-p-booking-detail-accepted.json",
+      "label": "p-booking-detail-accepted",
+      "status": 200
+    },
+    {
+      "file": "089-a-booking-detail-accepted.json",
+      "label": "a-booking-detail-accepted",
+      "status": 200
+    },
+    {
+      "file": "090-a-bookings-list-accepted.json",
+      "label": "a-bookings-list-accepted",
+      "status": 200
+    },
+    {
+      "file": "091-a-home-with-visit.json",
+      "label": "a-home-with-visit",
+      "status": 200
+    },
+    {
+      "file": "092-d-start-not-assigned.json",
+      "label": "d-start-not-assigned",
+      "status": 403
+    },
+    {
+      "file": "093-a-on-my-way.json",
+      "label": "a-on-my-way",
+      "status": 200
+    },
+    {
+      "file": "094-a-on-my-way-again.json",
+      "label": "a-on-my-way-again",
+      "status": 409
+    },
+    {
+      "file": "095-a-home-en-route.json",
+      "label": "a-home-en-route",
+      "status": 200
+    },
+    {
+      "file": "096-a-bookings-list-en-route.json",
+      "label": "a-bookings-list-en-route",
+      "status": 200
+    },
+    {
+      "file": "097-p-booking-detail-en-route.json",
+      "label": "p-booking-detail-en-route",
+      "status": 200
+    },
+    {
+      "file": "098-a-complete-before-start.json",
+      "label": "a-complete-before-start",
+      "status": 409
+    },
+    {
+      "file": "099-a-start-missing-code.json",
+      "label": "a-start-missing-code",
+      "status": 400
+    },
+    {
+      "file": "100-a-start-malformed-code.json",
+      "label": "a-start-malformed-code",
+      "status": 422
+    },
+    {
+      "file": "101-a-start-wrong-code-1.json",
+      "label": "a-start-wrong-code-1",
+      "status": 400
+    },
+    {
+      "file": "102-a-start-wrong-code-2.json",
+      "label": "a-start-wrong-code-2",
+      "status": 400
+    },
+    {
+      "file": "103-a-start-wrong-code-3.json",
+      "label": "a-start-wrong-code-3",
+      "status": 423
+    },
+    {
+      "file": "104-a-start-right-code-while-locked.json",
+      "label": "a-start-right-code-while-locked",
+      "status": 423
+    },
+    {
+      "file": "105-db-simulated-15-minute-wait.json",
+      "label": "db-simulated-15-minute-wait",
+      "status": null
+    },
+    {
+      "file": "106-a-start.json",
+      "label": "a-start",
+      "status": 200
+    },
+    {
+      "file": "107-a-start-again.json",
+      "label": "a-start-again",
+      "status": 409
+    },
+    {
+      "file": "108-p-booking-detail-in-progress.json",
+      "label": "p-booking-detail-in-progress",
+      "status": 200
+    },
+    {
+      "file": "109-a-complete.json",
+      "label": "a-complete",
+      "status": 200
+    },
+    {
+      "file": "110-a-complete-again.json",
+      "label": "a-complete-again",
+      "status": 409
+    },
+    {
+      "file": "111-a-cancel-after-complete.json",
+      "label": "a-cancel-after-complete",
+      "status": 409
+    },
+    {
+      "file": "112-a-booking-detail-completed.json",
+      "label": "a-booking-detail-completed",
+      "status": 200
+    },
+    {
+      "file": "113-a-accept-b4.json",
+      "label": "a-accept-b4",
+      "status": 200
+    },
+    {
+      "file": "114-a-cancel-b4.json",
+      "label": "a-cancel-b4",
+      "status": 200
+    },
+    {
+      "file": "115-a-accept-b6.json",
+      "label": "a-accept-b6",
+      "status": 200
+    },
+    {
+      "file": "116-a-home-with-upcoming.json",
+      "label": "a-home-with-upcoming",
+      "status": 200
+    },
+    {
+      "file": "117-a-availability-off-again.json",
+      "label": "a-availability-off-again",
+      "status": 200
+    },
+    {
+      "file": "118-dispatch-5-payment-webhook-while-a-unavailable.json",
+      "label": "dispatch-5-payment-webhook-while-a-unavailable",
+      "status": 200
+    },
+    {
+      "file": "119-dispatch-5-who-was-offered.json",
+      "label": "dispatch-5-who-was-offered",
+      "status": null
+    },
+    {
+      "file": "120-a-home-unavailable-no-offers.json",
+      "label": "a-home-unavailable-no-offers",
+      "status": 200
+    },
+    {
+      "file": "121-db-seeded-wallet-balance.json",
+      "label": "db-seeded-wallet-balance",
+      "status": null
+    },
+    {
+      "file": "122-a-wallet.json",
+      "label": "a-wallet",
+      "status": 200
+    },
+    {
+      "file": "123-a-bank-account-not-set.json",
+      "label": "a-bank-account-not-set",
+      "status": 404
+    },
+    {
+      "file": "124-a-withdraw-no-bank-account.json",
+      "label": "a-withdraw-no-bank-account",
+      "status": 400
+    },
+    {
+      "file": "125-a-bank-account-set.json",
+      "label": "a-bank-account-set",
+      "status": 200
+    },
+    {
+      "file": "126-a-withdraw-below-minimum.json",
+      "label": "a-withdraw-below-minimum",
+      "status": 400
+    },
+    {
+      "file": "127-a-withdraw-insufficient.json",
+      "label": "a-withdraw-insufficient",
+      "status": 400
+    },
+    {
+      "file": "128-a-withdraw.json",
+      "label": "a-withdraw",
+      "status": 200
+    },
+    {
+      "file": "129-a-wallet-after-withdrawal.json",
+      "label": "a-wallet-after-withdrawal",
+      "status": 200
+    },
+    {
+      "file": "130-a-wallet-transactions.json",
+      "label": "a-wallet-transactions",
+      "status": 200
+    },
+    {
+      "file": "131-a-home-final.json",
+      "label": "a-home-final",
+      "status": 200
+    },
+    {
+      "file": "132-a-home-as-patient.json",
+      "label": "a-home-as-patient",
+      "status": 403
+    },
+    {
+      "file": "133-a-home-no-auth.json",
+      "label": "a-home-no-auth",
+      "status": 401
+    }
+  ]
+}

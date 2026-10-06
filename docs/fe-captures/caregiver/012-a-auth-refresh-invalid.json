@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/refresh",
+    "auth": null,
+    "body": {
+      "refresh_token": "not-a-token"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid refresh token"
+    }
+  }
+}

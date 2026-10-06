@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/bank-account",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "bank_name": "Placeholder Bank",
+      "account_number": "0000000000",
+      "account_name": "Placeholder Caregiver A"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "bank_name": "Placeholder Bank",
+      "account_number": "0000000000",
+      "account_name": "Placeholder Caregiver A",
+      "created_at": "2026-10-06T08:23:31.051733",
+      "updated_at": "2026-10-06T08:23:31.051735"
+    }
+  }
+}

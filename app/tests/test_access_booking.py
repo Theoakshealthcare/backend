@@ -42,9 +42,9 @@ def notify(db, booking, caregiver):
     return n
 
 
-def act(client, booking, caregiver, action):
+def act(client, booking, caregiver, action, **extra):
     return client.post(
-        f"{ACTION}/{booking.id}", json={"action": action}, headers=auth_headers(caregiver.user)
+        f"{ACTION}/{booking.id}", json={"action": action, **extra}, headers=auth_headers(caregiver.user)
     )
 
 
@@ -246,9 +246,10 @@ def test_decline_by_caregiver_who_was_not_notified_is_forbidden(db, client):
 )
 def test_assigned_caregiver_can_move_booking_forward(db, client, action, source, target):
     patient, caregiver = make_patient(db), make_caregiver(db)
-    booking = make_booking(db, patient, caregiver, status=source)
+    booking = make_booking(db, patient, caregiver, status=source, visit_code="4821")
 
-    r = act(client, booking, caregiver, action)
+    # `start` needs the visit code (C3); the other actions ignore it
+    r = act(client, booking, caregiver, action, **({"visit_code": "4821"} if action == "start" else {}))
     assert r.status_code == 200, r.text
     db.refresh(booking)
     assert booking.status == target

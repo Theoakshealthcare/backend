@@ -85,7 +85,7 @@ seeded booking afterwards: CHAIN001 | PENDING | PENDING | NULLs in the new nulla
 ## Follow-ups
 - The admin "unmatched" queue and the `matching_delayed` message to the booker (WA-FR-29) are not built; only the state and the log line exist.
 - WA-FR-29 allows 2 hours before escalation for bookings scheduled more than 24 hours ahead (marked **[DECISION]** in the PRD); a flat 30 minutes is used until that is decided.
-- Notifications are still rows in `booking_notifications`; there is no push send yet (`is_sent` stays false), so wave timing is correct but delivery depends on the caregiver app polling.
+- Notifications are still rows in `booking_notifications` (`is_sent` stays false). **Update 2026-10-05 (C3):** each wave now also sends an Expo push after the wave is saved, best effort; see [the caregiver mobile support SOP](2026-10-05-caregiver-mobile-support.md). The app should still poll, because a push is not guaranteed.
 - A paid booking cancelled while `dispatching` keeps `dispatch_state='dispatching'` (the tick ignores it because `status` is not `pending`); ops/refund handling for cancelled paid bookings is outside this change.
 - `BookingService` methods still shadow `settings` with a `BookingSettings` local, which is why the config is imported as `app_settings` there.
 - The admin refund queue must consume `bookings.refund_required` (`SELECT ... WHERE refund_required`); nothing refunds automatically.

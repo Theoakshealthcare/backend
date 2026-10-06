@@ -158,7 +158,7 @@ class WebSocketConnectionManager:
             booking_service = BookingService(db)
             active_bookings = db.query(Booking).filter(
                 Booking.caregiver_id == caregiver.id,
-                Booking.status.in_(["accepted", "in_progress"])
+                Booking.status.in_(["accepted", "en_route", "in_progress"])
             ).all()
             
             # Broadcast to subscribers of active bookings
@@ -189,7 +189,7 @@ class WebSocketConnectionManager:
                 await websocket.send_text(denied.model_dump_json())
                 return
 
-            if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS):
+            if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):
                 error_msg = WebSocketError(
                     error="Tracking is only available for accepted or in-progress bookings",
                     code="TRACKING_NOT_AVAILABLE",

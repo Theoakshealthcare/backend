@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/home",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile_status": "approved",
+      "is_available": true,
+      "location_updated_at": "2026-10-06T08:23:25.756428",
+      "today_visits": [],
+      "upcoming_visits": [],
+      "open_offers": [
+        {
+          "booking_id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
+          "service_type": "nurse",
+          "scheduled_date": "2026-10-06T08:38:27.858997",
+          "scheduled_end_date": "2026-10-06T10:38:27.858997",
+          "duration_hours": 2,
+          "area": "Lagos",
+          "state": "Lagos",
+          "offered_at": "2026-10-06T08:23:27.927274"
+        }
+      ],
+      "wallet_balance_naira": 0.0,
+      "currency": "NGN"
+    }
+  }
+}

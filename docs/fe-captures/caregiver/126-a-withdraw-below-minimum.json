@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/wallet/withdraw",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "amount": 5000,
+      "narration": "Placeholder"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Minimum withdrawal is 100000 kobo."
+    }
+  }
+}

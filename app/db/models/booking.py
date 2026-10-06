@@ -18,6 +18,7 @@ from app.db.base import Base
 class BookingStatus(str, Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
+    EN_ROUTE = "en_route"  # accepted -> en_route -> in_progress; the caregiver pressed "on my way"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
@@ -81,6 +82,13 @@ class Booking(Base):
     # NULL = not dispatched (unpaid, or paid before dispatch waves existed).
     dispatch_state = Column(String, nullable=True)  # dispatching | matched | unmatched
     dispatch_started_at = Column(DateTime, nullable=True)
+
+    # Visit code (WA-FR-35): 4 digits generated when the caregiver accepts. Encrypted (not hashed)
+    # because the booking's patient must be able to read it back; `start` compares it in constant time.
+    # Three wrong guesses lock it for VISIT_CODE_LOCK_MINUTES.
+    visit_code_enc = Column(String, nullable=True)
+    visit_code_failed_attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    visit_code_locked_until = Column(DateTime, nullable=True)
 
     # Payment
     # Money is integer kobo (BIGINT). The naira properties below are read-only, for responses.

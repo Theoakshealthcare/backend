@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/devices/push-token",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "token": "ExponentPushToken[placeholder-live-dc333b]",
+      "platform": "ios"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "token": "ExponentPushToken[placeholder-live-dc333b]",
+      "platform": "ios"
+    }
+  }
+}

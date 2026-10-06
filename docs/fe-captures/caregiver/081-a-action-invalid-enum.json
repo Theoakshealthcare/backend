@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/d4055373-bee6-431e-977a-11b01af19a96",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "teleport"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "action"
+          ],
+          "msg": "Input should be 'accept', 'decline', 'on_my_way', 'start', 'complete' or 'cancel'",
+          "input": "teleport",
+          "ctx": {
+            "expected": "'accept', 'decline', 'on_my_way', 'start', 'complete' or 'cancel'"
+          }
+        }
+      ]
+    }
+  }
+}

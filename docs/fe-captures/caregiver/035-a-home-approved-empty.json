@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/home",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile_status": "approved",
+      "is_available": false,
+      "location_updated_at": null,
+      "today_visits": [],
+      "upcoming_visits": [],
+      "open_offers": [],
+      "wallet_balance_naira": 0.0,
+      "currency": "NGN"
+    }
+  }
+}

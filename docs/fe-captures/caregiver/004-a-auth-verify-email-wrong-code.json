@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/verify-email",
+    "auth": null,
+    "body": {
+      "email": "caregiver-a-dc333b@example.com",
+      "code": "00000"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid verification code"
+    }
+  }
+}

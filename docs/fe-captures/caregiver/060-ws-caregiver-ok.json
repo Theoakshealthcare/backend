@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "WEBSOCKET",
+    "path": "/api/v1/booking/ws/caregiver/location?token=<ACCESS_TOKEN_JWT>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "frames_received": [
+        {
+          "type": "connection_status",
+          "status": "connected",
+          "message": "Connected successfully. You can now send location updates."
+        },
+        {
+          "type": "heartbeat",
+          "timestamp": "2026-10-06T08:23:25.760862"
+        }
+      ],
+      "closed_by_server": null
+    }
+  }
+}

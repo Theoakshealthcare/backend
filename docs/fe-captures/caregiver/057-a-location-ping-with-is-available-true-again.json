@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/location",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "latitude": 6.4494,
+      "longitude": 3.4723,
+      "accuracy": 10.0,
+      "is_available": true
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "ed1fcdc1-d9bb-4755-ae93-f295194f2855",
+      "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+      "latitude": 6.4494,
+      "longitude": 3.4723,
+      "accuracy": 10.0,
+      "is_active": true,
+      "is_available": true,
+      "recorded_at": "2026-10-06T08:23:25.625960"
+    }
+  }
+}

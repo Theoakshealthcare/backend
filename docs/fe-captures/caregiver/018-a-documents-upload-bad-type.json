@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/documents/upload",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "multipart": {
+        "document_type": "license",
+        "file": {
+          "filename": "notes.txt",
+          "content_type": "text/plain",
+          "bytes": 5
+        }
+      }
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid file type. Only PDF and image files are allowed."
+    }
+  }
+}

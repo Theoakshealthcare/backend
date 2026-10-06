@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/devices/push-token",
+    "auth": null,
+    "body": {
+      "token": "ExponentPushToken[placeholder-live-dc333b]",
+      "platform": "ios"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Not authenticated"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/2eb78674-00e2-4c82-aad8-7e59ff6d3974/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+      "profile_status": "approved",
+      "identity_verification_status": "verified",
+      "background_check_status": "cleared"
+    }
+  }
+}

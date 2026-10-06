@@ -127,3 +127,4 @@ def client():
 
 # factories live in a plain module so tests can import them directly
 from app.tests.factories import *  # noqa: E402,F401,F403
+from app.tests.fakes import expo  # noqa: E402,F401  (fixture)

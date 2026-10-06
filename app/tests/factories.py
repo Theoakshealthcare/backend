@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, create_refresh_token, get_password_hash
+from app.core.security import create_access_token, create_refresh_token, encrypt, get_password_hash
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.caregiver import Caregiver, CaregiverBankAccount, CaregiverWallet
 from app.db.models.patient import Patient
@@ -118,6 +118,7 @@ def make_booking(
     status: BookingStatus = BookingStatus.PENDING,
     payment_status: PaymentStatus = PaymentStatus.PAID,
     total_amount_kobo: int = 4_400_000,
+    visit_code: str | None = None,
     **overrides,
 ) -> Booking:
     start = datetime.utcnow() + timedelta(days=1)
@@ -143,6 +144,8 @@ def make_booking(
         payment_status=payment_status,
         paystack_reference=f"BKG_{uuid.uuid4().hex[:12]}",
     )
+    if visit_code is not None:
+        fields["visit_code_enc"] = encrypt(visit_code)
     fields.update(overrides)
     booking = Booking(**fields)
     db.add(booking)

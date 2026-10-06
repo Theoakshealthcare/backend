@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/register",
+    "auth": null,
+    "body": {
+      "email": "caregiver-a-dc333b@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>",
+      "full_name": "Placeholder Caregiver A",
+      "user_type": "caregiver"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "A user with this email already exists"
+    }
+  }
+}
