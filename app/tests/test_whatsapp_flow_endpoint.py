@@ -114,6 +114,32 @@ def test_a_token_for_another_draft_cannot_be_used_after_the_draft_closes(db, flo
     assert flow.call("INIT")[0] == 427  # the draft is submitted now: the same token cannot reopen it
 
 
+def test_meta_retrying_the_final_screen_gets_the_same_success_not_427(db, flow):
+    status, first = flow.fill(who="new")
+    assert status == 200 and first["screen"] == "SUCCESS"
+    recipients = db.query(CareRecipient).count()
+    status, again = flow.exchange("ADDRESS", {"street": "12 Test Close", "area": "Lekki Phase 1", "city": "Lagos"})
+    assert status == 200 and again == first  # same token echoed back, so the Flow completes
+    assert db.query(CareRecipient).count() == recipients  # and nothing was created a second time
+    db.expire_all()
+    assert db.query(Quote).one().status == "submitted"
+
+
+def test_the_retry_of_an_out_of_area_submission_is_also_idempotent(db, flow):
+    status, first = flow.fill(city="other")
+    assert status == 200 and first["screen"] == "SUCCESS"
+    assert flow.exchange("ADDRESS", {"street": "1 Road", "area": "Somewhere", "city": "other"}) == (200, first)
+    db.expire_all()
+    assert db.query(Quote).one().status == "out_of_area"
+
+
+def test_only_the_final_screen_is_replayable_once_the_draft_is_submitted(db, flow):
+    flow.fill()
+    assert flow.exchange("DETAILS", {"duration": "4", "condition": "x"})[0] == 427
+    assert flow.exchange("WHO", {"who": "self"})[0] == 427
+    assert flow.call("BACK", "ADDRESS")[0] == 427
+
+
 def test_a_blocked_contact_cannot_use_the_flow(db, flow):
     contact = db.query(WhatsAppContact).one()
     contact.blocked = True

@@ -58,6 +58,9 @@ STATUS_INVALID_TOKEN = 427   # Meta: flow token expired or invalid; the Flow sho
 STATUS_BAD_REQUEST = 400
 
 
+SUBMITTED_BY_ADDRESS = ("submitted", "out_of_area")  # where the ADDRESS screen leaves a draft
+
+
 @dataclass(frozen=True)
 class FlowResult:
     status: int
@@ -96,10 +99,16 @@ class FlowService:
         action = payload.get("action")
         if action == "ping":
             return _ok({"version": VERSION, "data": {"status": "active"}})
-        quote = self._load_draft(payload.get("flow_token"))
+        # Meta retries the final screen when our answer is slow or lost. By then the first try has committed and the
+        # draft is no longer a draft, so that one screen (and only it) recognises its own finished submission.
+        final_screen = action == "data_exchange" and payload.get("screen") == "ADDRESS"
+        quote = self._load_draft(payload.get("flow_token"), also=SUBMITTED_BY_ADDRESS if final_screen else ())
         if quote is None:
             return FlowResult(STATUS_INVALID_TOKEN)
         self._flow_token = payload["flow_token"]
+        if quote.status != "draft":
+            self.db.rollback()  # nothing to change: hand back the same success the first try got
+            return self._success()
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         screen = payload.get("screen")
         if action == "INIT":
@@ -118,12 +127,12 @@ class FlowService:
         return result
 
     # --- the draft and who it belongs to -------------------------------------------------
-    def _load_draft(self, token: Any) -> Optional[Quote]:
+    def _load_draft(self, token: Any, also: tuple = ()) -> Optional[Quote]:
         draft_id = flow_token.verify(token, self.now)
         if draft_id is None:
             return None
         quote = (self.db.query(Quote).filter(Quote.id == draft_id).populate_existing().with_for_update().first())
-        if quote is None or quote.status != "draft":
+        if quote is None or quote.status not in ("draft", *also):
             self.db.rollback()
             return None
         self._contact = self.db.get(WhatsAppContact, quote.contact_id)
