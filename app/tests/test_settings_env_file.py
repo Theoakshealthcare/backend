@@ -50,3 +50,17 @@ def test_lockout_tiers_formats(required, monkeypatch, raw, expected):
 def test_cors_origins_formats(required, monkeypatch, raw):
     monkeypatch.setenv("BACKEND_CORS_ORIGINS", raw)
     Settings(_env_file=None)
+
+
+def test_unknown_env_file_key_fails_at_boot(required, tmp_path):
+    """A misspelled optional secret must not silently fall back to its default."""
+    env = tmp_path / ".env"
+    env.write_text("PAYSTACK_WEBHOOK_SECRT=typo\n")
+    with pytest.raises(Exception, match="PAYSTACK_WEBHOOK_SECRT"):
+        Settings(_env_file=env)
+
+
+def test_compose_only_redis_password_is_accepted(required, tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("REDIS_PASSWORD=x\n")
+    assert Settings(_env_file=env).REDIS_PASSWORD == "x"

@@ -20,7 +20,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # 7 days for refresh token
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    ALGORITHM: str = "HS256"
+    # Read by docker compose (Redis --requirepass) from the same env file. Declared so the file
+    # loads with extra="forbid"; the app itself only uses REDIS_URL.
+    REDIS_PASSWORD: Optional[str] = None
     # BACKEND_CORS_ORIGINS is a JSON-formatted list of origins
     # e.g: '["http://localhost", "http://localhost:4200", "http://localhost:3000"]'
     # NoDecode: pydantic-settings would JSON-decode a List env value before our validator runs and
@@ -197,9 +199,10 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
-        # The .env is shared with docker compose (REDIS_PASSWORD, ...); keys only compose reads must
-        # not stop the app from starting.
-        extra = "ignore"
+        # An unknown key in the env file fails at boot, so a misspelled optional secret (e.g. a
+        # webhook secret) can't silently fall back to its empty default. Keys only docker compose
+        # reads are declared above instead of ignored.
+        extra = "forbid"
         # OAKLY_ENV_FILE="" disables .env loading (the test suite relies on this so a
         # developer's real .env can never leak into tests).
         env_file = os.environ.get("OAKLY_ENV_FILE", ".env") or None
