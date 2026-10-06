@@ -69,7 +69,10 @@ class AdminUser(Base):
     # The last TOTP time step accepted for this admin; a code from this step or an earlier one is
     # refused, so a captured code cannot be replayed inside its 30-second window.
     mfa_last_step = Column(BigInteger, nullable=True)
+    # Wrong TOTP codes since the last lock. The password stage never touches this (see AdminRateLimit).
     failed_logins = Column(Integer, nullable=False, default=0)
+    # Consecutive MFA locks since the last successful sign-in; picks the next lock length.
+    mfa_lock_count = Column(Integer, nullable=False, default=0, server_default="0")
     locked_until = Column(DateTime, nullable=True)
     last_login_at = Column(DateTime, nullable=True)
     # Single-use invite: only the hash is stored, and it is cleared when the invite is accepted.
@@ -120,10 +123,18 @@ class AdminRefreshToken(Base):
 
 
 class AdminRateLimit(Base):
-    """Fixed-window counters for the admin auth endpoints, kept in Postgres (Redis is optional)."""
-    __tablename__ = "admin_rate_limits"
-    __table_args__ = (Index("ix_admin_rate_limits_window_start", "window_start"),)
+    """Counters for the admin auth endpoints, kept in Postgres (Redis is optional).
 
-    key = Column(String, primary_key=True)  # e.g. "login:ip:203.0.113.7"
+    Fixed-window rows (``login:ip:<ip>``): one row per window, ``count`` calls in it.
+    Backoff rows (``pw:<email-hash>:<ip>``, window_start = epoch): ``count`` consecutive failures
+    and ``blocked_until``; they expire by ``updated_at``. Consumed MFA token ids (``mfajti:<jti>``)
+    live here too, so a token works once.
+    """
+    __tablename__ = "admin_rate_limits"
+    __table_args__ = (Index("ix_admin_rate_limits_updated_at", "updated_at"),)
+
+    key = Column(String, primary_key=True)
     window_start = Column(DateTime, primary_key=True)
     count = Column(Integer, nullable=False, default=0)
+    blocked_until = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)

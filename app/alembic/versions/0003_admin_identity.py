@@ -113,6 +113,7 @@ def upgrade() -> None:
     sa.Column('mfa_enabled', sa.Boolean(), nullable=False),
     sa.Column('mfa_last_step', sa.BigInteger(), nullable=True),
     sa.Column('failed_logins', sa.Integer(), nullable=False),
+    sa.Column('mfa_lock_count', sa.Integer(), server_default='0', nullable=False),
     sa.Column('locked_until', sa.DateTime(), nullable=True),
     sa.Column('last_login_at', sa.DateTime(), nullable=True),
     sa.Column('invite_token_hash', sa.String(), nullable=True),
@@ -154,9 +155,11 @@ def upgrade() -> None:
     sa.Column('key', sa.String(), nullable=False),
     sa.Column('window_start', sa.DateTime(), nullable=False),
     sa.Column('count', sa.Integer(), nullable=False),
+    sa.Column('blocked_until', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('key', 'window_start')
     )
-    op.create_index('ix_admin_rate_limits_window_start', 'admin_rate_limits', ['window_start'], unique=False)
+    op.create_index('ix_admin_rate_limits_updated_at', 'admin_rate_limits', ['updated_at'], unique=False)
 
     # Seed roles and permissions.
     roles = sa.table('admin_roles', sa.column('id', sa.UUID()), sa.column('key', sa.String()), sa.column('name', sa.String()))
@@ -182,7 +185,7 @@ def downgrade() -> None:
             fk_name, table, 'users', [column], ['id'], postgresql_not_valid=(table == 'admin_audit_log')
         )
 
-    op.drop_index('ix_admin_rate_limits_window_start', table_name='admin_rate_limits')
+    op.drop_index('ix_admin_rate_limits_updated_at', table_name='admin_rate_limits')
     op.drop_table('admin_rate_limits')
     op.drop_index('ix_admin_refresh_tokens_family', table_name='admin_refresh_tokens')
     op.drop_index(op.f('ix_admin_refresh_tokens_admin_user_id'), table_name='admin_refresh_tokens')

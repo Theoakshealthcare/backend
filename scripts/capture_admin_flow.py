@@ -311,32 +311,75 @@ def run(args) -> None:
              note="db-simulated: the refresh token's expiry was moved into the past (the real idle window is 30 minutes).",
              json_body={"refresh_token": idle["refresh_token"]})
 
-    # --- 10. lockout (own account, own rate-limit window) -----------------------------------------------------------------------------
-    victim = admins.seed("lockme", "support", "Placeholder Locked")
+    # --- 10. password throttle (per email + IP, never a hard lock) -----------------------------------------------------------------
+    victim = admins.seed("throttled", "support", "Placeholder Throttled")
     wait_for_new_rate_window()
-    rec.quiet = True
-    for _ in range(9):
-        rec.call("lock-fail", "POST", f"{ADMIN}/auth/login", expect=401,
-                 json_body={"email": victim, "password": "wrong-password-123"})
-    rec.quiet = False
-    rec.call("login-failure-10", "POST", f"{ADMIN}/auth/login", expect=401, note="The 10th wrong password.",
-             json_body={"email": victim, "password": "wrong-password-123"})
-    rec.call("login-locked", "POST", f"{ADMIN}/auth/login", expect=423, note="The 11th attempt: the account is locked.",
-             json_body={"email": victim, "password": "wrong-password-123"})
-    rec.call("login-locked-correct-password", "POST", f"{ADMIN}/auth/login", expect=423,
-             note="The right password while locked is refused too.",
+    free = 5  # ADMIN_PASSWORD_FREE_ATTEMPTS default
+    for who, email in (("known", victim), ("unknown", admins.email("nobody-at-all"))):
+        rec.quiet = True
+        for _ in range(free - 1):
+            rec.call("throttle-fail", "POST", f"{ADMIN}/auth/login", expect=401,
+                     json_body={"email": email, "password": "wrong-password-123"})
+        rec.quiet = False
+        rec.call(f"login-failure-{free}-{who}-email", "POST", f"{ADMIN}/auth/login", expect=401,
+                 note=f"The {free}th wrong password for a {who} email: still 401.",
+                 json_body={"email": email, "password": "wrong-password-123"})
+        rec.call(f"login-throttled-{who}-email", "POST", f"{ADMIN}/auth/login", expect=429,
+                 note=f"Attempt {free + 1}: 429 with Retry-After. Identical for known and unknown emails.",
+                 json_body={"email": email, "password": "wrong-password-123"})
+    rec.call("login-throttled-correct-password", "POST", f"{ADMIN}/auth/login", expect=429,
+             note="The right password is refused too while throttled (the answer must not reveal it was right).",
              json_body={"email": victim, "password": PLACEHOLDER_PASSWORD})
 
-    # --- 11. per-IP rate limit ----------------------------------------------------------------------------------------------------------
+    # --- 11. MFA lock (password already proven, so this one is a hard lock) -------------------------------------------------------
+    locked = admins.seed("lockme", "support", "Placeholder Locked")
+    step1 = rec.call("lock-login", "POST", f"{ADMIN}/auth/login",
+                     json_body={"email": locked, "password": PLACEHOLDER_PASSWORD}).json()
+    rec.quiet = True
+    for _ in range(9):
+        rec.call("lock-fail", "POST", f"{ADMIN}/auth/mfa/verify", expect=401,
+                 json_body={"mfa_token": step1["mfa_token"], "code": "000000"})
+    rec.quiet = False
+    rec.call("mfa-failure-10", "POST", f"{ADMIN}/auth/mfa/verify", expect=401, note="The 10th wrong code.",
+             json_body={"mfa_token": step1["mfa_token"], "code": "000000"})
+    rec.call("mfa-locked", "POST", f"{ADMIN}/auth/mfa/verify", expect=423,
+             note="The 11th attempt: the account is locked (15 minutes the first time, then 1 hour, then 24 hours).",
+             json_body={"mfa_token": step1["mfa_token"], "code": "000000"})
+    rec.call("login-while-mfa-locked", "POST", f"{ADMIN}/auth/login", expect=423,
+             note="Only someone with the right password sees the lock.",
+             json_body={"email": locked, "password": PLACEHOLDER_PASSWORD})
+    rec.call("login-wrong-password-while-mfa-locked", "POST", f"{ADMIN}/auth/login", expect=401,
+             note="A wrong password cannot tell the account is locked.",
+             json_body={"email": locked, "password": "wrong-password-123"})
+
+    # --- 12. mfa_token is single use ------------------------------------------------------------------------------------------------
+    once_email = admins.seed("once", "support", "Placeholder Once")
+    once = rec.call("single-use-login", "POST", f"{ADMIN}/auth/login",
+                    json_body={"email": once_email, "password": PLACEHOLDER_PASSWORD}).json()
+    rec.call("single-use-verify", "POST", f"{ADMIN}/auth/mfa/verify",
+             json_body={"mfa_token": once["mfa_token"], "code": admins.code(once_email)})
+    rec.call("single-use-verify-again", "POST", f"{ADMIN}/auth/mfa/verify", expect=401,
+             note="The same mfa_token with a fresh valid code: refused. Sign in again from the password step.",
+             json_body={"mfa_token": once["mfa_token"], "code": admins.code(once_email)})
+
+    # --- 13. per-IP rate limit (login and verify; refresh is not in it) -------------------------------------------------------
+    wait_for_new_rate_window()
+    late = login_and_verify(rec, admins, "late", boss_email)
     wait_for_new_rate_window()
     rec.quiet = True
     limit = int(env.get("ADMIN_AUTH_IP_LIMIT", 30))
     for _ in range(limit):
-        rec.call("rate-fill", "POST", f"{ADMIN}/auth/refresh", expect=401, json_body={"refresh_token": "never-issued"})
+        rec.call("rate-fill", "POST", f"{ADMIN}/auth/mfa/verify", expect=401,
+                 json_body={"mfa_token": "never-issued", "code": "000000"})
     rec.quiet = False
-    rec.call("rate-limited", "POST", f"{ADMIN}/auth/refresh", expect=429,
+    rec.call("rate-limited", "POST", f"{ADMIN}/auth/mfa/verify", expect=429,
              note=f"Call number {limit + 1} from one IP inside one 60-second window.",
-             json_body={"refresh_token": "never-issued"})
+             json_body={"mfa_token": "never-issued", "code": "000000"})
+    rec.call("login-rate-limited", "POST", f"{ADMIN}/auth/login", expect=429,
+             json_body={"email": boss_email, "password": PLACEHOLDER_PASSWORD})
+    rec.call("refresh-while-ip-limited", "POST", f"{ADMIN}/auth/refresh",
+             note="Refresh is not part of the per-IP limit: it still works while login and verify are limited.",
+             json_body={"refresh_token": late["refresh_token"]})
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")

@@ -190,11 +190,11 @@ def test_concurrent_submissions_of_one_code_log_in_once(db, admin_clock):
     admin = make_admin(db)
     secret = admin_totp_secret(admin)
     code = admin_clock.code(secret)
-    mfa_token = create_admin_token(admin.id, "mfa", timedelta(minutes=5))
+    mfa_tokens = [create_admin_token(admin.id, "mfa", timedelta(minutes=5)) for _ in range(2)]
     barrier = threading.Barrier(2)
     results = []
 
-    def attempt():
+    def attempt(mfa_token):
         session = SessionLocal()
         try:
             barrier.wait()
@@ -205,7 +205,7 @@ def test_concurrent_submissions_of_one_code_log_in_once(db, admin_clock):
         finally:
             session.close()
 
-    threads = [threading.Thread(target=attempt) for _ in range(2)]
+    threads = [threading.Thread(target=attempt, args=(t,)) for t in mfa_tokens]
     [t.start() for t in threads]
     [t.join() for t in threads]
     assert sorted(results) == ["ok", "refused"]
@@ -455,33 +455,37 @@ def test_disabled_admin_cannot_refresh(db, client, admin_clock):
 # --- lockout and rate limits -------------------------------------------------------------------
 
 
-def test_ten_failures_lock_the_account(db, client):
+def test_ten_code_failures_lock_the_account(db, client, admin_clock):
     admin = make_admin(db)
+    token = _login(client, admin).json()["mfa_token"]
     for i in range(settings.ADMIN_MAX_FAILED_LOGINS):
-        r = _login(client, admin, "wrong-password-123")
-        assert r.status_code == 401, i
+        assert client.post(VERIFY, json={"mfa_token": token, "code": "000000"}).status_code == 401, i
 
-    locked = _login(client, admin, "wrong-password-123")
+    locked = client.post(VERIFY, json={"mfa_token": token, "code": "000000"})
     assert locked.status_code == 423
     assert locked.json() == {"detail": "Account temporarily locked. Try again later."}
     retry = int(locked.headers["Retry-After"])
-    assert 0 < retry <= settings.ADMIN_LOCKOUT_MINUTES * 60
+    assert 0 < retry <= settings.ADMIN_LOCKOUT_TIERS_MINUTES[0] * 60
 
-    # the right password does not get in while locked
+    # the right password and the right code do not get in while locked
     assert _login(client, admin).status_code == 423
+    r = client.post(VERIFY, json={"mfa_token": token, "code": admin_clock.code(admin_totp_secret(admin))})
+    assert r.status_code == 423
     assert "admin.locked" in [a.action for a in db.scalars(select(AdminAuditLog))]
 
 
 def test_lock_expires_and_a_good_login_clears_the_counter(db, client, admin_clock):
     admin = make_admin(db)
+    token = _login(client, admin).json()["mfa_token"]
     for _ in range(settings.ADMIN_MAX_FAILED_LOGINS + 1):
-        _login(client, admin, "wrong-password-123")
+        client.post(VERIFY, json={"mfa_token": token, "code": "000000"})
     row = _fresh(db, admin)
     row.locked_until = datetime.utcnow() - timedelta(seconds=1)
     db.commit()
 
+    token = _login(client, admin).json()["mfa_token"]
     for _ in range(3):
-        _login(client, admin, "wrong-password-123")
+        client.post(VERIFY, json={"mfa_token": token, "code": "000000"})
     assert _fresh(db, admin).failed_logins == 3
     admin_login(client, admin_clock, admin)
     after = _fresh(db, admin)
@@ -508,8 +512,9 @@ def test_a_correct_password_does_not_reset_mfa_guessing(db, client):
 
 def test_locking_one_account_does_not_lock_another(db, client):
     a, b = make_admin(db), make_admin(db)
+    token = _login(client, a).json()["mfa_token"]
     for _ in range(settings.ADMIN_MAX_FAILED_LOGINS + 1):
-        _login(client, a, "wrong-password-123")
+        client.post(VERIFY, json={"mfa_token": token, "code": "000000"})
     assert _login(client, a).status_code == 423
     assert _login(client, b).status_code == 200
 
@@ -524,24 +529,25 @@ def test_per_ip_rate_limit(db, client, monkeypatch):
     assert r.status_code == 429
     assert r.json() == {"detail": "Too many requests. Try again later."}
     assert 1 <= int(r.headers["Retry-After"]) <= settings.ADMIN_AUTH_IP_WINDOW_SECONDS + 1
-    # throttled calls never reached the password check, so they did not add failures
-    assert _fresh(db, admin).failed_logins == 5
 
 
-def test_rate_limit_also_covers_verify_and_refresh(db, client, monkeypatch):
+def test_rate_limit_covers_login_and_verify_but_not_refresh(db, client, monkeypatch):
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 2)
-    assert client.post(REFRESH, json={"refresh_token": "x"}).status_code == 401
-    assert client.post(REFRESH, json={"refresh_token": "x"}).status_code == 401
-    assert client.post(REFRESH, json={"refresh_token": "x"}).status_code == 429
+    assert client.post(VERIFY, json={"mfa_token": "x", "code": "000000"}).status_code == 401
+    assert client.post(VERIFY, json={"mfa_token": "x", "code": "000000"}).status_code == 401
     assert client.post(VERIFY, json={"mfa_token": "x", "code": "000000"}).status_code == 429
+    assert _login(client, make_admin(db, password=None)).status_code == 429
+    for _ in range(4):
+        assert client.post(REFRESH, json={"refresh_token": "x"}).status_code == 401
 
 
 def test_rate_limit_window_rolls_over(db, client, monkeypatch):
     from sqlalchemy import text
 
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 1)
-    client.post(REFRESH, json={"refresh_token": "x"})
-    assert client.post(REFRESH, json={"refresh_token": "x"}).status_code == 429
+    verify = {"mfa_token": "x", "code": "000000"}
+    client.post(VERIFY, json=verify)
+    assert client.post(VERIFY, json=verify).status_code == 429
     db.execute(text("UPDATE admin_rate_limits SET window_start = window_start - interval '1 hour'"))
     db.commit()
-    assert client.post(REFRESH, json={"refresh_token": "x"}).status_code == 401
+    assert client.post(VERIFY, json=verify).status_code == 401

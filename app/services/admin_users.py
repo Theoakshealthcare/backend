@@ -154,6 +154,7 @@ class AdminUserService:
         admin.mfa_last_step = None
         # also lifts a lockout: this is the recovery path for an admin who lost their device
         admin.failed_logins = 0
+        admin.mfa_lock_count = 0
         admin.locked_until = None
         revoke_all_sessions(self.db, admin.id)
         self.audit.record(admin_user_id=actor.id, action="admin.reset_mfa", entity_type="admin_user",

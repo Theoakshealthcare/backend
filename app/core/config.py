@@ -103,10 +103,27 @@ class Settings(BaseSettings):
     ADMIN_IDLE_TIMEOUT_MINUTES: int = 30  # a refresh token not used within this window dies
     ADMIN_SESSION_MAX_HOURS: int = 12  # absolute cap on one login session, however active
     ADMIN_INVITE_HOURS: int = 48
-    ADMIN_MAX_FAILED_LOGINS: int = 10  # password or MFA failures before the account locks
-    ADMIN_LOCKOUT_MINUTES: int = 15
-    ADMIN_AUTH_IP_LIMIT: int = 30  # login/MFA/refresh/invite calls per IP per window
+    ADMIN_MAX_FAILED_LOGINS: int = 10  # wrong TOTP codes (password already proven) before the account locks
+    # Lock length per consecutive lock; the last entry repeats. Resets on a successful MFA.
+    ADMIN_LOCKOUT_TIERS_MINUTES: List[int] = [15, 60, 1440]
+    # Password stage: per (email, client IP), never a hard lock. After this many failures every
+    # attempt is answered 429 for a wait that doubles with each further failure, up to the cap.
+    ADMIN_PASSWORD_FREE_ATTEMPTS: int = 5
+    ADMIN_PASSWORD_BACKOFF_SECONDS: int = 30
+    ADMIN_PASSWORD_BACKOFF_MAX_SECONDS: int = 900
+    ADMIN_AUTH_IP_LIMIT: int = 30  # login/MFA/invite calls per client IP per window
     ADMIN_AUTH_IP_WINDOW_SECONDS: int = 60
+    # Reverse proxies whose X-Forwarded-For is believed (CIDRs or addresses, comma-separated or
+    # JSON list). Empty = trust nobody: the client IP is the direct peer.
+    TRUSTED_PROXIES: List[str] = []
+
+    @validator("TRUSTED_PROXIES", pre=True)
+    def assemble_trusted_proxies(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+        if isinstance(v, str):
+            if v.strip().startswith("["):
+                return json.loads(v)
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
     ADMIN_TOTP_ISSUER: str = "Oakly Admin"
 
     # Frontend URL for payment callbacks
