@@ -9,11 +9,16 @@ services:
     env_file: ${OAKLY_ENV_FILE_PATH:-/etc/oakly/backend.env}
     environment:
       ENVIRONMENT: production
+      # The WhatsApp webhook enqueues inbound messages for the worker, so the API needs Redis too.
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379/0
     ports:
       - "127.0.0.1:8000:8000"  # behind the reverse proxy; not exposed publicly
     volumes:
       - private_uploads:/app/private_uploads
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
       interval: 30s

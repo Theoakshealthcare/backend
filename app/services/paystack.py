@@ -6,8 +6,27 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from app.core.config import settings
+from app.core.phone import contact_ref
 
 REQUEST_TIMEOUT_SECONDS = 15  # Assume you have Paystack keys in settings
+
+
+PAYSTACK_PLACEHOLDER_DOMAIN = "pay.oaklycare.com"
+
+
+def paystack_email_for(user: Any) -> str:
+    """The address to hand Paystack for a payer (``user`` is a User or a Patient). Paystack insists on an
+    email; a phone-only (WhatsApp) payer has none, so they get a deterministic non-deliverable one derived
+    from the keyed contact ref: stable per person (their payments group together), and the phone number
+    never goes to a third party in the clear."""
+    if getattr(user, "email", None):
+        return user.email
+    digits = "".join(ch for ch in (getattr(user, "phone_number", None) or "") if ch.isdigit())
+    if not digits:
+        raise ValueError("a payer needs an email or a phone number")
+    if digits.startswith("0"):
+        digits = "234" + digits[1:]  # a national-format Nigerian number
+    return f"wa-{contact_ref(digits)}@{PAYSTACK_PLACEHOLDER_DOMAIN}"
 
 
 class PaystackService:

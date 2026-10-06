@@ -16,7 +16,7 @@ class Patient(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
     
     # Basic Information
-    email = Column(String, nullable=False)
+    email = Column(String, nullable=True)  # NULL for phone-first (WhatsApp) patients
     full_name = Column(String, nullable=False)
     phone_number = Column(String, nullable=True)
     date_of_birth = Column(Date, nullable=True)

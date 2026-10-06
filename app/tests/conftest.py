@@ -75,6 +75,9 @@ def _clean_tables(_schema):
         if t.name not in ("admin_roles", "admin_role_permissions")
     )
     with engine.begin() as conn:
+        # Append-only tables (consents) refuse TRUNCATE by trigger; the test teardown is the one place
+        # that may bypass it, for this transaction only (replica role skips triggers).
+        conn.execute(text("SET LOCAL session_replication_role = replica"))
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
 
 

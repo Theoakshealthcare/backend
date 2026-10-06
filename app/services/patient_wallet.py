@@ -15,7 +15,7 @@ from app.schemas.patient import (
     PaymentVerificationResponse
 )
 from app.core.money import kobo_to_naira, to_kobo
-from app.services.paystack import PaystackService
+from app.services.paystack import PaystackService, paystack_email_for
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class PatientWalletService:
         
         # Initialize Paystack transaction
         paystack_response = self.paystack.initialize_transaction(
-            email=patient.email,
+            email=paystack_email_for(patient),
             amount_kobo=amount_kobo,
             reference=reference,
             callback_url=callback_url,

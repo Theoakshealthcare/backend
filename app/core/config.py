@@ -126,6 +126,24 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",") if i.strip()]
         return v
     ADMIN_TOTP_ISSUER: str = "Oakly Admin"
+    # WhatsApp patient channel (Meta Cloud API). See docs/sop/2026-10-06-whatsapp-foundations.md.
+    # An empty app secret or verify token makes the webhook refuse every request (fail closed).
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_APP_SECRET: str = ""
+    WHATSAPP_VERIFY_TOKEN: str = ""
+    WHATSAPP_GRAPH_URL: str = "https://graph.facebook.com"  # tests and the local e2e point this at a fake
+    WHATSAPP_GRAPH_VERSION: str = "v23.0"  # check Meta's changelog before launch; old versions are retired
+    WHATSAPP_HTTP_TIMEOUT_SECONDS: float = 5
+    WHATSAPP_MAX_SEND_ATTEMPTS: int = 3  # per message, including the first try
+    WHATSAPP_RETRY_BACKOFF_SECONDS: float = 0.5  # doubles each retry; Retry-After wins when Meta sends it
+    WHATSAPP_POLICY_VERSION: str = "2026-10-01"  # recorded on every consent; bump when the notice changes
+    WHATSAPP_PRIVACY_POLICY_URL: str = "https://www.oaklycare.com/privacy"
+    # Comma-separated numbers shown in the emergency reply. 112 is the national emergency number; add the
+    # state-specific lines only after they are verified (PRD WA-FR-40).
+    WHATSAPP_BODY_TTL_SECONDS: int = 21600  # how long a queued message body may wait for a worker (6 h)
+    WHATSAPP_EMERGENCY_NUMBERS: str = "112"
+    WHATSAPP_SUPPORT_PHONE: str = ""  # optional phone line offered when someone declines consent
 
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"
