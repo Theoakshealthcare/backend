@@ -15,7 +15,7 @@ from arq.connections import RedisSettings
 from sqlalchemy.orm import Session
 
 from app.channels.whatsapp.processor import process_inbound
-from app.channels.whatsapp.queue import BODY_TTL_SECONDS, body_key
+from app.channels.whatsapp.queue import body_key
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.booking_expiry import expire_unpaid_bookings
@@ -57,17 +57,16 @@ async def process_whatsapp_inbound_job(ctx: dict, job: dict) -> None:
     redis = ctx["redis"]
     key = body_key(job["meta_message_id"])
     raw = await redis.get(key)
-    if raw is None:
-        logger.warning("whatsapp inbound %s has no body key (expired?); handled as unreadable media",
-                       job["meta_message_id"])
-    full = {**job, **(json.loads(raw) if raw else {"type": None})}
+    # A missing key is not "no text": the processor decides (expired, or a race with an older job) and never
+    # treats the message as having been read.
+    full = {**job, **(json.loads(raw) if raw else {"body_missing": True})}
     tries = ctx.get("job_try", 1)
     try:
         await asyncio.to_thread(_run_with_session, lambda db: process_inbound(db, full))
     except Exception:
         logger.exception("process_whatsapp_inbound_job failed (try %d of %d)", tries, WorkerSettings.max_tries)
         if tries < WorkerSettings.max_tries:
-            await redis.expire(key, BODY_TTL_SECONDS)
+            await redis.expire(key, settings.WHATSAPP_BODY_TTL_SECONDS)
             raise Retry(defer=WHATSAPP_RETRY_BASE_SECONDS * tries * tries)
         await redis.delete(key)
         raise

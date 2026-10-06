@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from app.db.base import Base
 
 CONVERSATION_STATES = ("new", "consent_pending", "declined", "idle", "human", "emergency")
-MESSAGE_STATUSES = ("received", "sent", "delivered", "read", "failed")
+MESSAGE_STATUSES = ("received", "sent", "delivered", "read", "failed", "body_lost")
 
 
 class WhatsAppContact(Base):

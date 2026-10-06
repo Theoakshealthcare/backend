@@ -141,6 +141,7 @@ class Settings(BaseSettings):
     WHATSAPP_PRIVACY_POLICY_URL: str = "https://www.oaklycare.com/privacy"
     # Comma-separated numbers shown in the emergency reply. 112 is the national emergency number; add the
     # state-specific lines only after they are verified (PRD WA-FR-40).
+    WHATSAPP_BODY_TTL_SECONDS: int = 21600  # how long a queued message body may wait for a worker (6 h)
     WHATSAPP_EMERGENCY_NUMBERS: str = "112"
     WHATSAPP_SUPPORT_PHONE: str = ""  # optional phone line offered when someone declines consent
 

@@ -8,7 +8,7 @@ Where the message text lives (WA-NFR-6: no message body at rest)
 - ARQ keeps a job's arguments in Redis while it is queued and, by default, for an hour afterwards in the
   result record, and it logs them when the job starts. So the ARQ job carries ONLY the Meta message id.
 - The text (or media caption), the interactive reply id and the message type go in a separate key,
-  ``wa:inbound-body:<meta id>``, with a short TTL. The worker reads it, and deletes it when the job is
+  ``wa:inbound-body:<meta id>``, with a TTL of hours (``WHATSAPP_BODY_TTL_SECONDS``, 6 h: it must outlive a worker outage). The worker reads it, and deletes it when the job is
   finished for good (done, or out of tries). A retry keeps it, and refreshes the TTL.
 - Results are not kept (``keep_result=0``), so nothing about the message remains once it is processed. The
   database row is the one record that the message was seen, and the one dedupe that matters.
@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 JOB_NAME = "process_whatsapp_inbound_job"
 BODY_KEY_PREFIX = "wa:inbound-body:"
-BODY_TTL_SECONDS = 300  # the full retry schedule is ~150 s; a retry also refreshes the TTL
 BODY_FIELDS = ("type", "text", "reply_id", "interactive_type")
 
 
@@ -62,7 +61,7 @@ class ArqInboundQueue:
         meta_message_id = job["meta_message_id"]
         key = body_key(meta_message_id)
         body: Dict[str, Any] = {field: job.get(field) for field in BODY_FIELDS}
-        await pool.set(key, json.dumps(body), ex=BODY_TTL_SECONDS)
+        await pool.set(key, json.dumps(body), ex=settings.WHATSAPP_BODY_TTL_SECONDS)
         try:
             # _job_id makes ARQ itself refuse a second job for the same Meta message id. With results not
             # kept, an id is only "taken" while a job is queued or running, never after it finished.
@@ -74,7 +73,7 @@ class ArqInboundQueue:
         if queued is None:
             # An earlier (possibly half-failed) attempt's job is still there. Do not claim success: the
             # endpoint answers 503 and forgets the row, and Meta's next retry is queued once that job is gone.
-            await self._discard(pool, key)
+            # The body key stays: that older job reads it, and the worker deletes it when it finishes.
             raise QueueRefused(f"a job for {meta_message_id} is already queued")
 
     @staticmethod

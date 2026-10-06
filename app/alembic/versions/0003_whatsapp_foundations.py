@@ -84,7 +84,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.CheckConstraint("direction IN ('inbound', 'outbound')", name='ck_whatsapp_messages_direction'),
-    sa.CheckConstraint("status IN ('received', 'sent', 'delivered', 'read', 'failed')", name='ck_whatsapp_messages_status'),
+    sa.CheckConstraint("status IN ('received', 'sent', 'delivered', 'read', 'failed', 'body_lost')", name='ck_whatsapp_messages_status'),
     sa.ForeignKeyConstraint(['contact_id'], ['whatsapp_contacts.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('meta_message_id')

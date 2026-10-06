@@ -117,7 +117,7 @@ def test_no_message_body_survives_in_redis_results_or_logs(db, fake_meta, redis_
     while_queued, ttl, after = asyncio.run(run())
 
     holders = [k for k, v in while_queued.items() if SENTINEL.encode() in v]
-    assert holders == ["wa:inbound-body:wamid.PRIV1"] and 0 < ttl <= 300
+    assert holders == ["wa:inbound-body:wamid.PRIV1"] and 0 < ttl <= settings.WHATSAPP_BODY_TTL_SECONDS
     assert not any(wa_id.encode() in v or b"Sentinel Name" in v for v in while_queued.values()
                    ), "the job on the queue must not carry the phone number or the profile name"
 
@@ -161,26 +161,86 @@ def test_a_job_that_fails_every_try_leaves_no_body_and_no_result_behind(db, fake
     assert not [k for k in after if k.startswith(("wa:inbound-body:", "arq:result:", "arq:job:"))], list(after)
 
 
-def test_an_expired_body_is_handled_not_crashed_on(db, fake_meta, redis_url, monkeypatch):
-    from app.channels.whatsapp.queue import ArqInboundQueue
-
-    monkeypatch.setattr(settings, "REDIS_URL", redis_url)
-    job = _ingest_one(db, make_wa_id(), "hello", "wamid.GONE1")
+def _queue_without_body(redis_url, meta_id):
+    from app.channels.whatsapp.queue import JOB_NAME, ArqInboundQueue
 
     async def run():
         queue = ArqInboundQueue()
         pool = await queue._get_pool()
-        from app.channels.whatsapp.queue import JOB_NAME
-
-        await pool.enqueue_job(JOB_NAME, {"meta_message_id": job["meta_message_id"]}, _job_id="wa:wamid.GONE1")
+        await pool.enqueue_job(JOB_NAME, {"meta_message_id": meta_id}, _job_id=f"wa:{meta_id}")
         try:
             return (await _run_worker(redis_url)).jobs_failed
         finally:
             await queue._pool.aclose()
 
-    assert asyncio.run(run()) == 0
+    return asyncio.run(run())
+
+
+def test_the_body_ttl_is_hours_not_minutes():
+    assert settings.WHATSAPP_BODY_TTL_SECONDS == 21600
+
+
+def test_a_young_row_with_no_body_key_is_skipped_unclaimed(db, fake_meta, redis_url, monkeypatch):
+    """The race: an older half-failed job runs while the retry's row exists but its key is gone."""
+    monkeypatch.setattr(settings, "REDIS_URL", redis_url)
+    job = _ingest_one(db, make_wa_id(), "chest pain", "wamid.YOUNG1")
+    assert _queue_without_body(redis_url, job["meta_message_id"]) == 0
     db.expire_all()
-    assert db.query(WhatsAppMessage).filter_by(meta_message_id="wamid.GONE1").one().processed_at is not None
+    row = db.query(WhatsAppMessage).filter_by(meta_message_id="wamid.YOUNG1").one()
+    assert row.processed_at is None and row.status == "received" and not fake_meta.bodies
+
+
+def test_an_expired_body_asks_to_resend_and_is_not_a_miss_even_for_an_emergency_text(
+        db, fake_meta, redis_url, monkeypatch, caplog):
+    from datetime import datetime, timedelta
+
+    from app.core.phone import contact_ref
+
+    monkeypatch.setattr(settings, "REDIS_URL", redis_url)
+    wa_id = make_wa_id()
+    job = _ingest_one(db, wa_id, "chest pain", "wamid.GONE1")
+    row = db.query(WhatsAppMessage).filter_by(meta_message_id="wamid.GONE1").one()
+    row.created_at = datetime.utcnow() - timedelta(seconds=settings.WHATSAPP_BODY_TTL_SECONDS + 60)
+    db.commit()
+    assert _queue_without_body(redis_url, job["meta_message_id"]) == 0
+    db.expire_all()
+    row = db.query(WhatsAppMessage).filter_by(meta_message_id="wamid.GONE1").one()
+    assert row.status == "body_lost"
+    assert len(fake_meta.bodies) == 1 and "send it again" in fake_meta.bodies[0]["text"]["body"]
+    assert "only read text" not in fake_meta.bodies[0]["text"]["body"]
+    conversation = db.query(WhatsAppConversation).one()
+    assert conversation.state == "new" and (conversation.context or {}).get("misses", 0) == 0
+    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+    assert any(contact_ref(wa_id) in e for e in errors) and not any(wa_id in e for e in errors)
+
+
+def test_a_refused_duplicate_enqueue_keeps_the_body_so_the_older_job_still_works(db, fake_meta, redis_url, monkeypatch):
+    """The race fix: QueueRefused must not delete the body key an older queued job is going to read."""
+    from redis.asyncio import Redis
+
+    from app.channels.whatsapp.queue import ArqInboundQueue, QueueRefused
+
+    monkeypatch.setattr(settings, "REDIS_URL", redis_url)
+    job = _ingest_one(db, make_wa_id(), "my mother cannot breathe", "wamid.RACE1")
+
+    async def run():
+        queue = ArqInboundQueue()
+        await queue.enqueue(job)
+        with pytest.raises(QueueRefused):
+            await queue.enqueue(job)
+        client = Redis.from_url(redis_url)
+        kept = await client.exists("wa:inbound-body:wamid.RACE1")
+        await client.aclose()
+        try:
+            await _run_worker(redis_url)
+        finally:
+            await queue._pool.aclose()
+        return kept
+
+    assert asyncio.run(run()) == 1
+    db.expire_all()
+    assert db.query(WhatsAppConversation).one().state == "emergency"
+    assert len(fake_meta.bodies) == 1 and "112" in fake_meta.bodies[0]["text"]["body"]
 
 
 def test_enqueue_that_writes_then_raises_is_retried_and_processed_exactly_once(db, fake_meta, redis_url, monkeypatch):

@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.channels.whatsapp import copy
 from app.channels.whatsapp.engine import (
     PAUSED_STATES, EngineConfig, Inbound, Kind, OpenTicket, RecordConsent, SetOptOut, Snapshot, State, step,
 )
@@ -111,6 +112,37 @@ def _escalate_failed_emergency_reply(db: Session, contact: WhatsAppContact) -> N
     logger.error("whatsapp EMERGENCY reply could not be delivered to contact %s: a person must reach out", ref)
 
 
+CONTENT_TYPES = ("text", "interactive", "image", "video", "document")  # their body key holds what was said
+
+
+def _handle_missing_body(db: Session, message: WhatsAppMessage, job: Dict[str, Any]):
+    """The body key is gone. Returns None when the message needs no body (carry on), otherwise a
+    ``(contact, replies, emergency)`` result (no replies = skip).
+
+    - Row younger than the TTL: the key was removed by a race with an older job. Skip WITHOUT claiming the
+      row; the retry that owns it carries the text.
+    - Row older than the TTL: the key genuinely expired (worker outage). The message was never read: mark it
+      ``body_lost`` (not processed-with-content), ask the person to send it again, change nothing else, count
+      no miss. Whatever it said may have been an emergency, so this is logged at ERROR.
+    """
+    if message.type not in CONTENT_TYPES:
+        return None
+    age = (datetime.utcnow() - message.created_at).total_seconds()
+    if age <= settings.WHATSAPP_BODY_TTL_SECONDS:
+        logger.warning("whatsapp inbound %s has no body key yet the row is young; skipped unclaimed", _short(job))
+        db.rollback()
+        return (None, [], False)
+    contact = db.query(WhatsAppContact).filter_by(id=message.contact_id).populate_existing().one()
+    message.status = "body_lost"
+    message.processed_at = datetime.utcnow()
+    db.commit()
+    logger.error("whatsapp inbound %s from contact %s lost its body (expired before a worker read it); "
+                 "asking to resend", _short(job), contact_ref(contact.wa_id))
+    if contact.blocked:
+        return (None, [], False)
+    return (contact, [copy.text(contact.language, "resend_body")], False)
+
+
 def _is_emergency_input(inbound: Inbound) -> bool:
     return inbound.kind in (Kind.TEXT, Kind.MEDIA) and bool(inbound.body) and is_emergency(inbound.body)
 
@@ -132,6 +164,12 @@ def _apply(db: Session, job: Dict[str, Any]) -> Optional[Tuple[WhatsAppContact, 
     if message.processed_at is not None:
         db.rollback()
         return None
+
+    if job.get("body_missing"):
+        lost = _handle_missing_body(db, message, job)
+        if lost is not None:
+            return lost if lost[1] else None
+        job = {**job, "type": message.type}  # nothing to read in this kind of message: carry on from the row
 
     contact = db.query(WhatsAppContact).filter_by(id=message.contact_id).populate_existing().one()
     conversation = (

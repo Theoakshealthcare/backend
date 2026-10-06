@@ -42,6 +42,7 @@ STRINGS = {
             "Reply STOP to stop messages, or STOP DATA to withdraw your consent."
         ),
         "miss_body": "Sorry, I didn't catch that. Please choose from the menu.",
+        "resend_body": "Sorry, we couldn't read your last message. Please send it again.",
         "miss_media_body": "I can only read text and buttons. Please choose from the menu.",
         "handover_body": "I'm connecting you with a member of our team. They will reply here as soon as they can.",
         "two_misses_body": (
