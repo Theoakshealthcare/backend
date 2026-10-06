@@ -273,7 +273,8 @@ class BookingService:
             "access_code": payment_response.get("access_code")
         }
 
-    def smart_caregiver_matching(self, booking: Booking, now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    def smart_caregiver_matching(self, booking: Booking, now: Optional[datetime] = None,
+                                 radius_km: Optional[float] = None) -> List[Dict[str, Any]]:
         """Uber-like smart matching algorithm considering multiple factors.
 
         Eligibility (approved, not suspended, skill for the service type, fresh available
@@ -283,7 +284,7 @@ class BookingService:
         # Get enhanced caregivers with ETA and scoring
         base_caregivers = self.location_service.get_nearby_active_caregivers_with_eta(
             booking.patient_latitude, booking.patient_longitude,
-            radius_km=app_settings.MATCH_RADIUS_KM,
+            radius_km=radius_km if radius_km is not None else app_settings.MATCH_RADIUS_KM,
             service_type=booking.service_type,
             now=now,
         )

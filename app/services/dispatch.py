@@ -47,9 +47,11 @@ MATCHED = "matched"
 UNMATCHED = "unmatched"
 
 
-def find_candidates(db: Session, booking: Booking, now: Optional[datetime] = None) -> List[Dict[str, Any]]:
-    """Everyone eligible for the booking right now, best match first."""
-    return BookingService(db).smart_caregiver_matching(booking, now=now)
+def find_candidates(db: Session, booking: Booking, now: Optional[datetime] = None,
+                    radius_km: Optional[float] = None) -> List[Dict[str, Any]]:
+    """Everyone eligible for the booking right now, best match first. ``radius_km`` widens the search
+    (an admin re-dispatch); the default is MATCH_RADIUS_KM."""
+    return BookingService(db).smart_caregiver_matching(booking, now=now, radius_km=radius_km)
 
 
 def _lock(db: Session, booking_id: uuid.UUID, skip_locked: bool = False) -> Optional[Booking]:
@@ -81,25 +83,38 @@ def _mark_unmatched(booking: Booking, reason: str, wave_count: int) -> None:
 
 
 def _send_wave(db: Session, booking: Booking, wave_no: int, now: datetime,
-               offers: Optional[List[Dict[str, Any]]] = None) -> bool:
+               offers: Optional[List[Dict[str, Any]]] = None, *,
+               radius_km: Optional[float] = None, renotify: bool = False) -> bool:
     """Notify the next batch of candidates. False when there is nobody left to notify.
+
+    ``radius_km`` and ``renotify`` are for an admin re-dispatch: a wider search, and offering again to
+    caregivers an earlier wave already notified (their old notification is reset instead of duplicated).
 
     When ``offers`` is given, the pushes this wave owes are appended to it. They are only sent once
     the caller's transaction is done (see _push_offers), never from inside it.
     """
-    already = {
+    already = set() if renotify else {
         cid
         for (ids,) in db.query(BookingDispatchWave.notified_caregiver_ids).filter(
             BookingDispatchWave.booking_id == booking.id
         )
         for cid in ids
     }
-    chosen = [c for c in find_candidates(db, booking, now) if c["caregiver_id"] not in already]
+    chosen = [c for c in find_candidates(db, booking, now, radius_km) if c["caregiver_id"] not in already]
     chosen = chosen[: settings.DISPATCH_WAVE_SIZE]
     if not chosen:
         return False
 
+    existing = {
+        n.caregiver_id: n
+        for n in db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id)
+    } if renotify else {}
     for c in chosen:
+        previous = existing.get(c["caregiver_id"])
+        if previous is not None:
+            previous.response = None
+            previous.response_at = None
+            continue
         db.add(BookingNotification(
             booking_id=booking.id,
             caregiver_id=c["caregiver_id"],
@@ -249,3 +264,9 @@ def dispatch_tick(db: Session, now: Optional[datetime] = None) -> int:
             continue
         _push_offers(db, offers)
     return advanced
+
+
+# Public names for the admin re-dispatch (app.services.admin_bookings), which runs these under its own lock.
+lock_booking = _lock
+send_wave = _send_wave
+push_offers = _push_offers

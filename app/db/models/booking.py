@@ -91,6 +91,10 @@ class Booking(Base):
     refund_required = Column(Boolean, nullable=False, default=False, server_default=expression.false())
     refund_required_reason = Column(Text, nullable=True)  # paid_after_expiry | paid_after_cancellation
 
+    # An admin flagged the assigned caregiver as a no-show (AD-FR-26). Cleared when the booking is reassigned.
+    no_show_flagged_at = Column(DateTime, nullable=True)
+    no_show_flagged_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
+
     # Dispatch to caregivers, separate from `status` so client enums don't change.
     # NULL = not dispatched (unpaid, or paid before dispatch waves existed).
     dispatch_state = Column(String, nullable=True)  # dispatching | matched | unmatched
