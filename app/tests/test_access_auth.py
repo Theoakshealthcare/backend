@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from jose import jwt
+import jwt
 
 from app.core.config import settings
 from app.tests.factories import (

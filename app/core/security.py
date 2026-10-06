@@ -1,9 +1,9 @@
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Union
 
-from jose import jwt
+import jwt
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher
 from cryptography.fernet import Fernet, MultiFernet
@@ -51,43 +51,48 @@ def rotate_ciphertext(value: str) -> str:
     return fernet.rotate(value.encode()).decode()
 
 
+def _create_token(subject: Union[str, Any], token_type: str, expires_in: timedelta) -> str:
+    claims = {"exp": datetime.now(timezone.utc) + expires_in, "sub": str(subject), "type": token_type}
+    return jwt.encode(claims, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_app_token(token: str, expected_type: str) -> dict:
+    """Verify an app-user token and return its claims; raises ``jwt.PyJWTError`` on any problem.
+
+    HS256 only; ``exp``, ``sub`` and ``type`` are required. No audience is passed, so PyJWT refuses
+    any token that carries ``aud`` -- that is what keeps admin tokens (aud="admin") off app routes.
+    """
+    payload = jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[ALGORITHM],
+        options={"require": ["exp", "sub", "type"]},
+    )
+    if payload["type"] != expected_type:
+        raise jwt.InvalidTokenError("wrong token type")
+    return payload
+
+
 def create_access_token(
     subject: Union[str, Any], expires_delta: Optional[timedelta] = None
 ) -> str:
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+    return _create_token(
+        subject, "access", expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
 
 
 def create_refresh_token(
     subject: Union[str, Any], expires_delta: Optional[timedelta] = None
 ) -> str:
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-        )
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+    return _create_token(
+        subject, "refresh", expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    )
 
 
 def verify_refresh_token(token: str) -> Optional[str]:
     try:
-        decoded_token = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        if decoded_token.get("type") != "refresh":
-            return None
-        return decoded_token["sub"]
-    except jwt.JWTError:
+        return decode_app_token(token, "refresh")["sub"]
+    except jwt.PyJWTError:
         return None
 
 
@@ -105,23 +110,11 @@ def generate_otp(length: int = 5) -> str:
 
 
 def generate_password_reset_token(email: str) -> str:
-    delta = timedelta(hours=settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS)
-    now = datetime.utcnow()
-    expires = now + delta
-    exp = expires.timestamp()
-    encoded_jwt = jwt.encode(
-        {"exp": exp, "nbf": now, "sub": email},
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
-    )
-    return encoded_jwt
+    return _create_token(email, "password_reset", timedelta(hours=settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS))
 
 
 def verify_password_reset_token(token: str) -> Optional[str]:
     try:
-        decoded_token = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        return decoded_token["sub"]
-    except jwt.JWTError:
+        return decode_app_token(token, "password_reset")["sub"]
+    except jwt.PyJWTError:
         return None
