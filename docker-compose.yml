@@ -9,7 +9,12 @@ services:
     environment:
       # Talk to the local db service unless .env overrides it.
       DATABASE_URL: ${DATABASE_URL:-postgresql://oakly:oakly@db:5432/oakly}
+      # The WhatsApp webhook enqueues inbound messages for the worker, so the API needs Redis too.
+      REDIS_URL: redis://:${REDIS_PASSWORD:-oakly-dev-redis}@redis:6379/0
       ENVIRONMENT: ${ENVIRONMENT:-development}
+    # Lets the containers reach a fake Meta server on the host (scripts/whatsapp_local_e2e.py).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -17,6 +22,8 @@ services:
       - private_uploads:/app/private_uploads
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
@@ -35,6 +42,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://oakly:oakly@db:5432/oakly}
       REDIS_URL: redis://:${REDIS_PASSWORD:-oakly-dev-redis}@redis:6379/0
       ENVIRONMENT: ${ENVIRONMENT:-development}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./app:/app/app:ro
     depends_on:
