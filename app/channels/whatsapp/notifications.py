@@ -4,8 +4,9 @@ Domain code records an event in the same transaction as the change (``app.servic
 module delivers it, from the worker (every 15 seconds) and, for the person who just came back to the chat, on
 demand. Two properties matter:
 
-- Exactly one message per event. ``(booking_id, event)`` is unique, a worker *claims* an event with a
-  compare-and-set (``claimed_at``) before sending, and the send is never repeated once ``delivered_at`` is set.
+- At least once per event, in practice once. ``(booking_id, event)`` is unique, a worker *claims* an event with a
+  compare-and-set (``claimed_at``) before sending, and the event is marked sent in its own commit the moment Meta
+  accepts the message, so a repeat is only possible if the worker dies in that gap.
   A claim whose worker died is retried after two minutes, up to five attempts; Meta rejecting a message for good
   (a blocked number, no WhatsApp account) stops the retries when the attempts run out.
 - The 24-hour rule is respected by construction: inside the window the same words go out as free text (with the
@@ -34,6 +35,7 @@ from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation
 from app.db.models.whatsapp_booking import OPEN_QUOTE_STATUSES, BookingEvent, Quote
 from app.services import booking_events
+from app.services.support import SupportService
 
 logger = logging.getLogger(__name__)
 
@@ -195,8 +197,19 @@ def _deliver_one(db: Session, event_id, now: datetime, client: MetaCloudClient) 
         return False
     if name == "booking_cancelled_unpaid" and booking.payment_status != PaymentStatus.PAID:
         # Do not announce a cancellation for a booking that was paid on the link whose webhook never came.
-        from app.services.booking_payment import verify_and_settle
-        verify_and_settle(db, booking.id)
+        from app.services.booking_payment import SettleOutcome, verify_and_settle
+        outcome = verify_and_settle(db, booking.id)
+        if outcome == SettleOutcome.UNREACHABLE:
+            # We cannot tell "cancelled" from "paid, webhook lost": try again later (bounded by MAX_ATTEMPTS).
+            db.execute(update(BookingEvent).where(BookingEvent.id == event_id).values(last_error="paystack_unreachable"))
+            db.commit()
+            return False
+        if outcome == SettleOutcome.AMOUNT_MISMATCH:
+            # Money was taken but not the right amount: a person has to look, and the person is not told "cancelled".
+            SupportService(db).open(contact_id=contact.id, reason="talk_to_person", priority="urgent")
+            _finish(db, event_id, now, "stale")
+            logger.error("booking %s paid with the wrong amount after expiry; support ticket opened", booking.booking_code)
+            return False
         db.expire_all()
         booking = db.query(Booking).filter(Booking.id == booking.id).populate_existing().one()
         event = db.query(BookingEvent).filter(BookingEvent.id == event_id).populate_existing().one()

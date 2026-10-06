@@ -40,6 +40,7 @@ class SettleOutcome(str, Enum):
     AMOUNT_MISMATCH = "amount_mismatch"
     PAID = "paid"  # transitioned to paid now, dispatch started
     PAID_NOT_DISPATCHED = "paid_not_dispatched"  # money received for a cancelled booking
+    UNREACHABLE = "unreachable"  # verification only: Paystack could not be asked, so "not paid" is NOT known
 
 
 def expected_kobo(booking: Booking) -> int:
@@ -127,8 +128,8 @@ def settle_booking_payment(
 
 def verify_and_settle(db: Session, booking_id: uuid.UUID) -> Optional[SettleOutcome]:
     """Ask Paystack whether this booking was paid and, if so, settle it (the same function the webhook uses).
-    Returns the settle outcome, or None when there was nothing to settle (already paid, no reference, not paid
-    at Paystack, or Paystack could not be asked). The HTTP call runs with no transaction open and no row lock
+    Returns the settle outcome; ``UNREACHABLE`` when Paystack could not be asked (callers must not treat that as
+    "not paid"); or None when there was nothing to settle (already paid, no reference, or Paystack says not paid). The HTTP call runs with no transaction open and no row lock
     held; ``settle_booking_payment`` then takes the booking lock itself."""
     from app.services.paystack import PaystackService  # lazy: the webhook path imports this module at startup
 
@@ -139,6 +140,9 @@ def verify_and_settle(db: Session, booking_id: uuid.UUID) -> Optional[SettleOutc
     reference = booking.paystack_reference
     db.rollback()
     verified = PaystackService().verify_transaction(reference)
+    if verified.get("unreachable"):
+        logger.warning("Booking %s could not be verified: Paystack unreachable", booking_id)
+        return SettleOutcome.UNREACHABLE
     data = verified.get("data") or {}
     if not (verified.get("status") and data.get("status") == "success"):
         return None

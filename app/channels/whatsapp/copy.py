@@ -130,6 +130,7 @@ STRINGS = {
         "pay_cancel_paid_body": (
             "That booking is already paid, so I can't cancel it here. Our team can help: choose Talk to a person."
         ),
+        "pay_check_failed_body": "We couldn't confirm your payment status right now. Please try again in a minute.",
         "waitlist_offer_body": (
             "We don't cover {city} yet. We're in Lagos and Abuja. Would you like us to message you when "
             "we arrive?"

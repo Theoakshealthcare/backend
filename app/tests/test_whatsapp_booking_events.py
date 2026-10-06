@@ -521,3 +521,115 @@ def test_the_pending_events_index_is_partial_on_undelivered_rows(db):
     definition = db.execute(__import__("sqlalchemy").text(
         "SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_booking_events_pending'")).scalar_one()
     assert "(created_at)" in definition and "delivered_at IS NULL" in definition
+
+
+# --- Paystack unreachable is not "not paid" ---------------------------------------------------------------------------
+UNREACHABLE = {"status": False, "unreachable": True, "message": "Network error: timed out"}
+
+
+def _paystack_down(monkeypatch):
+    """Make verification fail like a timeout; returns the working verifier so a test can bring Paystack back."""
+    from app.services.paystack import PaystackService
+    working = PaystackService.verify_transaction
+    monkeypatch.setattr(PaystackService, "verify_transaction", lambda self, reference: UNREACHABLE)
+    return working
+
+
+def test_the_paystack_client_tells_a_transport_failure_from_a_definitive_not_found(monkeypatch):
+    import requests
+    from app.services.paystack import PaystackService
+
+    class Reply:
+        def __init__(self, code):
+            self.status_code = code
+
+        def raise_for_status(self):
+            raise requests.HTTPError(f"{self.status_code}", response=self)
+
+    def get_raising(error):
+        def get(*args, **kwargs):
+            raise error
+        return get
+
+    for error in (requests.Timeout("slow"), requests.ConnectionError("down"),
+                  requests.HTTPError("502", response=Reply(502)), requests.HTTPError("429", response=Reply(429))):
+        monkeypatch.setattr("app.services.paystack.requests.get", get_raising(error))
+        assert PaystackService().verify_transaction("REF")["unreachable"] is True, error
+    monkeypatch.setattr("app.services.paystack.requests.get", get_raising(requests.HTTPError("404", response=Reply(404))))
+    result = PaystackService().verify_transaction("REF")
+    assert result["status"] is False and not result.get("unreachable")  # a definitive "no such transaction"
+
+
+def test_cancel_does_not_go_ahead_when_paystack_cannot_be_asked(db, chat, client, booking_env, monkeypatch):
+    confirmed(chat, client, booking_env)
+    _paystack_down(monkeypatch)
+    sent = chat.say("cancel")
+    booking = the_booking(db)
+    assert booking.status == BookingStatus.PENDING and booking.cancel_reason is None
+    assert text_of(sent[0]) == "We couldn't confirm your payment status right now. Please try again in a minute."
+    assert chat.state == "awaiting_payment"
+
+
+def test_coming_back_to_an_expired_booking_does_not_say_cancelled_when_paystack_cannot_be_asked(db, chat, client, booking_env, monkeypatch):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    _paystack_down(monkeypatch)
+    sent = chat.say("hello?")
+    assert "couldn't confirm your payment status" in text_of(sent[0]) and chat.state == "awaiting_payment"
+
+
+def test_the_worker_holds_the_cancellation_notice_while_paystack_is_unreachable_then_sends_it(db, chat, client, booking_env, monkeypatch):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    working = _paystack_down(monkeypatch)
+    before = len(chat.fake.bodies)
+    later = datetime.utcnow() + timedelta(minutes=3)
+    notifications.deliver_pending(db, now=later)
+    assert sent_since(chat, before) == []
+    db.expire_all()
+    event = db.query(BookingEvent).one()
+    assert event.delivered_at is None and event.last_error == "paystack_unreachable" and event.attempts == 1
+    from app.services.paystack import PaystackService
+    monkeypatch.setattr(PaystackService, "verify_transaction", working)  # Paystack is back and says: not paid
+    assert notifications.deliver_pending(db, now=later + timedelta(minutes=3)) == 1
+    assert "was cancelled because payment wasn't completed" in text_of(sent_since(chat, before)[0])
+
+
+def test_the_worker_gives_up_holding_the_notice_after_the_attempt_limit(db, chat, client, booking_env, monkeypatch):
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    _paystack_down(monkeypatch)
+    for i in range(notifications.MAX_ATTEMPTS + 2):
+        notifications.deliver_pending(db, now=datetime.utcnow() + timedelta(minutes=3 * (i + 1)))
+    db.expire_all()
+    assert db.query(BookingEvent).one().attempts == notifications.MAX_ATTEMPTS
+
+
+def test_money_taken_with_the_wrong_amount_gets_a_ticket_not_a_cancellation_notice(db, chat, client, booking_env):
+    from app.db.models.support import SupportConversation
+    confirmed(chat, client, booking_env)
+    booking = the_booking(db)
+    booking.payment_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+    expire_unpaid_bookings(db)
+    booking = the_booking(db)
+    booking_env.paystack.paid.add(booking.paystack_reference)
+    booking.total_amount_kobo += 100  # Paystack took a different amount
+    db.commit()
+    before = len(chat.fake.bodies)
+    notifications.deliver_pending(db)
+    assert sent_since(chat, before) == []
+    db.expire_all()
+    assert db.query(BookingEvent).one().delivered_at is not None  # settled as stale, not retried
+    ticket = db.query(SupportConversation).one()
+    assert ticket.reason == "talk_to_person" and ticket.priority == "urgent" and ticket.status == "open"
+    assert the_booking(db).status == BookingStatus.CANCELLED

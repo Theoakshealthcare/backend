@@ -471,6 +471,8 @@ def check_payment_after_commit(db: Session, contact_id: uuid.UUID, booking_id: u
         outcome = verify_and_settle(db, booking_id)
         if outcome is not None:
             logger.info("whatsapp booking %s verified on return: %s", booking_id, outcome.value)
+            if outcome == SettleOutcome.UNREACHABLE and expired_unpaid:
+                return Result([copy.text(lang, "pay_check_failed_body")], State.AWAITING_PAYMENT)
             if outcome == SettleOutcome.AMOUNT_MISMATCH:
                 return Result([copy.text(lang, "pay_waiting_body", minutes=str(settings.PAYMENT_LINK_TTL_MINUTES))],
                               State.AWAITING_PAYMENT)
@@ -512,7 +514,11 @@ def _cancel_after_check(db: Session, contact_id: uuid.UUID, booking_id: uuid.UUI
     from app.services.booking_payment import SettleOutcome, verify_and_settle
 
     lang = db.get(WhatsAppContact, contact_id).language
-    if verify_and_settle(db, booking_id) == SettleOutcome.AMOUNT_MISMATCH:
+    outcome = verify_and_settle(db, booking_id)
+    if outcome == SettleOutcome.UNREACHABLE:
+        # Not knowing is not the same as "not paid": cancelling now could cancel a paid booking.
+        return Result([copy.text(lang, "pay_check_failed_body")], State.AWAITING_PAYMENT)
+    if outcome == SettleOutcome.AMOUNT_MISMATCH:
         # Money was taken but not the right amount: do not cancel it away, a person has to look.
         return Result([copy.text(lang, "pay_cancel_paid_body")], State.AWAITING_PAYMENT)
     # Only the booking row is locked here (the conversation lock was released at the commit), so the lock order
