@@ -67,6 +67,24 @@ def pin_is_plausible(lat: object, lng: object) -> bool:
             and NIGERIA_LAT[0] <= lat <= NIGERIA_LAT[1] and NIGERIA_LNG[0] <= lng <= NIGERIA_LNG[1])
 
 
+# What Google may call the state (administrative_area_level_1) of a served city, lower-cased, " state" dropped.
+CITY_STATE_NAMES: Dict[str, Tuple[str, ...]] = {
+    "Lagos": ("lagos",),
+    "Abuja": ("federal capital territory", "abuja federal capital territory", "fct", "abuja"),
+}
+
+
+def state_matches(city: Optional[str], reported: Optional[str]) -> bool:
+    """Does the state Google reported belong to the served ``city``? The boxes overlap neighbouring states
+    (Ota and Arepo in Ogun, Suleja in Niger, Mararaba in Nasarawa), so the state is the check that decides."""
+    if not isinstance(reported, str):
+        return False
+    name = reported.strip().lower()
+    if name.endswith(" state"):
+        name = name[: -len(" state")].strip()
+    return name in CITY_STATE_NAMES.get(city or "", ())
+
+
 def in_city(city: Optional[str], lat: object, lng: object) -> bool:
     """Is the point inside the box of a served city? False for a city we have no box for."""
     box = CITY_BOUNDS.get(city or "")

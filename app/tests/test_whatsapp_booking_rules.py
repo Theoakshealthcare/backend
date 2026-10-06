@@ -131,3 +131,24 @@ def test_naira_formatting(kobo, text):
 def test_when_is_shown_in_lagos_time_with_the_end_of_the_visit():
     assert rules.format_when(datetime(2026, 10, 4, 9, 0), 4) == "Sun 4 Oct, 10:00–14:00"
     assert rules.format_when(datetime(2026, 10, 4, 21, 0), 4) == "Sun 4 Oct, 22:00–02:00"
+
+
+@pytest.mark.parametrize("value", [10.01, 25, 1e9, float("inf")])
+def test_an_absurd_multiplier_falls_back_to_the_default_with_a_warning(value, caplog):
+    with caplog.at_level("WARNING", logger="app.services.pricing"):
+        assert service_multiplier(prices(multipliers={"nurse": value}), "nurse") == 1.0
+    assert [r for r in caplog.records if r.name == "app.services.pricing"]
+
+
+def test_a_multiplier_of_exactly_ten_is_allowed():
+    assert service_multiplier(prices(multipliers={"nurse": 10}), "nurse") == 10
+
+
+@pytest.mark.parametrize("city,spelling,ok", [
+    ("Lagos", "Lagos", True), ("Lagos", "Lagos State", True), ("Lagos", " lagos ", True),
+    ("Lagos", "Ogun State", False), ("Lagos", None, False), ("Lagos", "", False),
+    ("Abuja", "Federal Capital Territory", True), ("Abuja", "FCT", True), ("Abuja", "Abuja Federal Capital Territory", True),
+    ("Abuja", "Nasarawa State", False), ("Abuja", "Niger State", False), ("Kano", "Kano", False),
+])
+def test_the_reported_state_must_match_the_served_city(city, spelling, ok):
+    assert rules.state_matches(city, spelling) is ok

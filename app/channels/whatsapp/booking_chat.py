@@ -31,7 +31,7 @@ from app.channels.whatsapp import booking_rules as rules
 from app.channels.whatsapp import copy
 from app.channels.whatsapp.engine import (
     CancelDraft, CancelUnpaid, ChangeQuote, CheckPayment, ConfirmQuote, JoinWaitlist, ResumeDraft, SharedLocation,
-    ShowQuote, StartBooking, State, SubmitFlow,
+    PAUSED_STATES, ShowQuote, StartBooking, State, SubmitFlow,
 )
 from app.channels.whatsapp.flows import token as flow_token
 from app.channels.whatsapp.messages import (
@@ -229,35 +229,78 @@ def _use_placeholder(payload: Dict[str, Any]) -> None:
     payload.update(lat=lat, lng=lng, needs_address_check=True, location_source="placeholder")
 
 
+GEOCODE_IN_FLIGHT_TTL = timedelta(seconds=15)  # longer than the geocoder's own deadline, short enough to retry
+
+
 def _geocode_then_price(db: Session, contact_id: uuid.UUID, quote_id: uuid.UUID) -> Result:
     """No pin: look the typed address up, off every lock and outside any open transaction, then price the quote.
 
-    Only a confident result inside the booking's own city is used (and the booking is not held); anything else,
-    including a timeout or an error, is the placeholder and the hold. The quote is locked again for the update
-    and re-checked, because the person may have cancelled or moved on while the lookup ran."""
-    quote = db.query(Quote).filter(Quote.id == quote_id, Quote.contact_id == contact_id).populate_existing().first()
-    if quote is None or quote.status != "submitted":
-        db.rollback()
-        return Result()
-    address, city = (quote.payload or {}).get("address"), (quote.payload or {}).get("city")
-    state = (quote.payload or {}).get("state") or rules.CITY_STATE.get(city or "", city or "")
-    db.rollback()  # end the read transaction: no connection or snapshot is held across the HTTP call
-
-    found = None
+    Only a confident result inside the booking's own city and state is used (and the booking is not held);
+    anything else, including a timeout or an error, is the placeholder and the hold. After the lookup the
+    conversation and then the quote are locked (the usual order) and re-checked, because the person may have
+    cancelled, been handed to a person or raised an emergency while it ran; the quote and the conversation
+    then change in one transaction. A crash here gets a neutral message, never the payment-link error."""
     try:
-        found = build_geocoder().geocode(str(address), city=str(city), state=str(state))
-    except Exception:  # the geocoder promises not to raise; a bug in it must not lose the booking
-        logger.exception("whatsapp geocoder raised for quote %s; treated as no result", quote_id)
-    if found is not None and not rules.in_city(city, found.lat, found.lng):
-        logger.info("whatsapp quote %s: geocoded address is outside %s; held for an address check", quote_id, city)
-        found = None
+        return _geocode_then_price_inner(db, contact_id, quote_id)
+    except Exception:
+        db.rollback()
+        logger.exception("whatsapp geocode step failed for quote %s", quote_id)
+        try:
+            SupportService(db).open(contact_id=contact_id, reason="booking_placeholder", priority="normal")
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("whatsapp could not open a follow-up ticket for quote %s", quote_id)
+        lang = db.get(WhatsAppContact, contact_id).language
+        return Result([copy.text(lang, "quote_pending_body")])
 
+
+def _geocode_then_price_inner(db: Session, contact_id: uuid.UUID, quote_id: uuid.UUID) -> Result:
+    now = datetime.utcnow()
     quote = (db.query(Quote).filter(Quote.id == quote_id, Quote.contact_id == contact_id)
              .populate_existing().with_for_update().first())
     if quote is None or quote.status != "submitted":
         db.rollback()
         return Result()
     payload = dict(quote.payload or {})
+    started = payload.get("geocode_in_flight")
+    try:
+        in_flight = started is not None and now - datetime.fromisoformat(started) < GEOCODE_IN_FLIGHT_TTL
+    except (TypeError, ValueError):
+        in_flight = False
+    if in_flight:  # another message already has a lookup running for this quote: it will answer
+        db.rollback()
+        return Result()
+    address, city = payload.get("address"), payload.get("city")
+    state = payload.get("state") or rules.CITY_STATE.get(city or "", city or "")
+    payload["geocode_in_flight"] = now.isoformat()
+    quote.payload = payload
+    db.commit()  # releases the lock and ends the transaction: nothing is held across the HTTP call
+
+    found = None
+    try:
+        found = build_geocoder().geocode(str(address), city=str(city), state=str(state))
+    except Exception:  # the geocoder promises not to raise; a bug in it must not lose the booking
+        logger.exception("whatsapp geocoder raised for quote %s; treated as no result", quote_id)
+    if found is not None and not (rules.in_city(city, found.lat, found.lng)
+                                  and rules.state_matches(city, found.admin_area)):
+        logger.info("whatsapp quote %s: geocoded address is not in %s; held for an address check", quote_id, city)
+        found = None
+
+    conversation = (db.query(WhatsAppConversation).filter_by(contact_id=contact_id).populate_existing()
+                    .with_for_update().one())
+    quote = (db.query(Quote).filter(Quote.id == quote_id, Quote.contact_id == contact_id)
+             .populate_existing().with_for_update().first())
+    still_waiting = (State(conversation.state) == State.AWAITING_LOCATION
+                     and (conversation.context or {}).get("quote_id") == str(quote_id))
+    if quote is None or quote.status != "submitted" or not still_waiting:
+        if quote is not None and quote.status == "submitted":  # the lookup is over; nobody else is waiting on it
+            quote.payload = {k: v for k, v in (quote.payload or {}).items() if k != "geocode_in_flight"}
+            db.commit()
+        else:
+            db.rollback()
+        return Result()
+    payload = {k: v for k, v in (quote.payload or {}).items() if k != "geocode_in_flight"}
     if found is not None:
         payload.update(lat=found.lat, lng=found.lng, needs_address_check=False, location_source="geocoded")
     else:
@@ -266,10 +309,15 @@ def _geocode_then_price(db: Session, contact_id: uuid.UUID, quote_id: uuid.UUID)
     logger.info("whatsapp quote %s location source=%s precision=%s", quote_id, payload["location_source"],
                 found.precision if found else "none")
     contact = db.get(WhatsAppContact, contact_id)
-    conversation = db.query(WhatsAppConversation).filter_by(contact_id=contact_id).one()
-    result = _price(Ctx(db, contact, conversation, datetime.utcnow()), quote)
+    result = _price(Ctx(db, contact, conversation, now), quote)
+    if result.state is not None:  # the state change rides in the same commit as the quote's
+        merged = {**(conversation.context or {}), **result.context}
+        conversation.context = {k: v for k, v in merged.items() if v is not None}
+        conversation.state = result.state.value
+        conversation.automation_paused = result.state in PAUSED_STATES
+        conversation.updated_at = datetime.utcnow()
     db.commit()
-    return result
+    return Result(result.replies)  # state and context are already stored; nothing left for apply_after_commit
 
 
 def _recipient(ctx: Ctx, quote: Quote) -> Optional[CareRecipient]:

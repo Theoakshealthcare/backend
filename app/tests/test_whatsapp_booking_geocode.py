@@ -16,7 +16,7 @@ from app.db.session import SessionLocal
 from app.services import dispatch
 from app.services.booking_payment import settle_booking_payment
 from app.services.geocoding import GeocodeResult
-from app.tests.fake_geocoder import GARKI, LEKKI, LONDON, FakeGeocoder
+from app.tests.fake_geocoder import GARKI, LEKKI, LONDON, NO_STATE, OTA, FakeGeocoder
 from app.tests.test_whatsapp_booking_chat import (  # noqa: F401  (fixtures and helpers)
     chat, dispatched, pin, reply_text, start, the_booking, the_quote,
 )
@@ -64,7 +64,8 @@ def test_a_geocoded_booking_is_not_held_and_is_dispatched_once_paid(db, chat, cl
     assert the_booking(db).payment_status == PaymentStatus.PAID and dispatched == [booking.id]
 
 
-@pytest.mark.parametrize("result", [None, GARKI, LONDON], ids=["no_result", "other_city", "outside_nigeria"])
+@pytest.mark.parametrize("result", [None, GARKI, LONDON, OTA, NO_STATE],
+                         ids=["no_result", "other_city", "outside_nigeria", "inside_box_but_ogun", "no_state_reported"])
 def test_no_confident_result_in_the_booking_city_keeps_the_placeholder_and_the_hold(db, chat, client, booking_env,
                                                                                      geocoder, result):
     geocoder.result = result  # GARKI is in Abuja, the booking is for Lagos
@@ -161,3 +162,92 @@ def test_the_city_boxes_contain_their_centre_and_exclude_the_other(city):
     assert rules.in_city(city, *rules.CITY_CENTRE[city])
     assert not rules.in_city(city, *rules.CITY_CENTRE[other])
     assert not rules.in_city(city, 51.5, -0.12) and not rules.in_city("Kano", 12.0, 8.5)
+
+
+def _move_conversation(state, quote_id_in_context=True):
+    other = SessionLocal()
+    row = other.query(WhatsAppConversation).one()
+    row.state = state
+    row.automation_paused = state in ("human", "emergency")
+    if not quote_id_in_context:
+        row.context = {k: v for k, v in row.context.items() if k != "quote_id"}
+    other.commit()
+    other.close()
+
+
+@pytest.mark.parametrize("state", ["human", "emergency"])
+def test_a_conversation_that_went_to_a_person_or_an_emergency_mid_lookup_is_left_alone(db, chat, client, booking_env,
+                                                                                         geocoder, state):
+    geocoder.on_call = lambda: _move_conversation(state)
+    start(chat, client, booking_env)
+    sent = no_pin(chat)
+    db.expire_all()
+    row = db.query(WhatsAppConversation).one()
+    assert sent == []  # no price after an emergency
+    assert row.state == state and row.automation_paused is True
+    assert the_quote(db).status == "submitted" and "lat" not in the_quote(db).payload
+
+
+def test_a_conversation_that_moved_to_another_quote_mid_lookup_is_left_alone(db, chat, client, booking_env, geocoder):
+    geocoder.on_call = lambda: _move_conversation("awaiting_location", quote_id_in_context=False)
+    start(chat, client, booking_env)
+    assert no_pin(chat) == [] and the_quote(db).status == "submitted"
+
+
+def test_the_quote_and_the_conversation_change_in_one_transaction(db, chat, client, booking_env, geocoder, monkeypatch):
+    start(chat, client, booking_env)
+    no_pin(chat)
+    db.expire_all()
+    row = db.query(WhatsAppConversation).one()
+    assert the_quote(db).status == "quoted" and row.state == "quoted" and row.automation_paused is False
+    assert row.context["quote_id"] == str(the_quote(db).id)
+    assert "geocode_in_flight" not in the_quote(db).payload
+
+
+def test_a_failed_lookup_that_ends_with_a_person_pauses_automation_consistently(db, chat, client, booking_env, geocoder):
+    from app.db.models.booking_settings import BookingSettings
+    start(chat, client, booking_env)
+    db.query(BookingSettings).delete()
+    db.commit()
+    no_pin(chat)
+    db.expire_all()
+    row = db.query(WhatsAppConversation).one()
+    assert row.state == "human" and row.automation_paused is True
+
+
+def test_a_second_lookup_for_the_same_quote_is_skipped_while_one_is_in_flight(db, chat, client, booking_env, geocoder):
+    results = []
+
+    def second_message_arrives():
+        other = SessionLocal()
+        quote = other.query(Quote).one()
+        results.append(booking_chat._geocode_then_price(other, quote.contact_id, quote.id))
+        other.close()
+
+    geocoder.on_call = second_message_arrives
+    start(chat, client, booking_env)
+    sent = no_pin(chat)
+    assert len(geocoder.calls) == 1 and results[0].replies == [] and sent  # the first lookup still answers
+
+
+def test_a_stale_in_flight_marker_does_not_block_a_new_lookup(db, chat, client, booking_env, geocoder):
+    start(chat, client, booking_env)
+    quote = the_quote(db)
+    quote.payload = {**quote.payload, "geocode_in_flight": "2020-01-01T00:00:00"}
+    db.commit()
+    no_pin(chat)
+    assert len(geocoder.calls) == 1 and the_quote(db).status == "quoted"
+
+
+def test_if_the_lookup_step_crashes_the_person_gets_a_neutral_message_not_a_payment_error(db, chat, client,
+                                                                                         booking_env, geocoder,
+                                                                                         monkeypatch):
+    def boom(ctx, quote):
+        raise RuntimeError("db hiccup")
+
+    monkeypatch.setattr(booking_chat, "_price", boom)
+    start(chat, client, booking_env)
+    sent = no_pin(chat)
+    text = reply_text(sent[0]).lower()
+    assert "couldn't price" in text and "payment" not in text and "link" not in text
+    assert db.query(SupportConversation).filter_by(reason="booking_placeholder").count() == 1

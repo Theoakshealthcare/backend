@@ -79,6 +79,7 @@ def compute_price(
 
 
 DEFAULT_MULTIPLIER = 1.0
+MAX_MULTIPLIER = 10.0  # a typo (150 for 1.5) must not be sold at 150x; above this counts as not configured
 
 
 def service_multiplier(settings: Any, service_type: str, *, channel: str = "app") -> float:
@@ -87,12 +88,12 @@ def service_multiplier(settings: Any, service_type: str, *, channel: str = "app"
     The single lookup for every channel (the app's preview and booking, WhatsApp quotes and the Flow's price
     list), so they cannot quietly disagree. A service nobody has configured yet (admins will manage multipliers
     later) is sold at the default rather than refused; a missing, non-numeric, boolean or non-positive stored
-    value counts as "not configured". Falling back is flagged with a structured warning (service and channel
+    value, or one above ``MAX_MULTIPLIER``, counts as "not configured". Falling back is flagged with a structured warning (service and channel
     only, no personal data) so ops can see which services still run on the default.
     """
     multipliers = getattr(settings, "multipliers", None) or {}
     value = multipliers.get(service_type) if isinstance(multipliers, dict) else None
-    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= MAX_MULTIPLIER:
         logger.warning("pricing: no usable multiplier configured, using default %s service=%s channel=%s",
                        DEFAULT_MULTIPLIER, service_type, channel)
         return DEFAULT_MULTIPLIER
