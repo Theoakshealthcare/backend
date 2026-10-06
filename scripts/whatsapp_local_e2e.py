@@ -78,6 +78,7 @@ WA_ID_PIDGIN = "23482" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_BOOK = "23483" + "".join(secrets.choice("0123456789") for _ in range(8))  # the booking contacts
 WA_ID_EXPIRY = "23484" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_RETURN = "23485" + "".join(secrets.choice("0123456789") for _ in range(8))
+WA_ID_CANCEL = "23487" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_FAR = "23486" + "".join(secrets.choice("0123456789") for _ in range(8))
 CONDITION = "post-surgery wound dressing, SENTINEL-CONDITION-7731"  # must appear nowhere but encrypted on the booking
 RUN = secrets.token_hex(4)  # makes the Meta message ids unique per run too (a reused id is a replay)
@@ -526,6 +527,21 @@ def booking_scenarios(run: Run) -> None:
     run.check("paid: the receipt comes straight away", "Payment of ₦44,000 received" in to_naira_text(done), to_naira_text(done))
     after = booking_row(WA_ID_RETURN)
     run.check("settled through verification, dispatch started", (after[4].lower(), after[9]) == ("paid", "dispatching"), str(after[4:11]))
+
+    print("booking E: paid, then taps Cancel before the webhook arrives")
+    book_until_quote(run, WA_ID_CANCEL, "E")
+    confirm(run, WA_ID_CANCEL, "E")
+    racing = booking_row(WA_ID_CANCEL)
+    run.paystack.paid.add(racing[11])  # the money is at Paystack; our webhook has not come
+    sent = len(graph.bodies)
+    run.post(text_payload(WA_ID_CANCEL, "cancel", message_id=f"wamid.E2E.{RUN}.E.CANCEL"))
+    told = run.next_reply(sent)
+    run.check("Cancel after paying is not honoured: the person is told the payment was received",
+              "Payment of ₦44,000 received" in to_naira_text(told), to_naira_text(told))
+    after = booking_row(WA_ID_CANCEL)
+    run.check("the booking is paid, not cancelled, and dispatch started", (after[3].lower(), after[4].lower(), after[9]) == (
+        "pending", "paid", "dispatching"), str(after[3:10]))
+    run.check("nothing is flagged for a refund", db_rows(f"SELECT refund_required FROM bookings WHERE id = '{after[0]}'") == [(False,)])
 
     print("booking D: outside Lagos and Abuja")
     token = onboard_and_open_flow(run, WA_ID_FAR, "D")
