@@ -38,6 +38,7 @@ class Booking(Base):
         CheckConstraint(
             "dispatch_state IN ('dispatching','matched','unmatched')", name="ck_bookings_dispatch_state"
         ),
+        CheckConstraint("channel IN ('app','whatsapp','admin')", name="ck_bookings_channel"),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -59,12 +60,24 @@ class Booking(Base):
     actual_start_time = Column(DateTime, nullable=True)
     actual_end_time = Column(DateTime, nullable=True)
     
+    # Where the booking was made, who made it, and who the visit is for (WhatsApp channel, PRD section 10).
+    # For app bookings booked_by_user_id and care_recipient_id stay NULL: the patient is the booker.
+    channel = Column(String, nullable=False, default="app", server_default="app")
+    booked_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    care_recipient_id = Column(UUID(as_uuid=True), ForeignKey("care_recipients.id"), nullable=True, index=True)
+    # The condition typed in the WhatsApp booking Flow, Fernet-encrypted (WA-NFR-7). Never echoed in chat.
+    # ``condition`` (plaintext, app bookings) stays NULL for these bookings.
+    condition_encrypted = Column(Text, nullable=True)
+
     # Location
     patient_address = Column(Text, nullable=False)
     patient_latitude = Column(Float, nullable=False)
     patient_longitude = Column(Float, nullable=False)
     patient_city = Column(String, nullable=False)
     patient_state = Column(String, nullable=False)
+    # No map pin was shared, so the coordinates are a city-centre placeholder. Dispatch is held until an
+    # operator confirms the address and clears this (WA-FR-14).
+    needs_address_check = Column(Boolean, nullable=False, default=False, server_default=expression.false())
     
     # Status
     status = Column(SQLEnum(BookingStatus), default=BookingStatus.PENDING)

@@ -33,7 +33,7 @@ class PaystackService:
     def __init__(self):
         self.secret_key = settings.PAYSTACK_SECRET_KEY
         self.public_key = settings.PAYSTACK_PUBLIC_KEY
-        self.base_url = "https://api.paystack.co"
+        self.base_url = settings.PAYSTACK_BASE_URL.rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {self.secret_key}",
             "Content-Type": "application/json"

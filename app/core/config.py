@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
     PAYSTACK_WEBHOOK_SECRET: str = ""
+    PAYSTACK_BASE_URL: str = "https://api.paystack.co"  # the local end-to-end script points this at a fake
     PAYMENT_CALLBACK_URL: str = "https://www.oaklycare.com/payment/callback"
     PAYMENT_CURRENCY: str = "NGN"
     MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
@@ -157,6 +158,28 @@ class Settings(BaseSettings):
     WHATSAPP_BODY_TTL_SECONDS: int = 21600  # how long a queued message body may wait for a worker (6 h)
     WHATSAPP_EMERGENCY_NUMBERS: str = "112"
     WHATSAPP_SUPPORT_PHONE: str = ""  # optional phone line offered when someone declines consent
+
+    # W2: booking in chat. See docs/sop/2026-10-06-whatsapp-booking.md.
+    # The booking Flow (published in Meta's Flow builder from flows/booking.json). Empty = booking in chat is
+    # off and "Book a visit" hands over to a person like it did in W1.
+    WHATSAPP_BOOKING_FLOW_ID: str = ""
+    # Flow data endpoint key (RSA, PEM). The public half is uploaded to Meta with the business public key API.
+    # Newlines may be written as the two characters backslash-n so the key fits on one env line.
+    WHATSAPP_FLOW_PRIVATE_KEY: str = ""
+    WHATSAPP_FLOW_PRIVATE_KEY_PASSPHRASE: str = ""
+    WHATSAPP_SERVICE_CITIES: str = "Lagos,Abuja"  # comma-separated; any other city goes to the waitlist (WA-FR-15)
+    # Longest visit per service, in hours (WA-FR-13: capped per service). A service not listed gets the default.
+    WHATSAPP_SERVICE_MAX_HOURS: str = "nurse:12,caregiver:24,physiotherapist:4,doctor:2,nutritionist:2"
+    WHATSAPP_DEFAULT_MAX_HOURS: int = 8
+    WHATSAPP_QUOTE_TTL_MINUTES: int = 30  # a quoted price is locked this long (WA-FR-20)
+    WHATSAPP_IDLE_EXPIRY_MINUTES: int = 30  # an unfinished booking conversation starts fresh after this (WA-FR-12)
+    WHATSAPP_PAYMENT_REMINDER_MINUTES: int = 20  # after the link is sent (WA-FR-24); the link lives 30
+    WHATSAPP_CANCEL_FREE_HOURS: int = 12  # the cancellation line in the quote; W3 makes it a real policy
+    WHATSAPP_MIN_LEAD_HOURS: int = 2  # the earliest start offered, from now
+    WHATSAPP_SLOT_START_HOUR: int = 7  # first and last start time offered (Lagos time), hourly
+    WHATSAPP_SLOT_END_HOUR: int = 20
+    WHATSAPP_MAX_RECIPIENTS: int = 10  # saved recipients per contact (WA-FR-17)
+    WHATSAPP_PAYMENT_RETURN_URL: str = "https://www.oaklycare.com/pay/return"  # becomes the web companion in W4
 
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"

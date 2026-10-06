@@ -10,6 +10,8 @@ settle_booking_payment(), so the rules cannot drift apart:
 - a payment that arrives after the unpaid-expiry cancel reinstates the booking when the visit is at
   least LATE_PAYMENT_REINSTATE_MIN_LEAD_MINUTES away; otherwise (or for any other cancelled booking)
   it stays cancelled and ``refund_required`` is set for the admin refund queue;
+- a WhatsApp booking flagged ``needs_address_check`` is paid but not dispatched until an operator clears it;
+- the ``payment_received`` event is recorded in the same transaction as the payment (the outbox);
 - dispatch starts exactly once: only the caller that performs the unpaid -> paid transition marks
   the booking ``dispatching`` (inside the same transaction as the payment) and sends wave 1. If
   sending fails, dispatch_tick() sends it on its next run.
@@ -25,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
+from app.services import booking_events
 
 logger = logging.getLogger(__name__)
 
@@ -86,14 +89,24 @@ def settle_booking_payment(
             booking.refund_required_reason = (
                 "paid_after_expiry" if booking.cancel_reason == "unpaid_timeout" else "paid_after_cancellation"
             )
-    if not cancelled and booking.dispatch_state is None:
-        booking.dispatch_state = "dispatching"
-        booking.dispatch_started_at = now
+    held_for_address = False
+    if not cancelled:
+        # A WhatsApp booking with no map pin has placeholder coordinates: dispatching it would offer the job to
+        # the wrong caregivers. It is paid and held until an operator has confirmed the address (WA-FR-14).
+        held_for_address = bool(booking.needs_address_check)
+        if booking.dispatch_state is None and not held_for_address:
+            booking.dispatch_state = "dispatching"
+            booking.dispatch_started_at = now
+        booking_events.emit(db, booking, "payment_received")  # same transaction as the payment itself
     db.commit()
 
     if cancelled:
         logger.error("Booking %s was cancelled but payment arrived; needs a refund review", booking_id)
         return SettleOutcome.PAID_NOT_DISPATCHED
+
+    if held_for_address:
+        logger.warning("Booking %s paid but held: the address needs a check before dispatch", booking_id)
+        return SettleOutcome.PAID
 
     # Imported lazily: dispatch pulls in the booking service (matching, websocket modules).
     from app.services import dispatch
