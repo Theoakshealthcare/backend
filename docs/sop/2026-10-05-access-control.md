@@ -16,7 +16,7 @@ Seven access-control fixes, each with tests for no token, wrong user, right user
 | 2 | Both booking WebSockets authenticate with a JWT. The demo user ids are gone. |
 | 3 | `/booking/ws/stats` is admin-only. `/auth/test-cloudinary` is deleted. |
 | 4 | Prescriptions need auth. A patient sees and creates only their own. Update, status change and note upload are admin-only. |
-| 5 | `GET /booking/booking/{id}` and `/live-tracking` are limited to the booking's patient, its assigned caregiver, or an admin. Live tracking also returns 409 unless the booking is accepted or in progress (admins exempt), so a caregiver's location isn't visible after the job. |
+| 5 | `GET /booking/booking/{id}` and `/live-tracking` are limited to the booking's patient, its assigned caregiver, or an admin. Live tracking also returns 409 unless the booking is accepted, en route or in progress (admins exempt; `en_route` was added by C3), so a caregiver's location isn't visible after the job. |
 | 6 | Caregiver booking actions are checked for who and for state. Accept has exactly one winner. |
 | 7 | Caregiver documents are stored privately and served only to the owner or an admin. |
 
@@ -36,7 +36,7 @@ The audit found that:
 | Admin check | `user_is_admin(db, user)` in `app/api/deps.py` (an `Admin` row) | Admins aren't a `user_type` yet. Matches `get_current_admin`. |
 | WebSocket token | `?token=<jwt>` or `Sec-WebSocket-Protocol: bearer, <jwt>` (the server echoes `bearer`) | Mobile and browser sockets can't set an `Authorization` header. The header form keeps the token out of access logs. |
 | WebSocket close codes | 4401 missing, invalid, refresh, inactive or unknown user. 4403 wrong role. | The socket is accepted and then closed with the code. Closing before `accept()` makes uvicorn answer the handshake with HTTP 403, so browsers and Dart would never see 4401/4403 (proved by a real-uvicorn test). Nothing is registered or sent on a rejected socket. |
-| Tracking subscribe | Patient owns the booking and status is `accepted` or `in_progress`. "Not found" and "not yours" give the same error. | Ids can't be probed. A WebSocket session lives as long as the socket, so the booking is re-read with `populate_existing`. |
+| Tracking subscribe | Patient owns the booking and status is `accepted`, `en_route` or `in_progress`. "Not found" and "not yours" give the same error. | Ids can't be probed. A WebSocket session lives as long as the socket, so the booking is re-read with `populate_existing`. |
 | Accept race | `SELECT … FOR UPDATE` on the booking row (`with_for_update().populate_existing()`) before any check | Concurrent accepts serialise, so exactly one sees `pending`. A conditional UPDATE would also work. The lock keeps the validation readable. |
 | Action errors | `BookingActionForbidden` is 403, `BookingStateConflict` is 409, `ValueError` stays 404 | Error shape stays `{"detail": "..."}`. |
 | Prescription denial | 403 for an existing record you don't own (403 on all prescription routes) | Matches the plan's contract. Revisit if we want to hide existence (404). |

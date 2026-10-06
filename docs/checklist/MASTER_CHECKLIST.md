@@ -2,6 +2,8 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
+**Update (2026-10-05):** Phase 0 is done and Phase C (caregiver app) has started; its backend part (C3) is built, see section 8.
+
 **Snapshot (2026-09-30):**
 - **Done:** 1 foundation item (Poetry migration, #1).
 - **In progress:** the critical fixes track.
@@ -156,9 +158,26 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **v1.1:** partial refunds, scheduled payouts, city pricing, prescription ops, quality card, charts, live map
 - [ ] **v2:** clinicians and MDCN checks, pharmacy partners (AD-FR-79–80, 72)
 
+## 8. Phase C: Caregiver app (supply side) — 🟡 in progress
+Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: nurses and caregivers sign up, get approved, go available, receive offers by push, accept, and run the visit.
+- [x] **C0 Monorepo scaffold** (caregiver repo, branch `chore/monorepo`): pnpm workspace, `packages/api-client`, CI
+- [ ] **C1 Expo SDK 57 upgrade and cleanup** (caregiver repo, branch `chore/caregiver-sdk57`): upgrade, continuous native generation, remove unused dependencies and broken code, `expo-secure-store`, typecheck/lint/test scripts
+- [ ] **C3 Backend support for the app** (this repo, branch `feat/caregiver-mobile-support`; runs in parallel with C1). 2026-10-05, [SOP](../sop/2026-10-05-caregiver-mobile-support.md), migration `0002_caregiver_mobile`. Built and verified locally, **not pushed or merged**.
+  - [x] 1. Push tokens: `push_tokens`, `POST`/`DELETE /devices/push-token`, `PushService` (Expo, batches, prunes `DeviceNotRegistered`, mocked in tests)
+  - [x] 2. Job offers by push from dispatch waves (after commit, best effort, no patient data)
+  - [x] 3. Availability: `POST /caregiver/availability` (approved only; going unavailable stops new offers)
+  - [x] 4. Visit lifecycle: `en_route` status, `on_my_way`, 4-digit visit code (encrypted; `start` requires it; 3 wrong tries lock it for 15 minutes). Partly covers WA-FR-34/35 (the WhatsApp message with the code is not built)
+  - [x] 5. `GET /caregiver/home`
+  - [x] 6. [FE integration guide](../fe-integration-guide-caregiver.md) with live captures (`docs/fe-captures/caregiver/`, `scripts/capture_caregiver_flow.py`)
+  - [x] 7. One Alembic migration on top of `0001_baseline`
+  - [ ] 8. **Opus review** (auth, push, the visit code), then push and PR
+- [ ] **C2 Core flows on the typed client** (after C1): data layer, auth, onboarding, bookings (offers, detail, accept, decline), tests
+- [ ] **C4 Supply features** (after C2 and C3): availability toggle, location (foreground and background), push registration and tap-to-open, visit flow screens, home on `/caregiver/home`, simulator verification against a local backend
+- Meets launch prerequisite P3 (caregiver app reports location) only once C4 lands.
+
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
-- [ ] Push notifications (configured but never implemented)
+- [x] Push notifications for caregiver job offers (Expo). 2026-10-05, C3, [SOP](../sop/2026-10-05-caregiver-mobile-support.md). Patient-side pushes and WhatsApp are not built.
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
@@ -166,3 +185,6 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] Chat and notes routes in `endpoints/booking.py` don't let admins in; decide whether support staff should read them
 - [ ] Upgrade Poetry to 2.5.x everywhere (local, Render `POETRY_VERSION`, CI)
 - [ ] Docker image size is 828 MB, mostly gRPC and Google libraries; revisit after the `google-genai` swap
+- [ ] (C3) `GET /booking/caregiver/bookings?status=new_requests` and `/booking/caregiver/notifications` expose condition, instructions, address and patient contact to caregivers who have not accepted; trim them to the offer fields
+- [ ] (C3) Type the caregiver action response (it is a raw dict with money as strings and internal fields); store `reason` on decline/cancel
+- [ ] (C3) Move the Expo push off the settlement request onto the ARQ worker if it ever slows the Paystack webhook; poll Expo receipts to prune late-failing tokens
