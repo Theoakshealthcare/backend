@@ -2033,12 +2033,12 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 ## 14. UX consequences the app must surface
 
 1. **Going available needs a location, and a stale location means no offers.** If `is_available` is `true` but `location_updated_at` is older than about 15 minutes, show "You are not receiving offers: your location is out of date".
-2. **Every location ping must send the switch value.** Omitting `is_available` means `true` and silently turns the caregiver back on (section 5).
+2. **Location pings must not carry the switch.** Omit `is_available` on every ping (foreground, background, WebSocket): omitted means *leave it as it is*. Only the availability toggle (`POST /caregiver/availability`) should change it (section 5).
 3. **Only approved caregivers can act.** For `under_review`, `changes_requested`, `rejected`, `suspended`, disable the switch and accept; show the status screen. Offers are empty for them by design.
 4. **"This job was taken by someone else"** on `409 Booking is no longer available`. **"You're not approved yet"** on the approval `403`s.
 5. **Visit code lockout is real.** After 3 wrong codes the caregiver cannot start for 15 minutes, and the correct code is refused too. Tell them how many tries are left, then show the lock countdown, and tell them to ask the patient to check the code in their app rather than guess.
 6. **The caregiver never sees the code.** Do not build a "show code" screen for the caregiver; the patient reads it out.
-7. **Do not display fields of an unaccepted offer beyond `open_offers`** (privacy trap, section 7).
+7. **An unaccepted offer carries no patient or caregiver details** (offer view, section 7). Build offer screens from `open_offers` or the offer-view fields only.
 8. **Withdrawals stay `pending`.** Say "requested"; nothing pays out automatically yet.
 9. **A push is a hint, not a guarantee.** Delivery was not verified, and the backend never retries or checks receipts.
 10. **Cancelling is allowed from `accepted`, `en_route` and `in_progress`, and no reason is stored.** Confirm with the caregiver before sending it.
