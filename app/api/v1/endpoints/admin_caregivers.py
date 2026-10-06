@@ -12,6 +12,8 @@ from app.db.models.admin import AdminUser
 from app.db.models.caregiver import Caregiver
 from app.db.models.user import User
 from app.schemas.admin_caregiver import (
+    ApplicationDetail,
+    ApplicationList,
     BackgroundCheckDecision,
     DocumentDecision,
     IdentityDecision,
@@ -88,8 +90,8 @@ def _summary(cg: Caregiver) -> Dict[str, Any]:
     }
 
 
-@router.get("")
-@router.get("/", include_in_schema=False)
+@router.get("", response_model=ApplicationList)
+@router.get("/", include_in_schema=False, response_model=ApplicationList)
 def list_applications(
     profile_status: ListStatus = "under_review",
     limit: int = Query(25, ge=1, le=100),
@@ -115,7 +117,7 @@ def decide_document(
     }
 
 
-@router.get("/{caregiver_id}")
+@router.get("/{caregiver_id}", response_model=ApplicationDetail)
 def get_application(
     caregiver_id: UUID, request: Request,
     admin: AdminUser = Depends(require_permission("caregivers.read")),

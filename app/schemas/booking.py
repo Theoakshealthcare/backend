@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional, List, Literal, Union, Dict
 from pydantic import BaseModel, validator, Field
 import uuid
@@ -324,6 +325,61 @@ class CaregiverLocationResponse(BaseModel):
 
 
 # Booking Actions
+class CaregiverActionBooking(BaseModel):
+    """The booking as a caregiver sees it in the action response (accept, decline, start, ...).
+
+    Describes what the endpoint has always returned; fields that are null in the offer view
+    (patient_details, caregiver_details, caregiver_id, condition, special_instructions) are Optional.
+    Money is naira as Decimal (serialised as a string such as "55000.00") next to the *_kobo integers.
+    """
+
+    id: uuid.UUID
+    booking_code: str
+    patient_id: uuid.UUID
+    patient_details: Optional[PatientDetails] = None
+    caregiver_id: Optional[uuid.UUID] = None
+    caregiver_details: Optional[CaregiverDetails] = None
+    service_type: str
+    assistance_type: str
+    condition: Optional[str] = None
+    duration_hours: int
+    scheduled_date: datetime
+    scheduled_end_date: datetime
+    actual_start_time: Optional[datetime] = None
+    actual_end_time: Optional[datetime] = None
+    patient_address: str
+    patient_latitude: Optional[float] = None
+    patient_longitude: Optional[float] = None
+    patient_city: str
+    patient_state: str
+    status: BookingStatus
+    payment_status: PaymentStatus
+    paystack_reference: Optional[str] = None
+    payment_expires_at: Optional[datetime] = None
+    payment_failure_reason: Optional[str] = None
+    total_amount: Decimal
+    service_fee: Decimal
+    platform_fee: Decimal
+    total_amount_kobo: int
+    service_fee_kobo: int
+    platform_fee_kobo: int
+    special_instructions: Optional[str] = None
+    booking_for: str
+    cancel_reason: Optional[str] = None
+    refund_required: bool
+    refund_required_reason: Optional[str] = None
+    dispatch_state: Optional[str] = None
+    dispatch_started_at: Optional[datetime] = None
+    visit_code: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CaregiverActionResponse(BaseModel):
+    message: str
+    booking: CaregiverActionBooking
+
+
 class BookingActionRequest(BaseModel):
     action: Literal["accept", "decline", "on_my_way", "start", "complete", "cancel"]
     reason: Optional[str] = None

@@ -84,6 +84,23 @@ class CaregiverProfile(BaseModel):
         from_attributes = True
 
 
+class VerificationStatusOut(BaseModel):
+    profile_completion_step: Optional[int] = None
+    identity_verification_status: Optional[str] = None
+    background_check_status: Optional[str] = None
+    profile_status: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    # {"items": [...], "note": "..."} while changes are requested, else null
+    changes_requested: Optional[dict] = None
+
+
+class FormOptionsOut(BaseModel):
+    specializations: List[str]
+    service_areas: List[str]
+    work_hours: List[str]
+    states: List[str]
+
+
 # Specialization and Service Area Options
 class SpecializationOptions(BaseModel):
     specializations: List[str]

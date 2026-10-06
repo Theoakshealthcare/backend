@@ -14,6 +14,8 @@ from app.core.config import settings
 from app.db.models.admin import AdminUser
 from app.db.models.user import User
 from app.schemas.caregiver import (
+    FormOptionsOut,
+    VerificationStatusOut,
     CaregiverProfile,
     CaregiverProfileStep1,
     CaregiverProfileStep2,
@@ -213,7 +215,7 @@ def update_consent(
         )
 
 
-@router.get("/verification-status", response_model=dict)
+@router.get("/verification-status", response_model=VerificationStatusOut)
 def get_verification_status(
     current_user: User = Depends(get_current_user),
     caregiver_service: CaregiverService = Depends(get_caregiver_service),
@@ -234,7 +236,7 @@ def get_verification_status(
         )
 
 
-@router.get("/form-options", response_model=dict)
+@router.get("/form-options", response_model=FormOptionsOut)
 def get_form_options() -> Any:
     """Get form options for dropdowns (specializations, service areas, etc.)"""
     return CaregiverService.get_form_options()
