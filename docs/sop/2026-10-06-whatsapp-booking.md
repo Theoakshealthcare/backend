@@ -96,7 +96,7 @@ Rejected: letting the quote message recompute the price on every show; geocoding
 - Migration: `app/tests/test_migrations.py` (single head, models match, downgrade to base, upgrade again) passes.
 
 ### Result
-- Full suite: **1438 passed** after the security-review fixes (1420 before) (`poetry run pytest -q -p no:warnings`; 324 new, baseline 1096). The only existing test that had to change is `test_caregiver_mobile_migration.py` (it inserted a booking through the ORM at the old 0002 schema and the model has since gained columns, so it now inserts with plain SQL), plus two worker tests that name the cron jobs / count completed jobs.
+- Full suite: **1444 passed** after the security-review fixes (1420 before) (`poetry run pytest -q -p no:warnings`; 324 new, baseline 1096). The only existing test that had to change is `test_caregiver_mobile_migration.py` (it inserted a booking through the ORM at the old 0002 schema and the model has since gained columns, so it now inserts with plain SQL), plus two worker tests that name the cron jobs / count completed jobs.
 - `poetry check --lock`, `ruff check --select E9,F63,F7,F82 .`, `scripts.ci_smoke` (115 operations; the new endpoint is hidden from the schema) and both `render_fe_guide --check` pass. One alembic head (`0005_whatsapp_booking`); `test_migrations.py` round-trips it.
 - **Docker end-to-end** (`poetry run python -m scripts.whatsapp_local_e2e --up --down`): **144 of 144 checks passed** (the security-review fixes added the pay-then-cancel scenario, booking E). It builds the stack, serves a fake Meta and a fake Paystack, and covers:
 
