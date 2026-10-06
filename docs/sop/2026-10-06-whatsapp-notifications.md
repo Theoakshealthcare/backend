@@ -96,7 +96,7 @@ The bodies differ from the PRD §14 drafts because Meta refuses a body that star
 ### Result
 - Full suite (CI env values) on the final code: **1651 passed** (baseline 1444 on `aade294` before W3 and A2).
 - `poetry check --lock`, `ruff check --select E9,F63,F7,F82 .`, `scripts.ci_smoke` (126 operations) and both `render_fe_guide --check` pass.
-- Docker end-to-end (`--up --down`): **191 of 191 passed** on the code before the two review fixes. After them the script was updated (the confirm tap now uses the fee-bearing button, plus a forged `:0` check) and a rerun was in progress when this was written: re-run it and replace this line with the final count.
+- Docker end-to-end (`--up --down`) on the final code: **194 of 194 passed** (191 before the two review fixes; the confirm tap now uses the fee-bearing button, plus a forged `:0` check and a fee-in-button check).
 
 ## Operate / roll back
 - **See what is pending:** `SELECT event, dedupe_key, attempts, last_error FROM booking_events WHERE delivered_at IS NULL;`. A caregiver event with no device settles with `last_error = 'no_device'` (nothing to retry).
