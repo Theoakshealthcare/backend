@@ -177,6 +177,16 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
   - [ ] Real push: EAS project + `projectId`, APNs/FCM credentials (owner)
 - Launch prerequisite P3 (caregiver app reports location) is met in code by C4; it still needs device verification.
 
+## 9. Phase A: Admin Console v1 — 🟡 starting
+Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-console.md). PRD: [`docs/prd/PRD-admin-console.md`](../prd/PRD-admin-console.md).
+- [ ] **A0** Admin identity: separate `admin_users`, TOTP MFA, roles and permissions, `require_permission` on every admin route, invites, bootstrap CLI, rate limits and lockout
+- [ ] **A1** Console scaffold (`apps/admin`, Next.js 16): login and MFA, permission-gated shell, caregiver queue and detail with all decisions, admin users
+- [ ] **A2** Bookings ops: list and detail with timeline, unmatched queue, assign, reassign, cancel, status correction
+- [ ] **A3** Money: earnings credited on completion, caregiver ledger, Paystack Transfer payouts, refunds v2 queue (`refund_required`), payments and webhook exceptions
+- [ ] **A4** Pricing: versioned price books, service areas, form options, policies
+- [ ] **A5** People (masked), break-glass clinical access, audit viewer, CSV exports
+- [ ] **FE integration guide for admin** (`docs/fe-integration-guide-admin.md`), generated from live captures
+
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
 - [x] Push notifications for caregiver job offers (Expo). 2026-10-05, C3, [SOP](../sop/2026-10-05-caregiver-mobile-support.md). Patient-side pushes and WhatsApp are not built.
