@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timedelta
 
 import pytest
-from jose import jwt as jose_jwt
+import jwt as pyjwt
 from sqlalchemy import select
 
 from app.core.admin_security import create_admin_token
@@ -219,7 +219,7 @@ def test_bad_mfa_tokens_are_401(db, client, admin_clock, kind):
         "garbage": "not-a-token",
         "expired": create_admin_token(admin.id, "mfa", timedelta(seconds=-5)),
         "wrong_type": create_admin_token(admin.id, "access", timedelta(minutes=5), sid=str(uuid.uuid4())),
-        "other_admin_key": jose_jwt.encode(
+        "other_admin_key": pyjwt.encode(
             {"sub": str(admin.id), "aud": "admin", "type": "mfa",
              "exp": datetime.utcnow() + timedelta(minutes=5)}, settings.SECRET_KEY, algorithm="HS256"),
     }[kind]
@@ -296,10 +296,10 @@ def test_bad_admin_bearer_tokens_are_401(db, client, kind):
         "refresh": create_admin_token(admin.id, "refresh", timedelta(minutes=5), sid=sid),
         "mfa": create_admin_token(admin.id, "mfa", timedelta(minutes=5)),
         "expired": create_admin_token(admin.id, "access", timedelta(seconds=-5), sid=sid),
-        "signed_with_app_key": jose_jwt.encode(
+        "signed_with_app_key": pyjwt.encode(
             {"sub": str(admin.id), "aud": "admin", "type": "access", "sid": sid,
              "exp": datetime.utcnow() + timedelta(minutes=5)}, settings.SECRET_KEY, algorithm="HS256"),
-        "no_audience_claim": jose_jwt.encode(
+        "no_audience_claim": pyjwt.encode(
             {"sub": str(admin.id), "type": "access", "sid": sid,
              "exp": datetime.utcnow() + timedelta(minutes=5)}, settings.SECRET_KEY, algorithm="HS256"),
         "no_session": create_admin_token(admin.id, "access", timedelta(minutes=5), sid=sid),  # no refresh row

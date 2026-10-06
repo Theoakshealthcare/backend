@@ -8,6 +8,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.core.security import get_password_hash, verify_password
+
+# Spent on an unknown email so a login miss costs one bcrypt check, the same as a wrong password
+# (otherwise response time reveals which emails and phone numbers are registered).
+_dummy_hash: Optional[str] = None
 from app.db.models.user import User, Caregiver
 from app.db.models.patient import Patient
 from app.schemas.user import UserCreate, CaregiverCreate
@@ -68,8 +72,12 @@ class UserService:
         return db_user
 
     def authenticate_user(self, email_or_phone: str, password: str) -> Optional[User]:
+        global _dummy_hash
         user = self.get_user_by_email_or_phone(email_or_phone)
         if not user:
+            if _dummy_hash is None:
+                _dummy_hash = get_password_hash(secrets.token_hex(16))
+            verify_password(password, _dummy_hash)
             return None
         if not verify_password(password, user.hashed_password):
             return None

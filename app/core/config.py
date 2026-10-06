@@ -1,10 +1,10 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, model_validator, validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class Settings(BaseSettings):
@@ -20,21 +20,24 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # 7 days for refresh token
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    ALGORITHM: str = "HS256"
+    # Read by docker compose (Redis --requirepass) from the same env file. Declared so the file
+    # loads with extra="forbid"; the app itself only uses REDIS_URL.
+    REDIS_PASSWORD: Optional[str] = None
     # BACKEND_CORS_ORIGINS is a JSON-formatted list of origins
     # e.g: '["http://localhost", "http://localhost:4200", "http://localhost:3000"]'
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    # NoDecode: pydantic-settings would JSON-decode a List env value before our validator runs and
+    # fail on '' or a comma-separated list; the validators below accept all three forms.
+    BACKEND_CORS_ORIGINS: Annotated[List[AnyHttpUrl], NoDecode] = []
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
         if isinstance(v, str):
-            if v.startswith("["):
+            if v.strip().startswith("["):
                 try:
                     return json.loads(v)
                 except json.JSONDecodeError:
-                    return [i.strip() for i in v.split(",")]
-            else:
-                return [i.strip() for i in v.split(",")]
+                    pass
+            return [i.strip() for i in v.split(",") if i.strip()]
         elif isinstance(v, list):
             return v
         raise ValueError(v)
@@ -106,7 +109,17 @@ class Settings(BaseSettings):
     ADMIN_INVITE_HOURS: int = 48
     ADMIN_MAX_FAILED_LOGINS: int = 10  # wrong TOTP codes (password already proven) before the account locks
     # Lock length per consecutive lock; the last entry repeats. Resets on a successful MFA.
-    ADMIN_LOCKOUT_TIERS_MINUTES: List[int] = [15, 60, 1440]
+    ADMIN_LOCKOUT_TIERS_MINUTES: Annotated[List[int], NoDecode] = [15, 60, 1440]
+
+    @validator("ADMIN_LOCKOUT_TIERS_MINUTES", pre=True)
+    def assemble_lockout_tiers(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            if v.strip().startswith("["):
+                return json.loads(v)
+            tiers = [i.strip() for i in v.split(",") if i.strip()]
+            return tiers or [15, 60, 1440]  # empty = keep the default
+        return v
+
     # Password stage: per (email, client IP), never a hard lock. After this many failures every
     # attempt is answered 429 for a wait that doubles with each further failure, up to the cap.
     ADMIN_PASSWORD_FREE_ATTEMPTS: int = 5
@@ -116,7 +129,7 @@ class Settings(BaseSettings):
     ADMIN_AUTH_IP_WINDOW_SECONDS: int = 60
     # Reverse proxies whose X-Forwarded-For is believed (CIDRs or addresses, comma-separated or
     # JSON list). Empty = trust nobody: the client IP is the direct peer.
-    TRUSTED_PROXIES: List[str] = []
+    TRUSTED_PROXIES: Annotated[List[str], NoDecode] = []
 
     @validator("TRUSTED_PROXIES", pre=True)
     def assemble_trusted_proxies(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
@@ -186,6 +199,10 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
+        # An unknown key in the env file fails at boot, so a misspelled optional secret (e.g. a
+        # webhook secret) can't silently fall back to its empty default. Keys only docker compose
+        # reads are declared above instead of ignored.
+        extra = "forbid"
         # OAKLY_ENV_FILE="" disables .env loading (the test suite relies on this so a
         # developer's real .env can never leak into tests).
         env_file = os.environ.get("OAKLY_ENV_FILE", ".env") or None

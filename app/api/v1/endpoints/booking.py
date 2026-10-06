@@ -16,7 +16,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.user import User
 from app.schemas.booking import (
-    BookingCreate, BookingResponse, BookingActionRequest,
+    BookingCreate, BookingResponse, BookingActionRequest, CaregiverActionResponse,
     BookingPreviewRequest, BookingPreviewResponse,
     CaregiverLocationUpdate, CaregiverLocationResponse,
     ChatMessageCreate, ChatMessageResponse,
@@ -489,6 +489,7 @@ def get_caregiver_notifications(
 
 @router.post(
     "/caregiver/action/{booking_id}",
+    response_model=CaregiverActionResponse,
     summary="Handle caregiver booking actions",
     description="Allow caregiver to perform actions on bookings: accept, decline, start service, or complete service.",
     tags=["Caregiver Bookings"]

@@ -3,13 +3,13 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
-from jose import jwt, JWTError
+import jwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.admin_security import AdminTokenError, decode_admin_token
 from app.core.config import settings
-from app.core.security import ALGORITHM
+from app.core.security import decode_app_token
 from app.db.session import SessionLocal
 from app.db.models.admin import AdminRefreshToken, AdminUser
 from app.db.models.user import User
@@ -31,7 +31,7 @@ def get_db() -> Generator:
 
 
 def _user_from_token(db: Session, token: str) -> User:
-    """Resolve an app-user access token. Admin tokens (aud="admin") fail here: python-jose refuses
+    """Resolve an app-user access token. Admin tokens (aud="admin") fail here: PyJWT refuses
     any token that carries an audience when none is expected."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -40,14 +40,9 @@ def _user_from_token(db: Session, token: str) -> User:
     )
 
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") != "access":
-            # refresh tokens (and untyped tokens) must never authenticate API calls
-            raise credentials_exception
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
+        # refresh, reset and untyped tokens must never authenticate API calls
+        user_id: str = decode_app_token(token, "access")["sub"]
+    except jwt.PyJWTError:
         raise credentials_exception
 
     user_service = UserService(db)
@@ -187,8 +182,8 @@ def get_user_or_admin(permission: str) -> Callable[..., Union[User, AdminUser]]:
         db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
     ) -> Union[User, AdminUser]:
         try:
-            claims = jwt.get_unverified_claims(token)
-        except JWTError:
+            claims = jwt.decode(token, options={"verify_signature": False})
+        except jwt.PyJWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
@@ -250,12 +245,9 @@ async def authenticate_websocket(
         await reject(WS_CLOSE_UNAUTHENTICATED, "Authentication required")
         return None
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        if payload.get("type") != "access" or not user_id:
-            raise JWTError("not an access token")
+        user_id = decode_app_token(token, "access")["sub"]
         user = UserService(db).get_user(user_id)
-    except (JWTError, ValueError):
+    except (jwt.PyJWTError, ValueError):
         await reject(WS_CLOSE_UNAUTHENTICATED, "Invalid token")
         return None
     if user is None or not user.is_active:

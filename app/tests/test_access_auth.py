@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from jose import jwt
+import jwt
 
 from app.core.config import settings
 from app.tests.factories import (
@@ -43,7 +43,7 @@ def test_token_without_type_claim_is_rejected(db, client):
     token = jwt.encode(
         {"sub": str(patient.user.id), "exp": datetime.utcnow() + timedelta(minutes=5)},
         settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
+        algorithm="HS256",
     )
     r = client.get(ME, headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 401

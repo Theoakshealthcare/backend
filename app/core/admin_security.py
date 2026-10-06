@@ -1,7 +1,7 @@
 """Tokens and TOTP for admin accounts.
 
 Admin JWTs are deliberately incompatible with app-user JWTs:
-- they carry ``aud="admin"``, which the app-user decoder (python-jose, no audience) refuses;
+- they carry ``aud="admin"``, which the app-user decoder (PyJWT, no audience) refuses;
 - they are signed with a key derived from SECRET_KEY for this purpose, so an app token would fail
   the signature check here even if its claims were forged to look right.
 """

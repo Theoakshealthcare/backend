@@ -1,0 +1,238 @@
+{
+  "action_accept": {
+    "booking": {
+      "actual_end_time": "null",
+      "actual_start_time": "null",
+      "assistance_type": "str",
+      "booking_code": "str",
+      "booking_for": "str",
+      "cancel_reason": "null",
+      "caregiver_details": {
+        "caregiver_id": "str",
+        "current_latitude": "null",
+        "current_longitude": "null",
+        "distance_from_patient": "null",
+        "estimated_arrival_time": "null",
+        "full_name": "str",
+        "is_online": "bool",
+        "last_location_update": "null",
+        "profile_image_url": "null",
+        "specialization": "str"
+      },
+      "caregiver_id": "str",
+      "condition": "null",
+      "created_at": "str",
+      "dispatch_started_at": "null",
+      "dispatch_state": "str",
+      "duration_hours": "int",
+      "id": "str",
+      "patient_address": "str",
+      "patient_city": "str",
+      "patient_details": {
+        "emergency_contact_name": "null",
+        "emergency_contact_phone": "null",
+        "full_name": "str",
+        "patient_id": "str",
+        "phone_number": "str",
+        "profile_image_url": "null"
+      },
+      "patient_id": "str",
+      "patient_latitude": "float",
+      "patient_longitude": "float",
+      "patient_state": "str",
+      "payment_expires_at": "null",
+      "payment_failure_reason": "null",
+      "payment_status": "str",
+      "paystack_reference": "str",
+      "platform_fee": "str",
+      "platform_fee_kobo": "int",
+      "refund_required": "bool",
+      "refund_required_reason": "null",
+      "scheduled_date": "str",
+      "scheduled_end_date": "str",
+      "service_fee": "str",
+      "service_fee_kobo": "int",
+      "service_type": "str",
+      "special_instructions": "null",
+      "status": "str",
+      "total_amount": "str",
+      "total_amount_kobo": "int",
+      "updated_at": "str",
+      "visit_code": "null"
+    },
+    "message": "str"
+  },
+  "action_decline": {
+    "booking": {
+      "actual_end_time": "null",
+      "actual_start_time": "null",
+      "assistance_type": "str",
+      "booking_code": "str",
+      "booking_for": "str",
+      "cancel_reason": "null",
+      "caregiver_details": "null",
+      "caregiver_id": "null",
+      "condition": "null",
+      "created_at": "str",
+      "dispatch_started_at": "null",
+      "dispatch_state": "null",
+      "duration_hours": "int",
+      "id": "str",
+      "patient_address": "str",
+      "patient_city": "str",
+      "patient_details": "null",
+      "patient_id": "str",
+      "patient_latitude": "float",
+      "patient_longitude": "float",
+      "patient_state": "str",
+      "payment_expires_at": "null",
+      "payment_failure_reason": "null",
+      "payment_status": "str",
+      "paystack_reference": "str",
+      "platform_fee": "str",
+      "platform_fee_kobo": "int",
+      "refund_required": "bool",
+      "refund_required_reason": "null",
+      "scheduled_date": "str",
+      "scheduled_end_date": "str",
+      "service_fee": "str",
+      "service_fee_kobo": "int",
+      "service_type": "str",
+      "special_instructions": "null",
+      "status": "str",
+      "total_amount": "str",
+      "total_amount_kobo": "int",
+      "updated_at": "str",
+      "visit_code": "null"
+    },
+    "message": "str"
+  },
+  "admin_detail": {
+    "audit_history": [
+      {
+        "action": "str",
+        "admin_user_id": "str",
+        "created_at": "str",
+        "entity_id": "str",
+        "entity_type": "str",
+        "id": "str",
+        "reason": "null"
+      }
+    ],
+    "background_check": {
+      "decided_at": "null",
+      "decided_by": "null",
+      "evidence": "null",
+      "status": "str"
+    },
+    "consents": {
+      "background_check_consent": "bool",
+      "consent_date": "null",
+      "privacy_policy_accepted": "bool",
+      "terms_accepted": "bool"
+    },
+    "decision": {
+      "approved_at": "null",
+      "approved_by": "null",
+      "changes_requested": "null",
+      "rejection_reason": "null",
+      "suspended_at": "null",
+      "suspension_reason": "null"
+    },
+    "documents": [
+      {
+        "document_name": "str",
+        "document_type": "str",
+        "download_url": "str",
+        "expires_on": "null",
+        "file_size": "int",
+        "id": "str",
+        "mime_type": "str",
+        "rejection_reason": "null",
+        "reviewed_by": "null",
+        "uploaded_at": "str",
+        "verification_status": "str",
+        "verified_at": "null"
+      }
+    ],
+    "identity": {
+      "document_verification_result": "null",
+      "face_verification_result": "null",
+      "face_verification_status": "null",
+      "status": "str"
+    },
+    "profile": {
+      "address": "null",
+      "background_check_consent": "bool",
+      "background_check_status": "str",
+      "created_at": "str",
+      "date_of_birth": "null",
+      "email": "str",
+      "emergency_contact_phone": "null",
+      "full_name": "str",
+      "gender": "null",
+      "id": "str",
+      "identity_verification_status": "str",
+      "phone_number": "str",
+      "preferred_work_hours": "null",
+      "privacy_policy_accepted": "bool",
+      "profile_completion_step": "int",
+      "profile_status": "str",
+      "service_areas": "null",
+      "specialization": "str",
+      "state": "str",
+      "terms_accepted": "bool",
+      "updated_at": "str",
+      "user_id": "str",
+      "years_of_experience": "int"
+    },
+    "skills": [
+      {
+        "service_type": "str",
+        "sub_specialty": "null"
+      }
+    ]
+  },
+  "admin_list": {
+    "items": [
+      {
+        "age_in_days": "int",
+        "background_check_status": "str",
+        "document_count": "int",
+        "full_name": "str",
+        "id": "str",
+        "identity_verification_status": "str",
+        "profile_status": "str",
+        "specialization": "str",
+        "state": "str",
+        "submitted_at": "str",
+        "years_of_experience": "int"
+      }
+    ],
+    "limit": "int",
+    "offset": "int",
+    "total": "int"
+  },
+  "form_options": {
+    "service_areas": [
+      "str"
+    ],
+    "specializations": [
+      "str"
+    ],
+    "states": [
+      "str"
+    ],
+    "work_hours": [
+      "str"
+    ]
+  },
+  "verification_status": {
+    "background_check_status": "str",
+    "changes_requested": "null",
+    "identity_verification_status": "str",
+    "profile_completion_step": "int",
+    "profile_status": "str",
+    "rejection_reason": "null"
+  }
+}

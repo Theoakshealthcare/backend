@@ -192,9 +192,9 @@ def read_env(path: str) -> Dict[str, str]:
 
 
 def hash_password(pw: str) -> str:
-    from passlib.context import CryptContext
+    import bcrypt
 
-    return CryptContext(schemes=["bcrypt"]).hash(pw)
+    return bcrypt.hashpw(pw.encode()[:72], bcrypt.gensalt()).decode()
 
 
 def seed_admin_session(rec: "Recorder", db: "DB", env: Dict[str, str], email: str,
