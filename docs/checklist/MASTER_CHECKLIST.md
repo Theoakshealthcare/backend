@@ -187,6 +187,19 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
 - [ ] **A5** People (masked), break-glass clinical access, audit viewer, CSV exports
 - [ ] **FE integration guide for admin** (`docs/fe-integration-guide-admin.md`), generated from live captures
 
+## 10. Phase W: WhatsApp patient channel (same backend) — 🟡 starting
+Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp-channel.md). Built and tested locally against a fake Meta; real phone tests later need a Meta developer test number (not business verification).
+- [ ] **W1** Foundations: phone-first users, contacts, conversations, message metadata, consents, care recipients, support conversations; signed webhook and queue; Cloud API client; state machine with consent, STOP/START, menu, emergency screen, handover; fake Meta
+- [ ] **W2** Booking in chat: booking Flow and encrypted data endpoint, location, locked quote, Paystack link, templates
+- [ ] **W3** Notifications (channel-agnostic) and my bookings/cancel
+- [ ] **W4** Web companion API and `apps/companion`
+- [ ] **W5** FallGuard Flow, vitals reminders, care circle, Pidgin
+
+## 11. Tech debt — ⚪ queued (after A0 merges; it touches the same auth code)
+- [ ] passlib → pwdlib, python-jose → PyJWT (app tokens), google-generativeai → google-genai
+- [ ] Python 3.11 → 3.13 (Docker, CI, `.python-version`)
+- [ ] Typed response models for verification-status, form-options and the booking action response
+
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
 - [x] Push notifications for caregiver job offers (Expo). 2026-10-05, C3, [SOP](../sop/2026-10-05-caregiver-mobile-support.md). Patient-side pushes and WhatsApp are not built.
