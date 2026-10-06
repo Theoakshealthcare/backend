@@ -2,6 +2,8 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
+**Update (2026-10-06, evening):** Admin A0 and A1 merged; tech debt merged (#23: Python 3.13, pwdlib, PyJWT, google-genai, typed responses). WhatsApp W1 merged, W2 (booking in chat) in review. See sections 9–11.
+
 **Update (2026-10-06):** Phase 0 is done. Phase C (caregiver app) is code-complete: C0–C4 merged. A device/Simulator run is pending a newer Xcode, and real push needs an EAS project. See section 8.
 
 **Snapshot (2026-09-30):**
@@ -192,8 +194,12 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] 10. Tests: permission matrix (about 40 routes x 7 roles), token audience both ways, MFA replay, refresh reuse, lockout, invite, last Super Admin (with a race test), CLI, migration
   - [x] 11. FE guide from live captures (`scripts/capture_admin_flow.py`, `docs/fe-captures/admin/`), `--check` in CI
   - [x] 12. Opus review (auth and permission code): 1 high, 1 medium, 4 low findings fixed with tests, 2026-10-06
-  - [ ] 13. Final read of the review-fix diff before merge
-- [ ] **A1** Console scaffold (`apps/admin`, Next.js 16): login and MFA, permission-gated shell, caregiver queue and detail with all decisions, admin users
+  - [x] 13. Final read of the review-fix diff before merge (merged as #21)
+- [x] **A1** Console scaffold (`apps/admin`, Next.js 16): login and MFA, permission-gated shell, caregiver queue and detail with all decisions, admin users — merged 2026-10-06 (innocent98/oaklycare-caregiver-mobile#6, 8267a0b)
+  - [x] BFF with httpOnly refresh cookie, single-flight refresh (browser + per-token in the BFF, 2 s late-caller grace)
+  - [x] Security review fixes: proxy segment validation + allowlist (`admin/`, `caregiver/documents/`), 1 MB body cap, CSP with per-request nonce, HSTS in production, open-redirect guard; Opus re-review clean
+  - [x] Verified: 121 admin tests, Playwright e2e 8/8 against the local docker stack, production build checked in Chromium (no CSP violations)
+  - [ ] Audit log viewer page (API exists; moved to A5)
 - [ ] **A2** Bookings ops: list and detail with timeline, unmatched queue, assign, reassign, cancel, status correction
 - [ ] **A3** Money: earnings credited on completion, caregiver ledger, Paystack Transfer payouts, refunds v2 queue (`refund_required`), payments and webhook exceptions
 - [ ] **A4** Pricing: versioned price books, service areas, form options, policies
