@@ -37,6 +37,8 @@ dependencies = [
 
     # Third-party integrations
     "requests (>=2.34.2,<3.0.0)",
+    # Expo push (app/services/push.py); httpx is also what the test client uses
+    "httpx (>=0.28.1,<0.29.0)",
     "cloudinary (>=1.46.2,<2.0.0)",
     # Deprecated upstream; migrate to google-genai.
     "google-generativeai (>=0.8.6,<0.9.0)",
@@ -48,7 +50,6 @@ package-mode = false
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1.1"
-httpx = "^0.28.1"
 ruff = "^0.16.9"
 testcontainers = {version = "^4.15.0", extras = ["postgres"]}
 
