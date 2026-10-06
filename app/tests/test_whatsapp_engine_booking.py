@@ -37,8 +37,8 @@ def test_book_still_hands_over_when_booking_in_chat_is_off_or_there_is_no_accoun
     assert outcome.state == State.HUMAN and effects(outcome, OpenTicket)[0].reason == "booking_placeholder"
 
 
-def test_my_bookings_is_still_a_placeholder_until_w3():
-    outcome = step(snap(IDLE), Inbound.list_choice("menu:bookings"), CFG)
+def test_my_bookings_hands_over_only_when_the_contact_has_no_account():
+    outcome = step(snap(IDLE, has_account=False), Inbound.list_choice("menu:bookings"), CFG)
     assert outcome.state == State.HUMAN
 
 

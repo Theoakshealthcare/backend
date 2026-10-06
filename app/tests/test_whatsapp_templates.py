@@ -19,8 +19,12 @@ URL = CHECKOUT_BASE + "ac_abc123"
 
 # --- the registry ----------------------------------------------------------------------------------------
 def test_the_w2_templates_exist_in_the_utility_category_with_the_prd_wording():
+    assert {"booking_payment_link", "payment_link_expiring", "payment_received", "payment_refund_pending",
+            "booking_cancelled_unpaid"} <= set(TEMPLATES)
     assert set(TEMPLATES) == {"booking_payment_link", "payment_link_expiring", "payment_received",
-                              "payment_refund_pending", "booking_cancelled_unpaid"}
+                              "payment_refund_pending", "booking_cancelled_unpaid",  # W2
+                              "caregiver_assigned", "visit_code", "caregiver_en_route", "visit_started",
+                              "visit_completed_feedback", "booking_update", "refund_update"}  # W3
     assert all(t.category == "utility" for t in TEMPLATES.values())
     assert TEMPLATES["payment_received"].body == (
         "Payment of {{1}} received for booking {{2}}. We're assigning a professional now.")
@@ -46,8 +50,15 @@ def test_no_template_has_a_slot_for_health_information():
         assert not any(b in p for p in template.params for b in banned), template.name
 
 
-def test_only_the_messages_about_money_taken_are_essential():
-    assert [t.name for t in TEMPLATES.values() if t.essential] == ["payment_received", "payment_refund_pending"]
+def test_only_money_and_a_paid_visit_that_will_not_go_as_planned_are_essential():
+    assert [t.name for t in TEMPLATES.values() if t.essential] == [
+        "payment_received", "payment_refund_pending", "visit_code", "booking_update", "refund_update"]
+
+
+def test_no_template_body_starts_or_ends_with_a_variable():
+    import re
+    for template in TEMPLATES.values():  # Meta refuses such a body
+        assert not re.match(r"^\{\{\d+\}\}", template.body) and not re.search(r"\{\{\d+\}\}[.!]?$", template.body), template.name
 
 
 def test_render_fills_in_order_and_refuses_a_missing_variable():
@@ -59,7 +70,10 @@ def test_render_fills_in_order_and_refuses_a_missing_variable():
 
 def test_every_free_text_rendering_fits_whatsapps_limits():
     params = {"booking_code": "AB12CD34", "minutes": "10", "total": "₦1,000,000.50", "recipient_first_name": "Oluwatobiloba",
-              "when": "Sat 4 Oct, 10:00–14:00"}
+              "when": "Sat 4 Oct, 10:00–14:00", "caregiver_first_name": "Oluwatobiloba", "date": "Sat 4 Oct",
+              "time": "10:00", "experience": "verified professional", "visit_code": "1234",
+              "update": "Your professional can no longer attend, so the visit is cancelled. We've started a refund of ₦1,000,000.50.",
+              "amount": "₦1,000,000.50", "status": "being processed"}
     for name in TEMPLATES:
         message = choose(name, params, in_window=True, url=URL)  # building it validates the limits
         assert isinstance(message, (TextMessage, ButtonsMessage, CtaUrlMessage))

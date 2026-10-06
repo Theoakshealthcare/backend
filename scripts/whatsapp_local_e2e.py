@@ -25,6 +25,16 @@ its own local port, with the API pointed at it by ``PAYSTACK_BASE_URL``):
   chat before the webhook (the bot verifies with Paystack), and a city outside Lagos and Abuja (waitlist).
 - Nothing the person typed in the Flow (the condition) is in any message the bot sent, any table, or Redis.
 
+W3 adds the rest of the visit's journey and "My bookings", on the same stack (real caregiver API calls with a throwaway
+caregiver; the worker's events job delivers the messages):
+- A caregiver accepts: the booker gets "who is coming" and a 4-digit visit code (the code is proved by the caregiver
+  starting the visit with it); on my way, started and completed arrive in order, each once.
+- "My bookings": the list, a detail (visit code for the booker), cancelling before assignment (full refund, the
+  booking leaves dispatch), cancelling an assigned visit inside 12 hours (the fee is shown first and kept), a second
+  Confirm is harmless. A caregiver who drops out refunds in full and the booker is told, as a template outside the
+  24 hour window. The caregiver's push is recorded as delivered (no device on file in the stack).
+- The condition appears in none of it.
+
 ``--up`` writes a throwaway env file with random secrets to the system temp dir and starts compose
 with it (``OAKLY_ENV_FILE_PATH``). Nothing is read from or written to a real ``.env``.
 Needs Docker and nothing else: no Meta account, no tunnel, no internet.
@@ -79,6 +89,7 @@ WA_ID_BOOK = "23483" + "".join(secrets.choice("0123456789") for _ in range(8))  
 WA_ID_EXPIRY = "23484" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_RETURN = "23485" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_CANCEL = "23487" + "".join(secrets.choice("0123456789") for _ in range(8))
+WA_ID_DROP = "23488" + "".join(secrets.choice("0123456789") for _ in range(8))  # W3: a caregiver who drops out
 WA_ID_FAR = "23486" + "".join(secrets.choice("0123456789") for _ in range(8))
 CONDITION = "post-surgery wound dressing, SENTINEL-CONDITION-7731"  # must appear nowhere but encrypted on the booking
 RUN = secrets.token_hex(4)  # makes the Meta message ids unique per run too (a reused id is a replay)
@@ -578,6 +589,187 @@ def booking_scenarios(run: Run) -> None:
     run.check("nor in Redis (no condition, and no pin left behind)", "SENTINEL" not in redis and "3.4723" not in redis)
 
 
+# --- W3: the visit's journey, my bookings and cancelling ---------------------------------------------------------
+def caregiver_login(run: Run, name: str) -> dict:
+    """A throwaway approved caregiver in the stack's database (through the app's own models) and a bearer token for
+    it, signed with the stack's SECRET_KEY. Returns {"id", "user_id", "headers"}."""
+    import jwt
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.tests.factories import make_caregiver
+
+    engine = create_engine(DB_DSN)
+    with Session(engine) as db:
+        caregiver = make_caregiver(db, full_name=name, years_of_experience=6)
+        ids = {"id": str(caregiver.id), "user_id": str(caregiver.user_id)}
+    engine.dispose()
+    token = jwt.encode({"exp": datetime.now(timezone.utc) + timedelta(hours=1), "sub": ids["user_id"], "type": "access"},
+                       run.env["SECRET_KEY"], algorithm="HS256")
+    return {**ids, "headers": {"Authorization": f"Bearer {token}"}}
+
+
+def caregiver_act(run: Run, caregiver: dict, booking_id: str, action: str, **extra) -> httpx.Response:
+    return run.http.post(f"{run.base}/api/v1/booking/caregiver/action/{booking_id}", json={"action": action, **extra},
+                         headers=caregiver["headers"])
+
+
+def offer_to(caregiver: dict, booking_id: str) -> None:
+    sql_exec("INSERT INTO booking_notifications (id, booking_id, caregiver_id, title, message, notification_type, "
+             f"created_at) VALUES (gen_random_uuid(), '{booking_id}', '{caregiver['id']}', 'New Booking Request', "
+             "'x', 'new_booking', now())")
+
+
+def chat_step(run: Run, send: Callable[[], object], *, count: int = 1, timeout: float = 45.0) -> list:
+    """Do something in the chat (or the API) and return the ``count`` bot messages that follow, once they have settled."""
+    sent = len(run.graph.bodies)
+    send()
+    wait_for(f"{count} bot message(s)", lambda: len(run.graph.bodies) >= sent + count, timeout)
+    run.settle(1.5)
+    return run.graph.bodies[sent:]
+
+
+def tap(run: Run, wa_id: str, reply_id: str, tag: str, *, as_list: bool = False) -> list:
+    make = list_payload if as_list else button_payload
+    return chat_step(run, lambda: run.post(make(wa_id, reply_id, message_id=f"wamid.E2E.{RUN}.{tag}.{secrets.token_hex(3)}")))
+
+
+def paid_booking(run: Run, wa_id: str, tag: str) -> tuple:
+    book_until_quote(run, wa_id, tag)
+    confirm(run, wa_id, tag)
+    row = booking_row(wa_id)
+    run.check(f"[{tag}] its signed Paystack webhook settles it", paystack_webhook(run, row[11], 4_400_000) == 200)
+    wait_for("dispatch to start", lambda: booking_row(wa_id)[10] is not None, 30)
+    wait_for("the receipt", lambda: any("Payment of" in to_naira_text(b) and b["to"] == wa_id for b in run.graph.bodies), 45)
+    return booking_row(wa_id)
+
+
+def mine(run: Run, wa_id: str, after: int) -> list:
+    return [b for b in run.graph.bodies[after:] if b.get("to") == wa_id]
+
+
+def notification_scenarios(run: Run) -> None:
+    graph = run.graph
+    import re
+
+    print("W3 journey A: accepted, code, on my way, started, completed (all inside the 24 hour window)")
+    a = booking_row(WA_ID_BOOK)
+    caregiver = caregiver_login(run, "Ngozi Okafor")
+    offer_to(caregiver, str(a[0]))
+    sent = len(graph.bodies)
+    r = caregiver_act(run, caregiver, str(a[0]), "accept")
+    run.check("the caregiver's accept goes through the real API", r.status_code == 200, r.text)
+    wait_for("both messages", lambda: len(mine(run, WA_ID_BOOK, sent)) >= 2, 45)
+    run.settle(1.5)
+    texts = [to_naira_text(b) for b in mine(run, WA_ID_BOOK, sent)]
+    assigned = next((t for t in texts if "will visit" in t), "")
+    run.check("the booker is told who is coming, when, and their experience",
+              assigned.startswith(f"Booking {a[1]}: Ngozi will visit on ") and "Experience: 6 years." in assigned
+              and "Okafor" not in assigned, assigned)
+    code_message = next((t for t in texts if "visit code" in t), "")
+    found = re.search(r"is (\d{4})\. Give it to the professional", code_message)
+    run.check("the visit code arrives as four digits with the sharing warning", bool(found), code_message)
+    visit_code = found.group(1)
+    run.check("the caregiver cannot start with a wrong code",
+              caregiver_act(run, caregiver, str(a[0]), "start", visit_code="0000" if visit_code != "0000" else "1111").status_code == 400)
+    on_way = chat_step(run, lambda: caregiver_act(run, caregiver, str(a[0]), "on_my_way"))
+    run.check("on my way reaches the booker", to_naira_text(on_way[0]) == f"Booking {a[1]}: Ngozi is on the way to you now.", to_naira_text(on_way[0]))
+    started = chat_step(run, lambda: caregiver_act(run, caregiver, str(a[0]), "start", visit_code=visit_code))
+    run.check("starting with the code the bot sent works, and the booker is told",
+              to_naira_text(started[0]) == f"The visit for booking {a[1]} has started.", to_naira_text(started[0]))
+    done = chat_step(run, lambda: caregiver_act(run, caregiver, str(a[0]), "complete"))
+    run.check("completion thanks the booker and offers Book again",
+              "is complete. Thank you for choosing Oakly." in to_naira_text(done[0])
+              and done[0]["interactive"]["action"]["buttons"][0]["reply"]["id"] == "menu:book", to_naira_text(done[0]))
+    run.settle(16)
+    run.check("each journey message was sent exactly once", sum(
+        1 for b in mine(run, WA_ID_BOOK, sent) if any(w in to_naira_text(b) for w in ("will visit", "visit code", "on the way", "has started", "is complete"))) == 5)
+    run.check("every journey event is settled and none failed", db_rows(
+        f"SELECT count(*) FROM booking_events WHERE booking_id = '{a[0]}' AND (delivered_at IS NULL OR last_error IS NOT NULL)") == [(0,)])
+
+    print("W3 my bookings: list and detail")
+    listing = tap(run, WA_ID_BOOK, "menu:bookings", "L1", as_list=True)
+    rows = [r for s in listing[0]["interactive"]["action"]["sections"] for r in s["rows"]]
+    run.check("My bookings lists the booking by its code with service, date and status",
+              len(rows) == 1 and rows[0]["title"] == a[1] and rows[0]["description"].startswith("Nurse · ")
+              and rows[0]["description"].endswith("Completed"), str(rows))
+    detail = tap(run, WA_ID_BOOK, f"bk:view:{a[0]}", "L2", as_list=True)
+    text = to_naira_text(detail[0])
+    run.check("the detail shows status, total and the professional's first name",
+              all(t in text for t in ("Status: Completed", "Total: ₦44,000", "Professional: Ngozi")), text)
+    run.check("a completed visit offers Book again, not Cancel", [b["reply"]["id"] for b in detail[0]["interactive"]["action"]["buttons"]] == ["menu:book", "bk:list"])
+
+    print("W3 cancel before assignment: full refund, and it leaves dispatch")
+    e = booking_row(WA_ID_CANCEL)
+    ask = tap(run, WA_ID_CANCEL, f"bk:cancel:{e[0]}", "E1")
+    run.check("the policy is shown before the person confirms",
+              to_naira_text(ask[0]) == f"Cancel booking {e[1]}? You'll get a full refund of ₦44,000.", to_naira_text(ask[0]))
+    run.check("nothing is cancelled by asking", booking_row(WA_ID_CANCEL)[3].lower() == "pending")
+    confirm_id = ask[0]["interactive"]["action"]["buttons"][0]["reply"]["id"]
+    run.check("the confirm button carries the fee that was shown (none here)", confirm_id == f"bk:confirm:{e[0]}:0", confirm_id)
+    done = tap(run, WA_ID_CANCEL, confirm_id, "E2")
+    run.check("confirming cancels and starts the refund", to_naira_text(done[0]) == f"Booking {e[1]} is cancelled. We've started your refund of ₦44,000.", to_naira_text(done[0]))
+    flagged = db_rows(f"SELECT status, cancel_reason, refund_required, refund_required_reason, refund_amount_kobo FROM bookings WHERE id = '{e[0]}'")
+    run.check("the booking is cancelled and in the refund queue for the full amount",
+              flagged[0][0].lower() == "cancelled" and flagged[0][1:] == ("cancelled_by_booker", True, "cancelled_by_booker", 4_400_000), str(flagged))
+    again = tap(run, WA_ID_CANCEL, confirm_id, "E3")
+    run.check("a second Confirm is harmless", "already cancelled" in to_naira_text(again[0]))
+    run.check("the refund was queued once", db_rows(f"SELECT refund_amount_kobo FROM bookings WHERE id = '{e[0]}'") == [(4_400_000,)])
+
+    print("W3 cancel an assigned visit inside 12 hours: the fee is shown first, then kept")
+    c = booking_row(WA_ID_RETURN)
+    sql_exec(f"UPDATE bookings SET scheduled_date = now() + interval '6 hours', scheduled_end_date = now() + interval '10 hours' WHERE id = '{c[0]}'")
+    caregiver2 = caregiver_login(run, "Amaka Eze")
+    offer_to(caregiver2, str(c[0]))
+    run.check("a caregiver accepts the booking", caregiver_act(run, caregiver2, str(c[0]), "accept").status_code == 200)
+    wait_for("the assignment notices", lambda: sum(1 for b in mine(run, WA_ID_RETURN, 0) if "will visit" in to_naira_text(b) or "visit code" in to_naira_text(b)) >= 2, 45)
+    fee = db_rows(f"SELECT service_fee_kobo, total_amount_kobo FROM bookings WHERE id = '{c[0]}'")[0]
+    fee_kobo = (fee[0] * 20 + 50) // 100
+    ask = tap(run, WA_ID_RETURN, f"bk:cancel:{c[0]}", "C1")
+    text = to_naira_text(ask[0])
+    run.check("the fee is stated before confirming", "less than 12 hours" in text and "20% fee" in text
+              and f"₦{fee_kobo // 100:,}" in text and f"₦{(fee[1] - fee_kobo) // 100:,}" in text, text)
+    confirm_c = ask[0]["interactive"]["action"]["buttons"][0]["reply"]["id"]
+    run.check("the confirm button carries the fee in kobo", confirm_c == f"bk:confirm:{c[0]}:{fee_kobo}", confirm_c)
+    bare = tap(run, WA_ID_RETURN, f"bk:confirm:{c[0]}:0", "C1b")
+    run.check("a forged zero-fee confirm cancels nothing and asks again", "terms have changed" in to_naira_text(bare[0])
+              and booking_row(WA_ID_RETURN)[3].lower() == "accepted")
+    done = tap(run, WA_ID_RETURN, confirm_c, "C2")
+    run.check("the fee is kept and the refund is the rest", "a fee of" in to_naira_text(done[0])
+              and db_rows(f"SELECT refund_amount_kobo FROM bookings WHERE id = '{c[0]}'") == [(fee[1] - fee_kobo,)])
+    run.settle(16)
+    pushed = db_rows(f"SELECT delivered_at IS NOT NULL, last_error FROM booking_events WHERE booking_id = '{c[0]}' AND event = 'caregiver_booking_cancelled'")
+    run.check("the assigned caregiver's push is recorded and settled (no device on file in the stack)", pushed == [(True, "no_device")], str(pushed))
+
+    print("W3 a caregiver drops out; the booker is outside the 24 hour window")
+    f = paid_booking(run, WA_ID_DROP, "F")
+    sql_exec("UPDATE whatsapp_contacts SET last_inbound_at = now() - interval '26 hours' "
+             f"WHERE wa_id = '{WA_ID_DROP}'")
+    caregiver3 = caregiver_login(run, "Zainab Bello")
+    offer_to(caregiver3, str(f[0]))
+    sent = len(graph.bodies)
+    run.check("a caregiver accepts", caregiver_act(run, caregiver3, str(f[0]), "accept").status_code == 200)
+    wait_for("both templates", lambda: len(mine(run, WA_ID_DROP, sent)) >= 2, 45)
+    run.settle(1.5)
+    names = sorted(b["template"]["name"] for b in mine(run, WA_ID_DROP, sent) if b["type"] == "template")
+    run.check("outside the window the assignment and the code go as approved templates", names == ["caregiver_assigned", "visit_code"], str(names))
+    update = chat_step(run, lambda: caregiver_act(run, caregiver3, str(f[0]), "cancel"))
+    run.check("the caregiver dropping out refunds in full and tells the booker as booking_update",
+              update[0]["type"] == "template" and update[0]["template"]["name"] == "booking_update"
+              and "We've started a refund of ₦44,000." in json.dumps(update[0], ensure_ascii=False), str(update[0]))
+    drop = db_rows(f"SELECT refund_required, refund_amount_kobo, cancel_reason FROM bookings WHERE id = '{f[0]}'")
+    run.check("the booking is in the refund queue for the full amount", drop == [(True, 4_400_000, "caregiver_cancelled")], str(drop))
+
+    print("W3 privacy and the worker")
+    spoken = json.dumps(graph.bodies)
+    run.check("the condition is in no message the bot sent, including the new ones", "SENTINEL" not in spoken and "wound" not in spoken.lower())
+    dump = json.dumps(db_rows("SELECT t::text FROM booking_events t")) + json.dumps(db_rows("SELECT t::text FROM whatsapp_messages t"))
+    run.check("nor in the outbox or the message log", "SENTINEL" not in dump)
+    run.check("the visit code is not in the outbox or the message log", visit_code not in dump.replace(str(a[0]), ""))
+    run.check("no event is stuck or failed", db_rows("SELECT count(*) FROM booking_events WHERE delivered_at IS NULL OR "
+                                                      "(last_error IS NOT NULL AND last_error NOT IN ('no_device'))") == [(0,)])
+
+
 def wait_for_api(base: str, timeout: float = 240.0) -> None:
     def up() -> bool:
         try:
@@ -623,6 +815,7 @@ def main() -> int:
         run = Run(args.base_url, env, graph, paystack)
         scenario(run)
         booking_scenarios(run)
+        notification_scenarios(run)
         more_emergencies(run)
         print(f"\nALL {len(run.results)} CHECKS PASSED")
         code = 0

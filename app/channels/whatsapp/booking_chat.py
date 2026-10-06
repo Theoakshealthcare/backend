@@ -536,6 +536,9 @@ def _cancel_after_check(db: Session, contact_id: uuid.UUID, booking_id: uuid.UUI
                   {"quote_id": None, "booking_id": None, "waitlist_quote_id": None})
 
 
+cancel_unpaid_after_check = _cancel_after_check  # the same step, for "My bookings" (W3)
+
+
 # --- dispatcher and housekeeping --------------------------------------------------------------
 def apply(ctx: Ctx, effect: Any) -> Result:
     if isinstance(effect, StartBooking):

@@ -16,7 +16,7 @@ A person who has consented can now book, price, pay for and be told about a home
 - **Template registry** with the five W2 templates and the 24-hour window rule enforced in the one function every send goes through.
 - Four new conversation states, a 30-minute idle expiry, one migration, and the extended end-to-end script.
 
-"Book a visit" and "Doctor home visit" open the Flow when `WHATSAPP_BOOKING_FLOW_ID` is set and the contact has an Oakly account; otherwise they hand over to a person exactly as in W1. "My bookings" stays a placeholder until W3.
+"Book a visit" and "Doctor home visit" open the Flow when `WHATSAPP_BOOKING_FLOW_ID` is set and the contact has an Oakly account; otherwise they hand over to a person exactly as in W1. "My bookings" was a placeholder in W2; W3 made it real ([SOP](2026-10-06-whatsapp-notifications.md)).
 
 ## Why
 W1 could only take a stranger as far as a consented menu. To launch the closed pilot a patient has to be able to book without an app. Everything had to reuse the existing money code (one price function, one settlement function, the existing expiry and dispatch) rather than fork it, and nothing the person says about their health may land anywhere it should not.
@@ -77,7 +77,7 @@ Rejected: letting the quote message recompute the price on every show; geocoding
 | `WHATSAPP_SERVICE_MAX_HOURS` | `nurse:12,caregiver:24,physiotherapist:4,doctor:2,nutritionist:2` | Longest visit per service (placeholders: **[DECISION]** PRD §8.4). |
 | `WHATSAPP_QUOTE_TTL_MINUTES` / `WHATSAPP_IDLE_EXPIRY_MINUTES` | 30 / 30 | Price lock; idle reset of an unfinished booking. |
 | `WHATSAPP_PAYMENT_REMINDER_MINUTES` | 20 | After the link is sent (the link lives `PAYMENT_LINK_TTL_MINUTES` = 30). |
-| `WHATSAPP_CANCEL_FREE_HOURS` | 12 | The cancellation line in the quote (W3 makes it a real policy). |
+| `WHATSAPP_CANCEL_FREE_HOURS` | 12 | The cancellation line in the quote; **W3 made it the real policy** (with `WHATSAPP_CANCEL_FEE_PERCENT`). |
 | `WHATSAPP_MIN_LEAD_HOURS`, `_SLOT_START_HOUR`, `_SLOT_END_HOUR` | 2, 7, 20 | Slots offered. |
 | `WHATSAPP_MAX_RECIPIENTS` | 10 | Saved people per contact (WA-FR-17). |
 | `WHATSAPP_PAYMENT_RETURN_URL` | oaklycare.com/pay/return | Paystack `callback_url` (the web companion page in W4). |
@@ -142,7 +142,7 @@ Notes for operators: a `payment_refund_pending` message means money is at Paysta
 1. **Make a key pair** and keep the private half out of git: `openssl genrsa -out flow_private.pem 2048 && openssl rsa -in flow_private.pem -pubout -out flow_public.pem`. Put the private PEM in `WHATSAPP_FLOW_PRIVATE_KEY` (newlines as `\n`).
 2. **Upload the public key** to Meta for the phone number (`POST /{phone-number-id}/whatsapp_business_encryption`, field `business_public_key`): https://developers.facebook.com/docs/whatsapp/cloud-api/reference/whatsapp-business-encryption
 3. **Create the Flow** in the WhatsApp Manager Flow builder, paste `app/channels/whatsapp/flows/booking.json`, set the **endpoint URI** to `https://<host>/api/v1/whatsapp/flows/data`, let Meta run its health check (it sends a `ping`), fix anything its validator reports, **publish**, and copy the Flow id into `WHATSAPP_BOOKING_FLOW_ID`. Flow reference: https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson
-4. **Submit the five templates** in `app/channels/whatsapp/templates.py` (`booking_payment_link`, `payment_link_expiring`, `payment_received`, `payment_refund_pending`, `booking_cancelled_unpaid`), category Utility, English, with the button definitions (URL buttons use base URL `https://checkout.paystack.com/{{1}}`, quick reply "Book again" with payload `menu:book`).
+4. **Submit the templates** (the full list of twelve, with W3's seven, is in the [W3 SOP](2026-10-06-whatsapp-notifications.md#owner-steps-nothing-here-has-been-done)). The five from W2 are in `app/channels/whatsapp/templates.py` (`booking_payment_link`, `payment_link_expiring`, `payment_received`, `payment_refund_pending`, `booking_cancelled_unpaid`), category Utility, English, with the button definitions (URL buttons use base URL `https://checkout.paystack.com/{{1}}`, quick reply "Book again" with payload `menu:book`).
 5. Put real prices and the per-service multipliers in booking settings; decide the hour caps and the cancellation policy line.
 
 ## What to check against real Meta

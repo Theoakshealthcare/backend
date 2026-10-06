@@ -193,7 +193,7 @@ def test_detail_has_every_section_and_a_timeline(client, db, boss):
     assert [w["wave_no"] for w in d["dispatch"]["waves"]] == [1]
     assert d["dispatch"]["waves"][0]["notified_count"] == 1
     assert d["dispatch"]["offers"][0]["caregiver_id"] == str(cg.id)
-    assert {e["event"] for e in d["events"]} == {"payment_received", "payment_refund_pending"}
+    assert {e["event"] for e in d["events"]} == {"payment_received", "booking_cancelled_by_admin", "refund_flagged"}
     kinds = [t["kind"] for t in d["timeline"]]
     assert kinds[0] == "booking_created" and "wave_sent" in kinds and "admin_action" in kinds
     assert [t["at"] for t in d["timeline"]] == sorted(t["at"] for t in d["timeline"])
@@ -466,7 +466,9 @@ def test_cancel_with_a_full_refund_flags_it_and_tells_the_booker(client, db, ops
     assert b2.status == BookingStatus.CANCELLED and b2.cancel_reason == "no_supply"
     assert b2.refund_required and b2.refund_required_reason == "admin_cancelled_full"
     assert b2.payment_status == PaymentStatus.PAID  # no money moved: the refund queue does that
-    assert [e.event for e in db.query(BookingEvent).filter_by(booking_id=b.id)] == ["payment_refund_pending"]
+    assert b2.refund_amount_kobo == b2.total_amount_kobo
+    assert sorted(e.event for e in db.query(BookingEvent).filter_by(booking_id=b.id)) == [
+        "booking_cancelled_by_admin", "refund_flagged"]  # W3: the booker is told, and told about the refund
     (row,) = audit_rows(db, b, "booking.cancel")
     assert row.reason == "Patient called" and row.after["refund"] == "full"
     assert row.before["status"] == "pending" and row.after["status"] == "cancelled"
@@ -480,15 +482,16 @@ def test_cancel_with_a_partial_refund_records_the_amount(client, db, ops):
                 ).status_code == 422  # that is a full refund
     assert fresh(db, b).status == BookingStatus.PENDING
     r = post(client, ops, b, "cancel", cancel_body(refund="partial", refund_amount_kobo=1_000_000))
-    assert r.status_code == 200 and r.json()["refund_required_reason"] == "admin_cancelled_partial:1000000"
+    assert r.status_code == 200 and r.json()["refund_required_reason"] == "admin_cancelled_partial"
+    assert r.json()["refund_amount_kobo"] == 1_000_000 and fresh(db, b).refund_amount_kobo == 1_000_000
 
 
 def test_cancel_without_a_refund_leaves_the_refund_queue_alone(client, db, ops):
     b = paid(db, channel="whatsapp")
     assert post(client, ops, b, "cancel", cancel_body(reason_code="duplicate")).status_code == 200
     b2 = fresh(db, b)
-    assert b2.refund_required is False and b2.refund_required_reason is None
-    assert db.query(BookingEvent).count() == 0
+    assert b2.refund_required is False and b2.refund_required_reason is None and b2.refund_amount_kobo is None
+    assert [e.event for e in db.query(BookingEvent)] == ["booking_cancelled_by_admin"]  # told it is cancelled, no refund
 
 
 def test_cancel_an_unpaid_booking_offers_no_refund(client, db, ops):
@@ -745,7 +748,8 @@ def test_two_admins_cancelling_at_once_only_one_succeeds(db):
         t.join(timeout=30)
     assert sorted(results) == ["conflict", "ok"]
     assert len(audit_rows(db, booking, "booking.cancel")) == 1
-    assert db.query(BookingEvent).filter_by(booking_id=booking.id).count() == 1
+    assert sorted(e.event for e in db.query(BookingEvent).filter_by(booking_id=booking.id)) == [
+        "booking_cancelled_by_admin", "refund_flagged"]  # one cancel, so each told exactly once
 
 
 def test_search_by_name_or_phone_needs_people_pii(client, db):

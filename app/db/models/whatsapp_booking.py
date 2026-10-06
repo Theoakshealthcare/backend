@@ -46,7 +46,17 @@ class Quote(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-BOOKING_EVENTS = ("payment_received", "payment_link_expiring", "booking_cancelled_unpaid", "payment_refund_pending")
+# Events whose audience is the booker (told on WhatsApp for a WhatsApp booking) and those whose audience is the
+# assigned caregiver (told by Expo push, whichever channel the booking came from). The NotificationService owns the
+# mapping from a domain change to these rows; the check constraint is the last line of defence against a typo.
+BOOKER_EVENTS = (
+    "payment_received", "payment_link_expiring", "booking_cancelled_unpaid", "payment_refund_pending",  # W2
+    "caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
+    "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "refund_flagged", "refund_processed",  # W3
+    "caregiver_reassigned",  # W3, from the admin console (A2)
+)
+CAREGIVER_EVENTS = ("caregiver_booking_cancelled",)
+BOOKING_EVENTS = BOOKER_EVENTS + CAREGIVER_EVENTS
 
 
 class BookingEvent(Base):
@@ -54,11 +64,12 @@ class BookingEvent(Base):
 
     Domain code records the event in the same transaction as the change (payment settled, booking
     cancelled); a worker delivers it. ``(booking_id, event)`` is unique, so a reminder or a confirmation
-    can never be queued twice. W3's NotificationService generalises this to push and email.
+    can never be queued twice. ``dedupe_key`` lets an event that may legitimately recur for one booking (a second
+    caregiver being assigned after the first dropped out) be queued once per key, e.g. per caregiver.
     """
     __tablename__ = "booking_events"
     __table_args__ = (
-        UniqueConstraint("booking_id", "event", name="uq_booking_events_booking_event"),
+        UniqueConstraint("booking_id", "event", "dedupe_key", name="uq_booking_events_booking_event"),
         CheckConstraint(
             "event IN (" + ", ".join(f"'{e}'" for e in BOOKING_EVENTS) + ")", name="ck_booking_events_event"
         ),
@@ -69,6 +80,7 @@ class BookingEvent(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
     event = Column(String, nullable=False)
+    dedupe_key = Column(String, nullable=False, default="", server_default="")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     delivered_at = Column(DateTime, nullable=True)  # set when sent, or when there was nobody to send it to
     # A worker claims an event with a compare-and-set on this column (and counts the attempt), so two workers

@@ -1160,7 +1160,7 @@ One call returns everything the detail screen needs. As Operations (address visi
 
 - `caregiver` is `null` until someone accepts. `dispatch.state` is `null` for a booking never dispatched (unpaid, or held).
 - `dispatch.offers[].response` is `null` until the caregiver answers, then `accept`, `declined`, `auto_declined` (someone else took it), `booking_cancelled`, `reassigned` or `assigned_by_admin`.
-- `payment.refund_required_reason` is a free-text code: `paid_after_expiry`, `paid_after_cancellation`, `admin_cancelled_full` or `admin_cancelled_partial:<kobo>` (the amount follows the colon).
+- `payment.refund_required_reason` is a free-text code: `paid_after_expiry`, `paid_after_cancellation`, `admin_cancelled_full` or `admin_cancelled_partial`. The amount to refund is `payment.refund_amount_kobo` (integer kobo; `null` means the refund module decides). *Not captured live: this field was added after the captures; the shape follows the schema.*
 
 **Clinical details are gated and every read is audited.** Without `clinical.read` the response says only that something exists:
 
@@ -1738,7 +1738,7 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
 | Every action's audit entry | Verified live (one) / Test only (all) | 118; each action's own entry is asserted in `test_admin_bookings.py` |
 | Every `/admin/bookings` route against every role | Test only | `test_admin_rbac.py` |
 | The patients, caregivers and bookings used | **[seeded]** | 079 note |
-| WhatsApp patient told of a refund after an admin cancel | Test only | the `payment_refund_pending` event is asserted; delivery needs the WhatsApp worker and Meta (W3) |
+| WhatsApp patient told of an admin cancel, refund or reassignment | Test only | the `booking_cancelled_by_admin`, `refund_flagged` and `caregiver_reassigned` events and the delivered text are asserted against a fake Meta; real Meta not exercised |
 | First Super Admin and the Analyst in these captures | **[seeded]** | 004, 043 notes |
 | `Retry-After` readable from the browser (CORS) | **[not live]** | The API exposes the header, but the capture stack has no allowed origin and no browser was used; check it once the console runs |
 | A real authenticator app scanning the QR code | **[not live]** | the captures generate codes with the same TOTP algorithm (`pyotp`), which is what authenticator apps implement |

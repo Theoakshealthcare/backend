@@ -18,7 +18,9 @@ from app.db.models.booking_settings import BookingSettings
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPreviewRequest, BookingPreviewResponse
+from app.services.booking_cancellation import flag_refund
 from app.services.location import LocationService
+from app.services.notification_service import NotificationService
 from app.services.gemini import gemini_service
 from app.services.paystack import PaystackService, paystack_email_for
 from app.services.pricing import PriceBreakdown, compute_price
@@ -419,6 +421,17 @@ class BookingService:
             status_code=423, retry_after=seconds,
         )
 
+    def _after_caregiver_cancel(self, booking: Booking) -> None:
+        """WA-FR-37. A WhatsApp booking whose caregiver drops out is refunded (not re-dispatched: see the W3 SOP) and
+        the booker is told in the same transaction. Before the visit started the whole payment goes back; once it
+        has, a person decides the amount. App bookings are left exactly as they were."""
+        if booking.channel != "whatsapp":
+            return
+        if booking.payment_status == PaymentStatus.PAID:
+            started = booking.actual_start_time is not None
+            flag_refund(booking, "caregiver_cancelled", None if started else int(booking.total_amount_kobo))
+        NotificationService(self.db).cancelled_by_caregiver(booking)
+
     def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID,
                             action_data: BookingActionRequest) -> Booking:
         """Handle a caregiver action on a booking.
@@ -479,6 +492,7 @@ class BookingService:
                 booking.visit_code_enc = encrypt(f"{secrets.randbelow(10_000):04d}")
                 booking.visit_code_failed_attempts = 0
                 booking.visit_code_locked_until = None
+                NotificationService(self.db).caregiver_accepted(booking)  # same transaction: who is coming + the code
                 notification.response = "accept"
                 notification.response_at = datetime.utcnow()
 
@@ -518,6 +532,7 @@ class BookingService:
                     if booking.status != BookingStatus.ACCEPTED:
                         raise BookingStateConflict("Only an accepted booking can be marked on the way")
                     booking.status = BookingStatus.EN_ROUTE
+                    NotificationService(self.db).caregiver_on_the_way(booking)
                 elif action == "start":
                     # on_my_way is optional: a caregiver who never pressed it can still start.
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE):
@@ -527,15 +542,19 @@ class BookingService:
                     booking.actual_start_time = datetime.utcnow()
                     booking.visit_code_failed_attempts = 0
                     booking.visit_code_locked_until = None
+                    NotificationService(self.db).visit_started(booking)
                 elif action == "complete":
                     if booking.status != BookingStatus.IN_PROGRESS:
                         raise BookingStateConflict("Only a booking in progress can be completed")
                     booking.status = BookingStatus.COMPLETED
                     booking.actual_end_time = datetime.utcnow()
+                    NotificationService(self.db).visit_completed(booking)
                 elif action == "cancel":
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):
                         raise BookingStateConflict("This booking can no longer be cancelled")
                     booking.status = BookingStatus.CANCELLED
+                    booking.cancel_reason = "caregiver_cancelled"
+                    self._after_caregiver_cancel(booking)
 
             self.db.commit()
         except Exception:
