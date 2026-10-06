@@ -219,7 +219,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] Quote: `price_service` (same `compute_price`, strict about the multiplier), `quotes` row locked 30 minutes, itemised in naira with the cancellation line; price change after the lock does not change the booking
   - [x] Confirm creates one booking (conversation, quote and unique `quotes.booking_id` locks; two-worker test), Paystack link with `paystack_email_for`, "Pay now" CTA
   - [x] Payment journey: reminder at 20 minutes, cancellation at 30 (existing expiry job), `payment_received`; Paystack verify when the person returns first; `booking_events` outbox
-  - [x] Template registry in code (4 W2 templates, utility) and the 24-hour window rule enforced in `send_and_record`
+  - [x] Template registry in code (5 W2 templates, utility; `payment_refund_pending` added by the security review) and the 24-hour window rule enforced in `send_and_record`
   - [x] Conversation states `booking_flow -> awaiting_location -> quoted -> awaiting_payment -> idle`; 30-minute idle expiry
   - [x] Condition encrypted on the booking (`condition_encrypted`), never in a message, table, log or Redis (asserted)
   - [ ] **Owner:** upload the Flow to Meta's builder, set the endpoint, upload the public key, submit the 4 templates, set `WHATSAPP_BOOKING_FLOW_ID` (steps in the SOP)

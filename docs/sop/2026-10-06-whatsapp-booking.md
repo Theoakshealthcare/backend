@@ -13,7 +13,7 @@ A person who has consented can now book, price, pay for and be told about a home
 - **Booking Flow** (`app/channels/whatsapp/flows/booking.json`, Flow JSON 6.3, data API 3.0): who is it for (myself, a saved person, someone new), service with the price per hour, date and start time, duration and condition, address and city.
 - **Flow data endpoint** `POST /api/v1/whatsapp/flows/data`: signed, RSA-OAEP + AES-128-GCM encrypted, answers `ping`, `INIT`, `data_exchange` and `BACK`.
 - **Location request**, **service-area check** with a waitlist, **locked quote**, **Confirm & pay**, **Pay now** link, **reminder at 20 minutes**, **cancellation at 30**, **payment received**, and **verify with Paystack** when the person comes back before the webhook.
-- **Template registry** with the four W2 templates and the 24-hour window rule enforced in the one function every send goes through.
+- **Template registry** with the five W2 templates and the 24-hour window rule enforced in the one function every send goes through.
 - Four new conversation states, a 30-minute idle expiry, one migration, and the extended end-to-end script.
 
 "Book a visit" and "Doctor home visit" open the Flow when `WHATSAPP_BOOKING_FLOW_ID` is set and the contact has an Oakly account; otherwise they hand over to a person exactly as in W1. "My bookings" stays a placeholder until W3.
@@ -35,7 +35,7 @@ idle --Book--> booking_flow --Flow done--> awaiting_location --pin/SKIP--> quote
 5. **Quote.** `price_service` (same `compute_price`, strict about the multiplier) prices it; the breakdown in kobo, the settings row and `expires_at = now + 30 min` are stored on the quote. The message is itemised in naira with the cancellation line and the buttons Confirm & pay · Change · Cancel.
 6. **Confirm & pay.** One transaction, under the conversation and quote locks: the booking is created through `BookingService.insert_booking` with the **locked** price, `channel='whatsapp'`, `booked_by_user_id`, `care_recipient_id`, `payment_expires_at`, the condition encrypted; the quote is linked (`quotes.booking_id`, unique). After the commit, `BookingService.start_payment` asks Paystack (email from `paystack_email_for`) and the bot sends the **Pay now** CTA. If Paystack fails, the booking is cancelled (`payment_init_failed`), the quote goes back to `quoted` and the person is asked to tap Confirm again; nothing unpayable is left behind.
 7. **Time passes.** The worker's new `whatsapp_events_job` (every 15 s) queues `payment_link_expiring` when the link has been out 20 minutes and delivers events; the existing `expire_unpaid_bookings` cancels at 30 minutes and records `booking_cancelled_unpaid`; settlement (webhook **or** verify-on-return, the same function) records `payment_received` in the same transaction as the payment.
-8. **Told once.** `booking_events` is an outbox (unique per booking and event, claimed with a compare-and-set, five attempts). Inside the 24-hour window the same words go out as free text with Pay now / Book again; outside, as the approved template.
+8. **Told at least once.** `booking_events` is an outbox (unique per booking and event, claimed with a compare-and-set, five attempts). An event is marked sent in its own commit the moment Meta accepts the message (and Meta's message id is kept), so a duplicate is possible only if the worker dies between Meta accepting the send and that commit. Inside the 24-hour window the same words go out as free text with Pay now / Book again; outside, as the approved template.
 
 ### Decisions and tradeoffs
 | Decision | Choice | Why / alternatives rejected |
@@ -49,6 +49,7 @@ idle --Book--> booking_flow --Flow done--> awaiting_location --pin/SKIP--> quote
 | Paystack | `BookingService.create_booking` was split into `insert_booking` (optionally flush-only) and `start_payment`; `create_booking` calls both and is unchanged for the app. Paystack's base URL became `PAYSTACK_BASE_URL` (default the real one). | Reuse, not a second booking path. The URL setting exists so the e2e can point the API at a fake. |
 | Slow work off the lock | Paystack init and verify run *after* the conversation commit (`Result.after_commit`). | A held row lock across an HTTP call to a third party would stall every message from that person. Crash window: a booking committed but its link never made is cancelled by the 30-minute expiry, and a stuck "preparing your link" is repaired after 2 minutes. |
 | No pin | City-centre placeholder, `needs_address_check`, and `settle_booking_payment` **pays but does not dispatch** such a booking. | Dispatching to a placeholder offers the job to the wrong caregivers. There is no operator UI yet to clear the flag and start dispatch (follow-up). Geocoding is out of scope (task). |
+| Outbox delivery | At least once, not exactly once. | A send to Meta and a database commit cannot be one atomic step. Marking the event sent immediately after Meta accepts (before the message row is recorded or anything else runs) shrinks the duplicate window to a crash in that one gap. |
 | Outbox | New channel-agnostic `booking_events` table plus `app/services/booking_events.emit`, written in the *same transaction* as the change (settlement, expiry). | A hook that sends from inside the Paystack webhook would make the webhook slow and could lose the message; this is also the base W3's NotificationService needs. |
 | Window rule | Enforced in `outbound.send_and_record`: a free-form message outside 24 h is not sent, is recorded as failed `window_closed`; callers pick the template with `templates.choose`. | One choke point instead of a habit. |
 | STOP | Reminders and the cancellation notice are non-essential and skipped for an opted-out contact; the receipt of a payment they made (`essential`) still goes. | WA-FR-8. |
@@ -80,7 +81,7 @@ Rejected: letting the quote message recompute the price on every show; geocoding
 | `WHATSAPP_MIN_LEAD_HOURS`, `_SLOT_START_HOUR`, `_SLOT_END_HOUR` | 2, 7, 20 | Slots offered. |
 | `WHATSAPP_MAX_RECIPIENTS` | 10 | Saved people per contact (WA-FR-17). |
 | `WHATSAPP_PAYMENT_RETURN_URL` | oaklycare.com/pay/return | Paystack `callback_url` (the web companion page in W4). |
-| `PAYSTACK_BASE_URL` | `https://api.paystack.co` | Only the local e2e changes it. |
+| `PAYSTACK_BASE_URL` | `https://api.paystack.co` | Only the local e2e changes it. **Production refuses to boot with any other value.** |
 
 ## Verification
 - Baseline on `186cfd1`: 1096 passed. After: 1420 passed (see "Result").
@@ -88,10 +89,10 @@ Rejected: letting the quote message recompute the price on every show; geocoding
   - **Crypto round trip and tamper:** a body, tag, IV or wrapped key altered by one bit is refused; a key for another public key; malformed envelopes; the flipped IV is proven necessary (decrypting with the request IV fails).
   - **Endpoint:** signature (432), decryption (421), no key configured (503), oversize (413), forged/expired token (427), every screen, every validation, recipient ownership, 10 recipients, per-service caps, the condition limit, waitlist drops the details, p95 well under the 3 s target.
   - **Quote lock vs price change:** the booking and the Paystack amount are the locked kobo after the admin doubles the rate; a *new* quote uses the new price; same total as the app's `calculate_booking_preview`.
-  - **Exactly once:** two Confirm taps, three more taps, and two worker threads at once give one booking and one Paystack transaction. Removing the row locks makes the thread test fail (mutation check).
+  - **One booking:** two Confirm taps, three more taps, and two worker threads at once give one booking and one Paystack transaction. Removing the row locks makes the thread test fail (mutation check).
   - **No health data out:** a sentinel condition and note never appear in any message the bot sends, any WhatsApp table, any log line, the quote after confirm, or the plain booking columns; an offered (not assigned) caregiver sees neither the condition nor the booker ids.
   - **Window rule:** a free-form send outside 24 h is not attempted and is recorded `window_closed`; a template goes; the reminder and the cancellation switch between text and template at the boundary; STOP gets only the receipt.
-  - **Time:** reminder not before 20 minutes, once, never for a paid booking; cancellation emits its own message; delivery claims are exactly-once under four threads; a dead claim is retried after the lease; five attempts then stop.
+  - **Time:** reminder not before 20 minutes, once, never for a paid booking; cancellation emits its own message; four threads delivering at once send one message; a dead claim is retried after the lease; five attempts then stop.
 - Migration: `app/tests/test_migrations.py` (single head, models match, downgrade to base, upgrade again) passes.
 
 ### Result
@@ -110,6 +111,22 @@ Rejected: letting the quote message recompute the price on every show; geocoding
 
 The script found one thing in itself while being written: a reused price change made a later booking cost ₦88,000 (the script, not the channel).
 
+## Security review fixes (W2 review, 2026-10-06)
+| # | Finding | Fix | Where |
+|---|---|---|---|
+| M1 | `PAYSTACK_BASE_URL` was free text: the secret key goes to it as a Bearer token and its `success` marks bookings paid. | A settings validator refuses to boot when `ENVIRONMENT=production` and the URL is not `https://api.paystack.co` (a trailing slash is tolerated). Other environments may still point at a fake. | `app/core/config.py`; `test_money_kobo_and_config.py` |
+| M2a | Tapping Cancel after paying, before the webhook, cancelled a paid booking. | `cancel_unpaid` no longer cancels in the conversation transaction. After the commit (no row lock held across HTTP) it asks Paystack (`booking_payment.verify_and_settle`); if paid it settles and the person gets the normal payment receipt. Only then does it lock the booking, re-check under the lock (a webhook may have won) and cancel. A paid amount that does not match the booking is not cancelled away: the person is told to talk to a person. | `booking_chat.cancel_unpaid` / `_cancel_after_check`, `booking_payment.verify_and_settle` |
+| M2b | A booking cancelled by expiry but actually paid (webhook lost) was never restored. | Returning to the chat verifies with Paystack before saying "cancelled" for an `unpaid_timeout` booking; the worker does the same before sending the cancellation notice. Settlement reinstates it as before (visit at least 60 minutes away). | `booking_chat.check_payment*`, `notifications._deliver_one` |
+| M2c | Paying a booking that stays cancelled (cancelled by the person, or too close to the visit to reinstate) set `refund_required` and told nobody. | New outbox event and template `payment_refund_pending` ("We received your payment of {{1}} for booking {{2}}, but that booking had already been cancelled. We'll refund you; our team will be in touch."), emitted in the same transaction as the settlement. It is **essential** (reaches someone who sent STOP) and carries no health data. | `booking_payment.settle_booking_payment`, `templates.py`, `whatsapp_booking.BOOKING_EVENTS` |
+| L3 | The outbox could double-send after a crash following Meta accepting the message. | Marked sent in its own commit right after Meta accepts (`send_and_record(on_accepted=...)`); new column `booking_events.meta_message_id`. Wording changed from "exactly once" to "at least once". | `outbound.py`, `notifications.py` |
+| L4 | "Cancelled because payment wasn't completed" was sent when no payment link was ever delivered. | Skipped (event settled as `stale`, conversation reset) when the quote has no `payment_url`. | `notifications._message_for` |
+| L5 | `payment_link_expiring` hard-coded "10 minutes". | Now `expires in {{2}} minutes`, with the number computed as `PAYMENT_LINK_TTL_MINUTES - WHATSAPP_PAYMENT_REMINDER_MINUTES`. **Resubmit this template to Meta** (its body changed). | `templates.py`, `notifications._message_for` |
+| L6 | The outbox index `(delivered_at, attempts)` served no query. | Partial index `ix_booking_events_pending (created_at) WHERE delivered_at IS NULL`, in migration 0005 (unmerged, edited in place) and the model. | `0005_whatsapp_booking.py`, `whatsapp_booking.py` |
+| L7 | Meta retrying the last Flow screen (ADDRESS) got 427 because the draft was no longer `draft`. | That one screen, for a draft already `submitted` or `out_of_area`, returns the same SUCCESS (the same flow token) and changes nothing (no second recipient). Every other screen and INIT still answer 427. | `flows/service.py` |
+| L8 | Downgrade drops `quotes`/`booking_events` data. | Accepted, no change (pre-launch). | |
+
+Notes for operators: a `payment_refund_pending` message means money is at Paystack for a cancelled booking: find it with `SELECT booking_code, refund_required_reason FROM bookings WHERE refund_required;`. The template list to submit to Meta is now five (`payment_refund_pending` is new; `payment_link_expiring` changed). `booking_payment_link` still says "within 30 minutes" in its body; it is not yet derived from `PAYMENT_LINK_TTL_MINUTES` (follow-up).
+
 ## Operate / roll back
 - **Run locally:** `docker compose up --build`. Booking in chat stays off until `WHATSAPP_BOOKING_FLOW_ID` and `WHATSAPP_FLOW_PRIVATE_KEY` are set. It also needs an active `booking_settings` row with a multiplier for each service you want offered (the admin booking-settings endpoint).
 - **See what is happening:** `SELECT status, count(*) FROM quotes GROUP BY 1;` · pending messages: `SELECT event, attempts, last_error FROM booking_events WHERE delivered_at IS NULL;` · bookings waiting for an address check: `SELECT booking_code, patient_address FROM bookings WHERE needs_address_check AND payment_status = 'PAID' AND dispatch_state IS NULL;`
@@ -122,7 +139,7 @@ The script found one thing in itself while being written: a reused price change 
 1. **Make a key pair** and keep the private half out of git: `openssl genrsa -out flow_private.pem 2048 && openssl rsa -in flow_private.pem -pubout -out flow_public.pem`. Put the private PEM in `WHATSAPP_FLOW_PRIVATE_KEY` (newlines as `\n`).
 2. **Upload the public key** to Meta for the phone number (`POST /{phone-number-id}/whatsapp_business_encryption`, field `business_public_key`): https://developers.facebook.com/docs/whatsapp/cloud-api/reference/whatsapp-business-encryption
 3. **Create the Flow** in the WhatsApp Manager Flow builder, paste `app/channels/whatsapp/flows/booking.json`, set the **endpoint URI** to `https://<host>/api/v1/whatsapp/flows/data`, let Meta run its health check (it sends a `ping`), fix anything its validator reports, **publish**, and copy the Flow id into `WHATSAPP_BOOKING_FLOW_ID`. Flow reference: https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson
-4. **Submit the four templates** in `app/channels/whatsapp/templates.py` (`booking_payment_link`, `payment_link_expiring`, `payment_received`, `booking_cancelled_unpaid`), category Utility, English, with the button definitions (URL buttons use base URL `https://checkout.paystack.com/{{1}}`, quick reply "Book again" with payload `menu:book`).
+4. **Submit the five templates** in `app/channels/whatsapp/templates.py` (`booking_payment_link`, `payment_link_expiring`, `payment_received`, `payment_refund_pending`, `booking_cancelled_unpaid`), category Utility, English, with the button definitions (URL buttons use base URL `https://checkout.paystack.com/{{1}}`, quick reply "Book again" with payload `menu:book`).
 5. Put real prices and the per-service multipliers in booking settings; decide the hour caps and the cancellation policy line.
 
 ## What to check against real Meta
@@ -136,6 +153,7 @@ The fake Meta mirrors Meta's documented payloads, but these are the places where
 ## Follow-ups
 - **Decide:** should the app's `preview`/`create_booking` also refuse a service with no multiplier (WA-FR-21)? It changes mobile behaviour, so it was not done.
 - **Special instructions** are stored plain in `bookings.special_instructions` (the app's convention) though the Flow says they are private. Encrypt the column everywhere or treat it as non-health.
+- Derive the `booking_payment_link` template's "30 minutes" from `PAYMENT_LINK_TTL_MINUTES` the way the reminder now is.
 - An operator action (admin console) to clear `needs_address_check` and start dispatch.
 - Supply-aware time slots (needs the pin first, or a city-level count).
 - `message_templates` table and Meta approval status in the Admin console; Pidgin copy.
