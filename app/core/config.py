@@ -91,7 +91,7 @@ class Settings(BaseSettings):
 
     # Caregiver app: push notifications (Expo), visit code and home summary.
     EXPO_PUSH_URL: str = "https://exp.host/--/api/v2/push/send"
-    EXPO_PUSH_TIMEOUT_SECONDS: float = 10
+    EXPO_PUSH_TIMEOUT_SECONDS: float = 5  # the push runs inline after payment settles, so keep it short
     EXPO_ACCESS_TOKEN: Optional[str] = None  # only if "enhanced push security" is on for the Expo project
     VISIT_CODE_MAX_ATTEMPTS: int = 3  # wrong codes before the visit code locks
     VISIT_CODE_LOCK_MINUTES: int = 15

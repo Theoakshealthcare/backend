@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 
 from app.core.security import decrypt
 from app.db.models.booking import Booking, BookingStatus, CaregiverLocation
-from app.db.session import SessionLocal
 from app.main import app as fastapi_app
 from app.tests.factories import (
     auth_headers,

@@ -158,6 +158,22 @@ def test_today_is_the_lagos_calendar_day():
     assert [v["id"] for v in home["upcoming_visits"]] == [next_day.id]
 
 
+def test_a_visit_already_underway_stays_in_today_even_if_due_later():
+    from app.db.session import SessionLocal
+
+    with SessionLocal() as db:
+        cg, patient = make_caregiver(db), make_patient(db)
+        now = datetime(2026, 10, 5, 10, 0)
+        later = datetime(2026, 10, 8, 10, 0)
+        early = make_booking(db, patient, cg, status=BookingStatus.EN_ROUTE,
+                             scheduled_date=later, scheduled_end_date=later + timedelta(hours=2))
+        waiting = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED,
+                               scheduled_date=later, scheduled_end_date=later + timedelta(hours=2))
+        home = build_home(db, cg, now=now)
+    assert [v["id"] for v in home["today_visits"]] == [early.id]
+    assert [v["id"] for v in home["upcoming_visits"]] == [waiting.id]
+
+
 # --- offers ---------------------------------------------------------------------------
 
 

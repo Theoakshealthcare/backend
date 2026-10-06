@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -93,10 +93,14 @@ def build_home(db: Session, caregiver: Caregiver, now: Optional[datetime] = None
         .outerjoin(Patient, Patient.id == Booking.patient_id)
         .filter(Booking.caregiver_id == caregiver.id, Booking.status.in_(ACTIVE_STATUSES))
     )
-    # Today = anything still to do or underway that is due before tomorrow starts (overdue included,
-    # so a missed visit doesn't vanish). Upcoming = accepted and due from tomorrow on.
+    # Today = anything still to do that is due before tomorrow starts (overdue included, so a missed
+    # visit doesn't vanish), plus any visit already underway whatever its date (a caregiver who
+    # left early for tomorrow's visit still needs it on screen). Upcoming = accepted, due later.
     today = (
-        assigned.filter(Booking.scheduled_date < tomorrow_start)
+        assigned.filter(or_(
+            Booking.scheduled_date < tomorrow_start,
+            Booking.status.in_((BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)),
+        ))
         .order_by(Booking.scheduled_date).limit(HOME_LIST_LIMIT).all()
     )
     upcoming = (

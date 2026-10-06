@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.db.models.push_token import PushToken
 from app.services import push
 from app.services.push import PushService
-from app.tests.factories import auth_headers, make_caregiver, make_patient, make_user, refresh_headers
+from app.tests.factories import auth_headers, make_caregiver, make_patient, refresh_headers
 
 URL = "/api/v1/devices/push-token"
 
