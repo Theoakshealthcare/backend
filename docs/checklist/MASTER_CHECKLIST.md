@@ -2,7 +2,7 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
-**Update (2026-10-06):** Phase 0 is done. Phase C (caregiver app): C0, C1, C2 and C3 are merged; C4 is in progress. See section 8.
+**Update (2026-10-06):** Phase 0 is done. Phase C (caregiver app) is code-complete: C0–C4 merged. A device/Simulator run is pending a newer Xcode, and real push needs an EAS project. See section 8.
 
 **Snapshot (2026-09-30):**
 - **Done:** 1 foundation item (Poetry migration, #1).
@@ -158,7 +158,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **v1.1:** partial refunds, scheduled payouts, city pricing, prescription ops, quality card, charts, live map
 - [ ] **v2:** clinicians and MDCN checks, pharmacy partners (AD-FR-79–80, 72)
 
-## 8. Phase C: Caregiver app (supply side) — 🟡 in progress (C4 left)
+## 8. Phase C: Caregiver app (supply side) — ✅ code complete (device verification pending)
 Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: nurses and caregivers sign up, get approved, go available, receive offers by push, accept, and run the visit.
 - [x] **C0 Monorepo scaffold**: pnpm workspace, `packages/api-client`, CI. Merged 2026-10-06, caregiver#1
 - [x] **C1 Expo SDK 57 upgrade and cleanup**: continuous native generation, unused dependencies removed, `expo-secure-store`, typecheck/lint/test in CI. Merged 2026-10-06, caregiver#2. ⚠️ The iOS Simulator run is pending a newer Xcode (26.2 can't build SDK 57).
@@ -172,8 +172,10 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
   - [x] 7. One Alembic migration on top of `0001_baseline`
   - [x] 8. Opus review (approve-with-fixes; offer-view, ping-availability and suspension fixes applied), merged as backend#15
 - [x] **C2 Core flows on the typed client**: React Query, single-flight refresh, auth gate, onboarding and verification status, bookings and offers (offer view only), 51 tests. Merged 2026-10-06, caregiver#3. The review also fixed an api-client retry bug for requests with a body.
-- [ ] **C4 Supply features** (in progress 2026-10-06): availability toggle, location (foreground and background), push registration and tap-to-open, visit flow screens, home on `/caregiver/home`, simulator verification against a local backend
-- Meets launch prerequisite P3 (caregiver app reports location) only once C4 lands.
+- [x] **C4 Supply features**: availability toggle, foreground location (and background only from on my way until complete; pings never carry `is_available`), serialised tracking controller, push registration and tap-to-open, visit flow with code and lockout, live Home on `/caregiver/home`. 168 tests. Merged 2026-10-06, caregiver#4
+  - [ ] Verify on a device or Simulator against a local backend (blocked: Xcode 26.2 can't build SDK 57)
+  - [ ] Real push: EAS project + `projectId`, APNs/FCM credentials (owner)
+- Launch prerequisite P3 (caregiver app reports location) is met in code by C4; it still needs device verification.
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
