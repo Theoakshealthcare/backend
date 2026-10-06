@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 from sqlalchemy import or_, update
 from sqlalchemy.orm import Session
 
-from app.channels.whatsapp import booking_chat, booking_rules as rules
+from app.channels.whatsapp import booking_chat, booking_notices, booking_rules as rules
 from app.channels.whatsapp.meta_client import MetaCloudClient
 from app.channels.whatsapp.outbound import send_and_record
 from app.channels.whatsapp.templates import TEMPLATES, choose, within_window
@@ -33,8 +33,9 @@ from app.core.config import settings
 from app.core.phone import contact_ref
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation
-from app.db.models.whatsapp_booking import OPEN_QUOTE_STATUSES, BookingEvent, Quote
+from app.db.models.whatsapp_booking import CAREGIVER_EVENTS, OPEN_QUOTE_STATUSES, BookingEvent, Quote
 from app.services import booking_events
+from app.services.notification_service import deliver_caregiver_push
 from app.services.support import SupportService
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ def _claim(db: Session, event_id, now: datetime) -> bool:
 
 def _finish(db: Session, event_id, now: datetime, error: Optional[str]) -> None:
     values: Dict[str, object] = {"last_error": error}
-    if error is None or error in ("no_contact", "opted_out", "stale"):
+    if error is None or error in ("no_contact", "opted_out", "stale", "no_device"):
         values["delivered_at"] = now  # sent, or there was nothing (more) to send
     db.execute(update(BookingEvent).where(BookingEvent.id == event_id).values(**values))
     db.commit()
@@ -131,6 +132,8 @@ def _message_for(db: Session, event: BookingEvent, booking: Booking, contact: Wh
     """The message to send, or None with the reason it should not be sent (``stale``)."""
     name = event.event
     in_window = within_window(contact.last_inbound_at, now)
+    if name in booking_notices.JOURNEY_EVENTS:  # W3: the visit's journey, wording in booking_notices
+        return booking_notices.build(db, event, booking, now, in_window=in_window)
     params = {"booking_code": booking.booking_code}
     if name == "payment_link_expiring":  # the wording follows the settings, never a number baked into the copy
         params["minutes"] = str(max(0, settings.PAYMENT_LINK_TTL_MINUTES - settings.WHATSAPP_PAYMENT_REMINDER_MINUTES))
@@ -186,11 +189,16 @@ def deliver_pending(db: Session, *, booking_id=None, now: Optional[datetime] = N
 def _deliver_one(db: Session, event_id, now: datetime, client: MetaCloudClient) -> bool:
     event = db.query(BookingEvent).filter(BookingEvent.id == event_id).populate_existing().one()
     booking = db.query(Booking).filter(Booking.id == event.booking_id).populate_existing().one()
-    name, contact = event.event, _contact_for(db, booking)
+    name = event.event
+    if name in CAREGIVER_EVENTS:  # the audience is the caregiver, by push, whatever channel the booking came from
+        outcome = deliver_caregiver_push(db, name, booking, event.dedupe_key)
+        _finish(db, event_id, now, None if outcome == "sent" else outcome)
+        return outcome == "sent"
+    contact = _contact_for(db, booking)
     if contact is None or contact.blocked or booking.channel != "whatsapp":
         _finish(db, event_id, now, "no_contact")
         return False
-    if contact.opted_out_at is not None and not TEMPLATES[name].essential:
+    if contact.opted_out_at is not None and not TEMPLATES[booking_notices.template_for(name)].essential:
         _finish(db, event_id, now, "opted_out")  # STOP means no non-essential messages (WA-FR-8)
         if name in TERMINAL_EVENTS:
             _reset_conversation(db, contact, booking)

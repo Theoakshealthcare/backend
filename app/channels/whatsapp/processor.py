@@ -24,9 +24,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.channels.whatsapp import booking_chat, copy
+from app.channels.whatsapp import booking_chat, copy, my_bookings
 from app.channels.whatsapp.engine import (
-    BOOKING_EFFECTS, PAUSED_STATES, EngineConfig, Inbound, Kind, OpenTicket, RecordConsent, SetOptOut, Snapshot,
+    BOOKING_EFFECTS, MY_BOOKINGS_EFFECTS, PAUSED_STATES, EngineConfig, Inbound, Kind, OpenTicket, RecordConsent, SetOptOut, Snapshot,
     State, step,
 )
 from app.channels.whatsapp.identity import ensure_user
@@ -235,6 +235,7 @@ def _apply(db: Session, job: Dict[str, Any]
         consent_ok=consents.has_required_consent(contact_id=contact.id),
         opted_out=contact.opted_out_at is not None, language=contact.language,
         can_book=contact.user_id is not None and bool(settings.WHATSAPP_BOOKING_FLOW_ID), expired=expired,
+        has_account=contact.user_id is not None,
     )
     outcome = step(snapshot, inbound, engine_config())
 
@@ -243,8 +244,8 @@ def _apply(db: Session, job: Dict[str, Any]
     followups: List[Callable] = []
     ctx = booking_chat.Ctx(db, contact, conversation, now)
     for effect in outcome.effects:
-        if isinstance(effect, BOOKING_EFFECTS):
-            result = booking_chat.apply(ctx, effect)
+        if isinstance(effect, BOOKING_EFFECTS + MY_BOOKINGS_EFFECTS):
+            result = (my_bookings.apply if isinstance(effect, MY_BOOKINGS_EFFECTS) else booking_chat.apply)(ctx, effect)
             replies.extend(result.replies)
             state = result.state or state
             for key, value in result.context.items():

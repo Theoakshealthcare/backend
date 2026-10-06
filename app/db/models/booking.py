@@ -89,7 +89,10 @@ class Booking(Base):
     # Money received for a booking that stays cancelled. The admin refund queue consumes this; nothing
     # refunds automatically.
     refund_required = Column(Boolean, nullable=False, default=False, server_default=expression.false())
-    refund_required_reason = Column(Text, nullable=True)  # paid_after_expiry | paid_after_cancellation
+    refund_required_reason = Column(Text, nullable=True)  # paid_after_expiry | paid_after_cancellation | cancelled_by_booker | caregiver_cancelled ...
+    # What is to be refunded, in kobo, when the policy keeps a cancellation fee (WA-FR-39). NULL = the refund module
+    # decides (the full amount for the older reasons above).
+    refund_amount_kobo = Column(BigInteger, nullable=True)
 
     # An admin flagged the assigned caregiver as a no-show (AD-FR-26). Cleared when the booking is reassigned.
     no_show_flagged_at = Column(DateTime, nullable=True)

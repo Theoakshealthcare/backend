@@ -85,6 +85,50 @@ TEMPLATES: Dict[str, Template] = {t.name: t for t in (
         ("booking_code",),
         quick_reply=("Book again", "menu:book"),
     ),
+    # --- W3: the visit's journey. Names follow PRD section 14. Meta refuses a body that starts or ends with a
+    # variable, so the draft copy there is reworded slightly. Only first names, dates, money and codes appear. ---
+    Template(
+        "caregiver_assigned",
+        "Booking {{1}}: {{2}} will visit on {{3}} at {{4}}. Experience: {{5}}. Reply here with any questions.",
+        ("booking_code", "caregiver_first_name", "date", "time", "experience"),
+    ),
+    Template(
+        "caregiver_en_route",
+        "Booking {{1}}: {{2}} is on the way to you now.",
+        ("booking_code", "caregiver_first_name"),
+    ),
+    Template(
+        # The one message that carries a secret. It is never logged, never stored (the outbox holds no body), and it
+        # is essential: without it the visit cannot start. Meta may ask for the Authentication category (see SOP).
+        "visit_code",
+        "Your visit code for booking {{1}} is {{2}}. Give it to the professional when they arrive, and to no one else.",
+        ("booking_code", "visit_code"),
+        essential=True,
+    ),
+    Template(
+        "visit_started",
+        "The visit for booking {{1}} has started.",
+        ("booking_code",),
+    ),
+    Template(
+        "visit_completed_feedback",
+        "The visit for booking {{1}} is complete. Thank you for choosing Oakly.",
+        ("booking_code",),
+        quick_reply=("Book again", "menu:book"),
+    ),
+    Template(
+        # WA-FR-37. {{2}} is one of a fixed set of sentences built in code (never free text from a person).
+        "booking_update",
+        "Update on booking {{1}}: {{2}} Reply here if you need help.",
+        ("booking_code", "update"),
+        essential=True,  # a paid visit will not happen: they must hear it even after STOP
+    ),
+    Template(
+        "refund_update",
+        "Your refund of {{1}} for booking {{2}} is {{3}}. Reply here if you have questions.",
+        ("amount", "booking_code", "status"),
+        essential=True,  # it is about their money
+    ),
 )}
 
 

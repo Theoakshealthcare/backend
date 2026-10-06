@@ -143,6 +143,58 @@ STRINGS = {
         "waitlist_no": "No thanks",
         "waitlist_thanks_body": "Thank you, we've added you to the list and will message you when we reach you.",
         "waitlist_declined_body": "No problem. What would you like to do?",
+        # --- W3: my bookings and cancelling (WA-FR-38, WA-FR-39). Codes, dates, money and first names only. ---
+        "bookings_none_body": "You don't have any bookings yet. Choose Book a visit to make one.",
+        "bookings_list_body": "Here are your most recent bookings. Choose one to see the details.",
+        "bookings_list_button": "View bookings",
+        "bookings_section": "Your bookings",
+        "bookings_row_description": "{service} \u00b7 {when} \u00b7 {status}",
+        "bookings_not_found_body": "I couldn't find that booking.",
+        "bookings_back": "My bookings",
+        "bookings_cancel_button": "Cancel booking",
+        "bookings_book_again": "Book again",
+        "bookings_talk": "Talk to a person",
+        "booking_detail_head": "Booking {code}",
+        "booking_detail_for": "For: {name}",
+        "booking_detail_for_self": "For: you",
+        "booking_detail_when": "{service} \u00b7 {when}",
+        "booking_detail_status": "Status: {status}",
+        "booking_detail_total": "Total: {total}",
+        "booking_detail_caregiver": "Professional: {name}",
+        "booking_detail_code": "Visit code: {code}. Give it to the professional when they arrive, and to no one else.",
+        "booking_detail_refund": "Refund: {amount}, being processed.",
+        "status_awaiting_payment": "Awaiting payment",
+        "status_finding": "Finding a professional",
+        "status_assigned": "Professional assigned",
+        "status_en_route": "On the way",
+        "status_in_progress": "In progress",
+        "status_completed": "Completed",
+        "status_cancelled": "Cancelled",
+        "status_declined": "Declined",
+        "cancel_ask_unpaid": "Cancel booking {code}? You haven't paid yet, so nothing will be charged.",
+        "cancel_ask_full": (
+            "Cancel booking {code}? You'll get a full refund of {refund}."
+        ),
+        "cancel_ask_fee": (
+            "Cancel booking {code}? The visit starts in less than {hours} hours, so a {percent}% fee on the "
+            "service fee applies ({fee}). You'll get {refund} back."
+        ),
+        "cancel_yes": "Yes, cancel",
+        "cancel_keep": "Keep booking",
+        "cancel_done_unpaid": "I've cancelled booking {code}. Nothing was charged.",
+        "cancel_done_refund": "Booking {code} is cancelled. We've started your refund of {refund}.",
+        "cancel_done_fee": (
+            "Booking {code} is cancelled. We've started your refund of {refund} (a fee of {fee} was kept)."
+        ),
+        "cancel_already_body": "Booking {code} is already cancelled.",
+        "cancel_closed_body": "Booking {code} can't be cancelled because it is {status}.",
+        "cancel_in_progress_body": (
+            "That visit is already under way, so I can't cancel it here. I'm connecting you with our team, who "
+            "will reply here as soon as they can."
+        ),
+        "cancel_not_booker_body": (
+            "Only the person who made this booking can cancel it. Choose Talk to a person and our team will help."
+        ),
     },
 }
 

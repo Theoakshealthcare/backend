@@ -240,7 +240,15 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] Condition encrypted on the booking (`condition_encrypted`), never in a message, table, log or Redis (asserted)
   - [ ] **Owner:** upload the Flow to Meta's builder, set the endpoint, upload the public key, submit the 4 templates, set `WHATSAPP_BOOKING_FLOW_ID` (steps in the SOP)
   - [ ] Deferred: operator action to clear `needs_address_check` and start dispatch (no admin UI yet); supply-aware time slots; web-companion payment return page (W4); `message_templates` table with Meta approval status
-- [ ] **W3** Notifications (channel-agnostic) and my bookings/cancel
+- [x] **W3** Notifications (channel-agnostic) and my bookings/cancel. 2026-10-06, branch `feat/whatsapp-notifications` (base `aade294`), migration `0006_whatsapp_notifications` (renumber if A2 lands one first), [SOP](../sop/2026-10-06-whatsapp-notifications.md). Verified locally and by `scripts/whatsapp_local_e2e.py`; not yet merged, not yet run against real Meta.
+  - [x] `NotificationService` (`app/services/notification_service.py`): domain change -> outbox rows in the same transaction; WhatsApp for the booker, Expo push for the caregiver; nothing sent inline
+  - [x] Events from the existing transitions: caregiver assigned, visit code issued, on my way, started, completed, cancelled by the caregiver (refund flagged, booker told), admin cancel and refund started/done (hooks for A2)
+  - [x] Visit code to the booker (Fernet field, never logged or stored in the outbox; shown again in My bookings to the booker only); no health data in any message (asserted)
+  - [x] My bookings: 5 most recent for the contact, their recipients and their app bookings; detail with status-driven actions; stateless buttons, ownership re-checked on every tap
+  - [x] Cancel in chat: policy shown before confirming; full refund before assignment or >12 h out; `WHATSAPP_CANCEL_FEE_PERCENT` (20%) of the service fee inside 12 h; in progress hands to a human; refund queued with `refund_amount_kobo`; unpaid reuses W2's verify-before-cancel; race with the caregiver tested (mutation-checked)
+  - [x] Seven templates added to the registry (essential flags decide who still hears after STOP); migration `0006`
+  - [ ] **Owner:** submit the 12 templates (list in the [W3 SOP](../sop/2026-10-06-whatsapp-notifications.md#owner-steps-nothing-here-has-been-done)); decide the cancellation fee; check `visit_code` category with Meta
+  - [ ] Deferred: visit reminders 24 h/1 h, `matching_delayed`, `no_caregiver_found` (WA-FR-29/31/32/33); re-dispatch after a caregiver drops out; rating buttons, photo header, tracking and View-booking links (W4); A2 must call the admin cancel/refund hooks
 - [ ] **W4** Web companion API and `apps/companion`
 - [ ] **W5** FallGuard Flow, vitals reminders, care circle, Pidgin
 

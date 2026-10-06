@@ -15,6 +15,8 @@ Order of checks for every inbound message (the order is the safety design):
 
 States: new -> consent_pending -> idle <-> human; declined (consent refused or withdrawn);
 emergency (urgent ticket open, automation paused).
+"My bookings" (W3) stays in ``idle``: it is a set of effects (list, show, ask to cancel, cancel), each tap carrying
+the booking it is about, so there is no state to expire or get stuck in.
 Booking (W2, PRD 9.1): idle -> booking_flow -> awaiting_location -> quoted -> awaiting_payment -> idle. The engine
 only decides the next state and which booking effect to run; what a booking effect does (draft, price, create the
 booking, ask Paystack) needs the database and Paystack and lives in ``booking_chat.py``, which may override the
@@ -107,6 +109,7 @@ class Snapshot:
     language: str = "en"
     can_book: bool = False     # booking in chat is on and the contact has an Oakly account to book with
     expired: bool = False      # this conversation sat idle past the limit and was just reset (WA-FR-12)
+    has_account: bool = False  # the contact has an Oakly user, so "My bookings" has something to look up (W3)
 
 
 @dataclass(frozen=True)
@@ -191,6 +194,29 @@ class CancelUnpaid:
 class JoinWaitlist:
     join: bool
 
+
+# --- "my bookings" effects (W3, applied by my_bookings.py) ----------------------------------------
+@dataclass(frozen=True)
+class ListBookings:
+    pass
+
+
+@dataclass(frozen=True)
+class ShowBooking:
+    booking_id: str   # untrusted text from a tapped button: my_bookings.py parses and re-checks ownership
+
+
+@dataclass(frozen=True)
+class AskCancelBooking:
+    booking_id: str
+
+
+@dataclass(frozen=True)
+class ConfirmCancelBooking:
+    booking_id: str
+
+
+MY_BOOKINGS_EFFECTS = (ListBookings, ShowBooking, AskCancelBooking, ConfirmCancelBooking)
 
 BOOKING_EFFECTS = (StartBooking, SubmitFlow, SharedLocation, ResumeDraft, ShowQuote, ConfirmQuote, ChangeQuote,
                    CancelDraft, CheckPayment, CancelUnpaid, JoinWaitlist)
@@ -349,6 +375,9 @@ def _handle_idle(snapshot: Snapshot, inbound: Inbound, cfg: EngineConfig) -> Out
                        (copy.text(snapshot.language, "clinical_body", numbers=_numbers(cfg)),))
     if inbound.kind == Kind.BUTTON and inbound.reply_id in ("waitlist:yes", "waitlist:no"):
         return Outcome(State.IDLE, _clean(snapshot), (), (JoinWaitlist(inbound.reply_id == "waitlist:yes"),))
+    tapped = _my_bookings_tap(snapshot, inbound)
+    if tapped is not None:
+        return tapped
     intent = _menu_intent(inbound)
     if intent is None and snapshot.expired:
         return _show_menu(snapshot, "expired_body")  # a stale tap or a stray word: start fresh, count no miss
@@ -360,9 +389,34 @@ def _handle_idle(snapshot: Snapshot, inbound: Inbound, cfg: EngineConfig) -> Out
         return _handover(snapshot, "talk_to_person", "handover_body")
     if intent in ("book", "doctor") and snapshot.can_book:
         return Outcome(State.BOOKING_FLOW, _clean(snapshot), (), (StartBooking(),))
+    if intent == "bookings" and snapshot.has_account:
+        return Outcome(State.IDLE, _clean(snapshot), (), (ListBookings(),))
     if intent in ("book", "bookings", "doctor"):
         return _handover(snapshot, "booking_placeholder", "booking_placeholder_body")
     return _miss(snapshot, inbound)
+
+
+# --- my bookings (W3): stateless, every tap carries the booking it is about -----------------------
+_BOOKING_TAPS = {"view": ShowBooking, "cancel": AskCancelBooking, "confirm": ConfirmCancelBooking}
+
+
+def _my_bookings_tap(snapshot: Snapshot, inbound: Inbound) -> Optional[Outcome]:
+    """``bk:list``, ``bk:view|cancel|confirm|keep:<booking id>``. Needs an account; the id is checked against the
+    contact's own bookings by the effect, never trusted here."""
+    if inbound.kind not in (Kind.BUTTON, Kind.LIST) or not inbound.reply_id or not inbound.reply_id.startswith("bk:"):
+        return None
+    if not snapshot.has_account:
+        return _handover(snapshot, "booking_placeholder", "booking_placeholder_body")
+    _, _, rest = inbound.reply_id.partition(":")
+    action, _, booking_id = rest.partition(":")
+    if action == "list":
+        return Outcome(State.IDLE, _clean(snapshot), (), (ListBookings(),))
+    if action == "keep" and booking_id:
+        return Outcome(State.IDLE, _clean(snapshot), (), (ShowBooking(booking_id),))
+    effect = _BOOKING_TAPS.get(action)
+    if effect is not None and booking_id:
+        return Outcome(State.IDLE, _clean(snapshot), (), (effect(booking_id),))
+    return None  # an unknown tap is a miss like any other
 
 
 # --- booking states ---------------------------------------------------------------------------
