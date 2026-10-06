@@ -8,14 +8,24 @@ Usage in a test:
 
 import uuid
 from datetime import datetime, timedelta
+from typing import Optional, Sequence, Tuple, Union
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, object_session
 
-from app.core.security import create_access_token, create_refresh_token, encrypt, get_password_hash
+from app.core.admin_security import create_admin_token, hash_token, new_opaque_token, new_totp_secret
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decrypt,
+    encrypt,
+    get_password_hash,
+)
+from app.db.models.admin import AdminRefreshToken, AdminRole, AdminUser
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.caregiver import Caregiver, CaregiverBankAccount, CaregiverWallet
 from app.db.models.patient import Patient
-from app.db.models.user import Admin, User
+from app.db.models.user import User
 
 __all__ = [
     "DEFAULT_PASSWORD",
@@ -25,6 +35,8 @@ __all__ = [
     "make_patient",
     "make_caregiver",
     "make_admin",
+    "admin_session",
+    "admin_totp_secret",
     "make_booking",
     "make_caregiver_wallet",
 ]
@@ -36,13 +48,20 @@ def _unique(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}"
 
 
-def auth_headers(user: User) -> dict:
-    return {"Authorization": f"Bearer {create_access_token(user.id)}"}
+def auth_headers(actor: Union[User, AdminUser]) -> dict:
+    """A bearer header for an app user, or (for an AdminUser) a live admin session's access token."""
+    if isinstance(actor, AdminUser):
+        access, _refresh = admin_session(object_session(actor), actor)
+        return {"Authorization": f"Bearer {access}"}
+    return {"Authorization": f"Bearer {create_access_token(actor.id)}"}
 
 
-def refresh_headers(user: User) -> dict:
+def refresh_headers(actor: Union[User, AdminUser]) -> dict:
     """A refresh token presented as a bearer token (should be rejected by API routes)."""
-    return {"Authorization": f"Bearer {create_refresh_token(user.id)}"}
+    if isinstance(actor, AdminUser):
+        token = create_admin_token(actor.id, "refresh", timedelta(minutes=30), sid=str(uuid.uuid4()))
+        return {"Authorization": f"Bearer {token}"}
+    return {"Authorization": f"Bearer {create_refresh_token(actor.id)}"}
 
 
 def make_user(db: Session, user_type: str = "patient", **overrides) -> User:
@@ -104,11 +123,54 @@ def make_caregiver(db: Session, approved: bool = True, **overrides) -> Caregiver
     return caregiver
 
 
-def make_admin(db: Session) -> User:
-    user = make_user(db, "patient")  # mirrors how admins exist today (an Admin row on a user)
-    db.add(Admin(user_id=user.id, email=user.email, full_name=user.full_name, permissions="{}"))
+def make_admin(
+    db: Session,
+    roles: Sequence[str] = ("super_admin",),
+    *,
+    status: str = "active",
+    mfa: bool = True,
+    password: Optional[str] = DEFAULT_PASSWORD,
+    email: Optional[str] = None,
+    full_name: str = "Test Admin",
+) -> AdminUser:
+    """An admin_users row with the given roles (default: Super Admin, i.e. every permission).
+
+    With ``mfa=True`` TOTP is already enrolled; read the secret with ``admin_totp_secret(admin)``.
+    ``password=None`` skips the (slow) bcrypt hash for tests that never sign in with a password.
+    """
+    role_rows = list(db.scalars(select(AdminRole).where(AdminRole.key.in_(list(roles)))))
+    assert len(role_rows) == len(set(roles)), f"unknown role in {roles}"
+    admin = AdminUser(
+        email=email or f"{_unique('admin')}@example.com",
+        full_name=full_name,
+        password_hash=get_password_hash(password) if password is not None else None,
+        status=status,
+        roles=role_rows,
+        mfa_enabled=mfa,
+        mfa_secret_enc=encrypt(new_totp_secret()) if mfa else None,
+    )
+    db.add(admin)
     db.commit()
-    return user
+    db.refresh(admin)
+    return admin
+
+
+def admin_totp_secret(admin: AdminUser) -> str:
+    return decrypt(admin.mfa_secret_enc)
+
+
+def admin_session(db: Session, admin: AdminUser) -> Tuple[str, str]:
+    """Open a session for ``admin`` without going through login. Returns (access, refresh)."""
+    now = datetime.utcnow()
+    family = uuid.uuid4()
+    raw = new_opaque_token()
+    db.add(AdminRefreshToken(
+        admin_user_id=admin.id, family_id=family, token_hash=hash_token(raw),
+        session_started_at=now, issued_at=now, expires_at=now + timedelta(minutes=30),
+    ))
+    db.commit()
+    access = create_admin_token(admin.id, "access", timedelta(minutes=15), sid=str(family))
+    return access, raw
 
 
 def make_booking(

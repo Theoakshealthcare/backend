@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/refresh",
+    "auth": null,
+    "body": {
+      "refresh_token": "<REFRESH_TOKEN>"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "access_token": "<ACCESS_TOKEN_JWT>",
+      "refresh_token": "<REFRESH_TOKEN>",
+      "token_type": "bearer",
+      "expires_in": 900
+    }
+  }
+}

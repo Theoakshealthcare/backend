@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -97,6 +98,35 @@ class Settings(BaseSettings):
     VISIT_CODE_LOCK_MINUTES: int = 15
     HOME_TIMEZONE: str = "Africa/Lagos"  # what "today" means on the caregiver home screen
 
+    # Admin console auth (AD-FR-81). Admin tokens are separate from app-user tokens (aud="admin").
+    ADMIN_ACCESS_TOKEN_MINUTES: int = 15
+    ADMIN_MFA_TOKEN_MINUTES: int = 5  # how long the password step stays valid while the code is entered
+    ADMIN_IDLE_TIMEOUT_MINUTES: int = 30  # a refresh token not used within this window dies
+    ADMIN_SESSION_MAX_HOURS: int = 12  # absolute cap on one login session, however active
+    ADMIN_INVITE_HOURS: int = 48
+    ADMIN_MAX_FAILED_LOGINS: int = 10  # wrong TOTP codes (password already proven) before the account locks
+    # Lock length per consecutive lock; the last entry repeats. Resets on a successful MFA.
+    ADMIN_LOCKOUT_TIERS_MINUTES: List[int] = [15, 60, 1440]
+    # Password stage: per (email, client IP), never a hard lock. After this many failures every
+    # attempt is answered 429 for a wait that doubles with each further failure, up to the cap.
+    ADMIN_PASSWORD_FREE_ATTEMPTS: int = 5
+    ADMIN_PASSWORD_BACKOFF_SECONDS: int = 30
+    ADMIN_PASSWORD_BACKOFF_MAX_SECONDS: int = 900
+    ADMIN_AUTH_IP_LIMIT: int = 30  # login/MFA/invite calls per client IP per window
+    ADMIN_AUTH_IP_WINDOW_SECONDS: int = 60
+    # Reverse proxies whose X-Forwarded-For is believed (CIDRs or addresses, comma-separated or
+    # JSON list). Empty = trust nobody: the client IP is the direct peer.
+    TRUSTED_PROXIES: List[str] = []
+
+    @validator("TRUSTED_PROXIES", pre=True)
+    def assemble_trusted_proxies(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+        if isinstance(v, str):
+            if v.strip().startswith("["):
+                return json.loads(v)
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
+    ADMIN_TOTP_ISSUER: str = "Oakly Admin"
+
     # Frontend URL for payment callbacks
     FRONTEND_URL: str = "https://www.oaklycare.com"
 
@@ -123,6 +153,17 @@ class Settings(BaseSettings):
         # An empty key makes webhook HMACs forgeable by anyone; refuse to boot.
         if self.ENVIRONMENT.lower() == "production" and not self.PAYSTACK_SECRET_KEY:
             raise ValueError("PAYSTACK_SECRET_KEY must be set when ENVIRONMENT=production")
+        return self
+
+    @model_validator(mode="after")
+    def _warn_without_trusted_proxies_in_production(self):
+        # Behind a reverse proxy every client otherwise shares the proxy's IP, so one attacker
+        # could throttle an admin's logins for everyone. Not fatal: a direct deployment is valid.
+        if self.ENVIRONMENT.lower() == "production" and not self.TRUSTED_PROXIES:
+            logging.getLogger("app.config").warning(
+                "TRUSTED_PROXIES is empty with ENVIRONMENT=production: if the API runs behind a "
+                "reverse proxy, set it to the proxy CIDR(s) or all clients share one rate-limit IP."
+            )
         return self
 
     class Config:

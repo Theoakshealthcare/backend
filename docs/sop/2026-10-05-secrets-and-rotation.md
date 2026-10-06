@@ -35,7 +35,7 @@ Removing them from new commits does **not** make them safe. They stay in history
 | Encryption key | `VITALS_ENCRYPTION_KEY` is a comma-separated list read through settings into a `MultiFernet`. The first key encrypts; every key decrypts. | Single key: rotating it would make old data unreadable |
 | Re-encryption | `scripts/reencrypt_health_data.py`: batched, idempotent, `--dry-run`. A value shaped like a Fernet token that no key can decrypt counts as **unreadable** and is left untouched, never re-encrypted as plaintext. Legacy plaintext vitals are encrypted. | Re-encrypting inside a migration (too slow and too risky for one transaction) |
 | Local DB | Compose runs a `db` service (postgres:16). A **development-only** `scripts/init_local_db.py` builds an empty DB from the models and stamps Alembic at head, because the Alembic history can't build an empty DB yet (fixed properly in WP-E1). Production still runs `alembic upgrade head`. | Pointing local dev at the production DB, as the old compose file did |
-| Production | `docker-compose.prod.yml` reads its env file from the server (`/etc/oakly/backend.env` by default). Port bound to 127.0.0.1 behind the reverse proxy, `restart: unless-stopped`, private-uploads volume. | Render (being retired) |
+| Production | `docker-compose.prod.yml` reads its env file from the server (`/etc/oakly/backend.env` by default). Port bound to 127.0.0.1 behind the reverse proxy, `restart: unless-stopped`, private-uploads volume. | (Render retired) |
 
 ## What's involved
 | File | Change |

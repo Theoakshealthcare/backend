@@ -7,6 +7,8 @@
 | **Commits** | `e43fadb` token type, `3fb9836` prescriptions, `35624e2` booking reads and actions, `33fdc2a` WebSockets, `e2b422f` private documents |
 | **Status** | Verified locally (103 tests pass); not pushed |
 
+> **Updated by A0 (2026-10-06):** the admin check described below is gone. Admins are `admin_users` accounts with their own tokens (`aud=admin`), not a `users` row plus an `admins` row. `get_current_admin` and `user_is_admin` were replaced by `require_permission(...)`; the booking, document and prescription routes that also served admins now use `get_user_or_admin(permission)` (`bookings.read`, `documents.read`, `prescriptions.manage`). An app-user token on an admin route is `401` (it was `403`). See [admin auth](2026-10-06-admin-auth.md).
+
 ## What shipped
 Seven access-control fixes, each with tests for no token, wrong user, right user and a refresh token.
 
@@ -82,7 +84,7 @@ Two pre-existing 500s on these paths were fixed because the happy path couldn't 
   docker compose exec api python -m scripts.migrate_private_documents
   ```
   Until it runs, old documents return 404 from the new endpoint (and are no longer served from `/uploads` either). Take a copy of `uploads/caregivers` first.
-- Needs the `private_uploads` volume from `docker-compose.yml`. On a host without Docker volumes (for example Render), set `PRIVATE_UPLOAD_DIR` to a persistent disk path. Local disk is wiped on redeploy (see the checklist item on moving documents to Cloudinary or S3).
+- Needs the `private_uploads` volume from `docker-compose.yml`. If the container is run without the compose volume, set `PRIVATE_UPLOAD_DIR` to a persistent path. Local disk is wiped on redeploy (see the checklist item on moving documents to Cloudinary or S3).
 - Roll back: revert the commits. Migrated files would then need to be moved back to `uploads/caregivers/...` and `file_path` prefixed with `uploads/` (the script has no reverse mode).
 
 ## Review fixes (same branch)

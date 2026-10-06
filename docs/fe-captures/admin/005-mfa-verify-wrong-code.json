@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "auth": null,
+    "body": {
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "000000"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid verification code"
+    }
+  }
+}

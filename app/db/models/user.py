@@ -32,19 +32,3 @@ class User(Base):
     # Relationships
     patient = relationship("Patient", back_populates="user", uselist=False)
     caregiver = relationship("Caregiver", back_populates="user", uselist=False, foreign_keys="Caregiver.user_id")
-
-
-class Admin(Base):
-    __tablename__ = "admins"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
-    email = Column(String, nullable=False)
-    full_name = Column(String, nullable=False)
-    phone_number = Column(String, nullable=True)
-    permissions = Column(Text, nullable=True)  # JSON string of permissions
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationship
-    user = relationship("User")

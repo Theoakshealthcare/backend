@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Body
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Union
 from uuid import UUID
 import os
 
-from app.api.deps import get_db, get_current_user, get_current_admin, user_is_admin
+from app.api.deps import get_db, get_current_user, get_user_or_admin, is_admin, require_permission
+from app.db.models.admin import AdminUser
 from app.db.models.user import User
 from app.db.models.patient import Patient
 from app.schemas.prescription import PrescriptionCreate, PrescriptionResponse, PrescriptionUpdate
@@ -39,7 +40,7 @@ def get_latest_prescription_settings(
 def create_prescription_settings(
     settings_in: PrescriptionSettingsCreate,
     db: Session = Depends(get_db),
-    current_admin=Depends(get_current_admin)
+    current_admin=Depends(require_permission("prescriptions.manage"))
 ):
     settings = PrescriptionSettings(**settings_in.dict())
     db.add(settings)
@@ -52,7 +53,7 @@ def update_prescription_settings(
     settings_id: str,
     settings_in: PrescriptionSettingsUpdate,
     db: Session = Depends(get_db),
-    current_admin=Depends(get_current_admin)
+    current_admin=Depends(require_permission("prescriptions.manage"))
 ):
     settings = db.query(PrescriptionSettings).filter(PrescriptionSettings.id == settings_id).first()
     if not settings:
@@ -67,7 +68,7 @@ def update_prescription_settings(
 def delete_prescription_settings(
     settings_id: str,
     db: Session = Depends(get_db),
-    current_admin=Depends(get_current_admin)
+    current_admin=Depends(require_permission("prescriptions.manage"))
 ):
     settings = db.query(PrescriptionSettings).filter(PrescriptionSettings.id == settings_id).first()
     if not settings:
@@ -85,9 +86,9 @@ def get_prescription_service(db: Session = Depends(get_db)) -> PrescriptionServi
     return PrescriptionService(db)
 
 
-def _require_patient_access(db: Session, user: User, patient_id: UUID) -> None:
+def _require_patient_access(db: Session, user: Union[User, AdminUser], patient_id: UUID) -> None:
     """Allow the patient who owns `patient_id`, or an admin. Everyone else gets 403."""
-    if user_is_admin(db, user):
+    if is_admin(user):  # the route already checked prescriptions.manage
         return
     if user.user_type == "patient":
         patient = db.query(Patient).filter(Patient.user_id == user.id).first()
@@ -97,7 +98,7 @@ def _require_patient_access(db: Session, user: User, patient_id: UUID) -> None:
 
 
 def _get_accessible_prescription(
-    prescription_id: UUID, db: Session, user: User, service: PrescriptionService
+    prescription_id: UUID, db: Session, user: Union[User, AdminUser], service: PrescriptionService
 ):
     prescription = service.get_prescription(prescription_id)
     if not prescription:
@@ -126,7 +127,7 @@ def create_prescription(
 def get_patient_prescriptions(
     patient_id: UUID,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
-    current_user: User = Depends(get_current_user),
+    current_user: Union[User, AdminUser] = Depends(get_user_or_admin("prescriptions.manage")),
     db: Session = Depends(get_db),
 ):
     _require_patient_access(db, current_user, patient_id)
@@ -136,7 +137,7 @@ def get_patient_prescriptions(
 def get_prescription(
     prescription_id: UUID,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
-    current_user: User = Depends(get_current_user),
+    current_user: Union[User, AdminUser] = Depends(get_user_or_admin("prescriptions.manage")),
     db: Session = Depends(get_db),
 ):
     return _get_accessible_prescription(prescription_id, db, current_user, prescription_service)
@@ -146,7 +147,7 @@ def update_prescription(
     prescription_id: UUID,
     update_data: PrescriptionUpdate,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
-    current_admin: User = Depends(get_current_admin),
+    current_admin: AdminUser = Depends(require_permission("prescriptions.manage")),
 ):
     prescription = prescription_service.update_prescription(prescription_id, update_data)
     if not prescription:
@@ -158,7 +159,7 @@ async def upload_doctor_note(
     prescription_id: UUID,
     file: UploadFile = File(...),
     prescription_service: PrescriptionService = Depends(get_prescription_service),
-    current_admin: User = Depends(get_current_admin),
+    current_admin: AdminUser = Depends(require_permission("prescriptions.manage")),
 ):
     prescription = prescription_service.get_prescription(prescription_id)
     if not prescription:
@@ -188,7 +189,7 @@ def update_prescription_status(
     prescription_id: UUID,
     status: str = Body(..., embed=True),
     prescription_service: PrescriptionService = Depends(get_prescription_service),
-    current_admin: User = Depends(get_current_admin),
+    current_admin: AdminUser = Depends(require_permission("prescriptions.manage")),
 ):
     update_data = PrescriptionUpdate(status=status)
     prescription = prescription_service.update_prescription(prescription_id, update_data)
@@ -200,7 +201,7 @@ def update_prescription_status(
 def get_prescription_status(
     prescription_id: UUID,
     prescription_service: PrescriptionService = Depends(get_prescription_service),
-    current_user: User = Depends(get_current_user),
+    current_user: Union[User, AdminUser] = Depends(get_user_or_admin("prescriptions.manage")),
     db: Session = Depends(get_db),
 ):
     prescription = _get_accessible_prescription(prescription_id, db, current_user, prescription_service)

@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/admins",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "email": "stale-1b46d2@example.com",
+      "full_name": "Placeholder Stale",
+      "roles": [
+        "support"
+      ]
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "7174ca9d-bc22-41fe-9714-79bb6a490291",
+      "email": "stale-1b46d2@example.com",
+      "full_name": "Placeholder Stale",
+      "status": "invited",
+      "mfa_enabled": false,
+      "roles": [
+        "support"
+      ],
+      "last_login_at": null,
+      "locked_until": null,
+      "created_at": "2026-10-06T14:09:02.641383",
+      "invite_token": "<INVITE_TOKEN>",
+      "invite_expires_at": "2026-10-08T14:09:02.641105"
+    }
+  }
+}

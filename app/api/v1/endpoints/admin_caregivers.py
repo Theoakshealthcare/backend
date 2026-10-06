@@ -7,7 +7,8 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_admin, get_db
+from app.api.deps import get_db, require_permission
+from app.db.models.admin import AdminUser
 from app.db.models.caregiver import Caregiver
 from app.db.models.user import User
 from app.schemas.admin_caregiver import (
@@ -93,7 +94,7 @@ def list_applications(
     profile_status: ListStatus = "under_review",
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    _admin: User = Depends(get_current_admin),
+    _admin: AdminUser = Depends(require_permission("caregivers.read")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     return service.list_applications(profile_status, limit, offset)
@@ -102,7 +103,7 @@ def list_applications(
 @router.post("/documents/{doc_id}/decision")
 def decide_document(
     doc_id: UUID, body: DocumentDecision, request: Request, background: BackgroundTasks,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     doc, cg, affected = _run(lambda: service.decide_document(
@@ -117,7 +118,7 @@ def decide_document(
 @router.get("/{caregiver_id}")
 def get_application(
     caregiver_id: UUID, request: Request,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.read")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     detail = _run(lambda: service.get_detail(caregiver_id, admin.id, request))
@@ -128,7 +129,7 @@ def get_application(
 @router.post("/{caregiver_id}/identity-decision")
 def identity_decision(
     caregiver_id: UUID, body: IdentityDecision, request: Request, background: BackgroundTasks,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     cg, affected = _run(lambda: service.decide_identity(
@@ -140,7 +141,7 @@ def identity_decision(
 @router.post("/{caregiver_id}/background-check-decision")
 def background_check_decision(
     caregiver_id: UUID, body: BackgroundCheckDecision, request: Request, background: BackgroundTasks,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     cg, affected = _run(lambda: service.decide_background_check(
@@ -153,7 +154,7 @@ def background_check_decision(
 @router.put("/{caregiver_id}/skills")
 def set_skills(
     caregiver_id: UUID, body: SkillsIn, request: Request,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     skills = _run(lambda: service.set_skills(
@@ -164,7 +165,7 @@ def set_skills(
 @router.post("/{caregiver_id}/approve")
 def approve(
     caregiver_id: UUID, request: Request, background: BackgroundTasks,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     cg = _run(lambda: service.approve(caregiver_id, admin.id, request))
@@ -175,7 +176,7 @@ def approve(
 @router.post("/{caregiver_id}/reject")
 def reject(
     caregiver_id: UUID, body: ReasonIn, request: Request, background: BackgroundTasks,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     cg = _run(lambda: service.reject(caregiver_id, admin.id, body.reason, request))
@@ -186,7 +187,7 @@ def reject(
 @router.post("/{caregiver_id}/request-changes")
 def request_changes(
     caregiver_id: UUID, body: RequestChangesIn, request: Request, background: BackgroundTasks,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     cg = _run(lambda: service.request_changes(caregiver_id, admin.id, body.items, body.note, request))
@@ -197,7 +198,7 @@ def request_changes(
 @router.post("/{caregiver_id}/suspend")
 def suspend(
     caregiver_id: UUID, body: ReasonIn, request: Request, background: BackgroundTasks,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.suspend")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     cg, affected = _run(lambda: service.suspend(caregiver_id, admin.id, body.reason, request))
@@ -211,7 +212,7 @@ def suspend(
 @router.post("/{caregiver_id}/reinstate")
 def reinstate(
     caregiver_id: UUID, request: Request,
-    admin: User = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_permission("caregivers.suspend")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     return _summary(_run(lambda: service.reinstate(caregiver_id, admin.id, request)))

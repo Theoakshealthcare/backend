@@ -41,14 +41,14 @@ class Caregiver(Base):
     # background_check_status: pending, in_progress, cleared, failed (set only by an admin decision)
 
     # Admin approval workflow (written only by CaregiverApprovalService, never by the caregiver)
-    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     suspended_at = Column(DateTime, nullable=True)
     suspension_reason = Column(Text, nullable=True)
     rejection_reason = Column(Text, nullable=True)
     changes_requested = Column(JSON, nullable=True)  # {"items": [...], "note": "..."}
     background_check_evidence = Column(JSON, nullable=True)  # {"notes", "document_id", "provider_reference"}
-    background_check_decided_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    background_check_decided_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
     background_check_decided_at = Column(DateTime, nullable=True)
     
     # Third-party Integration IDs
@@ -101,7 +101,7 @@ class CaregiverDocument(Base):
     verified_at = Column(DateTime, nullable=True)
 
     # Admin review
-    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
     rejection_reason = Column(Text, nullable=True)
     expires_on = Column(Date, nullable=True)
 
@@ -133,7 +133,7 @@ class CaregiverSkill(Base):
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id", ondelete="CASCADE"), nullable=False)
     service_type = Column(String, nullable=False)
     sub_specialty = Column(String, nullable=True)
-    created_by_admin_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_by_admin_id = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     caregiver = relationship("Caregiver", back_populates="skills")

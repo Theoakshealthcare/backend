@@ -75,9 +75,10 @@ def test_ws_stats_requires_token(client):
     assert client.get(STATS).status_code == 401
 
 
-def test_ws_stats_forbidden_for_non_admin(db, client):
+def test_ws_stats_rejects_app_user_tokens(db, client):
+    # an app-user token is not an admin credential at all: 401, not 403
     patient = make_patient(db)
-    assert client.get(STATS, headers=auth_headers(patient.user)).status_code == 403
+    assert client.get(STATS, headers=auth_headers(patient.user)).status_code == 401
 
 
 def test_ws_stats_allowed_for_admin(db, client):

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from uuid import UUID
 
 from cryptography.fernet import InvalidToken
@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSoc
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_current_admin, user_is_admin, authenticate_websocket
+from app.api.deps import get_current_user, get_db, get_current_caregiver, get_current_patient, get_user_or_admin, is_admin, require_permission, authenticate_websocket
 from app.core.money import kobo_to_naira
 from app.core.security import decrypt
+from app.db.models.admin import AdminUser
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus, CaregiverLocation
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
@@ -144,9 +145,9 @@ def enrich_booking_with_details(
     return booking_dict
 
 
-def ensure_booking_read_access(db: Session, user: User, booking: Booking) -> None:
+def ensure_booking_read_access(db: Session, user: Union[User, AdminUser], booking: Booking) -> None:
     """Allow the booking's patient, its assigned caregiver, or an admin; refuse everyone else."""
-    if user_is_admin(db, user):
+    if is_admin(user):  # the route already checked bookings.read
         return
     if user.user_type == "patient":
         patient = db.query(Patient).filter(Patient.user_id == user.id).first()
@@ -552,7 +553,7 @@ async def handle_booking_action(
 )
 def get_booking_details(
     booking_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: Union[User, AdminUser] = Depends(get_user_or_admin("bookings.read")),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
     """
@@ -580,10 +581,10 @@ def get_booking_details(
     return enriched_booking
 
 
-def _visit_code_for_patient(db: Session, user: User, booking: Booking) -> Optional[str]:
+def _visit_code_for_patient(db: Session, user: Union[User, AdminUser], booking: Booking) -> Optional[str]:
     """The plain visit code, for the booking's own patient only and only while it can still be used
     (accepted or en_route). Everyone else, including the caregiver and admins, gets None."""
-    if user.user_type != "patient" or booking.visit_code_enc is None:
+    if not isinstance(user, User) or user.user_type != "patient" or booking.visit_code_enc is None:
         return None
     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE):
         return None
@@ -893,7 +894,7 @@ def get_caregiver_location(
 )
 def get_live_booking_tracking(
     booking_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: Union[User, AdminUser] = Depends(get_user_or_admin("bookings.read")),
     booking_service: BookingService = Depends(get_booking_service),
     location_service: LocationService = Depends(get_location_service),
 ) -> Any:
@@ -924,9 +925,7 @@ def get_live_booking_tracking(
 
     # The location is the caregiver's latest global position, so it must stop being visible
     # once the job is over (same rule as the tracking WebSocket). Admins keep access.
-    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS) and not user_is_admin(
-        booking_service.db, current_user
-    ):
+    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS) and not is_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Live tracking is only available while the booking is accepted or in progress",
@@ -1115,7 +1114,7 @@ async def patient_tracking_websocket(
     description="Get current WebSocket connection and subscription statistics for monitoring",
     tags=["WebSocket Monitoring"]
 )
-def get_websocket_stats(current_admin: User = Depends(get_current_admin)) -> dict:
+def get_websocket_stats(current_admin: AdminUser = Depends(require_permission("dashboard.read"))) -> dict:
     """
     Get WebSocket connection statistics for monitoring and debugging.
     

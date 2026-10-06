@@ -413,7 +413,7 @@ All scoped by `care_relationships` and consent.
 |---|---|
 | WA-NFR-1 **Latency** | Bot reply p95 ≤ 3 s from the inbound webhook to the outbound API call. Flow data endpoint p95 ≤ 3 s. |
 | WA-NFR-2 **Reliability** | Webhook processing is idempotent. The queue retries with backoff and a dead-letter queue. No inbound message is lost if a worker restarts. |
-| WA-NFR-3 **Availability** | 99.5% monthly for the webhook and the web companion during the pilot. **Move off Render's free plan**, since it sleeps and would miss webhooks. |
+| WA-NFR-3 **Availability** | 99.5% monthly for the webhook and the web companion during the pilot. **Run on an always-on Docker host**, not anything that sleeps, or webhooks are missed. |
 | WA-NFR-4 **Scale (pilot)** | 2,000 contacts and 500 bookings/month, with headroom for 10×. Meta tier 250 at start, 2K after verification. |
 | WA-NFR-5 **Security** | Verify signatures on every webhook (Meta and Paystack). Secrets (Meta token, app secret, Flow private key, Paystack keys) live in the platform secret store, never in git. The Flow private key is rotated yearly. |
 | WA-NFR-6 **Data minimisation** | Store no message bodies by default. Health data never goes into templates or bot messages. The condition field is stored encrypted. |

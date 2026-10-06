@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/admins/b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "status": "invited"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "status"
+          ],
+          "msg": "Input should be 'active' or 'disabled'",
+          "input": "invited",
+          "ctx": {
+            "expected": "'active' or 'disabled'"
+          }
+        }
+      ]
+    }
+  }
+}

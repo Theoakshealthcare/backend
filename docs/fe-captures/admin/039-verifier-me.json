@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/me",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+      "email": "verifier-1b46d2@example.com",
+      "full_name": "Placeholder Verifier",
+      "roles": [
+        "verification"
+      ],
+      "permissions": [
+        "caregivers.approve",
+        "caregivers.read",
+        "caregivers.suspend",
+        "dashboard.read",
+        "documents.read",
+        "people.read"
+      ]
+    }
+  }
+}

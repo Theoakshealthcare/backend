@@ -6,6 +6,8 @@
 | **Branch** | `security/money` (base `test/harness`) |
 | **Status** | Verified locally (78 tests green) |
 
+> **Updated by A0 (2026-10-06):** the admin refund routes now use `require_permission("refunds.approve")`, and `admin_id` on a refund request is the `admin_users` id. A patient token on them is `401`, not `403`. See [admin auth](2026-10-06-admin-auth.md).
+
 ## What shipped
 Five money-path fixes, each with tests that failed before the change:
 1. Caregiver withdrawals are validated and race-free.

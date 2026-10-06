@@ -79,7 +79,7 @@ def test_non_admin_cannot_approve(db, client, paystack_refunds):
     tx = _tx(db, _wallet(db, patient), patient)
     req = _request(db, patient, tx)
     r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(patient.user))
-    assert r.status_code == 403
+    assert r.status_code == 401
     assert _fresh(db, PatientRefundRequest, req.id).status == "pending"
     assert paystack_refunds == []
 
@@ -87,20 +87,24 @@ def test_non_admin_cannot_approve(db, client, paystack_refunds):
 def test_non_admin_cannot_list(db, client):
     patient = make_patient(db)
     r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(patient.user))
+    assert r.status_code == 401
+
+
+def test_admin_with_refund_permission_can_list(db, client):
+    for roles in (["super_admin"], ["finance"]):
+        r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(make_admin(db, roles)))
+        assert r.status_code == 200, roles
+
+
+def test_admin_without_refund_permission_is_forbidden(db, client):
+    r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(make_admin(db, ["support"])))
     assert r.status_code == 403
 
 
-def test_admin_row_authorises_regardless_of_user_type(db, client):
-    # the old check compared user_type == "admin"; admins are identified by an Admin row
-    admin = make_admin(db)
-    r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(admin))
-    assert r.status_code == 200
-
-
-def test_user_type_admin_without_admin_row_is_rejected(db, client):
+def test_user_type_admin_is_not_an_admin(db, client):
     fake_admin = make_user(db, "admin")
     r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(fake_admin))
-    assert r.status_code == 403
+    assert r.status_code == 401
 
 
 def test_paystack_original_refunds_to_paystack_only(db, client, paystack_refunds):

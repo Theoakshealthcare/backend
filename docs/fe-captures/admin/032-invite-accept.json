@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/invite/accept",
+    "auth": null,
+    "body": {
+      "invite_token": "<INVITE_TOKEN>",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "accepted": true,
+      "email": "verifier-1b46d2@example.com"
+    }
+  }
+}

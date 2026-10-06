@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
@@ -9,8 +9,9 @@ from io import StringIO
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.api.deps import get_current_user, get_db, user_is_admin
+from app.api.deps import get_current_user, get_db, get_user_or_admin, is_admin
 from app.core.config import settings
+from app.db.models.admin import AdminUser
 from app.db.models.user import User
 from app.schemas.caregiver import (
     CaregiverProfile,
@@ -151,7 +152,7 @@ def upload_document(
 @router.get("/documents/{document_id}/file")
 def download_document(
     document_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: Union[User, AdminUser] = Depends(get_user_or_admin("documents.read")),
     db: Session = Depends(get_db),
     caregiver_service: CaregiverService = Depends(get_caregiver_service),
 ) -> Any:
@@ -160,7 +161,7 @@ def download_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    if not user_is_admin(db, current_user):
+    if not is_admin(current_user):
         owner = caregiver_service.get_caregiver_by_user_id(current_user.id)
         if current_user.user_type != "caregiver" or not owner or owner.id != document.caregiver_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")

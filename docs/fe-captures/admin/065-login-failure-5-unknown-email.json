@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/login",
+    "auth": null,
+    "body": {
+      "email": "nobody-at-all-1b46d2@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Invalid email or password"
+    }
+  },
+  "note": "The 5th wrong password for a unknown email: still 401."
+}

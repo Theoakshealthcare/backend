@@ -39,7 +39,9 @@ jobs:
         run: poetry run python -m scripts.ci_smoke
 
       - name: FE integration guides match their captures
-        run: poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-caregiver.md docs/fe-captures/caregiver --check
+        run: |
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-caregiver.md docs/fe-captures/caregiver --check
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-admin.md docs/fe-captures/admin --check
 
       - name: Tests (throwaway Postgres via testcontainers)
         run: poetry run pytest -q -p no:warnings

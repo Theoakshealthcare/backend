@@ -148,7 +148,7 @@ def test_patch_is_admin_only(db, client):
     body = {"doctor_note_path": "notes/x.pdf"}
 
     assert client.patch(url, json=body).status_code == 401
-    assert client.patch(url, json=body, headers=auth_headers(owner.user)).status_code == 403
+    assert client.patch(url, json=body, headers=auth_headers(owner.user)).status_code == 401
     assert client.patch(url, json=body, headers=refresh_headers(admin)).status_code == 401
     db.refresh(rx)
     assert rx.doctor_note_path is None
@@ -180,7 +180,7 @@ def test_status_patch_is_admin_only(db, client):
     body = {"status": "paid"}
 
     assert client.patch(url, json=body).status_code == 401
-    assert client.patch(url, json=body, headers=auth_headers(owner.user)).status_code == 403
+    assert client.patch(url, json=body, headers=auth_headers(owner.user)).status_code == 401
     db.refresh(rx)
     assert rx.status.value == "pending"
 
@@ -198,7 +198,7 @@ def test_upload_note_is_admin_only(db, client, tmp_path, monkeypatch):
     files = lambda: {"file": ("note.pdf", b"%PDF-1.4 test", "application/pdf")}  # noqa: E731
 
     assert client.post(url, files=files()).status_code == 401
-    assert client.post(url, files=files(), headers=auth_headers(owner.user)).status_code == 403
+    assert client.post(url, files=files(), headers=auth_headers(owner.user)).status_code == 401
     assert list(tmp_path.iterdir()) == []
 
     assert client.post(url, files=files(), headers=auth_headers(admin)).status_code == 200

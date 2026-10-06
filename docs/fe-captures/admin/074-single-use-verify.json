@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "auth": null,
+    "body": {
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "<TOTP_CODE>"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "access_token": "<ACCESS_TOKEN_JWT>",
+      "refresh_token": "<REFRESH_TOKEN>",
+      "token_type": "bearer",
+      "expires_in": 900,
+      "admin": {
+        "id": "b6848d3d-11eb-4fea-8a7c-0823d06a61b8",
+        "email": "once-1b46d2@example.com",
+        "full_name": "Placeholder Once",
+        "roles": [
+          "support"
+        ],
+        "permissions": [
+          "bookings.cancel_request",
+          "bookings.read",
+          "caregivers.read",
+          "dashboard.read",
+          "people.read",
+          "refunds.request",
+          "support.inbox",
+          "whatsapp.read"
+        ]
+      }
+    }
+  }
+}

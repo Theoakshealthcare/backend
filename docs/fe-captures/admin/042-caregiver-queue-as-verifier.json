@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [],
+      "total": 0,
+      "limit": 25,
+      "offset": 0
+    }
+  },
+  "note": "A route the Verification role may use."
+}

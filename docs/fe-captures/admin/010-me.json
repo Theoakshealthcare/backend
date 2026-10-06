@@ -1,0 +1,57 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/me",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
+      "email": "boss-1b46d2@example.com",
+      "full_name": "Placeholder Super Admin",
+      "roles": [
+        "super_admin"
+      ],
+      "permissions": [
+        "admins.manage",
+        "audit.read",
+        "bookings.address",
+        "bookings.assign",
+        "bookings.cancel",
+        "bookings.cancel_request",
+        "bookings.correct_status",
+        "bookings.dispatch",
+        "bookings.read",
+        "caregivers.approve",
+        "caregivers.read",
+        "caregivers.suspend",
+        "clinical.read",
+        "dashboard.read",
+        "documents.read",
+        "exports.pii",
+        "fallguard.write",
+        "ledger.adjust",
+        "ledger.adjust_request",
+        "payments.read",
+        "payments.reconcile",
+        "payouts.execute",
+        "people.pii",
+        "people.read",
+        "people.suspend",
+        "prescriptions.manage",
+        "pricing.request",
+        "pricing.write",
+        "refunds.approve",
+        "refunds.request",
+        "settings.write",
+        "support.inbox",
+        "whatsapp.read"
+      ]
+    }
+  }
+}

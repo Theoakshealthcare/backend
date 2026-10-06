@@ -5,6 +5,7 @@ from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import client_ip
 from app.db.models.audit import AdminAuditLog
 
 SENSITIVE_KEYS = ("password", "token", "secret", "pin", "authorization", "api_key")
@@ -52,8 +53,7 @@ class AuditService:
     ) -> AdminAuditLog:
         ip = user_agent = None
         if request is not None:
-            # The direct peer only. X-Forwarded-For is client-controlled unless the proxy is trusted.
-            ip = request.client.host if request.client else None
+            ip = client_ip(request) if request.client else None
             user_agent = (request.headers.get("user-agent") or "")[:500] or None
         row = AdminAuditLog(
             admin_user_id=admin_user_id,

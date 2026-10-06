@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "auth": null,
+    "body": {
+      "mfa_token": "<MFA_TOKEN_JWT>",
+      "code": "000000"
+    }
+  },
+  "response": {
+    "status_code": 429,
+    "headers": {
+      "retry-after": "59",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Too many requests. Try again later."
+    }
+  },
+  "note": "Call number 31 from one IP inside one 60-second window."
+}
