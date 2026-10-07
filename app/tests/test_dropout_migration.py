@@ -98,7 +98,9 @@ def test_upgrade_adds_everything_and_downgrade_removes_it_cleanly(scratch):
 @pytest.mark.parametrize("assignment", [
     "cancel_fee_percent = 101", "cancel_late_fee_percent = -1", "caregiver_late_fee_share_percent = 101",
     "cancel_late_hours = 12", "cancel_free_hours = 1", "dropout_decision_lead_minutes = 120",
-    "onmyway_compensation_window_minutes = -5",
+    "onmyway_compensation_window_minutes = -5", "cancel_free_hours = 169", "dropout_redispatch_min_lead_minutes = 10081",
+    "dropout_decision_lead_minutes = 10081, dropout_redispatch_min_lead_minutes = 10080",
+    "onmyway_compensation_window_minutes = 10081", "cancel_fee_percent = 60",
 ])
 def test_the_database_itself_refuses_an_invalid_policy(scratch, assignment):
     _run(scratch, command.upgrade, THIS)

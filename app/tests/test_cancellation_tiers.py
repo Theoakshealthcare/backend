@@ -39,15 +39,81 @@ def policy(**kw):
     (12, BookingStatus.ACCEPTED, "standard", 800_000),  # at the free line the fee starts
     (5, BookingStatus.ACCEPTED, "standard", 800_000),
     (2.01, BookingStatus.ACCEPTED, "standard", 800_000),
-    (2, BookingStatus.ACCEPTED, "late", 2_000_000),     # at the late line the late fee starts
+    (2, BookingStatus.ACCEPTED, "standard", 800_000),   # exactly 2 h is not "less than 2 h"
+    (1.99, BookingStatus.ACCEPTED, "late", 2_000_000),  # inside the late line the late fee starts
     (0.5, BookingStatus.ACCEPTED, "late", 2_000_000),
     (-1, BookingStatus.ACCEPTED, "late", 2_000_000),    # the start time has passed
-    (40, BookingStatus.EN_ROUTE, "late", 2_000_000),    # on the way: late whatever the clock says
+    (1.5, BookingStatus.EN_ROUTE, "late", 2_000_000),   # on the way, tapped in good time
 ])
 def test_the_tier_and_the_fee(hours_left, status, tier, fee):
-    terms = cancellation.terms(memory_booking(hours_left, status), NOW, policy())
+    tap = NOW - timedelta(minutes=10)
+    terms = cancellation.terms(memory_booking(hours_left, status, on_my_way_at=tap), NOW, policy())
     assert terms.allowed and terms.tier == tier and terms.fee_kobo == fee
     assert terms.refund_kobo == TOTAL - fee
+
+
+@pytest.mark.parametrize("hours_left, tier, fee", [(24, "none", 0), (6, "standard", 800_000)])
+def test_a_forced_en_route_far_ahead_does_not_make_the_family_pay_the_late_fee(hours_left, tier, fee):
+    # on my way tapped a day early (or an admin set en_route): the tap was outside the 120 minute window
+    booking = memory_booking(hours_left, BookingStatus.EN_ROUTE, on_my_way_at=NOW - timedelta(hours=1))
+    booking.on_my_way_at = booking.scheduled_date - timedelta(hours=hours_left + 1)  # far before the start
+    terms = cancellation.terms(booking, NOW, policy())
+    assert terms.tier == tier and terms.fee_kobo == fee
+
+
+def test_en_route_with_no_recorded_tap_gets_no_special_treatment():
+    assert cancellation.terms(memory_booking(24, BookingStatus.EN_ROUTE), NOW, policy()).tier == "none"
+
+
+def test_the_window_that_makes_en_route_late_is_read_from_the_policy(db, chat):
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5, cancel_policy={**SNAPSHOT, "late_hours": 1})
+    act(db, booking, caregiver, "on_my_way")  # tapped 90 minutes ahead
+    assert cancellation.terms_for(db, reload(db, booking), datetime.utcnow()).tier == "late"
+    set_policy(db, onmyway_compensation_window_minutes=30)  # now that tap counts as too early to matter
+    assert cancellation.terms_for(db, reload(db, booking), datetime.utcnow()).tier == "standard"
+
+
+def test_an_on_my_way_earlier_than_the_window_is_refused_with_a_clear_message(db, chat):
+    from app.services.booking import BookingStateConflict
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=24)
+    with pytest.raises(BookingStateConflict, match="from 2 hours before the visit"):
+        act(db, booking, caregiver, "on_my_way")
+    b = reload(db, booking)
+    assert b.status == BookingStatus.ACCEPTED and b.on_my_way_at is None
+
+
+def test_an_on_my_way_just_inside_the_window_is_accepted(db, chat):
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.95)
+    assert act(db, booking, caregiver, "on_my_way").status == BookingStatus.EN_ROUTE
+
+
+def test_the_refusal_window_is_read_from_the_policy(db, chat):
+    from app.services.booking import BookingStateConflict
+    set_policy(db, onmyway_compensation_window_minutes=45)
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)
+    with pytest.raises(BookingStateConflict, match="from 45 minutes before the visit"):
+        act(db, booking, caregiver, "on_my_way")
+
+
+def test_a_stale_location_fix_is_not_stored_as_the_distance_at_the_tap(db, chat):
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)
+    db.add(CaregiverLocation(caregiver_id=caregiver.id, latitude=booking.patient_latitude + 0.0135,
+                             longitude=booking.patient_longitude, is_active=True, is_available=True,
+                             updated_at=datetime.utcnow() - timedelta(minutes=30)))
+    db.commit()
+    act(db, booking, caregiver, "on_my_way")
+    b = reload(db, booking)
+    assert b.on_my_way_at is not None and b.on_my_way_distance_m is None
+
+
+def test_a_fix_just_inside_five_minutes_is_used(db, chat):
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)
+    db.add(CaregiverLocation(caregiver_id=caregiver.id, latitude=booking.patient_latitude + 0.0135,
+                             longitude=booking.patient_longitude, is_active=True, is_available=True,
+                             updated_at=datetime.utcnow() - timedelta(minutes=4)))
+    db.commit()
+    act(db, booking, caregiver, "on_my_way")
+    assert reload(db, booking).on_my_way_distance_m is not None
 
 
 def test_in_progress_is_a_human_matter_and_closed_states_are_refused():
@@ -137,18 +203,10 @@ def test_too_little_movement_is_not_compensable(db, chat):
     assert reload(db, booking).late_cancel_compensable is False
 
 
-def test_an_on_my_way_tapped_too_early_is_not_compensable_even_if_they_moved(db, chat):
-    booking, caregiver = accepted_booking(db, chat, hours_ahead=5)  # tapped 5 h before: outside the 120 minute window
-    start_moving(db, booking, caregiver, moved_m=900)
-    cancellation.cancel_by_booker(db, booking.id)
-    b = reload(db, booking)
-    assert b.cancel_fee_tier == "late" and b.late_cancel_compensable is False
-
-
 def test_the_compensation_window_is_read_from_the_policy(db, chat):
-    set_policy(db, onmyway_compensation_window_minutes=30)
     booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)
     start_moving(db, booking, caregiver, moved_m=900)
+    set_policy(db, onmyway_compensation_window_minutes=30)  # the tap, 90 minutes ahead, is outside it
     cancellation.cancel_by_booker(db, booking.id)
     assert reload(db, booking).late_cancel_compensable is False
 
@@ -156,19 +214,19 @@ def test_the_compensation_window_is_read_from_the_policy(db, chat):
 # --- the snapshot is what counts ----------------------------------------------------------------------------
 def test_a_booking_with_a_snapshot_ignores_later_policy_changes(db, chat):
     booking, _ = accepted_booking(db, chat, hours_ahead=6, cancel_policy=dict(SNAPSHOT))
-    set_policy(db, cancel_fee_percent=90, cancel_free_hours=24, cancel_late_hours=5)
+    set_policy(db, cancel_fee_percent=90, cancel_late_fee_percent=100, cancel_free_hours=24, cancel_late_hours=5)
     terms = cancellation.terms_for(db, reload(db, booking), datetime.utcnow())
     assert terms.tier == "standard" and terms.fee_kobo == 800_000 and terms.fee_percent == 20
 
 
 def test_a_booking_without_a_snapshot_uses_the_live_policy(db, chat):
     booking, _ = accepted_booking(db, chat, hours_ahead=6)
-    set_policy(db, cancel_fee_percent=90)
+    set_policy(db, cancel_fee_percent=90, cancel_late_fee_percent=100)
     assert cancellation.terms_for(db, reload(db, booking), datetime.utcnow()).fee_kobo == 3_600_000
 
 
 def test_the_terms_in_the_cancel_flow_use_the_snapshot_not_the_policy_edited_since(db, chat):
     booking, _ = accepted_booking(db, chat, hours_ahead=6, cancel_policy=dict(SNAPSHOT))
-    set_policy(db, cancel_fee_percent=90)
+    set_policy(db, cancel_fee_percent=90, cancel_late_fee_percent=100)
     cancellation.cancel_by_booker(db, booking.id)
     assert reload(db, booking).refund_amount_kobo == TOTAL - 800_000

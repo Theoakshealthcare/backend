@@ -10,8 +10,7 @@ when it was quoted), else the live policy:
 | paid, no caregiver yet                                         | none       | cancel, full refund                     |
 | accepted, more than ``free_hours`` before the start            | none       | cancel, full refund                     |
 | accepted, between ``late_hours`` and ``free_hours``            | standard   | refund minus ``fee_percent`` of the service fee |
-| accepted and within ``late_hours`` (or past the start), or the |            |                                         |
-| caregiver is on the way                                        | late       | refund minus ``late_fee_percent`` of the service fee |
+| accepted and less than ``late_hours`` from the start (or past it), or the caregiver is on the way (tapped within the compensation window before the start) | late | refund minus ``late_fee_percent`` of the service fee |
 | in progress                                                    |            | refused: a person has to handle it      |
 | completed / cancelled / declined                               |            | refused                                 |
 
@@ -26,7 +25,7 @@ kobo throughout; the fee is rounded half up.
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -90,10 +89,11 @@ def policy_for(db: Session, booking: Booking) -> CancelPolicy:
 
 
 def terms_for(db: Session, booking: Booking, now: datetime) -> Terms:
-    return terms(booking, now, policy_for(db, booking))
+    return terms(booking, now, policy_for(db, booking),
+                 booking_policy.current(db).onmyway_compensation_window_minutes)
 
 
-def terms(booking: Booking, now: datetime, policy: CancelPolicy) -> Terms:
+def terms(booking: Booking, now: datetime, policy: CancelPolicy, onmyway_window_minutes: int = 120) -> Terms:
     status = booking.status
     if status == BookingStatus.IN_PROGRESS:
         return Terms(False, REASON_IN_PROGRESS)
@@ -107,8 +107,12 @@ def terms(booking: Booking, now: datetime, policy: CancelPolicy) -> Terms:
     if status == BookingStatus.PENDING:
         return Terms(True, refund_kobo=total, policy=policy)
     hours_left = (booking.scheduled_date - now).total_seconds() / 3600
-    if status == BookingStatus.EN_ROUTE or hours_left <= policy.late_hours:
-        tier = TIER_LATE  # on the way, or inside the late window (this includes a start time that has passed)
+    # "On the way" only makes it late when the tap was in good time (a caregiver cannot make a family pay 50% by tapping
+    # a day early); a start time that has passed is inside the late window too.
+    on_the_way = (status == BookingStatus.EN_ROUTE and booking.on_my_way_at is not None
+                  and booking.on_my_way_at >= booking.scheduled_date - timedelta(minutes=onmyway_window_minutes))
+    if on_the_way or hours_left < policy.late_hours:
+        tier = TIER_LATE
     elif hours_left <= policy.free_hours:
         tier = TIER_STANDARD
     else:

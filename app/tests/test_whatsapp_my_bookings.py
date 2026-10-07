@@ -215,7 +215,7 @@ def test_inside_the_late_window_the_late_fee_is_shown_before_and_applied_after(d
 
 
 def test_a_caregiver_already_on_the_way_gets_the_late_tier_and_the_text_says_why(db, chat):
-    booking, caregiver = accepted_booking(db, chat, hours_ahead=40)
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)
     act(db, booking, caregiver, "on_my_way")
     text = body_text(chat.tap(f"bk:cancel:{booking.id}")[0])
     assert "50% fee" in text and "on the way" in text
@@ -224,7 +224,7 @@ def test_a_caregiver_already_on_the_way_gets_the_late_tier_and_the_text_says_why
 def test_the_policy_edited_after_booking_does_not_change_the_terms_shown_or_charged(db, chat):
     booking, _ = accepted_booking(db, chat, hours_ahead=6, cancel_policy={
         "free_hours": 12, "late_hours": 2, "fee_percent": 20, "late_fee_percent": 50})
-    set_policy(db, cancel_fee_percent=90)
+    set_policy(db, cancel_fee_percent=90, cancel_late_fee_percent=100)
     ask = chat.tap(f"bk:cancel:{booking.id}")
     assert "20% fee" in body_text(ask[0])
     chat.tap(buttons(ask[0])[0])

@@ -46,6 +46,9 @@ class PolicyValues:
 
 
 FIELDS = tuple(f.name for f in fields(PolicyValues))
+MAX_HOURS = 168          # a week
+MAX_MINUTES = 10_080     # a week
+HOUR_FIELDS = ("cancel_free_hours", "cancel_late_hours")
 PERCENT_FIELDS = ("cancel_fee_percent", "cancel_late_fee_percent", "caregiver_late_fee_share_percent")
 
 
@@ -58,9 +61,15 @@ def validate(values: Dict[str, Any]) -> None:
             raise PolicyInvalid(f"{name} cannot be negative")
         if name in PERCENT_FIELDS and value > 100:
             raise PolicyInvalid(f"{name} must be between 0 and 100")
+        if name in HOUR_FIELDS and value > MAX_HOURS:
+            raise PolicyInvalid(f"{name} cannot be more than {MAX_HOURS} hours")
+        if name not in HOUR_FIELDS and name not in PERCENT_FIELDS and value > MAX_MINUTES:
+            raise PolicyInvalid(f"{name} cannot be more than {MAX_MINUTES} minutes")
     if values["cancel_late_hours"] >= values["cancel_free_hours"]:
         raise PolicyInvalid("The late-cancellation window (cancel_late_hours) must be shorter than the free-cancellation "
                             "window (cancel_free_hours)")
+    if values["cancel_late_fee_percent"] < values["cancel_fee_percent"]:
+        raise PolicyInvalid("The late fee (cancel_late_fee_percent) cannot be lower than the earlier fee (cancel_fee_percent)")
     if values["dropout_decision_lead_minutes"] >= values["dropout_redispatch_min_lead_minutes"]:
         raise PolicyInvalid("The decision lead (dropout_decision_lead_minutes) must be shorter than the re-dispatch "
                             "minimum lead (dropout_redispatch_min_lead_minutes)")

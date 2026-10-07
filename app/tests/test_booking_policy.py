@@ -37,10 +37,29 @@ def test_a_stored_row_overrides_the_defaults(db):
     {"cancel_late_hours": 12}, {"cancel_late_hours": 13},      # the late window must be shorter than the free one
     {"cancel_free_hours": 2},                                  # ... in either direction
     {"dropout_decision_lead_minutes": 120}, {"dropout_redispatch_min_lead_minutes": 60},
+    {"cancel_free_hours": 169}, {"cancel_late_hours": 169}, {"dropout_redispatch_min_lead_minutes": 10_081},
+    {"dropout_decision_lead_minutes": 10_081}, {"onmyway_compensation_window_minutes": 10_081},
+    {"cancel_free_hours": 2_147_483_648},                      # beyond a database integer: refused here, not a 500
+    {"cancel_fee_percent": 60},                                # the late fee (50) may not be lower than the fee
+    {"cancel_late_fee_percent": 10},
 ])
 def test_invalid_policies_are_refused(change):
     with pytest.raises(PolicyInvalid):
         booking_policy.validate({**DEFAULTS, **change})
+
+
+def test_the_upper_bounds_and_the_late_fee_ordering_have_inclusive_edges():
+    booking_policy.validate({**DEFAULTS, "cancel_free_hours": 168, "onmyway_compensation_window_minutes": 10_080,
+                             "dropout_redispatch_min_lead_minutes": 10_080, "cancel_fee_percent": 50})
+
+
+def test_an_oversized_integer_is_a_422_not_a_500(client, db):
+    h = headers(db)
+    for body in ({"cancel_free_hours": 2_147_483_648}, {"cancel_free_hours": 99_999_999_999_999},
+                 {"onmyway_compensation_window_minutes": 10_081}, {"cancel_fee_percent": 60}):
+        r = client.patch(URL, json={"reason": "too big", **body}, headers=h)
+        assert r.status_code == 422, (body, r.text)
+    assert booking_policy.current(db).as_dict() == DEFAULTS
 
 
 def test_a_valid_edge_is_accepted():

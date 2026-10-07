@@ -56,10 +56,12 @@ def upgrade() -> None:
         sa.CheckConstraint('cancel_fee_percent BETWEEN 0 AND 100', name='ck_booking_policies_fee_percent'),
         sa.CheckConstraint('cancel_late_fee_percent BETWEEN 0 AND 100', name='ck_booking_policies_late_fee_percent'),
         sa.CheckConstraint('caregiver_late_fee_share_percent BETWEEN 0 AND 100', name='ck_booking_policies_share_percent'),
-        sa.CheckConstraint('cancel_free_hours >= 0 AND cancel_late_hours >= 0', name='ck_booking_policies_hours'),
+        sa.CheckConstraint('cancel_free_hours BETWEEN 0 AND 168 AND cancel_late_hours BETWEEN 0 AND 168',
+                           name='ck_booking_policies_hours'),
         sa.CheckConstraint(
-            'dropout_redispatch_min_lead_minutes >= 0 AND dropout_decision_lead_minutes >= 0 '
-            'AND onmyway_compensation_window_minutes >= 0', name='ck_booking_policies_minutes'),
+            'dropout_redispatch_min_lead_minutes BETWEEN 0 AND 10080 AND dropout_decision_lead_minutes BETWEEN 0 AND 10080 '
+            'AND onmyway_compensation_window_minutes BETWEEN 0 AND 10080', name='ck_booking_policies_minutes'),
+        sa.CheckConstraint('cancel_fee_percent <= cancel_late_fee_percent', name='ck_booking_policies_late_fee_not_lower'),
         sa.CheckConstraint('cancel_late_hours < cancel_free_hours', name='ck_booking_policies_late_before_free'),
         sa.CheckConstraint('dropout_decision_lead_minutes < dropout_redispatch_min_lead_minutes',
                            name='ck_booking_policies_decision_before_redispatch'),

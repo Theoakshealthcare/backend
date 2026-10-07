@@ -52,10 +52,16 @@ def reload(db, booking):
     return db.get(Booking, booking.id)
 
 
+def soon():
+    """A start close enough that on my way is allowed (it is refused earlier than the policy window)."""
+    start = datetime.utcnow() + timedelta(hours=1)
+    return dict(scheduled_date=start, scheduled_end_date=start + timedelta(hours=4))
+
+
 @pytest.fixture
 def visit(db):
     patient, cg = make_patient(db), make_caregiver(db)
-    booking = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED, visit_code=CODE)
+    booking = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED, visit_code=CODE, **soon())
     return patient, cg, booking
 
 
@@ -64,7 +70,7 @@ def visit(db):
 
 def accepted_via_api(db, client):
     patient, cg = make_patient(db), make_caregiver(db)
-    booking = make_booking(db, patient)
+    booking = make_booking(db, patient, **soon())
     notify(db, booking, cg)
     r = act(client, booking, cg, "accept")
     assert r.status_code == 200, r.text
@@ -146,6 +152,15 @@ def test_on_my_way_moves_accepted_to_en_route(db, client, visit):
     assert r.json()["message"] == "Booking on_my_way successfully"
     assert r.json()["booking"]["status"] == "en_route"
     assert reload(db, booking).status == BookingStatus.EN_ROUTE
+
+
+def test_on_my_way_a_day_early_is_refused_with_a_message_the_app_can_show(db, client):
+    patient, cg = make_patient(db), make_caregiver(db)
+    booking = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED, visit_code=CODE)  # starts tomorrow
+    r = act(client, booking, cg, "on_my_way")
+    assert r.status_code == 409
+    assert r.json()["detail"] == "You can mark yourself on the way from 2 hours before the visit"
+    assert reload(db, booking).status == BookingStatus.ACCEPTED
 
 
 def test_on_my_way_requires_the_assigned_caregiver(db, client, visit):

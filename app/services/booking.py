@@ -42,6 +42,16 @@ class BookingActionForbidden(Exception):
     """The caregiver is not allowed to perform this action on this booking (HTTP 403)."""
 
 
+LOCATION_FRESH_MINUTES = 5  # a fix older than this is not "where they were when they tapped on my way"
+
+
+def _minutes_words(minutes: int) -> str:
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        return f"{hours} hour" + ("" if hours == 1 else "s")
+    return f"{minutes} minute" + ("" if minutes == 1 else "s")
+
+
 class BookingStateConflict(Exception):
     """The booking is not in a state that allows this action (HTTP 409)."""
 
@@ -424,7 +434,10 @@ class BookingService:
         booking.on_my_way_at = datetime.utcnow()
         booking.on_my_way_distance_m = None
         fix = self.location_service.get_caregiver_location(str(caregiver_id))
-        if fix is not None and booking.patient_latitude is not None and booking.patient_longitude is not None:
+        # A fix from long ago says nothing about where they are now; pings are client-reported, so this is best-effort.
+        fresh = fix is not None and getattr(fix, "updated_at", None) is not None and (
+            booking.on_my_way_at - fix.updated_at) <= timedelta(minutes=LOCATION_FRESH_MINUTES)
+        if fresh and booking.patient_latitude is not None and booking.patient_longitude is not None:
             booking.on_my_way_distance_m = int(round(onmyway_distance_m(
                 fix.latitude, fix.longitude, booking.patient_latitude, booking.patient_longitude)))
 
@@ -543,6 +556,11 @@ class BookingService:
                 if action == "on_my_way":
                     if booking.status != BookingStatus.ACCEPTED:
                         raise BookingStateConflict("Only an accepted booking can be marked on the way")
+                    from app.services import booking_policy
+                    window = booking_policy.current(self.db).onmyway_compensation_window_minutes
+                    if datetime.utcnow() < booking.scheduled_date - timedelta(minutes=window):
+                        raise BookingStateConflict(
+                            f"You can mark yourself on the way from {_minutes_words(window)} before the visit")
                     booking.status = BookingStatus.EN_ROUTE
                     self._remember_on_my_way(booking, caregiver_id)
                     NotificationService(self.db).caregiver_on_the_way(booking)

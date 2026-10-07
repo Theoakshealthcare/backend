@@ -233,7 +233,7 @@ def test_the_quote_line_and_the_snapshot_follow_the_admin_policy_at_quote_time(d
 def test_the_booking_keeps_the_terms_that_were_quoted_even_if_the_policy_changes_before_it_is_confirmed(
         db, chat, client, booking_env, dispatched):
     quote_for(chat, client, booking_env)
-    set_policy(db, cancel_fee_percent=90, cancel_free_hours=24, cancel_late_hours=3)  # the admin edits the policy after the quote
+    set_policy(db, cancel_fee_percent=90, cancel_late_fee_percent=100, cancel_free_hours=24, cancel_late_hours=3)  # the admin edits the policy after the quote
     chat.tap("quote:confirm")
     assert the_booking(db).cancel_policy == {"free_hours": 12, "late_hours": 2, "fee_percent": 20,
                                              "late_fee_percent": 50}

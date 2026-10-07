@@ -183,7 +183,8 @@ def test_the_redispatch_lead_is_read_from_the_policy(db, chat):
 
 
 def test_a_dropout_after_on_my_way_goes_straight_to_the_choice_even_far_ahead(db, chat):
-    booking, caregiver, _ = drop_out(db, chat, hours_ahead=30, en_route=True)
+    set_policy(db, onmyway_compensation_window_minutes=600)  # on my way is allowed 10 h ahead, well beyond the 2 h line
+    booking, caregiver, _ = drop_out(db, chat, hours_ahead=9, en_route=True)
     assert booking.dropout_state == "awaiting_choice" and booking.status == BookingStatus.PENDING
     assert dropout.dropout_count(db, caregiver.id) == 1
     assert db.query(CaregiverDropout).one().was_en_route is True
@@ -318,6 +319,25 @@ def test_pick_another_time_hands_over_with_a_ticket_and_does_not_refund(db, chat
     b = reload(db, booking)
     assert b.dropout_state == "handed_over" and b.status == BookingStatus.PENDING and not b.refund_required
     assert [t.reason for t in open_tickets(db)] == ["talk_to_person"] and chat.state == "human"
+
+
+def open_offers(db, booking):
+    return db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id,
+                                                BookingNotification.response.is_(None)).count()
+
+
+def test_pick_another_time_closes_the_open_offers(db, chat):
+    booking, _, _ = awaiting_choice(db, chat)
+    assert open_offers(db, booking) > 0  # the replacement wave is still out
+    chat.tap(f"bk:resched:{booking.id}")
+    assert open_offers(db, booking) == 0
+
+
+def test_handing_over_at_the_start_time_closes_the_open_offers(db, chat):
+    booking, _, _ = awaiting_choice(db, chat)
+    assert open_offers(db, booking) > 0
+    dropout.tick(db, booking.scheduled_date + timedelta(minutes=5))
+    assert reload(db, booking).dropout_state == "handed_over" and open_offers(db, booking) == 0
 
 
 def test_an_unanswered_choice_is_handed_over_at_the_start_time(db, chat):

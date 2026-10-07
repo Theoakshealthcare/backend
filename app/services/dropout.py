@@ -135,6 +135,14 @@ class ChoiceOutcome:
     booking_code: str = ""
 
 
+def _close_open_offers(db: Session, booking: Booking, now: datetime) -> None:
+    """The caregiver app lists unanswered offers as new requests: close them when the booking leaves automatic dispatch."""
+    for offer in db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id,
+                                                       BookingNotification.response.is_(None)):
+        offer.response = "booking_cancelled"
+        offer.response_at = now
+
+
 def choose(db: Session, booking_id: uuid.UUID, user_id: uuid.UUID, action: str, now: Optional[datetime] = None, *,
            contact_id: Optional[uuid.UUID] = None, commit: bool = True) -> ChoiceOutcome:
     """Apply the booker's tap. Everything is decided under the booking lock: the booker, the state, that nobody holds
@@ -168,6 +176,7 @@ def choose(db: Session, booking_id: uuid.UUID, user_id: uuid.UUID, action: str, 
     elif action == "resched":
         booking.dropout_state = HANDED_OVER
         booking.dispatch_state = dispatch.UNMATCHED  # shows in the admin unmatched queue
+        _close_open_offers(db, booking, now)  # a person looks after it now; an admin can offer or assign again
         if contact_id is None:
             contact_id = db.query(WhatsAppContact.id).filter(WhatsAppContact.user_id == user_id).scalar()
         if contact_id is not None:
@@ -178,10 +187,7 @@ def choose(db: Session, booking_id: uuid.UUID, user_id: uuid.UUID, action: str, 
         booking.cancel_reason = DROPOUT_REFUND_REASON
         booking.dropout_state = CLOSED
         flag_refund(booking, DROPOUT_REFUND_REASON, refund)
-        for offer in db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id,
-                                                           BookingNotification.response.is_(None)):
-            offer.response = "booking_cancelled"  # the app lists unanswered offers as new requests
-            offer.response_at = now
+        _close_open_offers(db, booking, now)
     if commit:
         db.commit()
     else:
@@ -203,6 +209,7 @@ def _hand_over(db: Session, booking: Booking, contact: Optional[WhatsAppContact]
 
     booking.dropout_state = HANDED_OVER
     booking.dispatch_state = dispatch.UNMATCHED
+    _close_open_offers(db, booking, now)
     last = db.query(CaregiverDropout.id).filter(CaregiverDropout.booking_id == booking.id).order_by(
         CaregiverDropout.dropped_at.desc()).first()
     NotificationService(db).dropout_handed_over(booking, str(last[0]) if last else "")

@@ -66,7 +66,7 @@ def test_an_app_booking_records_no_booker_events(db, chat):
 
 
 def test_every_step_of_the_journey_is_recorded_once(db, chat):
-    booking, caregiver = accepted_booking(db, chat)
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)  # on my way is only allowed close to the start
     code = decrypt(booking.visit_code_enc)
     act(db, booking, caregiver, "on_my_way")
     act(db, booking, caregiver, "start", visit_code=code)
@@ -123,7 +123,7 @@ def test_the_visit_code_is_never_logged_or_stored_in_the_outbox(db, chat, caplog
 
 
 def test_journey_messages_follow_the_visit_and_each_is_sent_once(db, chat):
-    booking, caregiver = accepted_booking(db, chat)
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)  # on my way is only allowed close to the start
     deliver(db, chat)
     act(db, booking, caregiver, "on_my_way")
     en_route = deliver(db, chat)
@@ -139,7 +139,7 @@ def test_journey_messages_follow_the_visit_and_each_is_sent_once(db, chat):
 
 
 def test_a_stale_event_is_dropped_not_announced(db, chat):
-    booking, caregiver = accepted_booking(db, chat)
+    booking, caregiver = accepted_booking(db, chat, hours_ahead=1.5)  # on my way is only allowed close to the start
     deliver(db, chat)
     act(db, booking, caregiver, "on_my_way")
     act(db, booking, caregiver, "start", visit_code=decrypt(booking.visit_code_enc))  # arrived before the worker ran
