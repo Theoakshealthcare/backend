@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/a50ebc09-6ff5-453a-beaa-1571b17b57a2",
+    "path": "/api/v1/booking/caregiver/action/c560b672-ea44-40da-b43f-5878922a0822",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "decline",
@@ -16,9 +16,10 @@
     "body": {
       "message": "Booking decline successfully",
       "booking": {
-        "id": "a50ebc09-6ff5-453a-beaa-1571b17b57a2",
-        "booking_code": "95AD639A",
-        "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
+        "id": "c560b672-ea44-40da-b43f-5878922a0822",
+        "booking_code": "A45B8DA6",
+        "channel": "app",
+        "patient_id": "36c8486b-d647-4a0d-87bf-d1cc58fb8e5c",
         "patient_details": null,
         "caregiver_id": null,
         "caregiver_details": null,
@@ -26,8 +27,8 @@
         "assistance_type": "Placeholder assistance",
         "condition": null,
         "duration_hours": 2,
-        "scheduled_date": "2026-10-07T09:56:20.659197",
-        "scheduled_end_date": "2026-10-07T11:56:20.659197",
+        "scheduled_date": "2026-10-07T14:46:59.390903",
+        "scheduled_end_date": "2026-10-07T16:46:59.390903",
         "actual_start_time": null,
         "actual_end_time": null,
         "patient_address": "Lagos, Lagos",
@@ -37,8 +38,8 @@
         "patient_state": "Lagos",
         "status": "pending",
         "payment_status": "paid",
-        "paystack_reference": "BKG_95AD639A_c9148fcf",
-        "payment_expires_at": "2026-10-07T10:11:20.659213",
+        "paystack_reference": "BKG_A45B8DA6_fc2ef071",
+        "payment_expires_at": "2026-10-07T15:01:59.390908",
         "payment_failure_reason": null,
         "total_amount": "55000.00",
         "service_fee": "50000.00",
@@ -52,10 +53,10 @@
         "refund_required": false,
         "refund_required_reason": null,
         "dispatch_state": "dispatching",
-        "dispatch_started_at": "2026-10-07T09:41:22.426523",
+        "dispatch_started_at": "2026-10-07T14:32:01.277203",
         "visit_code": null,
-        "created_at": "2026-10-07T09:41:20.658048",
-        "updated_at": "2026-10-07T09:41:22.427235"
+        "created_at": "2026-10-07T14:31:59.389986",
+        "updated_at": "2026-10-07T14:32:01.278068"
       }
     }
   }

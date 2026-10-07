@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Update (2026-10-07, pricing):** Pricing settings hardened (section 13): versioned writes, reason and audit, validation, admin-only reads, branch `fix/booking-settings-audit`, no migration.
 
+**Update (2026-10-07, later):** Caregiver cancel window (section 12, W3b follow-up): a caregiver can drop a WhatsApp booking from the app only while it is accepted and more than 120 minutes out; branch `fix/caregiver-cancel-window`, no migration.
+
 **Update (2026-10-07):** Account deletion fixed (section 12): erasure as anonymisation, branch `fix/account-deletion-anonymise`, no migration.
 
 **Update (2026-10-06, evening):** Admin A0 and A1 merged; tech debt merged (#23: Python 3.13, pwdlib, PyJWT, google-genai, typed responses). WhatsApp W1 merged, W2 (booking in chat) in review. See sections 9–11.
@@ -263,6 +265,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] `booking_policies` row + `GET`/`PATCH /admin/booking-policy` (reason, audit old to new, `settings.write`); cancellation tiers snapshotted on quote and booking; `WHATSAPP_CANCEL_*` env settings removed
   - [x] Two templates (`dropout_replacing`, `dropout_choice`) added to the registry and the SOP owner list
   - [ ] **Owner:** submit templates 13 and 14; tell the caregiver app team a dropped WhatsApp booking now comes back as `pending` from `cancel`
+  - [x] Caregiver cancel window (owner decision 2026-10-07), branch `fix/caregiver-cancel-window`, [SOP](../sop/2026-10-07-caregiver-cancel-window.md): `POST /booking/caregiver/action/{id}` `cancel` on a WhatsApp booking is refused with `409` unless it is `accepted` and more than `dropout_redispatch_min_lead_minutes` before the start; inside that, en route or in progress the caregiver contacts support (admins reassign or cancel through the A2 routes); app bookings unchanged; `channel` now returned on the caregiver booking responses
   - [ ] Deferred (A3): pay the caregiver from `late_cancel_compensable` and `caregiver_late_fee_share_percent`; admin console views of drop-outs and a policy page; rescheduling ("Pick another time" is a person for now)
 - [ ] **W4** Web companion API and `apps/companion`
 - [ ] **W5** FallGuard Flow, vitals reminders, care circle, Pidgin

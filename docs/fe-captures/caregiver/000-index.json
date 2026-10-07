@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/capture_caregiver_flow.py",
-  "run_tag": "f1edfe",
+  "run_tag": "f57f47",
   "captures": [
     {
       "file": "001-a-auth-register.json",
@@ -725,6 +725,46 @@
     {
       "file": "145-db-erased-account-row.json",
       "label": "db-erased-account-row",
+      "status": null
+    },
+    {
+      "file": "146-a-availability-on-for-whatsapp.json",
+      "label": "a-availability-on-for-whatsapp",
+      "status": 200
+    },
+    {
+      "file": "147-a-location-for-whatsapp.json",
+      "label": "a-location-for-whatsapp",
+      "status": 200
+    },
+    {
+      "file": "148-db-seeded-whatsapp-booking.json",
+      "label": "db-seeded-whatsapp-booking",
+      "status": null
+    },
+    {
+      "file": "149-a-accept-whatsapp-booking.json",
+      "label": "a-accept-whatsapp-booking",
+      "status": 200
+    },
+    {
+      "file": "150-a-whatsapp-booking-detail.json",
+      "label": "a-whatsapp-booking-detail",
+      "status": 200
+    },
+    {
+      "file": "151-a-bookings-accepted-with-channel.json",
+      "label": "a-bookings-accepted-with-channel",
+      "status": 200
+    },
+    {
+      "file": "152-a-cancel-whatsapp-too-close.json",
+      "label": "a-cancel-whatsapp-too-close",
+      "status": 409
+    },
+    {
+      "file": "153-db-whatsapp-booking-unchanged-after-refused-cancel.json",
+      "label": "db-whatsapp-booking-unchanged-after-refused-cancel",
       "status": null
     }
   ]

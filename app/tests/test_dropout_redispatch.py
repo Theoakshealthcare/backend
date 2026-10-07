@@ -22,7 +22,7 @@ from app.tests.factories_whatsapp import open_tickets
 from app.tests.fakes import expo  # noqa: F401  (fixture)
 from app.tests.policy_helpers import set_policy
 from app.tests.whatsapp_notify_helpers import (  # noqa: F401
-    CONDITION, INSTRUCTIONS, Chat, accepted_booking, act, body_text, events_of, fake_meta, make_recipient, offer,
+    CONDITION, INSTRUCTIONS, Chat, accepted_booking, act, body_text, events_of, fake_meta, internal_dropout, make_recipient, offer,
     onboarded, template_params, wa_booking,
 )
 
@@ -72,7 +72,9 @@ def drop_out(db, chat, *, hours_ahead, en_route=False, extra_candidates=2):
     if en_route:
         act(db, booking, caregiver, "on_my_way")
         deliver(db, chat)
-    act(db, booking, caregiver, "cancel")
+    # Not the caregiver's cancel button: that refuses a WhatsApp booking close to the visit or en route
+    # (test_caregiver_cancel_window.py). This is the drop-out itself, as an internal or admin path runs it.
+    internal_dropout(db, booking, caregiver)
     return reload(db, booking), caregiver, others
 
 
@@ -163,7 +165,7 @@ def test_an_app_booking_is_unchanged_but_the_dropout_is_still_recorded(db, chat)
 def test_a_mid_visit_cancel_is_not_redispatched(db, chat):
     booking, caregiver = accepted_booking(db, chat, hours_ahead=5)
     act(db, booking, caregiver, "start", visit_code=decrypt(booking.visit_code_enc))
-    act(db, booking, caregiver, "cancel")
+    internal_dropout(db, booking, caregiver)
     b = reload(db, booking)
     assert b.status == BookingStatus.CANCELLED and b.refund_required and b.refund_amount_kobo is None
     assert b.dropout_state is None

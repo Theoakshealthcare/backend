@@ -20,6 +20,7 @@
         "specialization": "str"
       },
       "caregiver_id": "str",
+      "channel": "str",
       "condition": "null",
       "created_at": "str",
       "dispatch_started_at": "null",
@@ -72,6 +73,7 @@
       "cancel_reason": "null",
       "caregiver_details": "null",
       "caregiver_id": "null",
+      "channel": "str",
       "condition": "null",
       "created_at": "str",
       "dispatch_started_at": "null",

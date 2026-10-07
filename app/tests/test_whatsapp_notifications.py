@@ -15,7 +15,7 @@ from app.services.notification_service import NotificationService
 from app.tests.factories import make_booking, make_caregiver, make_patient
 from app.tests.fakes import expo  # noqa: F401  (fixture)
 from app.tests.whatsapp_notify_helpers import (  # noqa: F401
-    CONDITION, INSTRUCTIONS, Chat, accepted_booking, act, body_text, events_of, fake_meta, issuance, offer, onboarded,
+    CONDITION, INSTRUCTIONS, Chat, accepted_booking, act, body_text, events_of, fake_meta, internal_dropout, issuance, offer, onboarded,
     template_params, wa_booking,
 )
 
@@ -203,14 +203,14 @@ def cancel_mid_visit(db, chat, booking, caregiver):
     refund-and-tell wording below is what remains for a visit that had started."""
     act(db, booking, caregiver, "start", visit_code=decrypt(booking.visit_code_enc))
     deliver(db, chat)  # "the visit has started" goes out first
-    act(db, booking, caregiver, "cancel")
+    internal_dropout(db, booking, caregiver)  # the caregiver's own button refuses a started WhatsApp visit
 
 
 def test_caregiver_cancel_mid_visit_leaves_the_amount_to_a_person(db, chat):
     booking, caregiver = accepted_booking(db, chat)
     act(db, booking, caregiver, "start", visit_code=decrypt(booking.visit_code_enc))
     deliver(db, chat)
-    act(db, booking, caregiver, "cancel")
+    internal_dropout(db, booking, caregiver)
     db.expire_all()
     booking = db.get(Booking, booking.id)
     assert booking.refund_required and booking.refund_amount_kobo is None

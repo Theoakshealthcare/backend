@@ -4,7 +4,7 @@
     "path": "/api/v1/devices/push-token",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "token": "ExponentPushToken[placeholder-dead-f1edfe]",
+      "token": "ExponentPushToken[placeholder-dead-f57f47]",
       "platform": "android"
     }
   },
@@ -14,7 +14,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "token": "ExponentPushToken[placeholder-dead-f1edfe]",
+      "token": "ExponentPushToken[placeholder-dead-f57f47]",
       "platform": "android"
     }
   },

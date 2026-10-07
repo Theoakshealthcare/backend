@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "UPDATE bookings SET channel = 'whatsapp' WHERE id = <booking 7>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SEEDED: a WhatsApp booking is made in the chat, not through this API, so an ordinary seeded booking was switched to channel 'whatsapp'. It starts one hour from now, inside the 120-minute policy lead."
+}

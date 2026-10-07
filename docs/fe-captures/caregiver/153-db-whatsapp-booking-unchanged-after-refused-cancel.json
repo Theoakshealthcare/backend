@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT status, caregiver_id IS NOT NULL FROM bookings WHERE id = <booking 7>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "status": "ACCEPTED",
+      "still_assigned": true
+    }
+  },
+  "note": "The refused cancel changed nothing: the booking is still accepted and still assigned to the caregiver."
+}

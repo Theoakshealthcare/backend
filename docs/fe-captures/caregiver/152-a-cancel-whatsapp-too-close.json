@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/2bc9c8e6-49a0-4420-9565-d7c05d3dab33",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "cancel",
+      "reason": "Placeholder: cannot make it"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "It's too close to the visit to cancel in the app. Please contact support."
+    }
+  }
+}
