@@ -36,7 +36,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] Python 3.11 → 3.13. 2026-10-06, #23, [SOP](../sop/2026-10-06-tech-debt.md)
 - [x] Library swaps: passlib → pwdlib · python-jose → PyJWT · google-generativeai → google-genai. 2026-10-06, same SOP
 
-## 1. Secrets & repo hygiene — 🔴 critical, not started
+## 1. Secrets & repo hygiene — 🟡 in progress (code fixes merged; key rotation is an owner action)
 - [ ] ⚠️ **Owner:** rotate every secret in the committed backend `.env` ([runbook](../sop/2026-10-05-secrets-and-rotation.md)): JWT secret, SMTP, Gemini, Paystack keys and webhook secret, Cloudinary, Supabase DB password
 - [x] Re-encryption script for vitals and FallGuard data with multi-key support. 2026-10-05, `security/secrets`, [SOP + runbook](../sop/2026-10-05-secrets-and-rotation.md)
 - [x] `.env` untracked; configuration comes from the server env file (Docker). 2026-10-05, `security/secrets`
@@ -46,7 +46,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] Backend `__pycache__` files untracked. 2026-10-05
 - [ ] Untrack the caregiver app's `.env`
 
-## 2. Backend security & money fixes — 🔴 critical, not started
+## 2. Backend security & money fixes — 🟡 in progress (most fixes merged; remaining items below)
 - [x] ⚠️ Authenticate the booking WebSockets (they currently use hardcoded demo users) — `security/access-control`, 2026-10-05
 - [x] ⚠️ Require auth and ownership checks on the prescription endpoints — `security/access-control`, 2026-10-05
 - [ ] ⚠️ Admin approval for caregiver identity; stop accepting the verification result from the client
@@ -66,7 +66,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Share WebSocket state across workers (Redis), or run a single worker
 - [ ] Move document storage off the local disk (Cloudinary or S3)
 
-## 3. Patient app — 🟠 partial
+## 3. Patient app — ⏸️ paused (patients use WhatsApp, see sections 6 and 10)
 - [x] Auth: login, register, verify email, profile edit
 - [x] Booking: preview, create, Paystack pay, list, details
 - [x] FallGuard: questions, submit, result, history
@@ -81,7 +81,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Move tokens to `expo-secure-store`; base URL from `EXPO_PUBLIC_API_URL`
 - [ ] Expo SDK 53 → 57, one SDK at a time; new architecture on; MMKV 4
 
-## 4. Caregiver app — 🔴 prototype
+## 4. Caregiver app (old prototype list) — ➡️ superseded by section 8
 - [ ] Expo SDK 53 → 57 (before the bug fixes); `expo-av` → `expo-audio`
 - [ ] Login navigation after the first success; session restore and auth gate; token refresh
 - [ ] Setup step 1 sends `house_address` but the backend expects `address`
