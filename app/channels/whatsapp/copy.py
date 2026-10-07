@@ -101,7 +101,10 @@ STRINGS = {
         "quote_service_fee": "Service fee",
         "quote_platform_fee": "Platform fee",
         "quote_total": "Total",
-        "quote_cancellation": "Free cancellation until {hours} hours before the visit.",
+        "quote_cancellation": (
+            "Free cancellation until {hours} hours before the visit. After that a {fee}% fee applies on the service "
+            "fee, and {late_fee}% within {late} hours of the start or once your professional is on the way."
+        ),
         "quote_confirm": "Confirm & pay",
         "quote_change": "Change",
         "quote_cancel": "Cancel",
@@ -182,6 +185,10 @@ STRINGS = {
             "Cancel booking {code}? The visit starts in less than {hours} hours, so a {percent}% fee on the "
             "service fee applies ({fee}). You'll get {refund} back."
         ),
+        "cancel_ask_late_fee": (
+            "Cancel booking {code}? The visit is within {hours} hours (or your professional is on the way), so a "
+            "{percent}% fee on the service fee applies ({fee}). You'll get {refund} back."
+        ),
         "cancel_terms_changed": "The cancellation terms have changed since you asked.",
         "cancel_yes": "Yes, cancel",
         "cancel_keep": "Keep booking",
@@ -195,6 +202,20 @@ STRINGS = {
         "cancel_in_progress_body": (
             "That visit is already under way, so I can't cancel it here. I'm connecting you with our team, who "
             "will reply here as soon as they can."
+        ),
+        # --- a caregiver dropped out: the answers to the three buttons ---
+        "dropout_wait_body": (
+            "Okay, we'll keep looking for a replacement for booking {code} until the visit time. If we can't find "
+            "one by then, our team will take over."
+        ),
+        "dropout_resched_body": (
+            "Thanks. I'm connecting you with our team to find a new time for booking {code}. They'll reply here as "
+            "soon as they can."
+        ),
+        "dropout_refund_body": "Booking {code} is cancelled and we've started your full refund of {refund}. Sorry about this.",
+        "dropout_stale_body": "Booking {code} has already been dealt with, so there's nothing to choose now.",
+        "dropout_not_booker_body": (
+            "Only the person who made this booking can choose here. Choose Talk to a person and our team will help."
         ),
         "cancel_not_booker_body": (
             "Only the person who made this booking can cancel it. Choose Talk to a person and our team will help."

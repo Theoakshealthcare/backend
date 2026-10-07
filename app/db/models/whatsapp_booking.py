@@ -54,6 +54,7 @@ BOOKER_EVENTS = (
     "caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
     "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "refund_flagged", "refund_processed",  # W3
     "caregiver_reassigned",  # W3, from the admin console (A2)
+    "caregiver_dropped_replacing", "dropout_choice_needed", "dropout_handed_over",  # a caregiver dropped out
 )
 CAREGIVER_EVENTS = ("caregiver_booking_cancelled",)
 BOOKING_EVENTS = BOOKER_EVENTS + CAREGIVER_EVENTS

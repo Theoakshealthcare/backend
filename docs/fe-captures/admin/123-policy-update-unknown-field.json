@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Typo",
+      "cancel_late_fee": 60
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "extra_forbidden",
+          "loc": [
+            "body",
+            "cancel_late_fee"
+          ],
+          "msg": "Extra inputs are not permitted",
+          "input": 60
+        }
+      ]
+    }
+  }
+}

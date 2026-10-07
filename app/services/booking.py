@@ -21,6 +21,7 @@ from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPrev
 from app.services.booking_cancellation import flag_refund
 from app.services.location import LocationService
 from app.services.notification_service import NotificationService
+from app.services.onmyway import distance_m as onmyway_distance_m
 from app.services.gemini import gemini_service
 from app.services.paystack import PaystackService, paystack_email_for
 from app.services.pricing import PriceBreakdown, compute_price, service_multiplier
@@ -39,6 +40,16 @@ def _naira(kobo: int) -> float:
 
 class BookingActionForbidden(Exception):
     """The caregiver is not allowed to perform this action on this booking (HTTP 403)."""
+
+
+LOCATION_FRESH_MINUTES = 5  # a fix older than this is not "where they were when they tapped on my way"
+
+
+def _minutes_words(minutes: int) -> str:
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        return f"{hours} hour" + ("" if hours == 1 else "s")
+    return f"{minutes} minute" + ("" if minutes == 1 else "s")
 
 
 class BookingStateConflict(Exception):
@@ -417,15 +428,28 @@ class BookingService:
             status_code=423, retry_after=seconds,
         )
 
+    def _remember_on_my_way(self, booking: Booking, caregiver_id: UUID) -> None:
+        """When the caregiver tapped, and how far from the patient they were, so a late cancellation can later tell
+        whether they really set out (app/services/onmyway.py). No fix on record: no distance, so no compensation."""
+        booking.on_my_way_at = datetime.utcnow()
+        booking.on_my_way_distance_m = None
+        fix = self.location_service.get_caregiver_location(str(caregiver_id))
+        # A fix from long ago says nothing about where they are now; pings are client-reported, so this is best-effort.
+        fresh = fix is not None and getattr(fix, "updated_at", None) is not None and (
+            booking.on_my_way_at - fix.updated_at) <= timedelta(minutes=LOCATION_FRESH_MINUTES)
+        if fresh and booking.patient_latitude is not None and booking.patient_longitude is not None:
+            booking.on_my_way_distance_m = int(round(onmyway_distance_m(
+                fix.latitude, fix.longitude, booking.patient_latitude, booking.patient_longitude)))
+
     def _after_caregiver_cancel(self, booking: Booking) -> None:
-        """WA-FR-37. A WhatsApp booking whose caregiver drops out is refunded (not re-dispatched: see the W3 SOP) and
-        the booker is told in the same transaction. Before the visit started the whole payment goes back; once it
-        has, a person decides the amount. App bookings are left exactly as they were."""
+        """WA-FR-37, for a visit that had already *started* (a drop-out before that never gets here: it is reopened for a
+        replacement, see app/services/dropout.py). A WhatsApp booking is flagged for a refund, a person decides the
+        amount, and the booker is told in the same transaction. App bookings are left exactly as they were."""
         if booking.channel != "whatsapp":
             return
         if booking.payment_status == PaymentStatus.PAID:
             started = booking.actual_start_time is not None
-            flag_refund(booking, "caregiver_cancelled", None if started else int(booking.total_amount_kobo))
+            flag_refund(booking, "caregiver_cancelled", None if started else int(booking.total_amount_kobo))  # kept for safety
         NotificationService(self.db).cancelled_by_caregiver(booking)
 
     def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID,
@@ -450,6 +474,7 @@ class BookingService:
         if not booking:
             raise ValueError("Booking not found")
 
+        offers: List[Dict[str, Any]] = []  # job-offer pushes owed by a drop-out re-dispatch: sent after the commit
         try:
             notification = self.db.query(BookingNotification).filter(
                 and_(
@@ -475,6 +500,9 @@ class BookingService:
                     raise BookingActionForbidden("Your account is not approved to accept bookings")
                 if notification is None:
                     raise BookingActionForbidden("You were not offered this booking")
+                from app.services import dropout  # local: dropout -> dispatch -> this module
+                if dropout.has_dropped(self.db, booking.id, caregiver_id):
+                    raise BookingActionForbidden("You cancelled this booking")
                 if booking.status != BookingStatus.PENDING or booking.caregiver_id is not None:
                     raise BookingStateConflict("Booking is no longer available")
                 if booking.payment_status != PaymentStatus.PAID:
@@ -485,6 +513,7 @@ class BookingService:
                 # Allowed from any dispatch state: an offer from an earlier wave stays valid, and so
                 # does one from a booking already escalated to 'unmatched'.
                 booking.dispatch_state = "matched"
+                dropout.clear_on_assignment(booking)  # a replacement was found: no drop-out is in progress any more
                 booking.visit_code_enc = encrypt(f"{secrets.randbelow(10_000):04d}")
                 booking.visit_code_failed_attempts = 0
                 booking.visit_code_locked_until = None
@@ -527,7 +556,13 @@ class BookingService:
                 if action == "on_my_way":
                     if booking.status != BookingStatus.ACCEPTED:
                         raise BookingStateConflict("Only an accepted booking can be marked on the way")
+                    from app.services import booking_policy
+                    window = booking_policy.current(self.db).onmyway_compensation_window_minutes
+                    if datetime.utcnow() < booking.scheduled_date - timedelta(minutes=window):
+                        raise BookingStateConflict(
+                            f"You can mark yourself on the way from {_minutes_words(window)} before the visit")
                     booking.status = BookingStatus.EN_ROUTE
+                    self._remember_on_my_way(booking, caregiver_id)
                     NotificationService(self.db).caregiver_on_the_way(booking)
                 elif action == "start":
                     # on_my_way is optional: a caregiver who never pressed it can still start.
@@ -548,14 +583,23 @@ class BookingService:
                 elif action == "cancel":
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):
                         raise BookingStateConflict("This booking can no longer be cancelled")
-                    booking.status = BookingStatus.CANCELLED
-                    booking.cancel_reason = "caregiver_cancelled"
-                    self._after_caregiver_cancel(booking)
+                    from app.services import dropout
+                    before_visit = booking.status in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE)
+                    reopened = before_visit and dropout.on_caregiver_cancel(
+                        self.db, booking, caregiver_id, booking.status, datetime.utcnow(), offers)
+                    if not reopened:
+                        booking.status = BookingStatus.CANCELLED
+                        booking.cancel_reason = "caregiver_cancelled"
+                        self._after_caregiver_cancel(booking)
 
             self.db.commit()
         except Exception:
             self.db.rollback()  # also releases the row lock
             raise
+
+        if offers:
+            from app.services import dispatch  # local: dispatch imports this module
+            dispatch.push_offers(self.db, offers)  # after the commit: never an HTTP call under the lock
 
         self.db.refresh(booking)
         return booking

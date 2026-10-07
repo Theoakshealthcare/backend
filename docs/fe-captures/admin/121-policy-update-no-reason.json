@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "cancel_late_fee_percent": 60
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "reason"
+          ],
+          "msg": "Field required",
+          "input": {
+            "cancel_late_fee_percent": 60
+          }
+        }
+      ]
+    }
+  }
+}

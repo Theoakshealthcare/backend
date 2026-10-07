@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.booking_expiry import expire_unpaid_bookings
 from app.services.dispatch import dispatch_tick
+from app.services.dropout import tick as dropout_tick
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,15 @@ async def dispatch_tick_job(ctx: dict) -> int:
     if advanced:
         logger.info("dispatch_tick: advanced %d booking(s)", advanced)
     return advanced
+
+
+async def dropout_tick_job(ctx: dict) -> int:
+    """The time-driven steps after a caregiver drops out: offer the family the choice when nobody has accepted close to
+    the visit, and hand over to a person at the start time."""
+    changed = await asyncio.to_thread(_run_with_session, dropout_tick)
+    if changed:
+        logger.info("dropout_tick: moved %d booking(s)", changed)
+    return changed
 
 
 async def whatsapp_events_job(ctx: dict) -> dict:
@@ -93,13 +103,16 @@ def json_deserializer(data: bytes) -> Any:
 
 
 class WorkerSettings:
-    functions = [expire_unpaid_bookings_job, dispatch_tick_job, whatsapp_events_job,
+    functions = [expire_unpaid_bookings_job, dispatch_tick_job, dropout_tick_job, whatsapp_events_job,
                  func(process_whatsapp_inbound_job, keep_result=0)]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
     cron_jobs = [
         cron(expire_unpaid_bookings_job, second=0),
         cron(dispatch_tick_job, second=0),
+        # Offset from the others: it skips a booking another job has locked, and a job that started in the same second
+        # (dispatch_tick locks every dispatching booking) would hide the same booking from it every minute.
+        cron(dropout_tick_job, second=20),
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)

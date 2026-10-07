@@ -4,7 +4,7 @@
 |---|---|
 | **Date** | 2026-10-07 |
 | **Branch** | `fix/account-deletion-anonymise` (base `main` at `1daa634`) |
-| **Migration** | `0009_account_erasure` (down_revision `0007_whatsapp_notifications`). **Re-parent onto `0008_dropout_fee_tiers` when that branch merges** (change `down_revision` in `app/alembic/versions/0009_account_erasure.py`) |
+| **Migration** | `0009_account_erasure` (down_revision `0007_whatsapp_notifications`). **Re-parent onto `0008_dropout_fee_tiers` when that branch merges (superseded: the drop-out branch is now `0010_dropout_fee_tiers` on top of this one)** (change `down_revision` in `app/alembic/versions/0009_account_erasure.py`) |
 | **Status** | Verified locally: full suite green, CI steps reproduced, FE guide re-captured on the Docker stack |
 
 ## What shipped

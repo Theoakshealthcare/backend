@@ -1,8 +1,8 @@
-# FE integration guide: admin console (sign-in, admin management, bookings operations)
+# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy)
 
 | | |
 |---|---|
-| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops` |
+| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers` |
 | **Audience** | `apps/admin` (the console): A1, A2 |
 | **Base URL** | `http://127.0.0.1:8000` for the local stack; every path below starts with `/api/v1` |
 | **Source of truth** | Every request and response body, status code and error string below was **copied from a real response** captured by `scripts/capture_admin_flow.py` against the running docker compose stack. The files are in [`docs/fe-captures/admin/`](fe-captures/admin/); each example names its file. Anything that could not be exercised live is marked **[not live]** with the reason. |
@@ -1669,6 +1669,208 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
 | `in_progress` | visit started with the visit code | correct status to `completed` |
 | `completed`, `cancelled`, `declined` | final | nothing |
 
+### 12.9 Booking policy: `GET` and `PATCH /api/v1/admin/booking-policy`
+
+The cancellation fee tiers and the caregiver drop-out timings are **data an admin edits**, not settings. One policy, eight whole numbers. Reading needs `bookings.read` (Support has it); changing needs `settings.write` (Operations and Super Admin) **and a `reason`**, and writes an audit entry with the old and new values. Errors here are `{"detail": ...}` like the other admin routes.
+
+| Field | Meaning | Default |
+|---|---|---|
+| `cancel_free_hours` | full refund when the visit is further away than this (or nobody is assigned) | 12 |
+| `cancel_late_hours` | inside this, or once the caregiver is on the way, the late fee applies | 2 |
+| `cancel_fee_percent` | fee, percent of the service fee, between the two lines | 20 |
+| `cancel_late_fee_percent` | fee, percent of the service fee, in the late window | 50 |
+| `dropout_redispatch_min_lead_minutes` | a caregiver drop-out further ahead than this is re-dispatched automatically | 120 |
+| `dropout_decision_lead_minutes` | no replacement by this long before the start: the family is asked | 60 |
+| `onmyway_compensation_window_minutes` | an on-my-way tapped no earlier than this before the start can qualify for compensation | 120 |
+| `caregiver_late_fee_share_percent` | caregiver's share of a late fee (stored now; paid by a later work package) | 80 |
+
+Rules the form should mirror (the server enforces them, and so does the database): percents 0 to 100, hours and minutes 0 or more, `cancel_late_hours` shorter than `cancel_free_hours`, `dropout_decision_lead_minutes` shorter than `dropout_redispatch_min_lead_minutes`. Send **only the fields that change**; the merged result is validated as a whole.
+
+**UX consequences to surface.** An edit changes the cancellation terms only for bookings **quoted afterwards**: each quote and booking keeps a copy of the tiers the family was shown. The drop-out timings and the on-my-way window apply immediately. Say so on the save confirmation.
+
+Read (Support), `GET`:
+
+<!-- capture: 119-policy-get.json response.body -->
+```json
+{
+  "cancel_free_hours": 12,
+  "cancel_late_hours": 2,
+  "cancel_fee_percent": 20,
+  "cancel_late_fee_percent": 50,
+  "dropout_redispatch_min_lead_minutes": 120,
+  "dropout_decision_lead_minutes": 60,
+  "onmyway_compensation_window_minutes": 120,
+  "caregiver_late_fee_share_percent": 80,
+  "updated_at": "2026-10-07T10:58:36.331403",
+  "updated_by": null
+}
+```
+
+Change, `PATCH` (Operations):
+
+<!-- capture: 128-policy-update.json request.body -->
+```json
+{
+  "reason": "Raise the late fee while we measure no-shows",
+  "cancel_late_fee_percent": 60,
+  "dropout_decision_lead_minutes": 45
+}
+```
+
+<!-- capture: 128-policy-update.json response.body -->
+```json
+{
+  "cancel_free_hours": 12,
+  "cancel_late_hours": 2,
+  "cancel_fee_percent": 20,
+  "cancel_late_fee_percent": 60,
+  "dropout_redispatch_min_lead_minutes": 120,
+  "dropout_decision_lead_minutes": 45,
+  "onmyway_compensation_window_minutes": 120,
+  "caregiver_late_fee_share_percent": 80,
+  "updated_at": "2026-10-07T10:59:03.679353",
+  "updated_by": "ed75f068-d405-423b-9c2f-e9de5b9abb05"
+}
+```
+
+Errors (all `422` unless noted). No reason, nothing to change, a misspelt field (the shapes are Pydantic's list form):
+
+<!-- capture: 121-policy-update-no-reason.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "reason"
+      ],
+      "msg": "Field required",
+      "input": {
+        "cancel_late_fee_percent": 60
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 122-policy-update-nothing.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, send at least one policy field to change",
+      "input": {
+        "reason": "No field sent"
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 123-policy-update-unknown-field.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "extra_forbidden",
+      "loc": [
+        "body",
+        "cancel_late_fee"
+      ],
+      "msg": "Extra inputs are not permitted",
+      "input": 60
+    }
+  ]
+}
+```
+
+A rule broken by the merged policy (these are plain strings, not lists):
+
+<!-- capture: 124-policy-update-percent-over-100.json response.body -->
+```json
+{
+  "detail": "cancel_fee_percent must be between 0 and 100"
+}
+```
+
+<!-- capture: 125-policy-update-late-not-shorter.json response.body -->
+```json
+{
+  "detail": "The late-cancellation window (cancel_late_hours) must be shorter than the free-cancellation window (cancel_free_hours)"
+}
+```
+
+<!-- capture: 126-policy-update-decision-not-shorter.json response.body -->
+```json
+{
+  "detail": "The decision lead (dropout_decision_lead_minutes) must be shorter than the re-dispatch minimum lead (dropout_redispatch_min_lead_minutes)"
+}
+```
+
+Support cannot change it (`403`), and no token is `401`:
+
+<!-- capture: 127-policy-update-as-support.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: settings.write"
+}
+```
+
+<!-- capture: 120-policy-get-no-token.json response.body -->
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+The audit entry (`GET /admin/audit?entity_type=booking_policy`), `entity_id` is the string `"1"`:
+
+<!-- capture: 130-audit-policy-update.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "92c9caca-9e2a-454b-88eb-3056b49d0e7b",
+    "admin_user_id": "ed75f068-d405-423b-9c2f-e9de5b9abb05",
+    "admin_email": "ops-bb44e1pol@example.com",
+    "action": "booking_policy.update",
+    "entity_type": "booking_policy",
+    "entity_id": "1",
+    "before": {
+      "cancel_free_hours": 12,
+      "cancel_late_hours": 2,
+      "cancel_fee_percent": 20,
+      "cancel_late_fee_percent": 50,
+      "dropout_redispatch_min_lead_minutes": 120,
+      "dropout_decision_lead_minutes": 60,
+      "onmyway_compensation_window_minutes": 120,
+      "caregiver_late_fee_share_percent": 80
+    },
+    "after": {
+      "cancel_free_hours": 12,
+      "cancel_late_hours": 2,
+      "cancel_fee_percent": 20,
+      "cancel_late_fee_percent": 60,
+      "dropout_redispatch_min_lead_minutes": 120,
+      "dropout_decision_lead_minutes": 45,
+      "onmyway_compensation_window_minutes": 120,
+      "caregiver_late_fee_share_percent": 80
+    },
+    "reason": "Raise the late fee while we measure no-shows",
+    "ip": "172.21.0.1",
+    "user_agent": "python-httpx/0.28.1",
+    "created_at": "2026-10-07T10:59:03.680537"
+  }
+]
+```
+
 ## 13. Verification table
 
 "Live" means a request/response was captured from the running docker stack (the capture number is given). "Test only" means covered by pytest but not captured. "Not live" means neither could be exercised end to end; the shape or behaviour comes from the named source.
@@ -1742,3 +1944,7 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
 | First Super Admin and the Analyst in these captures | **[seeded]** | 004, 043 notes |
 | `Retry-After` readable from the browser (CORS) | **[not live]** | The API exposes the header, but the capture stack has no allowed origin and no browser was used; check it once the console runs |
 | A real authenticator app scanning the QR code | **[not live]** | the captures generate codes with the same TOTP algorithm (`pyotp`), which is what authenticator apps implement |
+| Booking policy: read as Support, change as Operations (partial body), read after, audit entry with old and new values and the reason | Verified live | 119, 128, 129, 130 (131 puts the defaults back) |
+| Booking policy errors: no reason, empty change, unknown field, percent over 100, late not shorter than free, decision not shorter than re-dispatch lead, Support `403`, no token `401` | Verified live | 120 to 127 |
+| Booking policy: the database rejects out-of-range values and a second row | Test only | `test_dropout_migration.py` |
+| An edit leaves already-quoted bookings on their old terms | Test only | `test_cancellation_tiers.py`; the Docker e2e (`scripts/whatsapp_local_e2e.py`) checks it through the chat |

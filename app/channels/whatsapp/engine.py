@@ -216,7 +216,14 @@ class ConfirmCancelBooking:
     booking_id: str
 
 
-MY_BOOKINGS_EFFECTS = (ListBookings, ShowBooking, AskCancelBooking, ConfirmCancelBooking)
+@dataclass(frozen=True)
+class DropoutChoice:
+    """The booker's tap after their caregiver dropped out: wait | resched | refund. Re-checked under the booking lock."""
+    action: str
+    booking_id: str
+
+
+MY_BOOKINGS_EFFECTS = (ListBookings, ShowBooking, AskCancelBooking, ConfirmCancelBooking, DropoutChoice)
 
 BOOKING_EFFECTS = (StartBooking, SubmitFlow, SharedLocation, ResumeDraft, ShowQuote, ConfirmQuote, ChangeQuote,
                    CancelDraft, CheckPayment, CancelUnpaid, JoinWaitlist)
@@ -401,7 +408,8 @@ _BOOKING_TAPS = {"view": ShowBooking, "cancel": AskCancelBooking, "confirm": Con
 
 
 def _my_bookings_tap(snapshot: Snapshot, inbound: Inbound) -> Optional[Outcome]:
-    """``bk:list``, ``bk:view|cancel|confirm|keep:<booking id>``. Needs an account; the id is checked against the
+    """``bk:list``, ``bk:view|cancel|confirm|keep:<booking id>``, ``bk:wait|resched|refund:<booking id>`` (a drop-out
+    choice). Needs an account; the id is checked against the
     contact's own bookings by the effect, never trusted here."""
     if inbound.kind not in (Kind.BUTTON, Kind.LIST) or not inbound.reply_id or not inbound.reply_id.startswith("bk:"):
         return None
@@ -413,6 +421,8 @@ def _my_bookings_tap(snapshot: Snapshot, inbound: Inbound) -> Optional[Outcome]:
         return Outcome(State.IDLE, _clean(snapshot), (), (ListBookings(),))
     if action == "keep" and booking_id:
         return Outcome(State.IDLE, _clean(snapshot), (), (ShowBooking(booking_id),))
+    if action in ("wait", "resched", "refund") and booking_id:
+        return Outcome(State.IDLE, _clean(snapshot), (), (DropoutChoice(action, booking_id),))
     effect = _BOOKING_TAPS.get(action)
     if effect is not None and booking_id:
         return Outcome(State.IDLE, _clean(snapshot), (), (effect(booking_id),))

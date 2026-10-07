@@ -176,10 +176,7 @@ class Settings(BaseSettings):
     WHATSAPP_QUOTE_TTL_MINUTES: int = 30  # a quoted price is locked this long (WA-FR-20)
     WHATSAPP_IDLE_EXPIRY_MINUTES: int = 30  # an unfinished booking conversation starts fresh after this (WA-FR-12)
     WHATSAPP_PAYMENT_REMINDER_MINUTES: int = 20  # after the link is sent (WA-FR-24); the link lives 30
-    WHATSAPP_CANCEL_FREE_HOURS: int = 12  # WA-FR-39: a cancellation this far before the visit refunds in full
-    # WA-FR-39 / PRD D4 [DECISION]: share of the *service fee* kept when the booker cancels an assigned visit
-    # closer than that. 0 = no fee at all. Shown to the person before they confirm.
-    WHATSAPP_CANCEL_FEE_PERCENT: int = 20  # clamped to 0-100 where used
+    # Cancellation tiers and drop-out timings are not settings: an admin edits them (booking_policies table).
     WHATSAPP_MIN_LEAD_HOURS: int = 2  # the earliest start offered, from now
     WHATSAPP_SLOT_START_HOUR: int = 7  # first and last start time offered (Lagos time), hourly
     WHATSAPP_SLOT_END_HOUR: int = 20

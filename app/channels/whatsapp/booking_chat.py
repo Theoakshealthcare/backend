@@ -46,6 +46,7 @@ from app.db.models.patient import Patient
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation
 from app.db.models.whatsapp_booking import OPEN_QUOTE_STATUSES, Quote
 from app.schemas.booking import BookingCreate
+from app.services import booking_policy
 from app.services.booking import BookingService
 from app.services.geocoding import build_geocoder
 from app.services.pricing import PriceBreakdown, price_service
@@ -349,6 +350,9 @@ def _price(ctx: Ctx, quote: Quote) -> Result:
         SupportService(ctx.db).open(contact_id=ctx.contact.id, reason="booking_placeholder", priority="normal")
         return Result([_text(ctx, "quote_no_price_body")], State.HUMAN, {"quote_id": None})
     payload["breakdown"] = _breakdown(price)
+    # The cancellation terms the person is about to be shown, frozen with the price: the booking keeps them, so what
+    # they agreed to is what applies even if an admin edits the policy later.
+    payload["cancel_policy"] = booking_policy.cancel_snapshot(booking_policy.current(ctx.db))
     quote.payload = payload
     quote.settings_id = row.id
     quote.total_kobo = price.total_kobo
@@ -385,10 +389,18 @@ def quote_message(ctx: Ctx, quote: Quote) -> ButtonsMessage:
     lines += [row(copy.t(ctx.lang, "quote_service_fee"), b["service_fee_kobo"]),
               row(copy.t(ctx.lang, "quote_platform_fee"), b["platform_fee_kobo"]),
               row(copy.t(ctx.lang, "quote_total"), b["total_kobo"]), "",
-              copy.t(ctx.lang, "quote_cancellation", hours=settings.WHATSAPP_CANCEL_FREE_HOURS)]
+              copy.t(ctx.lang, "quote_cancellation", **_cancel_words(ctx, payload))]
     return ButtonsMessage("\n".join(lines), (
         ("quote:confirm", copy.t(ctx.lang, "quote_confirm")), ("quote:change", copy.t(ctx.lang, "quote_change")),
         ("quote:cancel", copy.t(ctx.lang, "quote_cancel"))))
+
+
+def _cancel_words(ctx: Ctx, payload: Dict[str, Any]) -> Dict[str, str]:
+    """The quote's cancellation line, from the terms frozen on the quote (a quote made before the snapshot existed
+    shows today's policy)."""
+    terms = payload.get("cancel_policy") or booking_policy.cancel_snapshot(booking_policy.current(ctx.db))
+    return {"hours": str(terms["free_hours"]), "fee": str(terms["fee_percent"]),
+            "late_fee": str(terms["late_fee_percent"]), "late": str(terms["late_hours"])}
 
 
 def show_quote(ctx: Ctx) -> Result:
@@ -442,6 +454,7 @@ def confirm_quote(ctx: Ctx) -> Result:
         booked_by_user_id=ctx.contact.user_id, care_recipient_id=recipient.id,
         condition_encrypted=encrypt(secrets["condition"]), needs_address_check=bool(payload.get("needs_address_check")),
     )
+    booking.cancel_policy = payload.get("cancel_policy")  # the terms that were shown with the quote
     quote.booking_id = booking.id
     quote.status = "confirmed"
     # The encrypted answers stay on the quote until the payment link exists, so a failed link can go back to the

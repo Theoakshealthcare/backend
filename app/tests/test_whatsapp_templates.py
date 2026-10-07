@@ -24,7 +24,8 @@ def test_the_w2_templates_exist_in_the_utility_category_with_the_prd_wording():
     assert set(TEMPLATES) == {"booking_payment_link", "payment_link_expiring", "payment_received",
                               "payment_refund_pending", "booking_cancelled_unpaid",  # W2
                               "caregiver_assigned", "visit_code", "caregiver_en_route", "visit_started",
-                              "visit_completed_feedback", "booking_update", "refund_update"}  # W3
+                              "visit_completed_feedback", "booking_update", "refund_update",  # W3
+                                  "dropout_replacing", "dropout_choice"}  # a caregiver dropped out
     assert all(t.category == "utility" for t in TEMPLATES.values())
     assert TEMPLATES["payment_received"].body == (
         "Payment of {{1}} received for booking {{2}}. We're assigning a professional now.")
@@ -52,7 +53,8 @@ def test_no_template_has_a_slot_for_health_information():
 
 def test_only_money_and_a_paid_visit_that_will_not_go_as_planned_are_essential():
     assert [t.name for t in TEMPLATES.values() if t.essential] == [
-        "payment_received", "payment_refund_pending", "visit_code", "booking_update", "refund_update"]
+        "payment_received", "payment_refund_pending", "visit_code", "booking_update", "refund_update",
+        "dropout_replacing", "dropout_choice"]
 
 
 def test_no_template_body_starts_or_ends_with_a_variable():
@@ -74,8 +76,10 @@ def test_every_free_text_rendering_fits_whatsapps_limits():
               "time": "10:00", "experience": "verified professional", "visit_code": "1234",
               "update": "Your professional can no longer attend, so the visit is cancelled. We've started a refund of ₦1,000,000.50.",
               "amount": "₦1,000,000.50", "status": "being processed"}
+    buttons = ("bk:wait:00000000-0000-0000-0000-000000000000", "bk:resched:00000000-0000-0000-0000-000000000000",
+               "bk:refund:00000000-0000-0000-0000-000000000000")
     for name in TEMPLATES:
-        message = choose(name, params, in_window=True, url=URL)  # building it validates the limits
+        message = choose(name, params, in_window=True, url=URL, button_ids=buttons)  # building it validates the limits
         assert isinstance(message, (TextMessage, ButtonsMessage, CtaUrlMessage))
 
 
@@ -174,3 +178,20 @@ def test_a_contact_who_never_wrote_cannot_be_sent_free_text(db, fake_meta):
     db.commit()
     assert send_and_record(db, MetaCloudClient.from_settings(), contact, TextMessage("hello"), now=NOW).error_code \
         == WINDOW_CLOSED
+
+
+def test_the_dropout_choice_carries_three_quick_replies_inside_and_outside_the_window():
+    ids = ("bk:wait:X", "bk:resched:X", "bk:refund:X")
+    inside = choose("dropout_choice", {"booking_code": "AB12"}, in_window=True, button_ids=ids)
+    assert isinstance(inside, ButtonsMessage) and inside.buttons == (
+        ("bk:wait:X", "Keep waiting"), ("bk:resched:X", "Pick another time"), ("bk:refund:X", "Full refund"))
+    outside = choose("dropout_choice", {"booking_code": "AB12"}, in_window=False, button_ids=ids)
+    quick = [c for c in outside.components if c.get("sub_type") == "quick_reply"]
+    assert [(q["index"], q["parameters"][0]["payload"]) for q in quick] == [("0", "bk:wait:X"), ("1", "bk:resched:X"), ("2", "bk:refund:X")]
+
+
+def test_the_dropout_choice_refuses_a_wrong_number_of_buttons():
+    with pytest.raises(ValueError):
+        choose("dropout_choice", {"booking_code": "AB12"}, in_window=True, button_ids=("bk:wait:X",))
+    with pytest.raises(ValueError):
+        choose("dropout_choice", {"booking_code": "AB12"}, in_window=False)
