@@ -18,6 +18,7 @@ from app.services.booking_payment import settle_booking_payment
 from app.services.pricing import compute_price
 from app.schemas.booking import BookingPreviewRequest
 from app.tests.fake_meta import location_payload
+from app.tests.policy_helpers import set_policy
 from app.tests.whatsapp_booking_helpers import (  # noqa: F401  (fixtures)
     CONDITION, INSTRUCTIONS, Chat, FlowDriver, all_text, flow_reply_payload, flow_token_from,
     onboarded,
@@ -216,8 +217,26 @@ def test_the_quote_is_itemised_in_naira_with_the_cancellation_line_and_three_but
     assert "Service fee" in body and "₦40,000" in body
     assert "Platform fee" in body and "₦4,000" in body
     assert "Total" in body and "₦44,000" in body
-    assert f"Free cancellation until {settings.WHATSAPP_CANCEL_FREE_HOURS} hours" in body
+    assert ("Free cancellation until 12 hours before the visit. After that a 20% fee applies on the service fee, "
+            "and 50% within 2 hours of the start or once your professional is on the way.") in body
     assert body.startswith("Here's your quote:")  # for yourself, no name
+
+
+def test_the_quote_line_and_the_snapshot_follow_the_admin_policy_at_quote_time(db, chat, client, booking_env):
+    set_policy(db, cancel_free_hours=24, cancel_late_hours=4, cancel_fee_percent=30, cancel_late_fee_percent=60)
+    body = reply_text(quote_for(chat, client, booking_env)[0])
+    assert "Free cancellation until 24 hours" in body and "30% fee" in body and "60% within 4 hours" in body
+    assert the_quote(db).payload["cancel_policy"] == {"free_hours": 24, "late_hours": 4, "fee_percent": 30,
+                                                      "late_fee_percent": 60}
+
+
+def test_the_booking_keeps_the_terms_that_were_quoted_even_if_the_policy_changes_before_it_is_confirmed(
+        db, chat, client, booking_env, dispatched):
+    quote_for(chat, client, booking_env)
+    set_policy(db, cancel_fee_percent=90, cancel_free_hours=24, cancel_late_hours=3)  # the admin edits the policy after the quote
+    chat.tap("quote:confirm")
+    assert the_booking(db).cancel_policy == {"free_hours": 12, "late_hours": 2, "fee_percent": 20,
+                                             "late_fee_percent": 50}
 
 
 def test_a_quote_for_someone_else_uses_their_first_name_only(db, chat, client, booking_env):
