@@ -542,6 +542,8 @@ class AdminBookingService:
             raise CaregiverNotFound()
         if cg.profile_status != "approved":
             raise Conflict("Caregiver is not approved")
+        if not self.db.query(User.is_active).filter(User.id == cg.user_id).scalar():
+            raise Conflict("Caregiver account is closed")
         return cg
 
     def _out(self, b: Booking, notified: int = 0) -> BookingActionOut:

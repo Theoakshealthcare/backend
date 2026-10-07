@@ -657,6 +657,39 @@ def run(args) -> None:
     rec.call("a-home-as-patient", "GET", "/api/v1/caregiver/home", token=tp, expect=403)
     rec.call("a-home-no-auth", "GET", "/api/v1/caregiver/home", expect=401)
 
+    # --- delete account: DELETE /auth/profile (appended last so earlier capture numbers do not move) ----
+    # Caregiver A still has an accepted, paid booking (b6) and a wallet balance; the patient has b6 too.
+    rec.call("delete-account-no-auth", "DELETE", "/api/v1/auth/profile", expect=401)
+    rec.call("a-delete-account-active-booking", "DELETE", "/api/v1/auth/profile", token=ta, expect=409)
+    rec.call("p-delete-account-active-booking", "DELETE", "/api/v1/auth/profile", token=tp, expect=409)
+    rec.call("a-cancel-b6", "POST", f"/api/v1/booking/caregiver/action/{b6['id']}", token=ta,
+             json_body={"action": "cancel", "reason": "Placeholder: clearing the way to delete the account"})
+    rec.call("a-delete-account-wallet-balance", "DELETE", "/api/v1/auth/profile", token=ta, expect=409)
+    # Caregiver E: nothing owed, so the delete goes through. Onboarded quietly, then every step captured.
+    e_email = mail("caregiver-e")
+    e = onboard_caregiver(ctx, "e", e_email, "Placeholder Caregiver E", capture=False)
+    rec.call("e-delete-account", "DELETE", "/api/v1/auth/profile", token=e["token"])
+    rec.call("e-me-after-delete", "GET", "/api/v1/auth/me", token=e["token"], expect=403)
+    rec.call("e-refresh-after-delete", "POST", "/api/v1/auth/refresh", expect=400,
+             json_body={"refresh_token": e["refresh"]})
+    rec.call("e-login-after-delete", "POST", "/api/v1/auth/login/mobile", expect=401,
+             json_body={"email_or_phone": e_email, "password": PLACEHOLDER_PASSWORD})
+    rec.call("e-delete-account-again", "DELETE", "/api/v1/auth/profile", token=e["token"], expect=403)
+    rec.call("e-register-same-email-again", "POST", "/api/v1/auth/register", json_body={
+        "email": e_email, "password": PLACEHOLDER_PASSWORD, "full_name": "Placeholder Caregiver E Again",
+        "phone_number": ctx.phone(), "user_type": "caregiver"},
+        note="The old account's email was replaced by a placeholder, so the same email registers a new account.")
+    (erased,) = db.run("SELECT count(*) FROM users WHERE email LIKE 'deleted+%%@example.com' AND is_active = false"
+                       " AND full_name = 'Deleted user' AND phone_number IS NULL")[0]
+    rec.save("db-erased-account-row", {
+        "request": {"method": "SQL", "path": "SELECT count(*) FROM users WHERE email LIKE 'deleted+%@example.com' "
+                    "AND is_active = false AND full_name = 'Deleted user' AND phone_number IS NULL",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"count": erased}},
+        "note": "The erased user row is kept (inactive, name and email replaced, phone cleared). Bookings and "
+                "wallet history of an erased caregiver also stay; only the personal data is gone.",
+    })
+
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_caregiver_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")
     expo.stop()

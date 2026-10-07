@@ -228,9 +228,9 @@ class BookingResponse(BaseModel):
     duration_hours: int
     scheduled_date: datetime
     scheduled_end_date: datetime
-    patient_address: str
-    patient_latitude: float
-    patient_longitude: float
+    patient_address: Optional[str] = None
+    patient_latitude: Optional[float] = None
+    patient_longitude: Optional[float] = None
     patient_city: str
     patient_state: str
     status: BookingStatus
@@ -347,7 +347,7 @@ class CaregiverActionBooking(BaseModel):
     scheduled_end_date: datetime
     actual_start_time: Optional[datetime] = None
     actual_end_time: Optional[datetime] = None
-    patient_address: str
+    patient_address: Optional[str] = None
     patient_latitude: Optional[float] = None
     patient_longitude: Optional[float] = None
     patient_city: str

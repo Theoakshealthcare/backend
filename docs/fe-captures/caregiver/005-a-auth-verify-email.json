@@ -4,8 +4,8 @@
     "path": "/api/v1/auth/verify-email",
     "auth": null,
     "body": {
-      "email": "caregiver-a-dc333b@example.com",
-      "code": "34077"
+      "email": "caregiver-a-f1edfe@example.com",
+      "code": "52798"
     }
   },
   "response": {

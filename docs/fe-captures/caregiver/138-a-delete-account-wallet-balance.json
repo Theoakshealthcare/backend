@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Your wallet still has a balance. Withdraw it to your bank account, then delete your account."
+    }
+  }
+}

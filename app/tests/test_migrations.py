@@ -77,3 +77,26 @@ def test_admin_audit_log_is_append_only_in_the_database(db):
     with pytest.raises(DBAPIError, match="append-only"):
         db.execute(text("DELETE FROM admin_audit_log"))
     db.rollback()
+
+
+def test_0009_downgrade_backfills_an_erased_bookings_location(empty_engine):
+    from sqlalchemy.orm import Session
+
+    from app.db.models.booking import BookingStatus
+    from app.tests.factories import make_booking, make_patient
+
+    with empty_engine.begin() as conn:
+        command.upgrade(_cfg(conn), "head")
+    with Session(empty_engine) as s:
+        b = make_booking(s, make_patient(s), status=BookingStatus.COMPLETED)
+        b.patient_address = b.patient_latitude = b.patient_longitude = None
+        s.commit()
+        booking_id = b.id
+    with empty_engine.begin() as conn:
+        command.downgrade(_cfg(conn), "0007_whatsapp_notifications")  # must not fail on the NULLs
+    with empty_engine.connect() as conn:
+        row = conn.execute(text("SELECT patient_address, patient_latitude, patient_longitude FROM bookings "
+                                "WHERE id = :i"), {"i": booking_id}).one()
+    assert tuple(row) == ("[erased]", 0.0, 0.0)
+    with empty_engine.begin() as conn:
+        command.upgrade(_cfg(conn), "head")

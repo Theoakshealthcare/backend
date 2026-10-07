@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/d4055373-bee6-431e-977a-11b01af19a96",
+    "path": "/api/v1/booking/caregiver/action/4029e780-a4f8-4b94-9567-c1669558230f",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "teleport"

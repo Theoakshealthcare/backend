@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/refresh",
+    "auth": null,
+    "body": {
+      "refresh_token": "<REFRESH_TOKEN_JWT>"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Inactive user"
+    }
+  }
+}

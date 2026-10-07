@@ -15,6 +15,7 @@ from app.schemas.booking import (
 from app.services.location import LocationService
 from app.services.booking import BookingService
 from app.db.models.caregiver import Caregiver
+from app.db.models.user import User
 from app.db.models.booking import Booking, BookingStatus
 
 
@@ -68,6 +69,16 @@ class WebSocketConnectionManager:
         if f"caregiver_{user_id}" in self.last_heartbeat:
             del self.last_heartbeat[f"caregiver_{user_id}"]
             
+    async def close_caregiver(self, user_id: str, code: int = 4403, reason: str = "Account closed"):
+        """Close a caregiver's socket from the server side (the account was closed)."""
+        websocket = self.caregiver_connections.get(user_id)
+        self.disconnect_caregiver(user_id)
+        if websocket is not None:
+            try:
+                await websocket.close(code=code, reason=reason)
+            except Exception:
+                log.warning("closing the socket of a closed account failed", exc_info=True)
+
     def disconnect_patient(self, user_id: str):
         """Disconnect a patient and cleanup subscriptions"""
         if user_id in self.patient_connections:
@@ -141,7 +152,13 @@ class WebSocketConnectionManager:
             
             if not caregiver:
                 return
-                
+
+            # The socket outlives the token it was opened with: a closed account must not write locations.
+            active = db.query(User.is_active).filter(User.id == caregiver_user_id).scalar()
+            if not active:
+                await self.close_caregiver(caregiver_user_id)
+                return
+
             # Update location in database
             location_service = LocationService(db)
             location_service.update_caregiver_location(

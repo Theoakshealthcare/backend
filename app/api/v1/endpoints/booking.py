@@ -4,6 +4,7 @@ from uuid import UUID
 
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnected
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -965,6 +966,10 @@ def get_live_booking_tracking(
             detail="No tracking data available"
         )
     
+    if booking.patient_latitude is None or booking.patient_longitude is None:
+        # an erased patient's finished booking: the destination was wiped
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No tracking data available")
+
     # Calculate distance and ETA
     distance = location_service.calculate_distance(
         booking.patient_latitude, booking.patient_longitude,
@@ -1045,7 +1050,8 @@ async def caregiver_location_websocket(
             while True:
                 message = await websocket.receive_text()
                 await websocket_manager.handle_caregiver_message(websocket, user_id, message, db)
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, WebSocketDisconnected):
+            # also what a server-side close (a closed account) looks like from this loop
             websocket_manager.disconnect_caregiver(user_id)
 
     except Exception:

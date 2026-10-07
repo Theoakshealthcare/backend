@@ -8,6 +8,7 @@ from sqlalchemy import and_, exists, func
 from app.core.config import settings
 from app.db.models.booking import CaregiverLocation, Booking
 from app.db.models.caregiver import Caregiver, CaregiverSkill
+from app.db.models.user import User
 
 
 class LocationService:
@@ -49,6 +50,8 @@ class LocationService:
             Caregiver
         ).join(
             Caregiver, CaregiverLocation.caregiver_id == Caregiver.id
+        ).join(
+            User, User.id == Caregiver.user_id
         ).filter(
             and_(
                 CaregiverLocation.is_active == True,
@@ -56,6 +59,7 @@ class LocationService:
                 CaregiverLocation.updated_at >= fresh_after,
                 Caregiver.profile_status == 'approved',
                 Caregiver.suspended_at.is_(None),
+                User.is_active.is_(True),  # a closed or erased account is never offered work
             )
         )
 

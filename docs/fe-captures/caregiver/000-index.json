@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/capture_caregiver_flow.py",
-  "run_tag": "dc333b",
+  "run_tag": "f1edfe",
   "captures": [
     {
       "file": "001-a-auth-register.json",
@@ -666,6 +666,66 @@
       "file": "133-a-home-no-auth.json",
       "label": "a-home-no-auth",
       "status": 401
+    },
+    {
+      "file": "134-delete-account-no-auth.json",
+      "label": "delete-account-no-auth",
+      "status": 401
+    },
+    {
+      "file": "135-a-delete-account-active-booking.json",
+      "label": "a-delete-account-active-booking",
+      "status": 409
+    },
+    {
+      "file": "136-p-delete-account-active-booking.json",
+      "label": "p-delete-account-active-booking",
+      "status": 409
+    },
+    {
+      "file": "137-a-cancel-b6.json",
+      "label": "a-cancel-b6",
+      "status": 200
+    },
+    {
+      "file": "138-a-delete-account-wallet-balance.json",
+      "label": "a-delete-account-wallet-balance",
+      "status": 409
+    },
+    {
+      "file": "139-e-delete-account.json",
+      "label": "e-delete-account",
+      "status": 200
+    },
+    {
+      "file": "140-e-me-after-delete.json",
+      "label": "e-me-after-delete",
+      "status": 403
+    },
+    {
+      "file": "141-e-refresh-after-delete.json",
+      "label": "e-refresh-after-delete",
+      "status": 400
+    },
+    {
+      "file": "142-e-login-after-delete.json",
+      "label": "e-login-after-delete",
+      "status": 401
+    },
+    {
+      "file": "143-e-delete-account-again.json",
+      "label": "e-delete-account-again",
+      "status": 403
+    },
+    {
+      "file": "144-e-register-same-email-again.json",
+      "label": "e-register-same-email-again",
+      "status": 200
+    },
+    {
+      "file": "145-db-erased-account-row.json",
+      "label": "db-erased-account-row",
+      "status": null
     }
   ]
 }

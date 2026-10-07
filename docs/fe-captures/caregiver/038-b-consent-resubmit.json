@@ -15,11 +15,11 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "c40b426c-80c5-4339-8dfe-4d169a9ea661",
-      "user_id": "76760a25-9977-4fd4-9cc4-a23595df102d",
-      "email": "caregiver-b-dc333b@example.com",
+      "id": "32203449-2aaa-4424-9df1-54bab517e56d",
+      "user_id": "b555a6aa-21d5-4e50-b449-7cadc871e3f3",
+      "email": "caregiver-b-f1edfe@example.com",
       "full_name": "Placeholder Caregiver B",
-      "phone_number": "+2340000035002",
+      "phone_number": "+2340000102002",
       "date_of_birth": "1990-01-01",
       "gender": "female",
       "state": "Lagos",
@@ -39,8 +39,8 @@
       "terms_accepted": true,
       "privacy_policy_accepted": true,
       "background_check_consent": true,
-      "created_at": "2026-10-06T08:23:24.089188",
-      "updated_at": "2026-10-06T08:23:24.417409"
+      "created_at": "2026-10-07T09:41:16.941936",
+      "updated_at": "2026-10-07T09:41:17.251191"
     }
   },
   "note": "Resubmitting consent moves changes_requested back to under_review."

@@ -24,7 +24,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.channels.whatsapp import booking_chat, copy, my_bookings
+from app.channels.whatsapp import booking_chat, copy, my_bookings, withdrawal
 from app.channels.whatsapp.engine import (
     BOOKING_EFFECTS, MY_BOOKINGS_EFFECTS, PAUSED_STATES, EngineConfig, Inbound, Kind, OpenTicket, RecordConsent, SetOptOut, Snapshot,
     State, step,
@@ -43,7 +43,7 @@ from app.services.support import SupportService
 
 logger = logging.getLogger(__name__)
 
-CONSENT_CHANNEL = "whatsapp_button"  # becomes whatsapp_flow when the W2 consent Flow replaces the buttons
+CONSENT_CHANNEL = withdrawal.CONSENT_CHANNEL
 
 
 def engine_config() -> EngineConfig:
@@ -257,19 +257,21 @@ def _apply(db: Session, job: Dict[str, Any]
                 followups.append(result.after_commit)
             continue
         if isinstance(effect, RecordConsent):
-            consents.record(
-                types=effect.types, decision=effect.decision, channel=CONSENT_CHANNEL,
-                evidence_ref=message.meta_message_id, contact_id=contact.id,
-                subject_user_id=contact.user_id, granted_by_user_id=contact.user_id,
-            )
             if effect.decision == "withdrawn":
-                booking_chat.close_open_quotes(db, contact.id)  # consent gone: no draft of health answers stays
+                withdrawal.withdraw_consents(db, contact, effect.types, message.meta_message_id)
+            else:
+                consents.record(
+                    types=effect.types, decision=effect.decision, channel=CONSENT_CHANNEL,
+                    evidence_ref=message.meta_message_id, contact_id=contact.id,
+                    subject_user_id=contact.user_id, granted_by_user_id=contact.user_id,
+                )
             if effect.decision == "granted" and contact.opted_in_at is None:
                 contact.opted_in_at = now
         elif isinstance(effect, SetOptOut):
-            contact.opted_out_at = now if effect.opted_out else None
             if effect.opted_out:
-                contact.marketing_opt_in = False
+                withdrawal.opt_out(contact, now)
+            else:
+                contact.opted_out_at = None
         elif isinstance(effect, OpenTicket):
             SupportService(db).open(contact_id=contact.id, reason=effect.reason, priority=effect.priority)
 
