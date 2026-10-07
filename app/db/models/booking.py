@@ -5,7 +5,7 @@ from enum import Enum
 
 from sqlalchemy import (
     Boolean, Column, DateTime, String, Text, ForeignKey, 
-    BigInteger, Float, Integer, JSON, Enum as SQLEnum, CheckConstraint, UniqueConstraint
+    BigInteger, Float, Integer, JSON, Enum as SQLEnum, CheckConstraint, UniqueConstraint, Index, text
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
@@ -39,6 +39,12 @@ class Booking(Base):
             "dispatch_state IN ('dispatching','matched','unmatched')", name="ck_bookings_dispatch_state"
         ),
         CheckConstraint("channel IN ('app','whatsapp','admin')", name="ck_bookings_channel"),
+        CheckConstraint("cancel_fee_tier IN ('none','standard','late')", name="ck_bookings_cancel_fee_tier"),
+        CheckConstraint(
+            "dropout_state IN ('redispatching','awaiting_choice','waiting','handed_over','closed')",
+            name="ck_bookings_dropout_state"),
+        Index("ix_bookings_dropout_open", "scheduled_date",
+              postgresql_where=text("dropout_state IN ('redispatching','awaiting_choice','waiting')")),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -97,6 +103,22 @@ class Booking(Base):
     # An admin flagged the assigned caregiver as a no-show (AD-FR-26). Cleared when the booking is reassigned.
     no_show_flagged_at = Column(DateTime, nullable=True)
     no_show_flagged_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
+
+    # --- the cancellation policy that applies to this booking (set when the quote is made) and what was applied ---
+    # ``{"free_hours", "late_hours", "fee_percent", "late_fee_percent"}``, copied from the admin policy when the quote
+    # is created, so a later edit never changes terms the family agreed to. NULL (app and admin bookings): the live
+    # policy applies.
+    cancel_policy = Column(JSON, nullable=True)
+    cancel_fee_tier = Column(String, nullable=True)  # none | standard | late: the tier a booker cancellation applied
+    # For the late tier only: was it because the caregiver set out in good time and really moved toward the patient?
+    # (The caregiver-compensation work, A3, reads this.) NULL when the late tier did not apply.
+    late_cancel_compensable = Column(Boolean, nullable=True)
+    on_my_way_at = Column(DateTime, nullable=True)
+    on_my_way_distance_m = Column(Integer, nullable=True)  # caregiver to patient when they tapped, if a fix existed
+
+    # After a caregiver drops out of a WhatsApp booking: redispatching | awaiting_choice | waiting | handed_over |
+    # closed. NULL = no drop-out in progress. See app/services/dropout.py.
+    dropout_state = Column(String, nullable=True)
 
     # Dispatch to caregivers, separate from `status` so client enums don't change.
     # NULL = not dispatched (unpaid, or paid before dispatch waves existed).
