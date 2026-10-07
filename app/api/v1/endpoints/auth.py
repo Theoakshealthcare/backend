@@ -388,8 +388,10 @@ def delete_account(
     """Erase the account (anonymisation). Bookings, payments and consent records are kept for legal
     retention; the person's data is wiped and the account can no longer sign in. 409 while the person
     has active bookings or money owed, with a detail that says what to do."""
+    erasure = AccountErasureService(db)
     try:
-        result = AccountErasureService(db).erase(current_user.id)
+        erasure.settle_pending_deposits(current_user.id)  # talks to Paystack, so it runs before any lock
+        result = erasure.erase(current_user.id)
         db.commit()
     except ErasureBlocked as exc:
         db.rollback()
@@ -406,7 +408,7 @@ def delete_account(
 
 def _close_caregiver_socket(user_id) -> None:
     """Drop the caregiver's open location socket (the manager lives on the event loop; this endpoint runs in
-    a worker thread). Other workers' sockets are refused on their next ping, which checks the user."""
+    a worker thread). Sockets on other workers close on their next location_update, which checks the user."""
     try:
         anyio.from_thread.run(websocket_manager.close_caregiver, str(user_id))
     except Exception:

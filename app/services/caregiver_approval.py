@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.audit import AdminAuditLog
 from app.db.models.booking import Booking, BookingStatus
+from app.db.models.user import User
 from app.db.models.caregiver import Caregiver, CaregiverDocument, CaregiverSkill
 from app.services.audit import AuditService
 
@@ -443,6 +444,9 @@ class CaregiverApprovalService:
         cg = self._lock(caregiver_id)
         if cg.profile_status != "suspended":
             raise StateConflict(f"Cannot reinstate a caregiver that is '{cg.profile_status}'")
+        owner_active = self.db.query(User.is_active).filter(User.id == cg.user_id).scalar()
+        if not owner_active or cg.suspension_reason == "account_erased":
+            raise StateConflict("Cannot reinstate: the account was deleted by its owner")
         unmet = self.unmet_for_approval(cg, check_state=False)
         if unmet:
             raise StateConflict("Cannot reinstate: preconditions not met", unmet)

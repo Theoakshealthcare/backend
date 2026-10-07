@@ -52,7 +52,7 @@ Decisions and rejected alternatives:
 | Live | Captured on the Docker stack (compose project `oakly-del`): 409s for caregiver and patient, 200, 403/400/401 afterwards, re-register 200 |
 
 ## Operate / roll back
-Run `alembic upgrade head` (round-trip tested). Roll back by reverting the commits; `alembic downgrade -1` restores NOT NULL on the three booking location columns and fails if an erased booking exists. Roll back by reverting the commits. Rows already erased stay erased (that is the point); there is no un-delete. To find them: `SELECT id FROM users WHERE email LIKE 'deleted+%@example.com'`.
+Run `alembic upgrade head` (round-trip tested). Roll back by reverting the commits; `alembic downgrade` backfills erased bookings (address `[erased]`, coordinates 0) and restores NOT NULL on the three booking location columns. Roll back by reverting the commits. Rows already erased stay erased (that is the point); there is no un-delete. To find them: `SELECT id FROM users WHERE email LIKE 'deleted+%@example.com'`.
 
 ## Follow-ups
 - Files are not purged from storage: caregiver document files and provider-side ID checks keep their objects; only the database references are blanked. Add a purge job.
@@ -90,3 +90,16 @@ Run `alembic upgrade head` (round-trip tested). Roll back by reverting the commi
 
 ### Follow-up found (not fixed here)
 `Booking.condition` is stored in **plaintext** for app-channel bookings (`BookingCreate.condition` goes straight into `Booking(condition=...)` in `app/services/booking.py:203`, and is returned in booking responses), while WhatsApp bookings store `condition_encrypted` (Fernet, `booking_chat.py:443`). Health text at rest should be encrypted for both channels; this needs a data migration and a response change, so it is a separate piece of work.
+
+## Re-review fixes
+| # | Issue | Fix |
+|---|---|---|
+| 1 | An abandoned pending deposit (no webhook ever) blocked deletion forever | `settle_pending_deposits` runs before `erase` takes any lock (no HTTP under a lock) and calls Paystack `verify_transaction` for each pending deposit: paid is credited (the balance check then refuses); abandoned, failed or reversed is marked failed; a deposit older than 24 h that is not paid is marked failed; one genuinely in progress (`ongoing`, `pending`, `processing`, `queued`, under 24 h) or one Paystack cannot answer for (unreachable, error) stays pending and the erasure is refused with 409. An unreachable Paystack is never treated as abandoned, even for an old deposit, because it could hide a paid one |
+| 2 | An admin could reinstate an erased caregiver and assign them | `reinstate` returns 409 "the account was deleted by its owner" when the user is inactive or `suspension_reason='account_erased'`; `_lock_caregiver` (assign, reassign, force) returns 409 "Caregiver account is closed" for an inactive user |
+| 3 | Admin live tracking 500 on an erased patient's finished booking | 404 `No tracking data available` when the coordinates are null |
+| 4 | `initiate_deposit` and `request_refund` took no wallet lock | Both lock the wallet row first (`_lock_wallet_for_write`, same row erasure locks) and refuse with a ValueError if the account was closed meanwhile. Erasure creates an empty wallet if there is none, so there is always one row to serialise on. Threaded test |
+| 5 | `0009` downgrade would fail on NULLs | Backfills before restoring NOT NULL; migration test round-trips with an erased booking |
+
+Full suite: 1777 passed. CI steps clean.
+
+Known gap: a Paystack charge that succeeds after its deposit was marked failed here would still be credited by the existing webhook (`process_successful_payment` does not require `pending`). That is the pre-existing webhook behaviour and now lands in an erased patient's wallet; closing it needs a webhook change (ignore deposits for inactive patients and flag them for refund).

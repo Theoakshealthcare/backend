@@ -13,7 +13,7 @@ import logging
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import and_, or_
@@ -44,6 +44,8 @@ logger = logging.getLogger(__name__)
 ERASED_NAME = "Deleted user"
 ERASURE_CHANNEL = "account_erasure"
 CANCEL_REASON_ERASED = "account_erased"
+DEPOSIT_ABANDONED_AFTER = timedelta(hours=24)
+IN_PROGRESS_PAYSTACK = ("ongoing", "pending", "processing", "queued")
 ERASURE_CONSENT_TYPES = ("terms", "health_processing", "marketing")
 # A caregiver is on the hook for these; a paid booking still waiting for its visit is too.
 CAREGIVER_ACTIVE = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
@@ -73,6 +75,39 @@ def _erased_wa_phone() -> str:
 class AccountErasureService:
     def __init__(self, db: Session):
         self.db = db
+
+    def settle_pending_deposits(self, user_id: uuid.UUID, now: Optional[datetime] = None) -> None:
+        """Resolve the patient's pending deposits with Paystack BEFORE ``erase`` takes its locks (no HTTP under a
+        lock). A deposit that turns out paid is credited, so the balance check then refuses; one Paystack says was
+        abandoned, failed or reversed, or one older than a day that is not paid, is marked failed. A deposit that
+        is genuinely in progress, or that cannot be checked, stays pending and ``erase`` refuses."""
+        from app.services.patient_wallet import PatientWalletService
+
+        now = now or datetime.utcnow()
+        patient = self.db.query(Patient).filter(Patient.user_id == user_id).first()
+        if patient is None:
+            return
+        pending = [(t.paystack_reference, t.created_at) for t in self.db.query(PatientTransaction).filter(
+            PatientTransaction.patient_id == patient.id, PatientTransaction.type == "deposit",
+            PatientTransaction.status == "pending", PatientTransaction.paystack_reference.isnot(None))]
+        self.db.rollback()  # end the read transaction: nothing is held while we talk to Paystack
+        if not pending:
+            return
+        wallet_service = PatientWalletService(self.db)
+        for reference, created_at in pending:
+            old = created_at is not None and now - created_at > DEPOSIT_ABANDONED_AFTER
+            try:
+                response = wallet_service.paystack.verify_transaction(reference)
+            except Exception:
+                logger.warning("could not verify a pending deposit of user %s", user_id, exc_info=True)
+                continue  # unreachable: it stays pending and the erasure is refused
+            data = response.get("data") if response.get("status") else None
+            if data is None:
+                continue  # Paystack could not tell us: leave it
+            if data.get("status") == "success":
+                wallet_service.process_successful_payment(reference, data)
+            elif data.get("status") not in IN_PROGRESS_PAYSTACK or old:
+                wallet_service.process_failed_payment(reference, data)
 
     def erase(self, user_id: uuid.UUID, now: Optional[datetime] = None) -> ErasureResult:
         now = now or datetime.utcnow()
@@ -169,6 +204,10 @@ class AccountErasureService:
                 "You have a paid booking that is not finished yet. Wait for the visit to complete, or "
                 "cancel the booking, then delete your account."
             )
+        # A wallet row always exists from here on: a deposit or refund request in flight locks the same row first.
+        if self.db.query(PatientWallet.id).filter(PatientWallet.patient_id == patient.id).first() is None:
+            self.db.add(PatientWallet(patient_id=patient.id))
+            self.db.flush()
         wallet = (
             self.db.query(PatientWallet).filter(PatientWallet.patient_id == patient.id)
             .populate_existing().with_for_update().first()

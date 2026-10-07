@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 
 from app.db.models.patient import Patient
+from app.db.models.user import User
 from app.db.models.patient import PatientWallet, PatientTransaction, PatientRefundRequest
 from app.schemas.patient import (
     PatientDepositRequest, PatientDepositResponse,
@@ -76,6 +77,23 @@ class PatientWalletService:
             currency="NGN"
         )
 
+    def _lock_wallet_for_write(self, patient_id: uuid.UUID) -> PatientWallet:
+        """Lock the wallet row (the row account erasure locks) before adding a pending deposit or refund, and
+        refuse if the account was closed while we waited."""
+        self.get_or_create_wallet(patient_id)
+        wallet = (
+            self.db.query(PatientWallet).filter(PatientWallet.patient_id == patient_id)
+            .with_for_update().populate_existing().one()
+        )
+        active = (
+            self.db.query(User.is_active).join(Patient, Patient.user_id == User.id)
+            .filter(Patient.id == patient_id).scalar()
+        )
+        if not active:
+            self.db.rollback()
+            raise ValueError("This account is closed")
+        return wallet
+
     def initiate_deposit(
         self, 
         patient_id: uuid.UUID, 
@@ -89,8 +107,7 @@ class PatientWalletService:
         if not patient:
             raise ValueError("Patient not found")
 
-        # Get or create wallet
-        wallet = self.get_or_create_wallet(patient_id)
+        wallet = self._lock_wallet_for_write(patient_id)
         
         # Naira in, kobo from here on
         amount_kobo = to_kobo(deposit_request.amount)
@@ -290,6 +307,7 @@ class PatientWalletService:
         refund_request: PatientRefundRequestCreate
     ) -> PatientRefundRequestResponse:
         """Request a refund for a transaction"""
+        self._lock_wallet_for_write(patient_id)
         
         # Get the original transaction
         transaction = self.db.query(PatientTransaction).filter(

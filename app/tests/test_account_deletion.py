@@ -589,3 +589,153 @@ def test_an_unlinked_whatsapp_contact_with_the_same_phone_is_anonymised_too(db, 
     c = db.get(WhatsAppContact, contact.id)
     assert c.phone_e164 != e164 and c.wa_id != e164[1:] and c.opted_out_at is not None
     assert db.scalar(select(WhatsAppConversation.state).where(WhatsAppConversation.contact_id == c.id)) == "declined"
+
+
+# --- re-review fixes -----------------------------------------------------------------------------
+from datetime import timedelta  # noqa: E402
+
+from app.schemas.patient import PatientDepositRequest, PatientRefundRequestCreate  # noqa: E402
+from app.services.paystack import PaystackService  # noqa: E402
+from app.services.patient_wallet import PatientWalletService  # noqa: E402
+from app.tests.factories import make_admin  # noqa: E402
+from app.tests.fake_meta import fake_paystack  # noqa: E402,F401
+
+
+def _deposit(db, patient, age_hours=0):
+    PatientWalletService(db).initiate_deposit(patient.id, PatientDepositRequest(amount="1000"))
+    tx = db.query(PatientTransaction).filter(PatientTransaction.patient_id == patient.id).one()
+    if age_hours:
+        tx.created_at = datetime.utcnow() - timedelta(hours=age_hours)
+        db.commit()
+    return tx.paystack_reference
+
+
+def test_an_abandoned_deposit_does_not_block_deletion(db, client, fake_paystack):
+    patient = make_patient(db)
+    ref = _deposit(db, patient)  # initialised at Paystack, never paid: Paystack says "abandoned"
+    assert client.delete(URL, headers=auth_headers(patient.user)).status_code == 200
+    db.expire_all()
+    assert db.query(PatientTransaction).one().status == "failed"
+    assert ref in fake_paystack.verified
+
+
+def test_a_deposit_that_turns_out_paid_is_credited_and_then_blocks(db, client, fake_paystack):
+    patient = make_patient(db)
+    ref = _deposit(db, patient)
+    fake_paystack.paid.add(ref)
+    r = client.delete(URL, headers=auth_headers(patient.user))
+    assert r.status_code == 409 and "wallet" in r.json()["detail"].lower()
+    db.expire_all()
+    assert db.query(PatientTransaction).one().status == "successful"
+    assert db.query(PatientWallet).one().balance_kobo == 100_000
+    assert _reload(db, User, patient.user_id).is_active is True
+
+
+def test_a_deposit_still_in_progress_blocks(db, client, fake_paystack, monkeypatch):
+    patient = make_patient(db)
+    _deposit(db, patient)
+    monkeypatch.setattr(PaystackService, "verify_transaction", lambda self, ref: {
+        "status": True, "data": {"status": "ongoing", "amount_kobo": 100_000}})
+    r = client.delete(URL, headers=auth_headers(patient.user))
+    assert r.status_code == 409 and "payment" in r.json()["detail"].lower()
+    assert db.query(PatientTransaction).one().status == "pending"
+
+
+def test_an_unreachable_paystack_blocks(db, client, fake_paystack, monkeypatch):
+    patient = make_patient(db)
+    _deposit(db, patient, age_hours=1)
+
+    def boom(self, ref):
+        raise ConnectionError("down")
+
+    monkeypatch.setattr(PaystackService, "verify_transaction", boom)
+    assert client.delete(URL, headers=auth_headers(patient.user)).status_code == 409
+    monkeypatch.setattr(PaystackService, "verify_transaction", lambda self, ref: {"status": False, "message": "x"})
+    assert client.delete(URL, headers=auth_headers(patient.user)).status_code == 409
+
+
+def test_an_old_unsettled_deposit_counts_as_abandoned(db, client, fake_paystack, monkeypatch):
+    patient = make_patient(db)
+    _deposit(db, patient, age_hours=30)
+    monkeypatch.setattr(PaystackService, "verify_transaction", lambda self, ref: {
+        "status": True, "data": {"status": "ongoing", "amount_kobo": 100_000}})
+    assert client.delete(URL, headers=auth_headers(patient.user)).status_code == 200
+    assert db.query(PatientTransaction).one().status == "failed"
+
+
+def test_admin_cannot_reinstate_an_erased_caregiver(db, client):
+    cg = make_caregiver(db)
+    assert client.delete(URL, headers=auth_headers(cg.user)).status_code == 200
+    admin = make_admin(db, password=None)
+    r = client.post(f"/api/v1/admin/caregivers/{cg.id}/reinstate", headers=auth_headers(admin))
+    assert r.status_code == 409 and "deleted" in r.json()["detail"].lower()
+    db.expire_all()
+    assert db.get(Caregiver, cg.id).profile_status == "suspended"
+
+
+def test_admin_cannot_assign_a_caregiver_whose_user_is_inactive(db, client):
+    cg = make_caregiver(db)
+    cg.user.is_active = False
+    db.commit()
+    b = make_booking(db, make_patient(db), None, status=BookingStatus.PENDING, payment_status=PaymentStatus.PAID,
+                     dispatch_state="unmatched")
+    h = auth_headers(make_admin(db, ["super_admin"], password=None))
+    for body in ({}, {"force": True}):
+        r = client.post(f"/api/v1/admin/bookings/{b.id}/assign", headers=h,
+                        json={"caregiver_id": str(cg.id), "reason": "x", **body})
+        assert r.status_code == 409 and "closed" in r.json()["detail"].lower(), r.text
+
+
+def test_live_tracking_of_an_erased_patients_booking_is_404_not_500(db, client):
+    patient, cg = make_patient(db), make_caregiver(db)
+    done = make_booking(db, patient, cg, status=BookingStatus.COMPLETED)
+    db.add(CaregiverLocation(caregiver_id=cg.id, latitude=6.45, longitude=3.47))
+    db.commit()
+    assert client.delete(URL, headers=auth_headers(patient.user)).status_code == 200
+    admin = make_admin(db, password=None)
+    r = client.get(f"/api/v1/booking/booking/{done.id}/live-tracking", headers=auth_headers(admin))
+    assert r.status_code == 404, r.text
+
+
+def test_a_deposit_or_refund_request_in_flight_cannot_land_after_the_erasure(db, fake_paystack):
+    """The request takes the wallet lock first, so it waits for the erasure and then refuses."""
+    patient = make_patient(db)
+    wallet = _wallet(db, patient)
+    tx = _tx(db, patient, wallet, "successful")
+    held, outcome = threading.Event(), {}
+
+    def holder():  # stands in for the erasure transaction: wallet row locked, user then closed
+        s = SessionLocal()
+        try:
+            s.query(PatientWallet).filter(PatientWallet.id == wallet.id).with_for_update().one()
+            held.set()
+            time.sleep(1.5)
+            s.query(User).filter(User.id == patient.user_id).update({"is_active": False})
+            s.commit()
+        finally:
+            s.close()
+
+    def request(name, call):
+        held.wait(5)
+        s = SessionLocal()
+        try:
+            call(PatientWalletService(s))
+            outcome[name] = "accepted"
+        except ValueError as e:
+            outcome[name] = str(e)
+        finally:
+            s.close()
+
+    threads = [
+        threading.Thread(target=holder),
+        threading.Thread(target=request, args=("deposit", lambda svc: svc.initiate_deposit(
+            patient.id, PatientDepositRequest(amount="500")))),
+        threading.Thread(target=request, args=("refund", lambda svc: svc.request_refund(
+            patient.id, PatientRefundRequestCreate(transaction_id=tx.id, amount="1", reason="changed my mind about this")))),
+    ]
+    [t.start() for t in threads]
+    [t.join(20) for t in threads]
+    assert outcome["deposit"] != "accepted" and outcome["refund"] != "accepted", outcome
+    db.expire_all()
+    assert db.query(PatientTransaction).filter(PatientTransaction.status == "pending").count() == 0
+    assert db.query(PatientRefundRequest).count() == 0

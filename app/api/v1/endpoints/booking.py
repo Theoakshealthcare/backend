@@ -966,6 +966,10 @@ def get_live_booking_tracking(
             detail="No tracking data available"
         )
     
+    if booking.patient_latitude is None or booking.patient_longitude is None:
+        # an erased patient's finished booking: the destination was wiped
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No tracking data available")
+
     # Calculate distance and ETA
     distance = location_service.calculate_distance(
         booking.patient_latitude, booking.patient_longitude,
