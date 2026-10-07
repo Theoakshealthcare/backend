@@ -249,10 +249,19 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] Events from the existing transitions: caregiver assigned, visit code issued, on my way, started, completed, cancelled by the caregiver (refund flagged, booker told), admin cancel and refund started/done (hooks for A2)
   - [x] Visit code to the booker (Fernet field, never logged or stored in the outbox; shown again in My bookings to the booker only); no health data in any message (asserted)
   - [x] My bookings: 5 most recent for the contact, their recipients and their app bookings; detail with status-driven actions; stateless buttons, ownership re-checked on every tap
-  - [x] Cancel in chat: policy shown before confirming; full refund before assignment or >12 h out; `WHATSAPP_CANCEL_FEE_PERCENT` (20%) of the service fee inside 12 h; in progress hands to a human; refund queued with `refund_amount_kobo`; unpaid reuses W2's verify-before-cancel; race with the caregiver tested (mutation-checked)
+  - [x] Cancel in chat: policy shown before confirming; full refund before assignment or >12 h out; a fee of the service fee inside 12 h (now two tiers from the admin policy, see the drop-out item below); in progress hands to a human; refund queued with `refund_amount_kobo`; unpaid reuses W2's verify-before-cancel; race with the caregiver tested (mutation-checked)
   - [x] Seven templates added to the registry (essential flags decide who still hears after STOP); migration `0007`
   - [ ] **Owner:** submit the 12 templates (list in the [W3 SOP](../sop/2026-10-06-whatsapp-notifications.md#owner-steps-nothing-here-has-been-done)); decide the cancellation fee; check `visit_code` category with Meta
-  - [ ] Deferred: visit reminders 24 h/1 h, `matching_delayed`, `no_caregiver_found` (WA-FR-29/31/32/33); re-dispatch after a caregiver drops out; rating buttons, photo header, tracking and View-booking links (W4); A2 must call the admin cancel/refund hooks
+  - [ ] Deferred: visit reminders 24 h/1 h, `matching_delayed`, `no_caregiver_found` (WA-FR-29/31/32/33); ~~re-dispatch after a caregiver drops out~~ (done, below); rating buttons, photo header, tracking and View-booking links (W4); A2 must call the admin cancel/refund hooks
+- [x] **W3b** Caregiver drop-out re-dispatch, two-tier cancellation fee, admin-editable booking policy. 2026-10-07, branch `feat/whatsapp-dropout-redispatch-fee-tiers` (on `main` at `8226ea1`), migration `0010_dropout_fee_tiers`, [SOP](../sop/2026-10-07-dropout-redispatch-and-fee-tiers.md). Verified locally and by `scripts/whatsapp_local_e2e.py`; not pushed, not run against real Meta.
+  - [x] Drop-out of a paid WhatsApp booking: reopened and re-dispatched (never back to the caregiver who dropped), booker told with no action needed; app bookings unchanged
+  - [x] No replacement by the decision lead, a drop-out inside the re-dispatch lead, or after "on my way": the booker gets Keep waiting / Pick another time / Full refund (stateless `bk:*` buttons, ownership and state re-checked under the lock); Keep waiting hands over to a person at the start time; Pick another time opens a ticket; Full refund is the whole amount, no fee
+  - [x] Worker `dropout_tick_job` for the time-driven steps; drop-outs recorded per caregiver (`caregiver_dropouts`)
+  - [x] Two-tier family fee (free, 20%, 50% of the service fee), tier stored on the booking, `late_cancel_compensable` decided under the lock from a qualifying on-my-way (movement check unit-tested)
+  - [x] `booking_policies` row + `GET`/`PATCH /admin/booking-policy` (reason, audit old to new, `settings.write`); cancellation tiers snapshotted on quote and booking; `WHATSAPP_CANCEL_*` env settings removed
+  - [x] Two templates (`dropout_replacing`, `dropout_choice`) added to the registry and the SOP owner list
+  - [ ] **Owner:** submit templates 13 and 14; tell the caregiver app team a dropped WhatsApp booking now comes back as `pending` from `cancel`
+  - [ ] Deferred (A3): pay the caregiver from `late_cancel_compensable` and `caregiver_late_fee_share_percent`; admin console views of drop-outs and a policy page; rescheduling ("Pick another time" is a person for now)
 - [ ] **W4** Web companion API and `apps/companion`
 - [ ] **W5** FallGuard Flow, vitals reminders, care circle, Pidgin
 

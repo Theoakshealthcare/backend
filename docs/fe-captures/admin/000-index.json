@@ -591,9 +591,75 @@
       "file": "118-audit-booking-actions.json",
       "label": "audit-booking-actions",
       "status": 200
+    },
+    {
+      "file": "119-policy-get.json",
+      "label": "policy-get",
+      "status": 200
+    },
+    {
+      "file": "120-policy-get-no-token.json",
+      "label": "policy-get-no-token",
+      "status": 401
+    },
+    {
+      "file": "121-policy-update-no-reason.json",
+      "label": "policy-update-no-reason",
+      "status": 422
+    },
+    {
+      "file": "122-policy-update-nothing.json",
+      "label": "policy-update-nothing",
+      "status": 422
+    },
+    {
+      "file": "123-policy-update-unknown-field.json",
+      "label": "policy-update-unknown-field",
+      "status": 422
+    },
+    {
+      "file": "124-policy-update-percent-over-100.json",
+      "label": "policy-update-percent-over-100",
+      "status": 422
+    },
+    {
+      "file": "125-policy-update-late-not-shorter.json",
+      "label": "policy-update-late-not-shorter",
+      "status": 422
+    },
+    {
+      "file": "126-policy-update-decision-not-shorter.json",
+      "label": "policy-update-decision-not-shorter",
+      "status": 422
+    },
+    {
+      "file": "127-policy-update-as-support.json",
+      "label": "policy-update-as-support",
+      "status": 403
+    },
+    {
+      "file": "128-policy-update.json",
+      "label": "policy-update",
+      "status": 200
+    },
+    {
+      "file": "129-policy-get-after.json",
+      "label": "policy-get-after",
+      "status": 200
+    },
+    {
+      "file": "130-audit-policy-update.json",
+      "label": "audit-policy-update",
+      "status": 200
+    },
+    {
+      "file": "131-policy-restore.json",
+      "label": "policy-restore",
+      "status": 200
     }
   ],
   "sections": {
-    "bookings": 79
+    "bookings": 79,
+    "policy": 119
   }
 }

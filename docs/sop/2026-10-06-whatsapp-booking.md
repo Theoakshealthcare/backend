@@ -77,7 +77,7 @@ Rejected: letting the quote message recompute the price on every show; geocoding
 | `WHATSAPP_SERVICE_MAX_HOURS` | `nurse:12,caregiver:24,physiotherapist:4,doctor:2,nutritionist:2` | Longest visit per service (placeholders: **[DECISION]** PRD §8.4). |
 | `WHATSAPP_QUOTE_TTL_MINUTES` / `WHATSAPP_IDLE_EXPIRY_MINUTES` | 30 / 30 | Price lock; idle reset of an unfinished booking. |
 | `WHATSAPP_PAYMENT_REMINDER_MINUTES` | 20 | After the link is sent (the link lives `PAYMENT_LINK_TTL_MINUTES` = 30). |
-| `WHATSAPP_CANCEL_FREE_HOURS` | 12 | The cancellation line in the quote; **W3 made it the real policy** (with `WHATSAPP_CANCEL_FEE_PERCENT`). |
+| ~~`WHATSAPP_CANCEL_FREE_HOURS`~~ | 12 | **Removed.** The cancellation line in the quote now follows the admin-editable `booking_policies` row (snapshotted on the quote); see the [drop-out and fee tiers SOP](2026-10-07-dropout-redispatch-and-fee-tiers.md). |
 | `WHATSAPP_MIN_LEAD_HOURS`, `_SLOT_START_HOUR`, `_SLOT_END_HOUR` | 2, 7, 20 | Slots offered. |
 | `WHATSAPP_MAX_RECIPIENTS` | 10 | Saved people per contact (WA-FR-17). |
 | `WHATSAPP_PAYMENT_RETURN_URL` | oaklycare.com/pay/return | Paystack `callback_url` (the web companion page in W4). |

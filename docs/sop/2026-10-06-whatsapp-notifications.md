@@ -15,7 +15,7 @@
 - **My bookings in chat** (WA-FR-38): the 5 most recent bookings for the contact, their care recipients and their own app bookings; a detail view with actions that follow the status.
 - **Cancelling in chat** (WA-FR-39): the policy is shown, then applied; refund goes through the existing `refund_required` queue; unpaid bookings reuse W2's verify-before-cancel.
 - **Caregiver push** when a booking they hold is cancelled by the booker or an admin (reuses `PushService`).
-- Seven new templates in the registry, and two new settings.
+- Seven new templates in the registry (two settings were added then; the cancellation ones are now database policy, see the [SOP: drop-out and fee tiers](2026-10-07-dropout-redispatch-and-fee-tiers.md)).
 
 ## Why
 W2 ended at "payment received". A booker then heard nothing until the visit, and a caregiver dropping out left a paid booking stranded. The booker also had no way to see or cancel a booking without calling. All of it had to reuse the W2 outbox, the 24-hour window rule and the existing money paths, not fork them.
@@ -48,8 +48,8 @@ booking_cancellation.cancel_by_booker                                           
 | Unique key | `(booking_id, event, dedupe_key)`; the key is the caregiver id for assignment events | The W2 key (`booking, event`) would silence the announcement of a *replacement* caregiver. Needs migration 0006. |
 | Who is notified | Booker events only for `channel = 'whatsapp'`; caregiver push for **every** booking with an assigned caregiver | App bookings have no WhatsApp booker, so no rows pile up; a caregiver wants to know whichever way the booking came. |
 | Visit code | Sent to the booker as the `visit_code` template (free text inside the window); decrypted at delivery from the existing Fernet field; shown again in My bookings to the **booker only** | The existing design (4 digits, Fernet, compare in constant time, 3 wrong tries lock it) is untouched. The code is never logged, never in the outbox, and the message log stores no bodies. Rejected: a second copy of the code in the outbox. |
-| Caregiver cancels | WhatsApp bookings: flagged for a **refund** (full if the visit had not started, amount left to a person if it had) and the booker is told. **Not re-dispatched.** | Re-dispatch means reopening a cancelled booking (`PENDING`, no caregiver, new offers), which changes the mobile contract of "cancel" and needs a product call. The booker gets `booking_update` and a **Book again** path. App bookings behave exactly as before. |
-| Cancellation fee | `WHATSAPP_CANCEL_FEE_PERCENT` (default **20**) of the **service fee** (PRD D4), rounded half up; applies to an assigned visit closer than `WHATSAPP_CANCEL_FREE_HOURS` (12), or already on the way | The PRD marks the percent as **[DECISION]**; it is a setting so the founder can change it without a deploy. A 0% fee means full refunds. |
+| Caregiver cancels | **Superseded by the [SOP: drop-out and fee tiers](2026-10-07-dropout-redispatch-and-fee-tiers.md):** before the visit starts a WhatsApp booking is now re-dispatched automatically (and the family gets a choice when there is no time); only a drop-out *after the visit started* still refunds as described here. Original: WhatsApp bookings: flagged for a **refund** (full if the visit had not started, amount left to a person if it had) and the booker is told. **Not re-dispatched.** | Re-dispatch means reopening a cancelled booking (`PENDING`, no caregiver, new offers), which changes the mobile contract of "cancel" and needs a product call. The booker gets `booking_update` and a **Book again** path. App bookings behave exactly as before. |
+| Cancellation fee | **Superseded by the [SOP: drop-out and fee tiers](2026-10-07-dropout-redispatch-and-fee-tiers.md):** two tiers (20% then 50%), edited in the admin console (`booking_policies`), snapshotted onto each quote and booking; the env settings below no longer exist. Original: `WHATSAPP_CANCEL_FEE_PERCENT` (default **20**) of the **service fee** (PRD D4), rounded half up; applies to an assigned visit closer than `WHATSAPP_CANCEL_FREE_HOURS` (12), or already on the way | The PRD marks the percent as **[DECISION]**; it is a setting so the founder can change it without a deploy. A 0% fee means full refunds. |
 | Refund amount | New `bookings.refund_amount_kobo` (NULL = the refund module decides) | The existing `refund_required` flag had no amount, and a fee cannot be expressed without one. |
 | Fee shown = fee charged | The confirm button is `bk:confirm:<id>:<fee_kobo>`. Under the booking lock the fee is recomputed; if it is **higher** than the one shown, nothing is cancelled and the new terms are shown with a fresh confirm button. A missing or malformed fee (stale, old or hand-made button) cancels nothing and re-asks | A caregiver accepting between the ask and the tap, or the 12 h line passing, must not charge a fee the booker never saw; a forged `:0` cannot skip it. A lower fee is accepted. |
 | Cancel in progress | Refused; opens a `talk_to_person` ticket and hands the chat to a human | WA-FR-39. |
@@ -64,7 +64,7 @@ Rejected: a `notification_preferences` table (no requirement yet); a separate pu
 - **Service layer:** `app/services/notification_service.py` (new), `booking_cancellation.py` (new: policy + cancel), `booking_events.py` (audience-aware `emit`, `key`), `booking.py` (`handle_booking_action` records events; caregiver cancel flags the refund).
 - **Channel:** `app/channels/whatsapp/booking_notices.py` (new: wording per event, stale rules), `my_bookings.py` (new: list, detail, ask/confirm cancel), `notifications.py` (routes caregiver events to push, journey events to `booking_notices`), `engine.py` (`ListBookings`, `ShowBooking`, `AskCancelBooking`, `ConfirmCancelBooking`, `Snapshot.has_account`), `processor.py`, `templates.py`, `copy.py`, `booking_chat.py` (`cancel_unpaid_after_check`, a public name for W2's step).
 - **Models / migration:** `app/db/models/whatsapp_booking.py` (event lists, `dedupe_key`), `booking.py` (`refund_amount_kobo`), `app/alembic/versions/0007_whatsapp_notifications.py`.
-- **Settings:** `WHATSAPP_CANCEL_FEE_PERCENT` (default 20), `WHATSAPP_CANCEL_FREE_HOURS` (existing, 12) is now the real policy line.
+- **Settings:** ~~`WHATSAPP_CANCEL_FEE_PERCENT`, `WHATSAPP_CANCEL_FREE_HOURS`~~ removed by the [SOP: drop-out and fee tiers](2026-10-07-dropout-redispatch-and-fee-tiers.md): the policy is a database row an admin edits.
 - **Tests / tooling:** `test_whatsapp_notifications.py`, `test_whatsapp_my_bookings.py`, `test_whatsapp_engine_my_bookings.py`, `whatsapp_notify_helpers.py`; `scripts/whatsapp_local_e2e.py` (`notification_scenarios`).
 
 ### The new templates (see the owner list below for what to submit)
@@ -106,7 +106,7 @@ The bodies differ from the PRD §14 drafts because Meta refuses a body that star
 - **Stop the messages without a deploy:** none per event. Clear `WHATSAPP_ACCESS_TOKEN` to stop all sends (events then retry up to 5 times and stop).
 
 ## Owner steps (nothing here has been done)
-**Templates to submit to Meta, all English, category Utility** (the five from W2 are in the [W2 SOP](2026-10-06-whatsapp-booking.md#owner-steps-nothing-here-has-been-done); this is the full list of twelve):
+**Templates to submit to Meta, all English, category Utility** (the five from W2 are in the [W2 SOP](2026-10-06-whatsapp-booking.md#owner-steps-nothing-here-has-been-done); this is the full list of fourteen, the last two added by the [SOP: drop-out and fee tiers](2026-10-07-dropout-redispatch-and-fee-tiers.md)):
 
 | # | Template | From | Notes |
 |---|---|---|---|
@@ -122,8 +122,10 @@ The bodies differ from the PRD §14 drafts because Meta refuses a body that star
 | 10 | `visit_completed_feedback` | W3 | Quick reply "Book again", payload `menu:book` |
 | 11 | `booking_update` | W3 | |
 | 12 | `refund_update` | W3 | |
+| 13 | `dropout_replacing` | drop-out work | Essential; no buttons |
+| 14 | `dropout_choice` | drop-out work | Essential; three quick replies with per-message payloads (`bk:wait|resched|refund:<id>`) |
 
-Decide the cancellation fee (default 20% of the service fee is a placeholder, PRD D4) and update the quote's "Free cancellation until 12 hours before the visit" line if you change the window.
+The cancellation fee tiers (defaults 20% and 50% of the service fee) are now edited by an admin (`PATCH /api/v1/admin/booking-policy`), not by an env setting; the quote's cancellation line follows the policy.
 
 ## What to check against real Meta
 - **`visit_code` category.** It carries a code. Meta may reclassify a Utility template containing a one-time-style code as Authentication (which has a fixed body and a Copy code button). If it is rejected or reclassified, switch the template to the Authentication category: only `templates.py` and the registry entry change, the wording in-window stays free text.
@@ -133,7 +135,7 @@ Decide the cancellation fee (default 20% of the service fee is a placeholder, PR
 
 ## Follow-ups
 - **Not built (W3 scope as scoped):** `visit_reminder_24h` / `visit_reminder_1h` (WA-FR-32/33), `matching_delayed` (WA-FR-29), `no_caregiver_found` with Full refund / Pick another time buttons (WA-FR-31). They need time-driven scans like W2's reminder; the outbox and template registry are ready for them.
-- **Re-dispatch after a caregiver drops out** (WA-FR-37 offers "automatic re-dispatch or refund"). Today it is refund. Needs a decision and a change to the mobile cancel contract.
+- ~~Re-dispatch after a caregiver drops out~~ **Done**, see the [SOP: drop-out and fee tiers](2026-10-07-dropout-redispatch-and-fee-tiers.md).
 - **Rating buttons** on `visit_completed_feedback` (1 to 5), visit notes link, caregiver photo header, rating in `caregiver_assigned`, ETA and tracking link in `caregiver_en_route`, View booking links: need ratings storage and the W4 web companion.
 - **Admin hooks:** cancel, reassign and force-assign are wired (A2). **A3's refund payout must call `NotificationService.refund_processed`** in the same transaction. Admin status correction to started/completed does not notify the booker yet. A2's cancel now emits no `payment_refund_pending` (that wording, "your payment arrived after the booking was cancelled", was wrong for an admin cancel).
 - App bookings: a caregiver cancelling still does **not** flag a refund (kept as before). Decide whether it should.

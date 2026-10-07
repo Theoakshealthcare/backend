@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "No field sent"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, send at least one policy field to change",
+          "input": {
+            "reason": "No field sent"
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Late window longer than the free one",
+      "cancel_late_hours": 12
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "The late-cancellation window (cancel_late_hours) must be shorter than the free-cancellation window (cancel_free_hours)"
+    }
+  }
+}

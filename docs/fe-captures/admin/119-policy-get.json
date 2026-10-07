@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "cancel_free_hours": 12,
+      "cancel_late_hours": 2,
+      "cancel_fee_percent": 20,
+      "cancel_late_fee_percent": 50,
+      "dropout_redispatch_min_lead_minutes": 120,
+      "dropout_decision_lead_minutes": 60,
+      "onmyway_compensation_window_minutes": 120,
+      "caregiver_late_fee_share_percent": 80,
+      "updated_at": "2026-10-07T10:58:36.331403",
+      "updated_by": null
+    }
+  },
+  "note": "Support holds bookings.read, which is what reading needs. The row is seeded by migration 0010."
+}

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Decision lead too long",
+      "dropout_decision_lead_minutes": 120
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "The decision lead (dropout_decision_lead_minutes) must be shorter than the re-dispatch minimum lead (dropout_redispatch_min_lead_minutes)"
+    }
+  }
+}
