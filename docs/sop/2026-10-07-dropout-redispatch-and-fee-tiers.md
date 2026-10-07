@@ -31,7 +31,7 @@ caregiver cancels (accepted or on the way), paid WhatsApp booking
  '- closer than that, or on the way -> reopened and re-offered the same way, and the choice at once       [awaiting_choice]
 choice (three stateless buttons, bk:wait|resched|refund:<booking id>)
    Keep waiting      -> [waiting]  dispatch carries on, NOT escalated to "unmatched" after 30 min; at the start time with nobody -> handed over
-   Pick another time -> [handed_over]  support ticket (talk_to_person), chat to a person, booking shows in the admin unmatched queue
+   Pick another time -> [handed_over]  open offers closed, support ticket (talk_to_person), chat to a person, booking shows in the admin unmatched queue
    Full refund       -> cancelled, refund_required, refund_amount_kobo = amount paid (no fee), [closed]
 unanswered choice, or waiting, at the start time -> handed over (ticket, chat to a person, booker told by booking_update)
 ```
@@ -59,7 +59,7 @@ Lock order is the existing one: conversation, then booking (the choice runs insi
 | paid, nobody assigned | `none` | full refund |
 | accepted, more than `cancel_free_hours` (12) before the start | `none` | full refund |
 | accepted, between `cancel_late_hours` (2) and `cancel_free_hours` | `standard` | fee = `cancel_fee_percent` (20) of the service fee |
-| accepted, within `cancel_late_hours` or past the start; or the caregiver is on the way | `late` | fee = `cancel_late_fee_percent` (50) of the service fee |
+| accepted, less than `cancel_late_hours` before the start (exactly 2 h is still `standard`) or past it; or the caregiver is on the way and tapped it within `onmyway_compensation_window_minutes` of the start | `late` | fee = `cancel_late_fee_percent` (50) of the service fee |
 | in progress | | refused, handed to a human (unchanged) |
 
 W3's fee-bound confirm button is unchanged (`bk:confirm:<id>:<fee_kobo>`, recomputed under the lock, re-asked if higher). The cancellation policy text and the quote's cancellation line follow the policy. `bookings.cancel_fee_tier` stores the tier so A3 can split the fee.
@@ -67,7 +67,9 @@ W3's fee-bound confirm button is unchanged (`bk:confirm:<id>:<fee_kobo>`, recomp
 **Snapshot.** When the quote is made, the cancellation tiers are copied into `quotes.payload.cancel_policy`; confirming the quote copies them onto `bookings.cancel_policy`. Cancellation and the policy text read the booking's copy, so an admin edit never changes terms a family agreed to and the terms shown always match the charge. Bookings with no copy (app bookings, admin-created, quotes older than this change) use the live policy. Drop-out timings and the on-my-way window are read live.
 
 ### `late_cancel_compensable`
-Decided under the booking lock at cancel time, late tier only (`NULL` otherwise): the tap was no earlier than `onmyway_compensation_window_minutes` (120) before the start, **and** the caregiver's latest location is newer than the tap and at least 300 m closer to the patient than when they tapped (`app/services/onmyway.py`, `MIN_PROGRESS_M`). The tap time and the distance at the tap are stored when the caregiver taps (`bookings.on_my_way_at`, `on_my_way_distance_m`), because only the latest ping is kept per caregiver. No location on file at the tap means no distance and so `false`.
+**On my way is only accepted from `onmyway_compensation_window_minutes` (120) before the start**: earlier, the caregiver gets `409` "You can mark yourself on the way from 2 hours before the visit" (app bookings too; the hours follow the policy). Otherwise a caregiver could tap days ahead and make the family pay 50%. As a second guard, EN_ROUTE makes the tier late only when `on_my_way_at` is within that window of the start; an en-route booking with an earlier or missing tap falls back to the clock tiers.
+
+Decided under the booking lock at cancel time, late tier only (`NULL` otherwise): the tap was no earlier than `onmyway_compensation_window_minutes` (120) before the start, **and** the caregiver's latest location is newer than the tap and at least 300 m closer to the patient than when they tapped (`app/services/onmyway.py`, `MIN_PROGRESS_M`). The tap time and the distance at the tap are stored when the caregiver taps (`bookings.on_my_way_at`, `on_my_way_distance_m`), because only the latest ping is kept per caregiver. No location on file at the tap, or one older than 5 minutes at the tap (`LOCATION_FRESH_MINUTES`), means no distance and so `false`. **Location pings are client-reported (the caregiver's phone says where it is), so the movement check is best-effort, not proof, until there is a location history table.**
 
 ### The policy (`booking_policies`, admin API)
 A separate single-row table (`id = 1` enforced) rather than columns on `booking_settings`: that table is a history of *price* rows used by the app and the quote, writable by `pricing.write` with no reason or audit; these are rules with their own permission and audit trail, and one current value.
@@ -83,7 +85,7 @@ A separate single-row table (`id = 1` enforced) rather than columns on `booking_
 | `onmyway_compensation_window_minutes` | 120 |
 | `caregiver_late_fee_share_percent` | 80 (stored now, used by A3) |
 
-Validated in the service **and** by database check constraints: percents 0 to 100, hours and minutes at least 0, `cancel_late_hours < cancel_free_hours`, `dropout_decision_lead_minutes < dropout_redispatch_min_lead_minutes`. `GET` needs `bookings.read`; `PATCH` needs `settings.write` (Operations and Super Admin), a non-blank `reason`, at least one field, and writes an `admin_audit_log` row (`booking_policy.update`, old and new values, reason). Errors are `{"detail": ...}` like the other admin routes.
+Validated in the service **and** by database check constraints: percents 0 to 100, hours 0 to 168, minutes 0 to 10080 (anything larger is a `422`, never a database error), `cancel_late_fee_percent` not lower than `cancel_fee_percent`, `cancel_late_hours < cancel_free_hours`, `dropout_decision_lead_minutes < dropout_redispatch_min_lead_minutes`. `GET` needs `bookings.read`; `PATCH` needs `settings.write` (Operations and Super Admin), a non-blank `reason`, at least one field, and writes an `admin_audit_log` row (`booking_policy.update`, old and new values, reason). Errors are `{"detail": ...}` like the other admin routes.
 
 ## What's involved
 - **Migration** `app/alembic/versions/0010_dropout_fee_tiers.py`: `booking_policies` (seeded), six `bookings` columns, `caregiver_dropouts`, three `booking_events` events, a partial index for the worker scan.
@@ -106,13 +108,20 @@ A handed-over booking reuses `booking_update` (the sentence "We couldn't find a 
 ## Verification
 | Check | Result |
 |---|---|
-| Full pytest with CI's env values, on the tree rebased onto `main` at `8226ea1` (PR #29) | **1900 passed** |
+| Full pytest with CI's env values, on the tree rebased onto `main` at `8226ea1` (PR #29) | **1926 passed** on the final tree (one unrelated rate-limit-window test, `test_admin_auth_review.py::test_spoofed_xff...`, failed once in the full run and passed 3 of 3 alone) |
 | CI steps: `poetry check --lock`, `ruff --select E9,F63,F7,F82`, `scripts.ci_smoke`, both `render_fe_guide --check` | all clean |
 | Migration: single head `0010`, upgrade from 0009 with seed row, DB check constraints refuse bad values and a second policy row, downgrade then upgrade again (`test_dropout_migration.py`), plus the whole-history round trip (`test_migrations.py`) | pass |
-| Docker end to end `python -m scripts.whatsapp_local_e2e --up --down` (compose project `oakly-dropout`, fake Meta and Paystack) | **292 checks passed** on the tree before the rebase onto #29. **Not re-run on the rebased tree**: the local Docker ports were held by another session's stack (`oakly-sim`) and were not freed. Re-run it before merging |
+| Docker end to end `python -m scripts.whatsapp_local_e2e --up --down` (compose project `oakly-dropout`, fake Meta and Paystack) | **293 checks passed** on the final rebased tree (after the review fixes; `docker compose` project `oakly-dropout`) |
 | Live admin captures for the policy routes (`capture_admin_flow --section policy`, captures 119 to 131), rendered into `docs/fe-integration-guide-admin.md` section 12.9 | done |
 
 **Mutation checks** (one guard removed at a time, the policy, cancellation, drop-out and My bookings tests run, each must fail): en-route-is-late, the 2 h line, the 12 h line, late percent, snapshot ignored, `late_cancel_compensable` always true, window ignored, ping-after-tap ignored, distance ignored, fee-bound confirm removed, the booking lock in `choose`, booker check, stale-state check, refund amount, dropped caregiver excluded from waves, accept guard, `en_route` ignored, hand-over at the start, policy validation, audit action name, and the no-30-minute-escalation for `redispatching`. Three survived at first (booker check, stale check, exclusion) and each got a test that now kills it: the exclusion test's dropping caregiver had no location so was never a candidate, and `dropout.choose` was only exercised through the chat's own checks. On the base (`1daa634`) the new and updated tests fail: 6 modules cannot import and 19 tests fail.
+
+**Found and fixed after the money review**
+- On my way is refused earlier than the compensation window, and EN_ROUTE only forces the late tier for a tap inside it (a caregiver tapping a day early used to cost the family 50%).
+- The distance at the tap uses the caregiver's last fix only if it is at most 5 minutes old.
+- The late tier starts at *less than* 2 h (exactly 2 h is the 20% tier).
+- "Pick another time" and the hand-over at the start time close the open offers, as the refund does.
+- Policy upper bounds (hours 168, minutes 10080) and late fee >= fee, in the service and the database; an oversized integer is a `422`. The existing policy captures are unchanged (their messages did not change); the new rules are covered by tests, not recaptured.
 
 **Found and fixed while verifying**
 - Re-dispatch stopped after 30 minutes (the usual escalation) although the plan is to keep looking until the decision lead. Now `redispatching` is exempt like `waiting`.
@@ -120,15 +129,15 @@ A handed-over booking reuses `booking_update` (the sentence "We couldn't find a 
 - After the rebase onto PR #29 (patient address columns can now be null for an erased patient) the movement check treats a missing address as "not compensable" instead of failing.
 - e2e: the final stuck-event check ran before the worker delivered the last events (it now waits up to 60 s and prints the rows), and the "visit code not in the log" check matched four digits inside UUIDs by chance (it now looks for the code as a standalone token; this was a pre-existing flake in the W3 check).
 
-**Not verified.** Nothing was run against real Meta or real Paystack. The two new templates were not submitted. One e2e run in six timed out waiting for the choice message in the "3 hours to go" scenario before the cron-offset fix above; it was not reproduced afterwards (it is consistent with the same-second lock collision).
+**Not verified.** Nothing was run against real Meta or real Paystack. The two new templates were not submitted. One e2e run in seven timed out waiting for the choice message in the "3 hours to go" scenario before the cron-offset fix above; it was not reproduced afterwards (it is consistent with the same-second lock collision).
 
 
 ## Operate / roll back
 - **Change the policy:** `PATCH /api/v1/admin/booking-policy` with a reason (Operations or Super Admin). Takes effect for bookings quoted afterwards (cancellation tiers) and immediately for drop-out timings. Read it: `SELECT * FROM booking_policies;`.
 - **See drop-outs:** `SELECT caregiver_id, count(*) FROM caregiver_dropouts GROUP BY 1 ORDER BY 2 DESC;` and `SELECT booking_code, dropout_state FROM bookings WHERE dropout_state IS NOT NULL;`.
 - **Stuck choice:** a booking in `awaiting_choice` is handed to a person at the start time by the worker. An operator can also assign or cancel it from the unmatched queue (A2); assign clears the state.
-- **Roll back:** `alembic downgrade -1` drops the table, the columns and the three events. Deploy migration, API and worker together; remove `WHATSAPP_CANCEL_*` from any env file (the old code would still read them, the new Settings rejects them).
-- **Mobile contract:** the caregiver `cancel` response for a WhatsApp booking dropped before the visit now has `status: pending` (the booking was reopened). Tell the caregiver app team.
+- **Roll back:** `alembic downgrade -1` drops the table, the columns and the three events. **It destroys data**: the whole drop-out record (`caregiver_dropouts`), every booking's stored cancellation snapshot, tier, compensable flag, on-my-way time and distance and drop-out state, the edited policy values (back to env-less code that has none), and the three notification events (pending ones are deleted). Take a database backup first if anything has been recorded since the deploy. Deploy migration, API and worker together; remove `WHATSAPP_CANCEL_*` from any env file (the old code would still read them, the new Settings rejects them).
+- **Mobile contract:** the caregiver `cancel` response for a WhatsApp booking dropped before the visit now has `status: pending` (the booking was reopened). Tell the caregiver app team. Also new for the caregiver app: `on_my_way` returns `409` "You can mark yourself on the way from 2 hours before the visit" earlier than the policy window, for app bookings too (hide the button until then).
 
 ## Follow-ups
 - **A3:** pay the caregiver from `late_cancel_compensable`, `cancel_fee_tier` and `caregiver_late_fee_share_percent`; call `NotificationService.refund_processed` on payout.

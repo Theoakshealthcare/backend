@@ -691,6 +691,11 @@ def notification_scenarios(run: Run) -> None:
     visit_code = found.group(1)
     run.check("the caregiver cannot start with a wrong code",
               caregiver_act(run, caregiver, str(a[0]), "start", visit_code="0000" if visit_code != "0000" else "1111").status_code == 400)
+    too_early = caregiver_act(run, caregiver, str(a[0]), "on_my_way")  # the visit is a day away
+    run.check("on my way a day early is refused with a message the app can show",
+              too_early.status_code == 409 and "from 2 hours before the visit" in too_early.text, too_early.text)
+    sql_exec(f"UPDATE bookings SET scheduled_date = now() + interval '1 hour', "
+             f"scheduled_end_date = now() + interval '5 hours' WHERE id = '{a[0]}'")
     on_way = chat_step(run, lambda: caregiver_act(run, caregiver, str(a[0]), "on_my_way"))
     run.check("on my way reaches the booker", to_naira_text(on_way[0]) == f"Booking {a[1]}: Ngozi is on the way to you now.", to_naira_text(on_way[0]))
     started = chat_step(run, lambda: caregiver_act(run, caregiver, str(a[0]), "start", visit_code=visit_code))

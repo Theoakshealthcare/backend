@@ -1353,6 +1353,7 @@ Other `409`/`403` strings the action endpoint can return (all `{"detail": "<stri
 | 403 | `You were not offered this booking` | accept or decline a booking you were never offered | not captured live; unit tests only |
 | 403 | `This booking is not assigned to you` | start, complete, cancel, on_my_way by someone else | `092` |
 | 409 | `Only an accepted booking can be marked on the way` | on_my_way from any other state | `094` |
+| 409 | `You can mark yourself on the way from 2 hours before the visit` | on_my_way earlier than the booking policy's `onmyway_compensation_window_minutes` before the start (the hours shown follow the policy: `45 minutes`, `3 hours`, ...). **[not live]**: copied from `test_visit_lifecycle.py`, not from a capture; it applies to app and WhatsApp bookings alike | none yet |
 | 409 | `Only an accepted booking can be started` | start from any state but accepted/en_route | `107` |
 | 409 | `Only a booking in progress can be completed` | complete from any other state | `098`, `110` |
 | 409 | `This booking can no longer be cancelled` | cancel from pending, completed, cancelled | `111` |
@@ -1499,6 +1500,7 @@ Response `200`:
 _capture `093-a-on-my-way.json`_
 
 - Again: `409` `{"detail": "Only an accepted booking can be marked on the way"}` _(capture `094-a-on-my-way-again.json`)_
+- **Too early (UX consequence):** `on_my_way` is refused with `409` until the booking policy's `onmyway_compensation_window_minutes` (120 by default) before the start, with `{"detail": "You can mark yourself on the way from 2 hours before the visit"}`. **[not live]** (shape from `test_visit_lifecycle.py`). Do not show the on-my-way button earlier than that; if it is tapped anyway, show the `detail` as is. It applies to app bookings and WhatsApp bookings alike. Reason: once a caregiver is on the way a family that cancels pays the late fee, so it must not be possible to set that off days ahead.
 - Complete before start: `409` `{"detail": "Only a booking in progress can be completed"}` _(capture `098-a-complete-before-start.json`)_
 
 **Start, Complete, Cancel**: see section 8 for start. Complete and cancel return the same raw-dict shape (`109-a-complete.json`, `114-a-cancel-b4.json`):
@@ -2053,6 +2055,7 @@ _capture `130-a-wallet-transactions.json`_
 | 409 | `Share your location before going available` | availability |
 | 409 | `Booking is no longer available` | accept |
 | 409 | `Only an accepted booking can be marked on the way` | on_my_way |
+| 409 | `You can mark yourself on the way from 2 hours before the visit` | on_my_way too early **[not live]** (see the table in section 7) |
 | 409 | `Only an accepted booking can be started` | start |
 | 409 | `Only a booking in progress can be completed` | complete |
 | 409 | `This booking can no longer be cancelled` | cancel |
@@ -2136,6 +2139,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Accept on an unpaid booking, accept without being offered | No | Automated tests only |
 | Decline | Yes | `a-decline-b3` |
 | On my way and its 409 | Yes | `a-on-my-way`, `a-on-my-way-again` |
+| On my way refused earlier than the policy window (`409`, message above) | **[not live]** | `test_visit_lifecycle.py::test_on_my_way_a_day_early_is_refused...`; `scripts/whatsapp_local_e2e.py` checks it against the Docker stack; not in the capture script (it would renumber every later capture), add it at the next recapture |
 | Start: missing, malformed, wrong x3 -> `423`, right while locked, success, repeat | Yes | `a-start-*` |
 | Lock expiry after 15 minutes | **Simulated** | DB edit, `db-simulated-15-minute-wait` |
 | Start on a legacy booking with no code | No | Automated test only |
