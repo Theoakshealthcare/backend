@@ -426,6 +426,11 @@ def pricing_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
     rec.call("pricing-delete", "DELETE", f"{P}{first['id']}", token=boss, expect=409)
     rec.call("audit-pricing", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "booking_settings", "limit": 2},
              note="One entry per write, newest first; before and after hold the whole version in naira.")
+    rec.call("pricing-create-when-one-exists", "POST", P, token=boss, expect=409,
+             json_body={**body, "reason": "Edited from a stale screen"},
+             note="POST only creates the first version. Afterwards use PUT on the latest.")
+    rec.call("pricing-create-string-number", "POST", P, token=boss, expect=422, json_body={**body, "base_fee": "5000"},
+             note="Numbers must be JSON numbers, not strings.")
 
 
 def run(args) -> None:

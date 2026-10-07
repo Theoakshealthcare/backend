@@ -1,6 +1,6 @@
 """Pricing settings. Reads need an admin with ``bookings.read``; writes need ``pricing.write`` and a reason.
 
-Settings are versioned: POST and PUT both publish a new row and write an ``admin_audit_log`` row; old rows (the ones
+Settings are versioned: POST (the first version only) and PUT both publish a new row and write an ``admin_audit_log`` row; old rows (the ones
 quotes and bookings were priced with) are never edited or removed. The app and the WhatsApp flow read pricing straight
 from the database, not through these routes.
 """
@@ -25,7 +25,7 @@ def get_booking_settings(
     db: Session = Depends(get_db),
     _admin: AdminUser = Depends(require_permission("bookings.read")),
 ):
-    return db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).all()
+    return db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).all()
 
 
 @router.get("/latest", response_model=BookingSettingsResponse)
@@ -45,8 +45,14 @@ def create_booking_settings(
     db: Session = Depends(get_db),
     admin: AdminUser = Depends(require_permission("pricing.write")),
 ):
-    """Publish a new pricing version; it applies to quotes made from now on."""
-    return service.publish(db, admin_id=admin.id, body=settings_in, request=request)
+    """Create the very first pricing version. Once one exists this is a 409: edit the latest with PUT."""
+    try:
+        return service.publish(db, admin_id=admin.id, body=settings_in, request=request)
+    except service.SettingsExist as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Pricing already exists; use PUT on the latest version ({exc.latest_id})")
 
 
 @router.put("/{settings_id}", response_model=BookingSettingsResponse)

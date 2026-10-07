@@ -76,12 +76,42 @@ def test_put_unknown_id_is_404(client, hdr):
     assert client.put(f"{URL}{uuid.uuid4()}", headers=hdr, json=_body()).status_code == 404
 
 
-def test_post_publishes_a_new_latest_version(db, client, hdr):
-    make_prices(db)
+def test_post_creates_only_the_first_version(db, client, hdr):
     r = client.post(URL, headers=hdr, json=_body(base_fee=6000))
     assert r.status_code == 200, r.text
-    assert len(_rows(db)) == 2
     assert client.get(f"{URL}latest", headers=hdr).json()["id"] == r.json()["id"]
+    again = client.post(URL, headers=hdr, json=_body(base_fee=9000))
+    assert again.status_code == 409 and "PUT" in again.json()["detail"]
+    assert len(_rows(db)) == 1
+
+
+def test_post_refused_when_any_version_exists(db, client, hdr):
+    make_prices(db)
+    assert client.post(URL, headers=hdr, json=_body()).status_code == 409
+    assert len(_rows(db)) == 1 and db.query(AdminAuditLog).count() == 0
+
+
+def test_a_slow_clock_cannot_publish_an_older_latest(db, client, hdr, monkeypatch):
+    from datetime import datetime, timedelta
+
+    future = datetime.utcnow() + timedelta(hours=1)
+    old = make_prices(db, created_at=future, updated_at=future)
+    r = client.put(f"{URL}{old.id}", headers=hdr, json=_body(base_fee=7000))
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    from app.services.booking_settings import latest
+    assert str(latest(db).id) == r.json()["id"]
+    assert latest(db).created_at > future
+
+
+def test_readers_break_created_at_ties_by_id(db):
+    from datetime import datetime
+
+    from app.services.booking_settings import latest
+
+    t = datetime.utcnow()
+    rows = [make_prices(db, created_at=t, updated_at=t) for _ in range(3)]
+    assert latest(db).id == max(r.id for r in rows)
 
 
 def test_delete_is_refused_and_removes_nothing(db, client, hdr):
@@ -106,6 +136,20 @@ def test_concurrent_puts_on_the_same_version_publish_exactly_one(db, client, adm
     [t.join() for t in threads]
     assert sorted(results) == [200, 409]
     assert len(_rows(db)) == 2
+
+
+def test_concurrent_first_posts_publish_exactly_one(db, client, admin):
+    hdr = auth_headers(admin)
+    results = []
+
+    def post(fee):
+        results.append(client.post(URL, headers=hdr, json=_body(base_fee=fee)).status_code)
+
+    threads = [threading.Thread(target=post, args=(f,)) for f in (6000, 8000)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert sorted(results) == [200, 409]
+    assert len(_rows(db)) == 1
 
 
 # --- reason and audit ---------------------------------------------------------------------------
@@ -146,19 +190,29 @@ def test_post_writes_an_audit_row(db, client, hdr):
 # --- validation ---------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("over", [
-    {"base_fee": 0}, {"base_fee": -1}, {"base_fee": 1_000_001}, {"base_fee": "NaN"}, {"base_fee": None},
+    {"base_fee": 0}, {"base_fee": 0.001}, {"base_fee": 0.005}, {"base_fee": 5000.123}, {"base_fee": -1}, {"base_fee": 1_000_001}, {"base_fee": "NaN"}, {"base_fee": None},
     {"platform_fee_percent": -0.1}, {"platform_fee_percent": 100.1}, {"platform_fee_percent": 150},
     {"discount": -1}, {"discount": 101},
     {"surge_multiplier": 0.9}, {"surge_multiplier": 5.1}, {"surge_multiplier": None},
     {"multipliers": {"nurse": 0}}, {"multipliers": {"nurse": -1}}, {"multipliers": {"nurse": 10.5}},
     {"multipliers": {"nurse": 150}}, {"multipliers": {"wizard": 1.0}}, {"multipliers": {"nurse": "x"}},
-    {"surge_pricing": "maybe"}, {"unexpected": 1}, {"reason": "x" * 2001},
+    {"surge_pricing": "maybe"}, {"base_fee": "5000"}, {"base_fee": True}, {"platform_fee_percent": "10"},
+    {"discount": "0"}, {"surge_multiplier": "1"}, {"surge_pricing": "true"}, {"surge_pricing": 1},
+    {"multipliers": {"nurse": "1"}}, {"multipliers": {"nurse": True}}, {"unexpected": 1}, {"reason": "x" * 2001},
 ])
 def test_invalid_values_are_rejected_and_nothing_is_written(db, client, hdr, over):
     make_prices(db)
     r = client.post(URL, headers=hdr, json=_body(**over))
-    assert r.status_code == 422, r.text
+    assert r.status_code == 422, r.text  # validation runs before the "a version exists" check
     assert len(_rows(db)) == 1 and db.query(AdminAuditLog).count() == 0
+
+
+def test_whole_and_two_decimal_fees_are_accepted(db, client, hdr):
+    for fee in (0.01, 5000, 2500.5, 1234.57):
+        row = make_prices(db)
+        r = client.put(f"{URL}{row.id}", headers=hdr, json=_body(base_fee=fee))
+        assert r.status_code == 200, (fee, r.text)
+        assert r.json()["base_fee"] == fee
 
 
 def test_boundary_values_are_accepted(db, client, hdr):

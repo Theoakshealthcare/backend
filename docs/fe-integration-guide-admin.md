@@ -1882,7 +1882,7 @@ The price list the app and the WhatsApp flow quote from: base fee per hour, plat
 |---|---|---|
 | `GET /booking-settings/latest` | `bookings.read` | the live version |
 | `GET /booking-settings/` | `bookings.read` | every version, newest first (the history) |
-| `POST /booking-settings/` | `pricing.write` | publish a new version |
+| `POST /booking-settings/` | `pricing.write` | create the **first** version only; `409` once any version exists |
 | `PUT /booking-settings/{id}` | `pricing.write` | publish a new version that replaces `{id}`; `{id}` must still be the latest |
 | `DELETE /booking-settings/{id}` | `pricing.write` | always refused (`409`); to go back, publish the old values again |
 
@@ -1890,11 +1890,11 @@ Both reads were open to anyone before; they now need an admin token (`401` witho
 
 ### 13.1 Request body (POST and PUT)
 
-All fields are sent every time (a full version, not a patch). Unknown fields are refused.
+All fields are sent every time (a full version, not a patch). Unknown fields are refused. Numbers must be JSON numbers (`5000`, `5000.5`), never strings, and `surge_pricing` must be `true` or `false`, not `1` or `"true"` (`422`).
 
 | Field | Rule |
 |---|---|
-| `base_fee` | naira per hour; above 0 and at most 1,000,000 |
+| `base_fee` | naira per hour; at least 0.01, at most 1,000,000, at most 2 decimal places |
 | `platform_fee_percent` | 0 to 100 |
 | `multipliers` | optional object; keys must be `nurse`, `doctor`, `physiotherapist`, `caregiver` or `nutritionist`; each above 0 and at most 10 |
 | `surge_pricing` | boolean, default `false` |
@@ -1904,7 +1904,7 @@ All fields are sent every time (a full version, not a patch). Unknown fields are
 
 ### 13.2 Publish a version
 
-`POST` and `PUT` return the new row (same shape as the reads). `reason` is not echoed back.
+`POST` (first version only) and `PUT` return the new row (same shape as the reads). `reason` is not echoed back.
 
 <!-- capture: 142-pricing-create.json request.body -->
 ```json
@@ -1934,9 +1934,9 @@ All fields are sent every time (a full version, not a patch). Unknown fields are
   "surge_pricing": false,
   "surge_multiplier": 1.0,
   "discount": 0.0,
-  "id": "1e19d47f-6089-4d9b-9408-e524c8341da9",
-  "created_at": "2026-10-07T14:13:03.912400",
-  "updated_at": "2026-10-07T14:13:03.912400"
+  "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+  "created_at": "2026-10-07T14:36:03.911993",
+  "updated_at": "2026-10-07T14:36:03.911993"
 }
 ```
 
@@ -1954,9 +1954,9 @@ All fields are sent every time (a full version, not a patch). Unknown fields are
   "surge_pricing": true,
   "surge_multiplier": 1.5,
   "discount": 0.0,
-  "id": "1db3d7e3-c7ad-4a7b-964b-e2775c061390",
-  "created_at": "2026-10-07T14:13:03.923383",
-  "updated_at": "2026-10-07T14:13:03.923383"
+  "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+  "created_at": "2026-10-07T14:36:03.921849",
+  "updated_at": "2026-10-07T14:36:03.921849"
 }
 ```
 
@@ -1975,9 +1975,9 @@ The history keeps both. Version 1 still has its original values:
     "surge_pricing": true,
     "surge_multiplier": 1.5,
     "discount": 0.0,
-    "id": "1db3d7e3-c7ad-4a7b-964b-e2775c061390",
-    "created_at": "2026-10-07T14:13:03.923383",
-    "updated_at": "2026-10-07T14:13:03.923383"
+    "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+    "created_at": "2026-10-07T14:36:03.921849",
+    "updated_at": "2026-10-07T14:36:03.921849"
   },
   {
     "base_fee": 5000.0,
@@ -1989,9 +1989,9 @@ The history keeps both. Version 1 still has its original values:
     "surge_pricing": false,
     "surge_multiplier": 1.0,
     "discount": 0.0,
-    "id": "1e19d47f-6089-4d9b-9408-e524c8341da9",
-    "created_at": "2026-10-07T14:13:03.912400",
-    "updated_at": "2026-10-07T14:13:03.912400"
+    "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+    "created_at": "2026-10-07T14:36:03.911993",
+    "updated_at": "2026-10-07T14:36:03.911993"
   }
 ]
 ```
@@ -2036,15 +2036,15 @@ A negative `base_fee` (`422`):
 {
   "detail": [
     {
-      "type": "greater_than",
+      "type": "greater_than_equal",
       "loc": [
         "body",
         "base_fee"
       ],
-      "msg": "Input should be greater than 0",
+      "msg": "Input should be greater than or equal to 0.01",
       "input": -1,
       "ctx": {
-        "gt": 0.0
+        "ge": 0.01
       }
     }
   ]
@@ -2088,7 +2088,7 @@ An unexpected field (`422`):
         "id"
       ],
       "msg": "Extra inputs are not permitted",
-      "input": "9d76032d-dea8-4f25-9a47-20c8964b4dcb"
+      "input": "3aef457e-34cd-4a24-bcb3-f91aa3d2f155"
     }
   ]
 }
@@ -2099,7 +2099,35 @@ Editing a version that is no longer the latest (`409`, `detail` is a string and 
 <!-- capture: 144-pricing-update-superseded.json response.body -->
 ```json
 {
-  "detail": "A newer pricing version exists (1db3d7e3-c7ad-4a7b-964b-e2775c061390); reload it and edit that one"
+  "detail": "A newer pricing version exists (baf282ad-31ae-466c-96cb-d4249b1bfa2d); reload it and edit that one"
+}
+```
+
+`POST` when a version already exists (`409`; use `PUT` on the latest):
+
+<!-- capture: 150-pricing-create-when-one-exists.json response.body -->
+```json
+{
+  "detail": "Pricing already exists; use PUT on the latest version (baf282ad-31ae-466c-96cb-d4249b1bfa2d)"
+}
+```
+
+A number sent as a string (`422`):
+
+<!-- capture: 151-pricing-create-string-number.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "float_type",
+      "loc": [
+        "body",
+        "base_fee"
+      ],
+      "msg": "Input should be a valid number",
+      "input": "5000"
+    }
+  ]
 }
 ```
 
@@ -2135,6 +2163,7 @@ Unknown id on `PUT` (`404`), no version yet on `GET /latest` (`404`), `DELETE` (
 
 ### 13.4 What the console must do
 
+- **Use `POST` only when there is no version yet** (`GET /latest` is `404`). Otherwise edit with `PUT` on the latest `id`.
 - **After a save, switch to the `id` in the response.** Keep it as the id to send on the next `PUT`. A `PUT` with the old id is a `409`.
 - **On `409` from `PUT`, reload `GET /latest` and show the newer values** to the admin before they save again. Someone else published first; do not retry blindly.
 - **Ask for a reason before every save.** It is mandatory and is what the audit log shows.
@@ -2150,14 +2179,14 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 ```json
 [
   {
-    "id": "74b84ba1-3f2b-4dff-8fe0-15160608f570",
-    "admin_user_id": "c1df2ac6-f4df-434b-a3ef-815d307073a2",
-    "admin_email": "boss-8ff147pr@example.com",
+    "id": "3bd68988-f729-4c0b-8562-842d44c7e231",
+    "admin_user_id": "6835e24f-0dda-4165-8006-7543f36ee758",
+    "admin_email": "boss-2bdaccpr@example.com",
     "action": "booking_settings.update",
     "entity_type": "booking_settings",
-    "entity_id": "1db3d7e3-c7ad-4a7b-964b-e2775c061390",
+    "entity_id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
     "before": {
-      "id": "1e19d47f-6089-4d9b-9408-e524c8341da9",
+      "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
       "base_fee": 5000.0,
       "platform_fee_percent": 10.0,
       "multipliers": {
@@ -2169,7 +2198,7 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
       "discount": 0.0
     },
     "after": {
-      "id": "1db3d7e3-c7ad-4a7b-964b-e2775c061390",
+      "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
       "base_fee": 6500.0,
       "platform_fee_percent": 10.0,
       "multipliers": {
@@ -2183,7 +2212,7 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
     "reason": "Fuel costs went up",
     "ip": "172.18.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-07T14:13:03.923953"
+    "created_at": "2026-10-07T14:36:03.922388"
   }
 ]
 ```
@@ -2269,6 +2298,8 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | Pricing: publish with `POST`, `PUT` creates a new row, history keeps the old one | Verified live | 142, 143, 146, 147 |
 | Pricing: validation errors (reason, negative fee, percent, unknown service, multiplier cap, unknown field), stale `PUT` `409`, unknown id `404`, `DELETE` `409`, `403` as Support | Verified live | 135 to 141, 144, 145, 148 |
 | Pricing: audit entry with before/after | Verified live | 149 |
+| Pricing: `POST` when a version exists `409`; a string number `422` | Verified live | 150, 151 |
+| Pricing: fee decimals (0.001, 5000.123 refused), strict types (bool, `1`, strings), clock-skew ordering, two simultaneous first `POST`s | Test only | `test_booking_settings_pricing.py` |
 | Pricing: two simultaneous `PUT`s on one version (exactly one wins) | Test only | `test_booking_settings_pricing.py` (real threads) |
 | Pricing: boundary values, every rejected value, quotes and bookings keep the version they were priced with | Test only | `test_booking_settings_pricing.py` |
 | Pricing: every `/booking-settings` route against every role | Test only | `test_admin_rbac.py` |

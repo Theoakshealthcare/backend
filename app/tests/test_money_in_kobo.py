@@ -127,7 +127,8 @@ def test_booking_settings_api_keeps_naira_base_fee(db, client, fractional_pricin
     r = client.get("/api/v1/booking-settings/latest", headers=auth_headers(admin))
     assert r.status_code == 200
     assert r.json()["base_fee"] == 1234.57
-    r = client.post("/api/v1/booking-settings/", headers=auth_headers(admin), json={
+    current_id = r.json()["id"]
+    r = client.put(f"/api/v1/booking-settings/{current_id}", headers=auth_headers(admin), json={
         "base_fee": 2500.5, "platform_fee_percent": 10.0, "reason": "kobo round-trip test"})
     assert r.status_code == 200, r.text
     assert r.json()["base_fee"] == 2500.5

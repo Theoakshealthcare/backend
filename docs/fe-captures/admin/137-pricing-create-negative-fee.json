@@ -24,15 +24,15 @@
     "body": {
       "detail": [
         {
-          "type": "greater_than",
+          "type": "greater_than_equal",
           "loc": [
             "body",
             "base_fee"
           ],
-          "msg": "Input should be greater than 0",
+          "msg": "Input should be greater than or equal to 0.01",
           "input": -1,
           "ctx": {
-            "gt": 0.0
+            "ge": 0.01
           }
         }
       ]

@@ -189,7 +189,7 @@ class FlowService:
         return list(rules.SERVICE_ORDER) if row is not None else []
 
     def _settings(self) -> Optional[BookingSettings]:
-        return self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+        return self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
 
     def _render_service(self, quote: Quote, notice: str = "") -> FlowResult:
         row = self._settings()

@@ -746,6 +746,16 @@
       "file": "149-audit-pricing.json",
       "label": "audit-pricing",
       "status": 200
+    },
+    {
+      "file": "150-pricing-create-when-one-exists.json",
+      "label": "pricing-create-when-one-exists",
+      "status": 409
+    },
+    {
+      "file": "151-pricing-create-string-number.json",
+      "label": "pricing-create-string-number",
+      "status": 422
     }
   ],
   "sections": {

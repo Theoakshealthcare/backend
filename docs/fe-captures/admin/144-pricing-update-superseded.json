@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PUT",
-    "path": "/api/v1/booking-settings/1e19d47f-6089-4d9b-9408-e524c8341da9",
+    "path": "/api/v1/booking-settings/fb732890-c4f5-4462-ac17-9e24dc5db0e1",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "base_fee": 9000,
@@ -22,7 +22,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "detail": "A newer pricing version exists (1db3d7e3-c7ad-4a7b-964b-e2775c061390); reload it and edit that one"
+      "detail": "A newer pricing version exists (baf282ad-31ae-466c-96cb-d4249b1bfa2d); reload it and edit that one"
     }
   }
 }

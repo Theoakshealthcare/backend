@@ -339,7 +339,7 @@ def _breakdown(price: PriceBreakdown) -> Dict[str, int]:
 
 def _price(ctx: Ctx, quote: Quote) -> Result:
     payload = dict(quote.payload or {})
-    row = ctx.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+    row = ctx.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
     try:
         if row is None:
             raise ValueError("booking settings not configured")

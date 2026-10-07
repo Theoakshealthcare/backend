@@ -5,7 +5,7 @@ re-price history. Pricing reads the newest row (``created_at`` desc), which is w
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -26,6 +26,14 @@ class SettingsNotFound(Exception):
     pass
 
 
+class SettingsExist(Exception):
+    """POST is only for the very first version; after that, edit the latest with PUT."""
+
+    def __init__(self, latest_id: UUID):
+        super().__init__(str(latest_id))
+        self.latest_id = latest_id
+
+
 class SettingsSuperseded(Exception):
     """The version being edited is no longer the latest: someone published a newer one."""
 
@@ -35,7 +43,7 @@ class SettingsSuperseded(Exception):
 
 
 def latest(db: Session) -> Optional[BookingSettings]:
-    return db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+    return db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
 
 
 def snapshot(row: Optional[BookingSettings]) -> Optional[Dict[str, Any]]:
@@ -53,10 +61,12 @@ def publish(db: Session, *, admin_id: UUID, body: BookingSettingsWrite, supersed
     """Insert a new version and its audit row in one transaction. Commits.
 
     ``supersedes`` (PUT) must be the current latest version, otherwise ``SettingsSuperseded``: a stale form must not
-    quietly overwrite a newer price. Writers are serialised so "latest" cannot fork.
+    quietly overwrite a newer price. Without it (POST) there must be no version yet, else ``SettingsExist``. Writers are serialised so "latest" cannot fork.
     """
     db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _WRITE_LOCK_KEY})
     current = latest(db)
+    if supersedes is None and current is not None:
+        raise SettingsExist(current.id)
     if supersedes is not None:
         target = db.get(BookingSettings, supersedes)
         if target is None:
@@ -66,6 +76,8 @@ def publish(db: Session, *, admin_id: UUID, body: BookingSettingsWrite, supersed
 
     before = snapshot(current)
     now = datetime.utcnow()
+    if current is not None and current.created_at is not None and now <= current.created_at:
+        now = current.created_at + timedelta(microseconds=1)  # a slow clock must not publish an older "latest"
     row = BookingSettings(
         base_fee_kobo=None, platform_fee_percent=body.platform_fee_percent, multipliers=body.multipliers,
         surge_pricing=body.surge_pricing, surge_multiplier=body.surge_multiplier, discount=body.discount,

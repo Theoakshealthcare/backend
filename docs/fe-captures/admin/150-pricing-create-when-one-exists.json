@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking-settings/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "base_fee": 5000,
+      "platform_fee_percent": 10,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": false,
+      "surge_multiplier": 1.0,
+      "discount": 0,
+      "reason": "Edited from a stale screen"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Pricing already exists; use PUT on the latest version (baf282ad-31ae-466c-96cb-d4249b1bfa2d)"
+    }
+  },
+  "note": "POST only creates the first version. Afterwards use PUT on the latest."
+}

@@ -4,10 +4,11 @@ Every write publishes a new version, so the write model is strict: typed, bounde
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, field_validator
 
 from app.db.models.caregiver import SERVICE_TYPES
 from app.services.pricing import MAX_MULTIPLIER
@@ -21,14 +22,21 @@ class BookingSettingsWrite(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    base_fee: float = Field(..., gt=0, le=MAX_BASE_FEE, allow_inf_nan=False, description="Base fee per hour, in naira")
-    platform_fee_percent: float = Field(..., ge=0, le=100, allow_inf_nan=False, description="Platform fee in percent")
-    multipliers: Optional[Dict[str, float]] = Field(
+    base_fee: float = Field(..., strict=True, ge=0.01, le=MAX_BASE_FEE, allow_inf_nan=False, description="Base fee per hour, in naira")
+    platform_fee_percent: float = Field(..., strict=True, ge=0, le=100, allow_inf_nan=False, description="Platform fee in percent")
+    multipliers: Optional[Dict[str, StrictFloat]] = Field(
         None, description=f"Service type multipliers; keys: {', '.join(SERVICE_TYPES)}; each above 0 and at most {MAX_MULTIPLIER:g}")
-    surge_pricing: bool = Field(False, description="Is surge pricing active?")
-    surge_multiplier: float = Field(1.0, ge=1, le=MAX_SURGE_MULTIPLIER, allow_inf_nan=False, description="Surge multiplier")
-    discount: float = Field(0.0, ge=0, le=100, allow_inf_nan=False, description="Discount in percent")
+    surge_pricing: StrictBool = Field(False, description="Is surge pricing active?")
+    surge_multiplier: float = Field(1.0, strict=True, ge=1, le=MAX_SURGE_MULTIPLIER, allow_inf_nan=False, description="Surge multiplier")
+    discount: float = Field(0.0, strict=True, ge=0, le=100, allow_inf_nan=False, description="Discount in percent")
     reason: str = Field(..., max_length=2000, description="Why the pricing is changing (kept in the audit log)")
+
+    @field_validator("base_fee")
+    @classmethod
+    def _whole_kobo(cls, value: float) -> float:
+        if Decimal(str(value)).as_tuple().exponent < -2:
+            raise ValueError("at most 2 decimal places (kobo)")
+        return value
 
     @field_validator("reason")
     @classmethod
