@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/booking-settings/b39e3588-4eb0-4ce5-b2b6-c47a374d335a",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "base_fee": 5000,
+      "platform_fee_percent": 10,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": false,
+      "surge_multiplier": 1.0,
+      "discount": 0,
+      "reason": "Opening price list"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Booking settings not found"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/booking-settings/1e19d47f-6089-4d9b-9408-e524c8341da9",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Pricing versions cannot be deleted; publish a new version instead"
+    }
+  }
+}

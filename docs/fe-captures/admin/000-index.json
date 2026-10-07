@@ -656,10 +656,101 @@
       "file": "131-policy-restore.json",
       "label": "policy-restore",
       "status": 200
+    },
+    {
+      "file": "132-pricing-get-no-token.json",
+      "label": "pricing-get-no-token",
+      "status": 401
+    },
+    {
+      "file": "133-pricing-get-as-analyst.json",
+      "label": "pricing-get-as-analyst",
+      "status": 403
+    },
+    {
+      "file": "134-pricing-get-empty.json",
+      "label": "pricing-get-empty",
+      "status": 404
+    },
+    {
+      "file": "135-pricing-create-as-support.json",
+      "label": "pricing-create-as-support",
+      "status": 403
+    },
+    {
+      "file": "136-pricing-create-no-reason.json",
+      "label": "pricing-create-no-reason",
+      "status": 422
+    },
+    {
+      "file": "137-pricing-create-negative-fee.json",
+      "label": "pricing-create-negative-fee",
+      "status": 422
+    },
+    {
+      "file": "138-pricing-create-percent-over-100.json",
+      "label": "pricing-create-percent-over-100",
+      "status": 422
+    },
+    {
+      "file": "139-pricing-create-unknown-service.json",
+      "label": "pricing-create-unknown-service",
+      "status": 422
+    },
+    {
+      "file": "140-pricing-create-multiplier-too-high.json",
+      "label": "pricing-create-multiplier-too-high",
+      "status": 422
+    },
+    {
+      "file": "141-pricing-create-unknown-field.json",
+      "label": "pricing-create-unknown-field",
+      "status": 422
+    },
+    {
+      "file": "142-pricing-create.json",
+      "label": "pricing-create",
+      "status": 200
+    },
+    {
+      "file": "143-pricing-update.json",
+      "label": "pricing-update",
+      "status": 200
+    },
+    {
+      "file": "144-pricing-update-superseded.json",
+      "label": "pricing-update-superseded",
+      "status": 409
+    },
+    {
+      "file": "145-pricing-update-unknown-id.json",
+      "label": "pricing-update-unknown-id",
+      "status": 404
+    },
+    {
+      "file": "146-pricing-list.json",
+      "label": "pricing-list",
+      "status": 200
+    },
+    {
+      "file": "147-pricing-get-latest.json",
+      "label": "pricing-get-latest",
+      "status": 200
+    },
+    {
+      "file": "148-pricing-delete.json",
+      "label": "pricing-delete",
+      "status": 409
+    },
+    {
+      "file": "149-audit-pricing.json",
+      "label": "audit-pricing",
+      "status": 200
     }
   ],
   "sections": {
     "bookings": 79,
-    "policy": 119
+    "policy": 119,
+    "pricing": 132
   }
 }

@@ -289,7 +289,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] ⚠️ Unchecked values (negative fee, percent over 100). Strict typed model with bounds, known service keys, unknown fields refused
 - [x] `DELETE` always refused (`409`); stale `PUT` refused (`409`); concurrent writers serialised
 - [x] Both `GET`s need an admin with `bookings.read` (no client calls them)
-- [x] Admin FE guide section 13 captured live (119 to 136)
+- [x] Admin FE guide section 13 captured live (132 to 149)
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit

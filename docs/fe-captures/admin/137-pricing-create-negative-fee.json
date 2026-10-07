@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking-settings/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "base_fee": -1,
+      "platform_fee_percent": 10,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": false,
+      "surge_multiplier": 1.0,
+      "discount": 0,
+      "reason": "Opening price list"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than",
+          "loc": [
+            "body",
+            "base_fee"
+          ],
+          "msg": "Input should be greater than 0",
+          "input": -1,
+          "ctx": {
+            "gt": 0.0
+          }
+        }
+      ]
+    }
+  }
+}
