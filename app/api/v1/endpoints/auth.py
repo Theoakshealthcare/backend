@@ -1,5 +1,6 @@
+import logging
 from datetime import timedelta
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -28,8 +29,10 @@ from app.schemas.user import (
     UserProfileUpdate,
     UserProfileResponse,
     RefreshTokenRequest,
+    DetailResponse,
 )
 from app.services.email import send_verification_email, send_password_reset_email
+from app.services.account_erasure import AccountErasureService, ErasureBlocked
 from app.services.user import UserService
 from app.services.cloudinary_service import cloudinary_service
 from app.db.models.patient import Patient
@@ -38,6 +41,7 @@ from app.core.security import get_password_hash
 from app.db.models.user import User
 from app.schemas.user import User as UserSchema
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -372,20 +376,38 @@ def update_profile(
         updated_at=str(user.updated_at),
     )
 
-@router.delete("/profile", response_model=dict)
+@router.delete("/profile", response_model=DetailResponse)
 def delete_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Delete Patient or Caregiver record
-    if current_user.user_type == "patient":
-        db.query(Patient).filter(Patient.user_id == current_user.id).delete()
-    elif current_user.user_type == "caregiver":
-        db.query(Caregiver).filter(Caregiver.user_id == current_user.id).delete()
-    # Delete User record
-    db.delete(current_user)
-    db.commit()
-    return {"detail": "Account deleted successfully."}
+    """Erase the account (anonymisation). Bookings, payments and consent records are kept for legal
+    retention; the person's data is wiped and the account can no longer sign in. 409 while the person
+    has active bookings or money owed, with a detail that says what to do."""
+    try:
+        result = AccountErasureService(db).erase(current_user.id)
+        db.commit()
+    except ErasureBlocked as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception:
+        db.rollback()
+        logger.exception("account erasure failed user=%s", current_user.id)
+        raise
+    # After the commit and outside the transaction: a Cloudinary failure must never undo or fail the erasure.
+    _delete_cloudinary_image(result.profile_image_url)
+    return DetailResponse(detail="Account deleted successfully.")
+
+
+def _delete_cloudinary_image(url: Optional[str]) -> None:
+    if not url:
+        return
+    try:
+        public_id = cloudinary_service.get_public_id_from_url(url)
+        if public_id:
+            cloudinary_service.delete_image(public_id)
+    except Exception:
+        logger.warning("could not delete the profile image of an erased account", exc_info=True)
 
 
 @router.post("/profile/upload-image", response_model=dict)

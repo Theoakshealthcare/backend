@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT count(*) FROM users WHERE email LIKE 'deleted+%@example.com' AND is_active = false AND full_name = 'Deleted user' AND phone_number IS NULL",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "count": 1
+    }
+  },
+  "note": "The erased user row is kept (inactive, name and email replaced, phone cleared). Bookings and wallet history of an erased caregiver also stay; only the personal data is gone."
+}

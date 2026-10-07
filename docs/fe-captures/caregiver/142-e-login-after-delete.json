@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/login/mobile",
+    "auth": null,
+    "body": {
+      "email_or_phone": "caregiver-e-f1edfe@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Incorrect email/phone or password"
+    }
+  }
+}

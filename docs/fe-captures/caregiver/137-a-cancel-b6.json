@@ -1,0 +1,80 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/52adff42-7409-4070-8416-21d544101e75",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "cancel",
+      "reason": "Placeholder: clearing the way to delete the account"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "message": "Booking cancel successfully",
+      "booking": {
+        "id": "52adff42-7409-4070-8416-21d544101e75",
+        "booking_code": "469AD5D1",
+        "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
+        "patient_details": {
+          "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
+          "full_name": "Placeholder Patient",
+          "phone_number": "+2340000102004",
+          "profile_image_url": null,
+          "emergency_contact_name": null,
+          "emergency_contact_phone": null
+        },
+        "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
+        "caregiver_details": {
+          "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
+          "full_name": "Placeholder Caregiver A",
+          "specialization": "Elderly Care",
+          "profile_image_url": null,
+          "current_latitude": 6.4474,
+          "current_longitude": 3.4723,
+          "distance_from_patient": 0.0,
+          "estimated_arrival_time": 5,
+          "last_location_update": "2026-10-07T09:41:18.564156",
+          "is_online": true
+        },
+        "service_type": "nurse",
+        "assistance_type": "Placeholder assistance",
+        "condition": "Placeholder condition",
+        "duration_hours": 2,
+        "scheduled_date": "2026-10-10T09:41:22.701736",
+        "scheduled_end_date": "2026-10-10T11:41:22.701736",
+        "actual_start_time": null,
+        "actual_end_time": null,
+        "patient_address": "12 Placeholder Street, Lekki",
+        "patient_latitude": 6.4474,
+        "patient_longitude": 3.4723,
+        "patient_city": "Lagos",
+        "patient_state": "Lagos",
+        "status": "cancelled",
+        "payment_status": "paid",
+        "paystack_reference": "BKG_469AD5D1_1b3e6e8a",
+        "payment_expires_at": "2026-10-07T10:11:22.701760",
+        "payment_failure_reason": null,
+        "total_amount": "55000.00",
+        "service_fee": "50000.00",
+        "platform_fee": "5000.00",
+        "total_amount_kobo": 5500000,
+        "service_fee_kobo": 5000000,
+        "platform_fee_kobo": 500000,
+        "special_instructions": "Placeholder instructions",
+        "booking_for": "myself",
+        "cancel_reason": "caregiver_cancelled",
+        "refund_required": false,
+        "refund_required_reason": null,
+        "dispatch_state": "matched",
+        "dispatch_started_at": "2026-10-07T09:41:22.702926",
+        "visit_code": null,
+        "created_at": "2026-10-07T09:41:22.700485",
+        "updated_at": "2026-10-07T09:41:23.928669"
+      }
+    }
+  }
+}

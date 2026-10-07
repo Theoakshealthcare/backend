@@ -86,6 +86,10 @@ class UserLogin(BaseModel):
     password: str
 
 
+class DetailResponse(BaseModel):
+    detail: str
+
+
 class Token(BaseModel):
     access_token: str
     refresh_token: str

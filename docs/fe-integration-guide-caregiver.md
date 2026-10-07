@@ -49,10 +49,10 @@ Request body:
 <!-- capture: 001-a-auth-register.json request.body -->
 ```json
 {
-  "email": "caregiver-a-dc333b@example.com",
+  "email": "caregiver-a-f1edfe@example.com",
   "password": "<PLACEHOLDER_PASSWORD>",
   "full_name": "Placeholder Caregiver A",
-  "phone_number": "+2340000035001",
+  "phone_number": "+2340000102001",
   "user_type": "caregiver"
 }
 ```
@@ -62,16 +62,16 @@ Response `200`:
 <!-- capture: 001-a-auth-register.json response.body -->
 ```json
 {
-  "email": "caregiver-a-dc333b@example.com",
-  "phone_number": "+2340000035001",
+  "email": "caregiver-a-f1edfe@example.com",
+  "phone_number": "+2340000102001",
   "full_name": "Placeholder Caregiver A",
   "user_type": "caregiver",
   "profile_image_url": null,
-  "id": "98e42e70-0859-4bd4-891f-27c255fd98ab",
+  "id": "8cfc00a7-323c-4e62-831a-baacac8c507b",
   "is_active": true,
   "is_verified": false,
-  "created_at": "2026-10-06T08:23:21.355254",
-  "updated_at": "2026-10-06T08:23:21.361332"
+  "created_at": "2026-10-07T09:41:15.959919",
+  "updated_at": "2026-10-07T09:41:15.965593"
 }
 ```
 
@@ -91,8 +91,8 @@ Request body:
 <!-- capture: 005-a-auth-verify-email.json request.body -->
 ```json
 {
-  "email": "caregiver-a-dc333b@example.com",
-  "code": "34077"
+  "email": "caregiver-a-f1edfe@example.com",
+  "code": "52798"
 }
 ```
 
@@ -117,7 +117,7 @@ Request body:
 <!-- capture: 007-a-auth-login-mobile.json request.body -->
 ```json
 {
-  "email_or_phone": "caregiver-a-dc333b@example.com",
+  "email_or_phone": "caregiver-a-f1edfe@example.com",
   "password": "<PLACEHOLDER_PASSWORD>"
 }
 ```
@@ -145,25 +145,25 @@ Response `200`:
 <!-- capture: 008-a-auth-me.json response.body -->
 ```json
 {
-  "email": "caregiver-a-dc333b@example.com",
-  "phone_number": "+2340000035001",
+  "email": "caregiver-a-f1edfe@example.com",
+  "phone_number": "+2340000102001",
   "full_name": "Placeholder Caregiver A",
   "user_type": "caregiver",
   "profile_image_url": null,
-  "id": "98e42e70-0859-4bd4-891f-27c255fd98ab",
+  "id": "8cfc00a7-323c-4e62-831a-baacac8c507b",
   "is_active": true,
   "is_verified": true,
-  "created_at": "2026-10-06T08:23:21.355254",
-  "updated_at": "2026-10-06T08:23:23.104766",
+  "created_at": "2026-10-07T09:41:15.959919",
+  "updated_at": "2026-10-07T09:41:16.004450",
   "patient": null,
   "caregiver": {
-    "email": "caregiver-a-dc333b@example.com",
+    "email": "caregiver-a-f1edfe@example.com",
     "full_name": "Placeholder Caregiver A",
-    "phone_number": "+2340000035001",
-    "id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
-    "user_id": "98e42e70-0859-4bd4-891f-27c255fd98ab",
-    "created_at": "2026-10-06T08:23:21.357015",
-    "updated_at": "2026-10-06T08:23:21.357016"
+    "phone_number": "+2340000102001",
+    "id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
+    "user_id": "8cfc00a7-323c-4e62-831a-baacac8c507b",
+    "created_at": "2026-10-07T09:41:15.961843",
+    "updated_at": "2026-10-07T09:41:15.961845"
   }
 }
 ```
@@ -203,6 +203,66 @@ Both tokens come back. Store both. (The tokens are stateless JWTs; whether the o
 - Bearer misuse: `401` `{"detail": "Could not validate credentials"}` _(capture `010-a-auth-me-refresh-token-as-bearer.json`)_
 - `401` `{"detail": "Not authenticated"}` _(capture `009-a-auth-me-no-token.json`)_
 
+### Delete account: `DELETE /api/v1/auth/profile`
+Auth required (any account type; the caregiver app uses the caregiver's token). No request body. This is an **erasure request handled as anonymisation**: the person's data is wiped and the account is closed for good, but bookings, wallet history, consents and support tickets are kept for legal reasons. There is no undo.
+
+Response `200` (the only success shape; nothing else is returned):
+
+<!-- capture: 139-e-delete-account.json response.body -->
+```json
+{
+  "detail": "Account deleted successfully."
+}
+```
+
+_capture `139-e-delete-account.json`_
+
+**Blocked while work is in flight or money is owed: `409`.** The `detail` is a sentence written for the person; show it as is. Nothing is changed when this happens.
+
+Active booking (accepted, on the way, in progress, or paid and waiting) _(capture `135-a-delete-account-active-booking.json`)_:
+
+<!-- capture: 135-a-delete-account-active-booking.json response.body -->
+```json
+{
+  "detail": "You have a booking that is not finished yet. Complete it, or cancel it from the booking screen, then delete your account."
+}
+```
+
+Wallet balance above zero _(capture `138-a-delete-account-wallet-balance.json`)_:
+
+<!-- capture: 138-a-delete-account-wallet-balance.json response.body -->
+```json
+{
+  "detail": "Your wallet still has a balance. Withdraw it to your bank account, then delete your account."
+}
+```
+
+A pending withdrawal returns `409` with: `You have a withdrawal that is still being paid out. Wait for the payout to finish, then delete your account.` **Not captured live** (the live run hit the balance check first); the string is from `app/services/account_erasure.py` and `app/tests/test_account_deletion.py`.
+
+A patient with a paid, unfinished booking gets the patient wording _(capture `136-p-delete-account-active-booking.json`, patient token)_:
+
+<!-- capture: 136-p-delete-account-active-booking.json response.body -->
+```json
+{
+  "detail": "You have a paid booking that is not finished yet. Wait for the visit to complete, or cancel the booking, then delete your account."
+}
+```
+
+Other responses: no token `401` `{"detail": "Not authenticated"}` _(capture `134-delete-account-no-auth.json`)_; a repeat call with the old token `403` `{"detail": "Inactive user"}` _(capture `143-e-delete-account-again.json`)_.
+
+**After a successful delete, with the old tokens and the old email** (captures `140` to `144`, caregiver E):
+
+| Call | Status | Body |
+|---|---|---|
+| `GET /auth/me` with the old access token | `403` | `{"detail": "Inactive user"}` |
+| `POST /auth/refresh` with the old refresh token | `400` | `{"detail": "Inactive user"}` |
+| `POST /auth/login/mobile` with the old email | `401` | `{"detail": "Incorrect email/phone or password"}` |
+| `POST /auth/register` with the same email again | `200` | a brand-new account (new `id`, `is_verified: false`); nothing of the old one carries over |
+
+What the app must do on `200`: clear both tokens, the push token (`DELETE /devices/push-token` is no longer needed; the backend has already deleted them) and every cached profile, then go to the sign-in screen. Treat a later `403 Inactive user` anywhere the same way: sign out.
+
+What is erased and what stays (from the code and tests; the live capture shows only the account row, `db-erased-account-row`): name becomes `Deleted user`, email becomes a placeholder, phone, address, date of birth, emergency contact, profile image, bank account, and the ID and face verification data are removed. Bookings, wallet transactions (payout account numbers are masked to the last four digits), consents and support tickets stay.
+
 ## 4. Onboarding and approval
 
 ### Endpoints
@@ -239,11 +299,11 @@ Response `200`:
 <!-- capture: 015-a-profile-step1.json response.body -->
 ```json
 {
-  "id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
-  "user_id": "98e42e70-0859-4bd4-891f-27c255fd98ab",
-  "email": "caregiver-a-dc333b@example.com",
+  "id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
+  "user_id": "8cfc00a7-323c-4e62-831a-baacac8c507b",
+  "email": "caregiver-a-f1edfe@example.com",
   "full_name": "Placeholder Caregiver A",
-  "phone_number": "+2340000035001",
+  "phone_number": "+2340000102001",
   "date_of_birth": "1990-01-01",
   "gender": "female",
   "state": "Lagos",
@@ -260,8 +320,8 @@ Response `200`:
   "terms_accepted": false,
   "privacy_policy_accepted": false,
   "background_check_consent": false,
-  "created_at": "2026-10-06T08:23:21.357015",
-  "updated_at": "2026-10-06T08:23:23.681545"
+  "created_at": "2026-10-07T09:41:15.961843",
+  "updated_at": "2026-10-07T09:41:16.528846"
 }
 ```
 
@@ -289,11 +349,11 @@ Response `200`:
 <!-- capture: 017-a-profile-step2.json response.body -->
 ```json
 {
-  "id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
-  "user_id": "98e42e70-0859-4bd4-891f-27c255fd98ab",
-  "email": "caregiver-a-dc333b@example.com",
+  "id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
+  "user_id": "8cfc00a7-323c-4e62-831a-baacac8c507b",
+  "email": "caregiver-a-f1edfe@example.com",
   "full_name": "Placeholder Caregiver A",
-  "phone_number": "+2340000035001",
+  "phone_number": "+2340000102001",
   "date_of_birth": "1990-01-01",
   "gender": "female",
   "state": "Lagos",
@@ -313,8 +373,8 @@ Response `200`:
   "terms_accepted": false,
   "privacy_policy_accepted": false,
   "background_check_consent": false,
-  "created_at": "2026-10-06T08:23:21.357015",
-  "updated_at": "2026-10-06T08:23:23.691503"
+  "created_at": "2026-10-07T09:41:15.961843",
+  "updated_at": "2026-10-07T09:41:16.539237"
 }
 ```
 
@@ -399,12 +459,12 @@ Response `200`:
 <!-- capture: 019-a-documents-upload.json response.body -->
 ```json
 {
-  "id": "215d9b0d-b050-4269-9866-0658b0a64766",
+  "id": "3856f61f-9929-4f1f-9f83-644def5217d8",
   "document_type": "license",
   "document_name": "license.png",
-  "file_path": "caregivers/2eb78674-00e2-4c82-aad8-7e59ff6d3974/documents/3e417ab2-cf9e-4ec4-8804-c525cdb176ca.png",
+  "file_path": "caregivers/7ec8f419-0dee-4d7d-9857-1796b335caf0/documents/d57a5f85-7348-4f2e-bd83-29354b6d88d3.png",
   "verification_status": "pending",
-  "uploaded_at": "2026-10-06T08:23:23.704759"
+  "uploaded_at": "2026-10-07T09:41:16.553140"
 }
 ```
 
@@ -431,11 +491,11 @@ Response `200`:
 <!-- capture: 020-a-consent.json response.body -->
 ```json
 {
-  "id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
-  "user_id": "98e42e70-0859-4bd4-891f-27c255fd98ab",
-  "email": "caregiver-a-dc333b@example.com",
+  "id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
+  "user_id": "8cfc00a7-323c-4e62-831a-baacac8c507b",
+  "email": "caregiver-a-f1edfe@example.com",
   "full_name": "Placeholder Caregiver A",
-  "phone_number": "+2340000035001",
+  "phone_number": "+2340000102001",
   "date_of_birth": "1990-01-01",
   "gender": "female",
   "state": "Lagos",
@@ -455,8 +515,8 @@ Response `200`:
   "terms_accepted": true,
   "privacy_policy_accepted": true,
   "background_check_consent": true,
-  "created_at": "2026-10-06T08:23:21.357015",
-  "updated_at": "2026-10-06T08:23:23.712348"
+  "created_at": "2026-10-07T09:41:15.961843",
+  "updated_at": "2026-10-07T09:41:16.560600"
 }
 ```
 
@@ -689,7 +749,7 @@ Response `200`:
 {
   "profile_status": "approved",
   "is_available": false,
-  "location_updated_at": "2026-10-06T08:23:25.654625",
+  "location_updated_at": "2026-10-07T09:41:18.459543",
   "today_visits": [],
   "upcoming_visits": [],
   "open_offers": [],
@@ -707,7 +767,7 @@ Response `200`:
 {
   "profile_status": "approved",
   "is_available": false,
-  "location_updated_at": "2026-10-06T08:23:25.672162",
+  "location_updated_at": "2026-10-07T09:41:18.478137",
   "today_visits": [],
   "upcoming_visits": [],
   "open_offers": [],
@@ -739,14 +799,14 @@ Response `200`:
 <!-- capture: 047-a-location-post.json response.body -->
 ```json
 {
-  "id": "ed1fcdc1-d9bb-4755-ae93-f295194f2855",
-  "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+  "id": "80887998-17d6-4381-b283-2423f5373adc",
+  "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
   "latitude": 6.4494,
   "longitude": 3.4723,
   "accuracy": 10.0,
   "is_active": true,
   "is_available": true,
-  "recorded_at": "2026-10-06T08:23:25.625960"
+  "recorded_at": "2026-10-07T09:41:18.427830"
 }
 ```
 
@@ -780,7 +840,7 @@ Observed (no HTTP status: SQL or WebSocket capture):
     },
     {
       "type": "heartbeat",
-      "timestamp": "2026-10-06T08:23:25.760862"
+      "timestamp": "2026-10-07T09:41:18.569415"
     }
   ],
   "closed_by_server": null
@@ -803,7 +863,7 @@ Request body:
 <!-- capture: 062-devices-push-token-register.json request.body -->
 ```json
 {
-  "token": "ExponentPushToken[placeholder-live-dc333b]",
+  "token": "ExponentPushToken[placeholder-live-f1edfe]",
   "platform": "ios"
 }
 ```
@@ -813,7 +873,7 @@ Response `200`:
 <!-- capture: 062-devices-push-token-register.json request.body -->
 ```json
 {
-  "token": "ExponentPushToken[placeholder-live-dc333b]",
+  "token": "ExponentPushToken[placeholder-live-f1edfe]",
   "platform": "ios"
 }
 ```
@@ -883,7 +943,7 @@ Request body:
 <!-- capture: 068-devices-push-token-delete.json request.body -->
 ```json
 {
-  "token": "ExponentPushToken[placeholder-logout-dc333b]"
+  "token": "ExponentPushToken[placeholder-logout-f1edfe]"
 }
 ```
 
@@ -900,27 +960,27 @@ What the API POSTed to the Expo push URL (one HTTP request; `to` is the device t
 ```json
 [
   {
-    "to": "ExponentPushToken[placeholder-live-dc333b]",
+    "to": "ExponentPushToken[placeholder-live-f1edfe]",
     "title": "New visit request",
-    "body": "Nurse visit in Lagos, Tue 06 Oct, 09:38",
+    "body": "Nurse visit in Lagos, Wed 07 Oct, 10:56",
     "data": {
       "type": "job_offer",
-      "booking_id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
+      "booking_id": "97fc790f-4a55-4735-8135-73c433882ccd",
       "area": "Lagos",
-      "scheduled_at": "2026-10-06T08:38:27.858997Z"
+      "scheduled_at": "2026-10-07T09:56:20.653502Z"
     },
     "sound": "default",
     "priority": "high"
   },
   {
-    "to": "ExponentPushToken[placeholder-dead-dc333b]",
+    "to": "ExponentPushToken[placeholder-dead-f1edfe]",
     "title": "New visit request",
-    "body": "Nurse visit in Lagos, Tue 06 Oct, 09:38",
+    "body": "Nurse visit in Lagos, Wed 07 Oct, 10:56",
     "data": {
       "type": "job_offer",
-      "booking_id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
+      "booking_id": "97fc790f-4a55-4735-8135-73c433882ccd",
       "area": "Lagos",
-      "scheduled_at": "2026-10-06T08:38:27.858997Z"
+      "scheduled_at": "2026-10-07T09:56:20.653502Z"
     },
     "sound": "default",
     "priority": "high"
@@ -1002,9 +1062,9 @@ Response `200` (list of 1, trimmed to its first element):
 ```json
 [
   {
-    "id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
-    "booking_code": "2DC38733",
-    "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+    "id": "97fc790f-4a55-4735-8135-73c433882ccd",
+    "booking_code": "5F5E7E60",
+    "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
     "patient_details": null,
     "caregiver_id": null,
     "caregiver_details": null,
@@ -1012,8 +1072,8 @@ Response `200` (list of 1, trimmed to its first element):
     "assistance_type": "Placeholder assistance",
     "condition": null,
     "duration_hours": 2,
-    "scheduled_date": "2026-10-06T08:38:27.858997",
-    "scheduled_end_date": "2026-10-06T10:38:27.858997",
+    "scheduled_date": "2026-10-07T09:56:20.653502",
+    "scheduled_end_date": "2026-10-07T11:56:20.653502",
     "patient_address": "Lagos, Lagos",
     "patient_latitude": 6.45,
     "patient_longitude": 3.47,
@@ -1026,8 +1086,8 @@ Response `200` (list of 1, trimmed to its first element):
     "platform_fee": 5000.0,
     "special_instructions": null,
     "booking_for": "myself",
-    "created_at": "2026-10-06T08:23:27.859618",
-    "updated_at": "2026-10-06T08:23:27.875424",
+    "created_at": "2026-10-07T09:41:20.653323",
+    "updated_at": "2026-10-07T09:41:20.668966",
     "dispatch_state": "dispatching",
     "visit_code": null,
     "payment_url": null,
@@ -1046,17 +1106,17 @@ Response `200` (list of 1, trimmed to its first element):
 ```json
 [
   {
-    "id": "c9eac737-4195-4d97-b475-6e55869b54da",
-    "booking_id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
+    "id": "39d52b63-66e5-4635-8718-9b5ee6c921b6",
+    "booking_id": "97fc790f-4a55-4735-8135-73c433882ccd",
     "title": "New Booking Request",
     "message": "New nurse request - 0.0km away, ETA 5 min",
     "notification_type": "new_booking",
     "is_read": false,
-    "created_at": "2026-10-06T08:23:27.927274",
+    "created_at": "2026-10-07T09:41:20.681516",
     "booking": {
-      "id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
-      "booking_code": "2DC38733",
-      "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+      "id": "97fc790f-4a55-4735-8135-73c433882ccd",
+      "booking_code": "5F5E7E60",
+      "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
       "patient_details": null,
       "caregiver_id": null,
       "caregiver_details": null,
@@ -1064,8 +1124,8 @@ Response `200` (list of 1, trimmed to its first element):
       "assistance_type": "Placeholder assistance",
       "condition": null,
       "duration_hours": 2,
-      "scheduled_date": "2026-10-06T08:38:27.858997",
-      "scheduled_end_date": "2026-10-06T10:38:27.858997",
+      "scheduled_date": "2026-10-07T09:56:20.653502",
+      "scheduled_end_date": "2026-10-07T11:56:20.653502",
       "patient_address": "Lagos, Lagos",
       "patient_latitude": 6.45,
       "patient_longitude": 3.47,
@@ -1078,8 +1138,8 @@ Response `200` (list of 1, trimmed to its first element):
       "platform_fee": 5000.0,
       "special_instructions": null,
       "booking_for": "myself",
-      "created_at": "2026-10-06T08:23:27.859618",
-      "updated_at": "2026-10-06T08:23:27.875424",
+      "created_at": "2026-10-07T09:41:20.653323",
+      "updated_at": "2026-10-07T09:41:20.668966",
       "dispatch_state": "dispatching",
       "visit_code": null,
       "payment_url": null,
@@ -1101,20 +1161,20 @@ Response `200`:
 <!-- capture: 089-a-booking-detail-accepted.json response.body -->
 ```json
 {
-  "id": "d4055373-bee6-431e-977a-11b01af19a96",
-  "booking_code": "ECCADB9F",
-  "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+  "id": "4029e780-a4f8-4b94-9567-c1669558230f",
+  "booking_code": "B3F53B7E",
+  "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
   "patient_details": {
-    "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+    "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
     "full_name": "Placeholder Patient",
-    "phone_number": "+2340000035004",
+    "phone_number": "+2340000102004",
     "profile_image_url": null,
     "emergency_contact_name": null,
     "emergency_contact_phone": null
   },
-  "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+  "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
   "caregiver_details": {
-    "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+    "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
     "full_name": "Placeholder Caregiver A",
     "specialization": "Elderly Care",
     "profile_image_url": null,
@@ -1122,15 +1182,15 @@ Response `200`:
     "current_longitude": 3.4723,
     "distance_from_patient": 0.0,
     "estimated_arrival_time": 5,
-    "last_location_update": "2026-10-06T08:23:25.756428",
+    "last_location_update": "2026-10-07T09:41:18.564156",
     "is_online": true
   },
   "service_type": "nurse",
   "assistance_type": "Placeholder assistance",
   "condition": "Placeholder condition",
   "duration_hours": 2,
-  "scheduled_date": "2026-10-06T08:38:27.862624",
-  "scheduled_end_date": "2026-10-06T10:38:27.862624",
+  "scheduled_date": "2026-10-07T09:56:20.657451",
+  "scheduled_end_date": "2026-10-07T11:56:20.657451",
   "patient_address": "12 Placeholder Street, Lekki",
   "patient_latitude": 6.4474,
   "patient_longitude": 3.4723,
@@ -1143,8 +1203,8 @@ Response `200`:
   "platform_fee": 5000.0,
   "special_instructions": "Placeholder instructions",
   "booking_for": "myself",
-  "created_at": "2026-10-06T08:23:27.862475",
-  "updated_at": "2026-10-06T08:23:29.703819",
+  "created_at": "2026-10-07T09:41:20.656324",
+  "updated_at": "2026-10-07T09:41:22.502804",
   "dispatch_state": "matched",
   "visit_code": null,
   "payment_url": null,
@@ -1188,64 +1248,64 @@ Response `200`:
 {
   "message": "Booking accept successfully",
   "booking": {
-    "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
-    "scheduled_date": "2026-10-06T08:38:27.862624",
-    "patient_state": "Lagos",
-    "dispatch_state": "matched",
-    "platform_fee_kobo": 500000,
-    "id": "d4055373-bee6-431e-977a-11b01af19a96",
-    "booking_code": "ECCADB9F",
-    "scheduled_end_date": "2026-10-06T10:38:27.862624",
-    "status": "accepted",
-    "dispatch_started_at": "2026-10-06T08:23:29.589757",
-    "paystack_reference": "BKG_ECCADB9F_4b1aefe6",
-    "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
-    "service_type": "nurse",
-    "actual_start_time": null,
-    "payment_status": "paid",
-    "payment_failure_reason": null,
-    "actual_end_time": null,
-    "payment_expires_at": "2026-10-06T08:53:27.862634",
-    "special_instructions": "Placeholder instructions",
-    "patient_address": "12 Placeholder Street, Lekki",
-    "cancel_reason": null,
-    "booking_for": "myself",
-    "assistance_type": "Placeholder assistance",
-    "patient_latitude": 6.4474,
-    "refund_required": false,
-    "created_at": "2026-10-06T08:23:27.862475",
-    "condition": "Placeholder condition",
-    "patient_longitude": 3.4723,
-    "refund_required_reason": null,
-    "total_amount_kobo": 5500000,
-    "updated_at": "2026-10-06T08:23:29.703819",
-    "duration_hours": 2,
-    "patient_city": "Lagos",
-    "service_fee_kobo": 5000000,
-    "visit_code": null,
-    "total_amount": "55000.00",
-    "service_fee": "50000.00",
-    "platform_fee": "5000.00",
+    "id": "4029e780-a4f8-4b94-9567-c1669558230f",
+    "booking_code": "B3F53B7E",
+    "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
     "patient_details": {
-      "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+      "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
       "full_name": "Placeholder Patient",
-      "phone_number": "+2340000035004",
+      "phone_number": "+2340000102004",
       "profile_image_url": null,
       "emergency_contact_name": null,
       "emergency_contact_phone": null
     },
+    "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
     "caregiver_details": {
-      "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+      "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
       "full_name": "Placeholder Caregiver A",
       "specialization": "Elderly Care",
       "profile_image_url": null,
       "current_latitude": 6.4474,
       "current_longitude": 3.4723,
-      "is_online": true,
-      "last_location_update": "2026-10-06T08:23:25.756428",
       "distance_from_patient": 0.0,
-      "estimated_arrival_time": 5
-    }
+      "estimated_arrival_time": 5,
+      "last_location_update": "2026-10-07T09:41:18.564156",
+      "is_online": true
+    },
+    "service_type": "nurse",
+    "assistance_type": "Placeholder assistance",
+    "condition": "Placeholder condition",
+    "duration_hours": 2,
+    "scheduled_date": "2026-10-07T09:56:20.657451",
+    "scheduled_end_date": "2026-10-07T11:56:20.657451",
+    "actual_start_time": null,
+    "actual_end_time": null,
+    "patient_address": "12 Placeholder Street, Lekki",
+    "patient_latitude": 6.4474,
+    "patient_longitude": 3.4723,
+    "patient_city": "Lagos",
+    "patient_state": "Lagos",
+    "status": "accepted",
+    "payment_status": "paid",
+    "paystack_reference": "BKG_B3F53B7E_fe9cb6cd",
+    "payment_expires_at": "2026-10-07T10:11:20.657483",
+    "payment_failure_reason": null,
+    "total_amount": "55000.00",
+    "service_fee": "50000.00",
+    "platform_fee": "5000.00",
+    "total_amount_kobo": 5500000,
+    "service_fee_kobo": 5000000,
+    "platform_fee_kobo": 500000,
+    "special_instructions": "Placeholder instructions",
+    "booking_for": "myself",
+    "cancel_reason": null,
+    "refund_required": false,
+    "refund_required_reason": null,
+    "dispatch_state": "matched",
+    "dispatch_started_at": "2026-10-07T09:41:22.391417",
+    "visit_code": null,
+    "created_at": "2026-10-07T09:41:20.656324",
+    "updated_at": "2026-10-07T09:41:22.502804"
   }
 }
 ```
@@ -1307,46 +1367,46 @@ Response `200`:
 {
   "message": "Booking decline successfully",
   "booking": {
+    "id": "a50ebc09-6ff5-453a-beaa-1571b17b57a2",
+    "booking_code": "95AD639A",
+    "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
+    "patient_details": null,
     "caregiver_id": null,
-    "scheduled_date": "2026-10-06T08:38:27.865455",
-    "patient_state": "Lagos",
-    "dispatch_state": "dispatching",
-    "platform_fee_kobo": 500000,
-    "id": "a618eb64-8c35-45b5-8ffc-da9fdf1c7433",
-    "booking_code": "C07D767B",
-    "scheduled_end_date": "2026-10-06T10:38:27.865455",
-    "status": "pending",
-    "dispatch_started_at": "2026-10-06T08:23:29.621801",
-    "paystack_reference": "BKG_C07D767B_5a7cc358",
-    "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+    "caregiver_details": null,
     "service_type": "nurse",
-    "actual_start_time": null,
-    "payment_status": "paid",
-    "payment_failure_reason": null,
-    "actual_end_time": null,
-    "payment_expires_at": "2026-10-06T08:53:27.865480",
-    "special_instructions": null,
-    "patient_address": "Lagos, Lagos",
-    "cancel_reason": null,
-    "booking_for": "myself",
     "assistance_type": "Placeholder assistance",
-    "patient_latitude": 6.45,
-    "refund_required": false,
-    "created_at": "2026-10-06T08:23:27.865481",
     "condition": null,
-    "patient_longitude": 3.47,
-    "refund_required_reason": null,
-    "total_amount_kobo": 5500000,
-    "updated_at": "2026-10-06T08:23:29.622446",
     "duration_hours": 2,
+    "scheduled_date": "2026-10-07T09:56:20.659197",
+    "scheduled_end_date": "2026-10-07T11:56:20.659197",
+    "actual_start_time": null,
+    "actual_end_time": null,
+    "patient_address": "Lagos, Lagos",
+    "patient_latitude": 6.45,
+    "patient_longitude": 3.47,
     "patient_city": "Lagos",
-    "service_fee_kobo": 5000000,
-    "visit_code": null,
+    "patient_state": "Lagos",
+    "status": "pending",
+    "payment_status": "paid",
+    "paystack_reference": "BKG_95AD639A_c9148fcf",
+    "payment_expires_at": "2026-10-07T10:11:20.659213",
+    "payment_failure_reason": null,
     "total_amount": "55000.00",
     "service_fee": "50000.00",
     "platform_fee": "5000.00",
-    "patient_details": null,
-    "caregiver_details": null
+    "total_amount_kobo": 5500000,
+    "service_fee_kobo": 5000000,
+    "platform_fee_kobo": 500000,
+    "special_instructions": null,
+    "booking_for": "myself",
+    "cancel_reason": null,
+    "refund_required": false,
+    "refund_required_reason": null,
+    "dispatch_state": "dispatching",
+    "dispatch_started_at": "2026-10-07T09:41:22.426523",
+    "visit_code": null,
+    "created_at": "2026-10-07T09:41:20.658048",
+    "updated_at": "2026-10-07T09:41:22.427235"
   }
 }
 ```
@@ -1374,64 +1434,64 @@ Response `200`:
 {
   "message": "Booking on_my_way successfully",
   "booking": {
-    "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
-    "scheduled_date": "2026-10-06T08:38:27.862624",
-    "patient_state": "Lagos",
-    "dispatch_state": "matched",
-    "platform_fee_kobo": 500000,
-    "id": "d4055373-bee6-431e-977a-11b01af19a96",
-    "booking_code": "ECCADB9F",
-    "scheduled_end_date": "2026-10-06T10:38:27.862624",
-    "status": "en_route",
-    "dispatch_started_at": "2026-10-06T08:23:29.589757",
-    "paystack_reference": "BKG_ECCADB9F_4b1aefe6",
-    "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
-    "service_type": "nurse",
-    "actual_start_time": null,
-    "payment_status": "paid",
-    "payment_failure_reason": null,
-    "actual_end_time": null,
-    "payment_expires_at": "2026-10-06T08:53:27.862634",
-    "special_instructions": "Placeholder instructions",
-    "patient_address": "12 Placeholder Street, Lekki",
-    "cancel_reason": null,
-    "booking_for": "myself",
-    "assistance_type": "Placeholder assistance",
-    "patient_latitude": 6.4474,
-    "refund_required": false,
-    "created_at": "2026-10-06T08:23:27.862475",
-    "condition": "Placeholder condition",
-    "patient_longitude": 3.4723,
-    "refund_required_reason": null,
-    "total_amount_kobo": 5500000,
-    "updated_at": "2026-10-06T08:23:29.757587",
-    "duration_hours": 2,
-    "patient_city": "Lagos",
-    "service_fee_kobo": 5000000,
-    "visit_code": null,
-    "total_amount": "55000.00",
-    "service_fee": "50000.00",
-    "platform_fee": "5000.00",
+    "id": "4029e780-a4f8-4b94-9567-c1669558230f",
+    "booking_code": "B3F53B7E",
+    "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
     "patient_details": {
-      "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+      "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
       "full_name": "Placeholder Patient",
-      "phone_number": "+2340000035004",
+      "phone_number": "+2340000102004",
       "profile_image_url": null,
       "emergency_contact_name": null,
       "emergency_contact_phone": null
     },
+    "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
     "caregiver_details": {
-      "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+      "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
       "full_name": "Placeholder Caregiver A",
       "specialization": "Elderly Care",
       "profile_image_url": null,
       "current_latitude": 6.4474,
       "current_longitude": 3.4723,
-      "is_online": true,
-      "last_location_update": "2026-10-06T08:23:25.756428",
       "distance_from_patient": 0.0,
-      "estimated_arrival_time": 5
-    }
+      "estimated_arrival_time": 5,
+      "last_location_update": "2026-10-07T09:41:18.564156",
+      "is_online": true
+    },
+    "service_type": "nurse",
+    "assistance_type": "Placeholder assistance",
+    "condition": "Placeholder condition",
+    "duration_hours": 2,
+    "scheduled_date": "2026-10-07T09:56:20.657451",
+    "scheduled_end_date": "2026-10-07T11:56:20.657451",
+    "actual_start_time": null,
+    "actual_end_time": null,
+    "patient_address": "12 Placeholder Street, Lekki",
+    "patient_latitude": 6.4474,
+    "patient_longitude": 3.4723,
+    "patient_city": "Lagos",
+    "patient_state": "Lagos",
+    "status": "en_route",
+    "payment_status": "paid",
+    "paystack_reference": "BKG_B3F53B7E_fe9cb6cd",
+    "payment_expires_at": "2026-10-07T10:11:20.657483",
+    "payment_failure_reason": null,
+    "total_amount": "55000.00",
+    "service_fee": "50000.00",
+    "platform_fee": "5000.00",
+    "total_amount_kobo": 5500000,
+    "service_fee_kobo": 5000000,
+    "platform_fee_kobo": 500000,
+    "special_instructions": "Placeholder instructions",
+    "booking_for": "myself",
+    "cancel_reason": null,
+    "refund_required": false,
+    "refund_required_reason": null,
+    "dispatch_state": "matched",
+    "dispatch_started_at": "2026-10-07T09:41:22.391417",
+    "visit_code": null,
+    "created_at": "2026-10-07T09:41:20.656324",
+    "updated_at": "2026-10-07T09:41:22.554555"
   }
 }
 ```
@@ -1456,20 +1516,20 @@ Response `200`:
 <!-- capture: 088-p-booking-detail-accepted.json response.body -->
 ```json
 {
-  "id": "d4055373-bee6-431e-977a-11b01af19a96",
-  "booking_code": "ECCADB9F",
-  "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+  "id": "4029e780-a4f8-4b94-9567-c1669558230f",
+  "booking_code": "B3F53B7E",
+  "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
   "patient_details": {
-    "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+    "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
     "full_name": "Placeholder Patient",
-    "phone_number": "+2340000035004",
+    "phone_number": "+2340000102004",
     "profile_image_url": null,
     "emergency_contact_name": null,
     "emergency_contact_phone": null
   },
-  "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+  "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
   "caregiver_details": {
-    "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+    "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
     "full_name": "Placeholder Caregiver A",
     "specialization": "Elderly Care",
     "profile_image_url": null,
@@ -1477,15 +1537,15 @@ Response `200`:
     "current_longitude": 3.4723,
     "distance_from_patient": 0.0,
     "estimated_arrival_time": 5,
-    "last_location_update": "2026-10-06T08:23:25.756428",
+    "last_location_update": "2026-10-07T09:41:18.564156",
     "is_online": true
   },
   "service_type": "nurse",
   "assistance_type": "Placeholder assistance",
   "condition": "Placeholder condition",
   "duration_hours": 2,
-  "scheduled_date": "2026-10-06T08:38:27.862624",
-  "scheduled_end_date": "2026-10-06T10:38:27.862624",
+  "scheduled_date": "2026-10-07T09:56:20.657451",
+  "scheduled_end_date": "2026-10-07T11:56:20.657451",
   "patient_address": "12 Placeholder Street, Lekki",
   "patient_latitude": 6.4474,
   "patient_longitude": 3.4723,
@@ -1498,10 +1558,10 @@ Response `200`:
   "platform_fee": 5000.0,
   "special_instructions": "Placeholder instructions",
   "booking_for": "myself",
-  "created_at": "2026-10-06T08:23:27.862475",
-  "updated_at": "2026-10-06T08:23:29.703819",
+  "created_at": "2026-10-07T09:41:20.656324",
+  "updated_at": "2026-10-07T09:41:22.502804",
   "dispatch_state": "matched",
-  "visit_code": "1092",
+  "visit_code": "0254",
   "payment_url": null,
   "payment_access_code": null,
   "payment_error": null
@@ -1525,7 +1585,7 @@ Request body:
 ```json
 {
   "action": "start",
-  "visit_code": "1092"
+  "visit_code": "0254"
 }
 ```
 
@@ -1536,64 +1596,64 @@ Response `200`:
 {
   "message": "Booking start successfully",
   "booking": {
-    "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
-    "scheduled_date": "2026-10-06T08:38:27.862624",
-    "patient_state": "Lagos",
-    "dispatch_state": "matched",
-    "platform_fee_kobo": 500000,
-    "id": "d4055373-bee6-431e-977a-11b01af19a96",
-    "booking_code": "ECCADB9F",
-    "scheduled_end_date": "2026-10-06T10:38:27.862624",
-    "status": "in_progress",
-    "dispatch_started_at": "2026-10-06T08:23:29.589757",
-    "paystack_reference": "BKG_ECCADB9F_4b1aefe6",
-    "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
-    "service_type": "nurse",
-    "actual_start_time": "2026-10-06T08:23:29.841234",
-    "payment_status": "paid",
-    "payment_failure_reason": null,
-    "actual_end_time": null,
-    "payment_expires_at": "2026-10-06T08:53:27.862634",
-    "special_instructions": "Placeholder instructions",
-    "patient_address": "12 Placeholder Street, Lekki",
-    "cancel_reason": null,
-    "booking_for": "myself",
-    "assistance_type": "Placeholder assistance",
-    "patient_latitude": 6.4474,
-    "refund_required": false,
-    "created_at": "2026-10-06T08:23:27.862475",
-    "condition": "Placeholder condition",
-    "patient_longitude": 3.4723,
-    "refund_required_reason": null,
-    "total_amount_kobo": 5500000,
-    "updated_at": "2026-10-06T08:23:29.841600",
-    "duration_hours": 2,
-    "patient_city": "Lagos",
-    "service_fee_kobo": 5000000,
-    "visit_code": null,
-    "total_amount": "55000.00",
-    "service_fee": "50000.00",
-    "platform_fee": "5000.00",
+    "id": "4029e780-a4f8-4b94-9567-c1669558230f",
+    "booking_code": "B3F53B7E",
+    "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
     "patient_details": {
-      "patient_id": "d6439478-3aa3-40c0-ae01-4545fe16d585",
+      "patient_id": "4169f01d-d66d-4581-9744-ca7ed952e7b4",
       "full_name": "Placeholder Patient",
-      "phone_number": "+2340000035004",
+      "phone_number": "+2340000102004",
       "profile_image_url": null,
       "emergency_contact_name": null,
       "emergency_contact_phone": null
     },
+    "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
     "caregiver_details": {
-      "caregiver_id": "2eb78674-00e2-4c82-aad8-7e59ff6d3974",
+      "caregiver_id": "7ec8f419-0dee-4d7d-9857-1796b335caf0",
       "full_name": "Placeholder Caregiver A",
       "specialization": "Elderly Care",
       "profile_image_url": null,
       "current_latitude": 6.4474,
       "current_longitude": 3.4723,
-      "is_online": true,
-      "last_location_update": "2026-10-06T08:23:25.756428",
       "distance_from_patient": 0.0,
-      "estimated_arrival_time": 5
-    }
+      "estimated_arrival_time": 5,
+      "last_location_update": "2026-10-07T09:41:18.564156",
+      "is_online": true
+    },
+    "service_type": "nurse",
+    "assistance_type": "Placeholder assistance",
+    "condition": "Placeholder condition",
+    "duration_hours": 2,
+    "scheduled_date": "2026-10-07T09:56:20.657451",
+    "scheduled_end_date": "2026-10-07T11:56:20.657451",
+    "actual_start_time": "2026-10-07T09:41:22.638371",
+    "actual_end_time": null,
+    "patient_address": "12 Placeholder Street, Lekki",
+    "patient_latitude": 6.4474,
+    "patient_longitude": 3.4723,
+    "patient_city": "Lagos",
+    "patient_state": "Lagos",
+    "status": "in_progress",
+    "payment_status": "paid",
+    "paystack_reference": "BKG_B3F53B7E_fe9cb6cd",
+    "payment_expires_at": "2026-10-07T10:11:20.657483",
+    "payment_failure_reason": null,
+    "total_amount": "55000.00",
+    "service_fee": "50000.00",
+    "platform_fee": "5000.00",
+    "total_amount_kobo": 5500000,
+    "service_fee_kobo": 5000000,
+    "platform_fee_kobo": 500000,
+    "special_instructions": "Placeholder instructions",
+    "booking_for": "myself",
+    "cancel_reason": null,
+    "refund_required": false,
+    "refund_required_reason": null,
+    "dispatch_state": "matched",
+    "dispatch_started_at": "2026-10-07T09:41:22.391417",
+    "visit_code": null,
+    "created_at": "2026-10-07T09:41:20.656324",
+    "updated_at": "2026-10-07T09:41:22.638751"
   }
 }
 ```
@@ -1685,16 +1745,16 @@ Response `200`:
 {
   "profile_status": "approved",
   "is_available": true,
-  "location_updated_at": "2026-10-06T08:23:25.756428",
+  "location_updated_at": "2026-10-07T09:41:18.564156",
   "today_visits": [
     {
-      "id": "d4055373-bee6-431e-977a-11b01af19a96",
-      "booking_code": "ECCADB9F",
+      "id": "4029e780-a4f8-4b94-9567-c1669558230f",
+      "booking_code": "B3F53B7E",
       "service_type": "nurse",
       "status": "accepted",
       "dispatch_state": "matched",
-      "scheduled_date": "2026-10-06T08:38:27.862624",
-      "scheduled_end_date": "2026-10-06T10:38:27.862624",
+      "scheduled_date": "2026-10-07T09:56:20.657451",
+      "scheduled_end_date": "2026-10-07T11:56:20.657451",
       "duration_hours": 2,
       "patient_name": "Placeholder Patient",
       "patient_address": "12 Placeholder Street, Lekki",
@@ -1705,14 +1765,14 @@ Response `200`:
   "upcoming_visits": [],
   "open_offers": [
     {
-      "booking_id": "d63f2ad6-2f83-4d58-98cd-3c241fc8e354",
+      "booking_id": "a71ae452-68bc-446f-8053-114951192d06",
       "service_type": "nurse",
-      "scheduled_date": "2026-10-06T08:38:27.867152",
-      "scheduled_end_date": "2026-10-06T10:38:27.867152",
+      "scheduled_date": "2026-10-07T09:56:20.660930",
+      "scheduled_end_date": "2026-10-07T11:56:20.660930",
       "duration_hours": 2,
       "area": "Lagos",
       "state": "Lagos",
-      "offered_at": "2026-10-06T08:23:29.659045"
+      "offered_at": "2026-10-07T09:41:22.459779"
     }
   ],
   "wallet_balance_naira": 0.0,
@@ -1732,17 +1792,17 @@ Response `200`:
 {
   "profile_status": "approved",
   "is_available": true,
-  "location_updated_at": "2026-10-06T08:23:25.756428",
+  "location_updated_at": "2026-10-07T09:41:18.564156",
   "today_visits": [],
   "upcoming_visits": [
     {
-      "id": "4bb037c1-819d-4997-8536-c9db18f05ce5",
-      "booking_code": "E76C1B08",
+      "id": "52adff42-7409-4070-8416-21d544101e75",
+      "booking_code": "469AD5D1",
       "service_type": "nurse",
       "status": "accepted",
       "dispatch_state": "matched",
-      "scheduled_date": "2026-10-09T08:23:29.909849",
-      "scheduled_end_date": "2026-10-09T10:23:29.909849",
+      "scheduled_date": "2026-10-10T09:41:22.701736",
+      "scheduled_end_date": "2026-10-10T11:41:22.701736",
       "duration_hours": 2,
       "patient_name": "Placeholder Patient",
       "patient_address": "12 Placeholder Street, Lekki",
@@ -1766,19 +1826,19 @@ Response `200`:
 {
   "profile_status": "approved",
   "is_available": true,
-  "location_updated_at": "2026-10-06T08:23:25.756428",
+  "location_updated_at": "2026-10-07T09:41:18.564156",
   "today_visits": [],
   "upcoming_visits": [],
   "open_offers": [
     {
-      "booking_id": "1b4b008b-c4d2-4fb1-a7b6-1eca61375802",
+      "booking_id": "97fc790f-4a55-4735-8135-73c433882ccd",
       "service_type": "nurse",
-      "scheduled_date": "2026-10-06T08:38:27.858997",
-      "scheduled_end_date": "2026-10-06T10:38:27.858997",
+      "scheduled_date": "2026-10-07T09:56:20.653502",
+      "scheduled_end_date": "2026-10-07T11:56:20.653502",
       "duration_hours": 2,
       "area": "Lagos",
       "state": "Lagos",
-      "offered_at": "2026-10-06T08:23:27.927274"
+      "offered_at": "2026-10-07T09:41:20.681516"
     }
   ],
   "wallet_balance_naira": 0.0,
@@ -1796,17 +1856,17 @@ Response `200`:
 {
   "profile_status": "approved",
   "is_available": false,
-  "location_updated_at": "2026-10-06T08:23:25.756428",
+  "location_updated_at": "2026-10-07T09:41:18.564156",
   "today_visits": [],
   "upcoming_visits": [
     {
-      "id": "4bb037c1-819d-4997-8536-c9db18f05ce5",
-      "booking_code": "E76C1B08",
+      "id": "52adff42-7409-4070-8416-21d544101e75",
+      "booking_code": "469AD5D1",
       "service_type": "nurse",
       "status": "accepted",
       "dispatch_state": "matched",
-      "scheduled_date": "2026-10-09T08:23:29.909849",
-      "scheduled_end_date": "2026-10-09T10:23:29.909849",
+      "scheduled_date": "2026-10-10T09:41:22.701736",
+      "scheduled_end_date": "2026-10-10T11:41:22.701736",
       "duration_hours": 2,
       "patient_name": "Placeholder Patient",
       "patient_address": "12 Placeholder Street, Lekki",
@@ -1893,8 +1953,8 @@ Response `200`:
   "bank_name": "Placeholder Bank",
   "account_number": "0000000000",
   "account_name": "Placeholder Caregiver A",
-  "created_at": "2026-10-06T08:23:31.051733",
-  "updated_at": "2026-10-06T08:23:31.051735"
+  "created_at": "2026-10-07T09:41:23.838129",
+  "updated_at": "2026-10-07T09:41:23.838132"
 }
 ```
 
@@ -1918,7 +1978,7 @@ Response `200`:
 <!-- capture: 128-a-withdraw.json response.body -->
 ```json
 {
-  "transaction_id": "b4994f0e-9edc-479d-97ad-7a8419fc7902",
+  "transaction_id": "c3f5972e-ac77-4969-b9ba-cb8918b7c8dd",
   "status": "pending",
   "message": "Withdrawal request submitted. Processing will be completed soon."
 }
@@ -1950,7 +2010,7 @@ Response `200`:
 ```json
 [
   {
-    "id": "b4994f0e-9edc-479d-97ad-7a8419fc7902",
+    "id": "c3f5972e-ac77-4969-b9ba-cb8918b7c8dd",
     "type": "withdrawal",
     "amount": 200000,
     "status": "pending",
@@ -1959,8 +2019,8 @@ Response `200`:
     "account_name": "Placeholder Caregiver A",
     "reference": null,
     "narration": "Placeholder",
-    "created_at": "2026-10-06T08:23:31.075953",
-    "updated_at": "2026-10-06T08:23:31.075954"
+    "created_at": "2026-10-07T09:41:23.864890",
+    "updated_at": "2026-10-07T09:41:23.864893"
   }
 ]
 ```
@@ -1977,6 +2037,9 @@ _capture `130-a-wallet-transactions.json`_
 | 401 | `Could not validate credentials` | bad/expired token, or a refresh token used as bearer |
 | 401 | `Incorrect email/phone or password` | login |
 | 401 | `Invalid refresh token` | refresh |
+| 400 | `Inactive user` | refresh with a deleted account's token |
+| 403 | `Inactive user` | any call with a deleted account's access token |
+| 409 | a sentence, see section 3 ("Delete account") | `DELETE /auth/profile` while a booking is active or money is owed |
 | 400 | `A user with this email already exists` | register |
 | 400 | `Invalid verification code` | verify-email |
 | 400 | `Invalid file type. Only PDF and image files are allowed.` | document upload |
@@ -2042,6 +2105,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 8. **Withdrawals stay `pending`.** Say "requested"; nothing pays out automatically yet.
 9. **A push is a hint, not a guarantee.** Delivery was not verified, and the backend never retries or checks receipts.
 10. **Cancelling is allowed from `accepted`, `en_route` and `in_progress`, and no reason is stored.** Confirm with the caregiver before sending it.
+11. **Deleting the account is permanent.** Warn before sending `DELETE /auth/profile`: the profile, bank details and verification data are erased and cannot be restored, and the same login cannot be used again unless they register from scratch. On `409`, show the `detail` text and send them to the booking or wallet screen it names. On `200`, sign out and clear everything stored on the device.
 
 ## 15. Verification table
 
@@ -2083,3 +2147,6 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Withdrawal payout to a bank | **No** | No payout process exists |
 | Caregiver earnings credited on completion | No | Not implemented |
 | Chat, notes, tracking for the caregiver | No | Out of scope for C3 |
+| Delete account: `409` for an active booking (caregiver and patient) and a wallet balance, `200`, old tokens refused (`403`, `400`), login `401`, repeat delete `403`, same email registers again | Yes | 134-145 |
+| Delete account: `409` for a pending withdrawal | **No** | Automated test only (`test_caregiver_with_a_pending_withdrawal_is_refused`) |
+| What exactly is wiped (profile fields, bank account, transactions masked, WhatsApp contact, Cloudinary image) | **No (only the account row was queried live)** | Automated tests, `test_account_deletion.py` |

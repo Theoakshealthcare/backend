@@ -2,6 +2,8 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
+**Update (2026-10-07):** Account deletion fixed (section 12): erasure as anonymisation, branch `fix/account-deletion-anonymise`, no migration.
+
 **Update (2026-10-06, evening):** Admin A0 and A1 merged; tech debt merged (#23: Python 3.13, pwdlib, PyJWT, google-genai, typed responses). WhatsApp W1 merged, W2 (booking in chat) in review. See sections 9–11.
 
 **Update (2026-10-06):** Phase 0 is done. Phase C (caregiver app) is code-complete: C0–C4 merged. A device/Simulator run is pending a newer Xcode, and real push needs an EAS project. See section 8.
@@ -77,7 +79,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Profile edit clears `user.patient`, which silently breaks vitals
 - [ ] Token refresh can deadlock on a 401
 - [ ] Vitals insights and caregiver-access response shapes don't match the backend
-- [ ] Password reset flow, delete account, full logout
+- [ ] Password reset flow, full logout. Delete account: the backend is fixed (section 12); the apps still need the screen and the 409 message
 - [ ] Replace mocks: home, notifications, chat, AI note taker, tracking map, wallet, prescriptions
 - [ ] Remove about 4.5k lines of dead code (`FallguardAssessment1–24`, `VitalDetails`, old hooks)
 - [ ] Move tokens to `expo-secure-store`; base URL from `EXPO_PUBLIC_API_URL`
@@ -260,12 +262,24 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] Typed response models for verification-status, form-options, the booking action response and the admin caregiver list/detail (no shape change; golden shape test)
 - [x] `TRUSTED_PROXIES=` (as in `.env.example`) crashed Settings; list settings now accept empty, comma-separated or JSON
 
+## 12. Account deletion (erasure as anonymisation) — 🟢 done on `fix/account-deletion-anonymise` (2026-10-07, [SOP](../sop/2026-10-07-account-deletion.md)), pending merge
+- [x] ⚠️ `DELETE /auth/profile` returned 500 for any user with history (bookings, wallet, consents, tickets, WhatsApp contact, vitals). Reproduced with 16 failing tests first
+- [x] Erasure request handled as anonymisation in one transaction: PII wiped on User and Caregiver/Patient, account closed, push tokens deleted, payout details removed or masked
+- [x] Bookings, wallet and transactions, consents, support tickets, vitals and prescriptions kept; erasure recorded as `account_erasure` consent withdrawals
+- [x] 409 with an actionable `detail` for active bookings, a positive wallet balance or a pending withdrawal (caregiver), and paid active bookings or a wallet balance (patient)
+- [x] WhatsApp contact unlinked and anonymised through the STOP DATA code (`app/channels/whatsapp/withdrawal.py`, now shared with the processor)
+- [x] Profile image deleted from Cloudinary after commit, never failing the request
+- [x] Response model `DetailResponse`; caregiver FE guide section 3 re-captured live
+- [x] No migration: `users.is_active=false` is the closed marker, so there is nothing to re-parent at merge
+
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
 - [x] Push notifications for caregiver job offers (Expo). 2026-10-05, C3, [SOP](../sop/2026-10-05-caregiver-mobile-support.md). Patient-side pushes and WhatsApp are not built.
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (Erasure) Caregiver document files (`file_path` targets) and the ID-verification files at the providers are not deleted from storage, only the database references are blanked; add a purge job. Medical records and care recipients created for other people are kept (clinical and booking retention); decide the retention period with counsel
+- [ ] (Erasure) The admin console has no view of erased accounts; they are recognisable by `email LIKE 'deleted+%@example.com'`
 - [x] `patient.py` admin refund routes checked `user_type != "admin"` (never true). Fixed: they use `require_permission("refunds.approve")` (A0)
 - [ ] Chat and notes routes in `endpoints/booking.py` don't let admins in; decide whether support staff should read them (an admin token is rejected there since A0, as an app token was before)
 - [ ] (A0) Admin invites are not emailed: the API returns the token and the console shows the link. Add an email, and an endpoint to re-issue an expired invite (today an expired invite blocks that email)
