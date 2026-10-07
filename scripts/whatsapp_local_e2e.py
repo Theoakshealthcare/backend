@@ -35,6 +35,18 @@ caregiver; the worker's events job delivers the messages):
   24 hour window. The caregiver's push is recorded as delivered (no device on file in the stack).
 - The condition appears in none of it.
 
+The drop-out and fee-tier work adds, on the same stack:
+- The default policy row is seeded by the migration (``booking_policies``).
+- A caregiver drops out of an accepted visit a day ahead: the booking is reopened and re-dispatched (never back to
+  the one who dropped), the booker is told "finding you another one" (a template outside the 24 hour window), and a
+  replacement's accept sends the normal assigned message and a new visit code.
+- A drop-out with 3 hours to go: the worker offers the choice at the decision lead; Keep waiting then hands over to a
+  person at the start time (a support ticket, the chat goes to a human). A drop-out within 2 hours goes straight to the
+  choice, and Full refund refunds the whole amount with no fee.
+- The two-tier cancellation fee: the late tier (50% of the service fee) inside 2 hours, shown before it is kept, and
+  the terms quoted are the terms charged even when the policy is edited before the booking is confirmed. A late
+  cancel after a qualifying on-my-way (tapped in time, then moved toward the patient) is recorded as compensable.
+
 ``--up`` writes a throwaway env file with random secrets to the system temp dir and starts compose
 with it (``OAKLY_ENV_FILE_PATH``). Nothing is read from or written to a real ``.env``.
 Needs Docker and nothing else: no Meta account, no tunnel, no internet.
@@ -43,6 +55,7 @@ Needs Docker and nothing else: no Meta account, no tunnel, no internet.
 import argparse
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -90,6 +103,10 @@ WA_ID_EXPIRY = "23484" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_RETURN = "23485" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_CANCEL = "23487" + "".join(secrets.choice("0123456789") for _ in range(8))
 WA_ID_DROP = "23488" + "".join(secrets.choice("0123456789") for _ in range(8))  # W3: a caregiver who drops out
+WA_ID_DROP2 = "23489" + "".join(secrets.choice("0123456789") for _ in range(8))  # a drop-out inside 2 hours: refund
+WA_ID_DROP3 = "23470" + "".join(secrets.choice("0123456789") for _ in range(8))  # a drop-out with 3 h to go: wait, hand over
+WA_ID_LATE = "23471" + "".join(secrets.choice("0123456789") for _ in range(8))  # a late-tier cancellation
+WA_ID_LATE2 = "23472" + "".join(secrets.choice("0123456789") for _ in range(8))  # ... after a qualifying on my way
 WA_ID_FAR = "23486" + "".join(secrets.choice("0123456789") for _ in range(8))
 CONDITION = "post-surgery wound dressing, SENTINEL-CONDITION-7731"  # must appear nowhere but encrypted on the booking
 RUN = secrets.token_hex(4)  # makes the Meta message ids unique per run too (a reused id is a replay)
@@ -634,8 +651,10 @@ def tap(run: Run, wa_id: str, reply_id: str, tag: str, *, as_list: bool = False)
     return chat_step(run, lambda: run.post(make(wa_id, reply_id, message_id=f"wamid.E2E.{RUN}.{tag}.{secrets.token_hex(3)}")))
 
 
-def paid_booking(run: Run, wa_id: str, tag: str) -> tuple:
+def paid_booking(run: Run, wa_id: str, tag: str, *, after_quote: Callable[[], None] | None = None) -> tuple:
     book_until_quote(run, wa_id, tag)
+    if after_quote is not None:
+        after_quote()  # something that happens between the quote and Confirm & pay
     confirm(run, wa_id, tag)
     row = booking_row(wa_id)
     run.check(f"[{tag}] its signed Paystack webhook settles it", paystack_webhook(run, row[11], 4_400_000) == 200)
@@ -741,7 +760,7 @@ def notification_scenarios(run: Run) -> None:
     pushed = db_rows(f"SELECT delivered_at IS NOT NULL, last_error FROM booking_events WHERE booking_id = '{c[0]}' AND event = 'caregiver_booking_cancelled'")
     run.check("the assigned caregiver's push is recorded and settled (no device on file in the stack)", pushed == [(True, "no_device")], str(pushed))
 
-    print("W3 a caregiver drops out; the booker is outside the 24 hour window")
+    print("A caregiver drops out a day ahead: the booking is re-dispatched; the booker is outside the 24 hour window")
     f = paid_booking(run, WA_ID_DROP, "F")
     sql_exec("UPDATE whatsapp_contacts SET last_inbound_at = now() - interval '26 hours' "
              f"WHERE wa_id = '{WA_ID_DROP}'")
@@ -753,21 +772,177 @@ def notification_scenarios(run: Run) -> None:
     run.settle(1.5)
     names = sorted(b["template"]["name"] for b in mine(run, WA_ID_DROP, sent) if b["type"] == "template")
     run.check("outside the window the assignment and the code go as approved templates", names == ["caregiver_assigned", "visit_code"], str(names))
+    replacement = caregiver_login(run, "Chidi Obi")
+    make_candidate(replacement, str(f[0]))
     update = chat_step(run, lambda: caregiver_act(run, caregiver3, str(f[0]), "cancel"))
-    run.check("the caregiver dropping out refunds in full and tells the booker as booking_update",
-              update[0]["type"] == "template" and update[0]["template"]["name"] == "booking_update"
-              and "We've started a refund of ₦44,000." in json.dumps(update[0], ensure_ascii=False), str(update[0]))
-    drop = db_rows(f"SELECT refund_required, refund_amount_kobo, cancel_reason FROM bookings WHERE id = '{f[0]}'")
-    run.check("the booking is in the refund queue for the full amount", drop == [(True, 4_400_000, "caregiver_cancelled")], str(drop))
+    run.check("the drop-out tells the booker we are finding another one, as the dropout_replacing template",
+              update[0]["type"] == "template" and update[0]["template"]["name"] == "dropout_replacing"
+              and f[1] in json.dumps(update[0]), str(update[0]))
+    reopened = db_rows("SELECT status, dropout_state, dispatch_state, caregiver_id IS NULL, refund_required, "
+                       f"visit_code_enc IS NULL FROM bookings WHERE id = '{f[0]}'")
+    run.check("the booking is reopened and dispatching, with no refund and no old visit code",
+              [(r[0].lower(), *r[1:]) for r in reopened] == [("pending", "redispatching", "dispatching", True, False, True)],
+              str(reopened))
+    run.check("the drop-out is recorded against the caregiver", db_rows(
+        f"SELECT count(*) FROM caregiver_dropouts WHERE booking_id = '{f[0]}' AND caregiver_id = '{caregiver3['id']}'") == [(1,)])
+    wave = db_rows(f"SELECT notified_caregiver_ids FROM booking_dispatch_waves WHERE booking_id = '{f[0]}' ORDER BY wave_no DESC LIMIT 1")
+    run.check("the new wave offers the visit to the replacement and not to the caregiver who dropped",
+              replacement["id"] in wave[0][0] and caregiver3["id"] not in wave[0][0], str(wave))
+    run.check("the caregiver who dropped cannot take it back",
+              caregiver_act(run, caregiver3, str(f[0]), "accept").status_code == 403)
+    sent = len(graph.bodies)
+    run.check("the replacement accepts", caregiver_act(run, replacement, str(f[0]), "accept").status_code == 200)
+    wait_for("the assignment templates", lambda: len(mine(run, WA_ID_DROP, sent)) >= 2, 45)
+    run.settle(1.5)
+    again = sorted(b["template"]["name"] for b in mine(run, WA_ID_DROP, sent) if b["type"] == "template")
+    run.check("the normal assigned and visit-code messages fire for the new caregiver", again == ["caregiver_assigned", "visit_code"], str(again))
+    run.check("the booking is accepted by the replacement and no drop-out is in progress", db_rows(
+        f"SELECT caregiver_id::text, dropout_state FROM bookings WHERE id = '{f[0]}'") == [(replacement["id"], None)])
 
     print("W3 privacy and the worker")
     spoken = json.dumps(graph.bodies)
     run.check("the condition is in no message the bot sent, including the new ones", "SENTINEL" not in spoken and "wound" not in spoken.lower())
     dump = json.dumps(db_rows("SELECT t::text FROM booking_events t")) + json.dumps(db_rows("SELECT t::text FROM whatsapp_messages t"))
     run.check("nor in the outbox or the message log", "SENTINEL" not in dump)
-    run.check("the visit code is not in the outbox or the message log", visit_code not in dump.replace(str(a[0]), ""))
+    # As a standalone token: four digits also turn up by chance inside UUIDs and timestamps, which is not a leak.
+    run.check("the visit code is not in the outbox or the message log",
+              re.search(rf"(?<![0-9A-Za-z.\-]){re.escape(visit_code)}(?![0-9A-Za-z.\-])", dump) is None)
     run.check("no event is stuck or failed", db_rows("SELECT count(*) FROM booking_events WHERE delivered_at IS NULL OR "
                                                       "(last_error IS NOT NULL AND last_error NOT IN ('no_device'))") == [(0,)])
+
+
+def make_candidate(caregiver: dict, booking_id: str) -> None:
+    """Make a caregiver matchable for a booking: a nurse skill and a fresh location a few hundred metres from the patient."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.db.models.booking import CaregiverLocation
+    from app.db.models.caregiver import CaregiverSkill
+
+    lat, lon = db_rows(f"SELECT patient_latitude, patient_longitude FROM bookings WHERE id = '{booking_id}'")[0]
+    engine = create_engine(DB_DSN)
+    with Session(engine) as db:
+        db.add(CaregiverSkill(caregiver_id=caregiver["id"], service_type="nurse"))
+        db.add(CaregiverLocation(caregiver_id=caregiver["id"], latitude=lat + 0.003, longitude=lon, is_active=True,
+                                 is_available=True, updated_at=datetime.utcnow()))
+        db.commit()
+    engine.dispose()
+
+
+def accepted_close_to_the_visit(run: Run, wa_id: str, tag: str, name: str, hours: float, **kw) -> tuple:
+    """A paid booking moved to ``hours`` from now (the Flow only offers later slots), accepted by a new caregiver."""
+    row = paid_booking(run, wa_id, tag, **kw)
+    sql_exec(f"UPDATE bookings SET scheduled_date = now() + interval '{int(hours * 60)} minutes', "
+             f"scheduled_end_date = now() + interval '{int(hours * 60) + 240} minutes' WHERE id = '{row[0]}'")
+    caregiver = caregiver_login(run, name)
+    offer_to(caregiver, str(row[0]))
+    sent = len(run.graph.bodies)
+    run.check(f"[{tag}] a caregiver accepts", caregiver_act(run, caregiver, str(row[0]), "accept").status_code == 200)
+    wait_for("the assignment messages", lambda: len(mine(run, wa_id, sent)) >= 2, 45)
+    run.settle(1.5)
+    return row, caregiver
+
+
+def policy_row() -> tuple:
+    return db_rows("SELECT cancel_free_hours, cancel_late_hours, cancel_fee_percent, cancel_late_fee_percent, "
+                   "dropout_redispatch_min_lead_minutes, dropout_decision_lead_minutes, "
+                   "onmyway_compensation_window_minutes, caregiver_late_fee_share_percent FROM booking_policies WHERE id = 1")[0]
+
+
+def dropout_and_fee_scenarios(run: Run) -> None:
+    graph = run.graph
+    print("Booking policy: the migration seeded the defaults")
+    run.check("the default policy row is there", policy_row() == (12, 2, 20, 50, 120, 60, 120, 80), str(policy_row()))
+
+    print("Drop-out with 3 hours to go: the worker offers the choice at the decision lead, Keep waiting, then a person at the start")
+    g, cg = accepted_close_to_the_visit(run, WA_ID_DROP3, "G", "Ify Nwosu", 3)
+    update = chat_step(run, lambda: caregiver_act(run, cg, str(g[0]), "cancel"))
+    run.check("the booker is told nothing is needed (inside the 24 hour window: free text)",
+              to_naira_text(update[0]) == f"Booking {g[1]}: your professional had to cancel. We're finding you another one, so there's nothing you need to do. Reply here if you need help.",
+              to_naira_text(update[0]))
+    run.check("the drop-out is waiting for a replacement", db_rows(f"SELECT dropout_state FROM bookings WHERE id = '{g[0]}'") == [("redispatching",)])
+    sql_exec(f"UPDATE bookings SET scheduled_date = now() + interval '30 minutes', scheduled_end_date = now() + interval '270 minutes' WHERE id = '{g[0]}'")
+    choice = chat_step(run, lambda: None, timeout=150)  # the worker's drop-out job runs every minute
+    ids = [b["reply"]["id"] for b in choice[0]["interactive"]["action"]["buttons"]]
+    titles = [b["reply"]["title"] for b in choice[0]["interactive"]["action"]["buttons"]]
+    run.check("nobody by the decision lead: three buttons, no fee mentioned",
+              ids == [f"bk:wait:{g[0]}", f"bk:resched:{g[0]}", f"bk:refund:{g[0]}"]
+              and titles == ["Keep waiting", "Pick another time", "Full refund"] and "fee" not in to_naira_text(choice[0]).lower(),
+              str(choice[0]))
+    forged = tap(run, WA_ID_DROP3, "bk:refund:00000000-0000-0000-0000-000000000000", "G0")
+    run.check("a forged booking id reveals and changes nothing", "couldn't find that booking" in to_naira_text(forged[0]))
+    waited = tap(run, WA_ID_DROP3, ids[0], "G1")
+    run.check("Keep waiting: we keep looking until the visit time", "keep looking" in to_naira_text(waited[0]), to_naira_text(waited[0]))
+    run.check("the booking is waiting and still dispatching", db_rows(
+        f"SELECT dropout_state, dispatch_state FROM bookings WHERE id = '{g[0]}'") == [("waiting", "dispatching")])
+    sql_exec(f"UPDATE bookings SET scheduled_date = now() - interval '2 minutes', scheduled_end_date = now() + interval '238 minutes' WHERE id = '{g[0]}'")
+    handed = chat_step(run, lambda: None, timeout=150)
+    run.check("at the start time with nobody assigned the booker is told our team has taken over",
+              "our team is now looking after your booking" in to_naira_text(handed[0]), to_naira_text(handed[0]))
+    run.check("the booking is handed over, unmatched for the admin queue, with a ticket and the chat with a person", db_rows(
+        f"SELECT b.dropout_state, b.dispatch_state, (SELECT count(*) FROM support_conversations s JOIN whatsapp_contacts w ON w.id = s.contact_id "
+        f"WHERE w.wa_id = '{WA_ID_DROP3}' AND s.status != 'resolved'), (SELECT state FROM whatsapp_conversations c JOIN whatsapp_contacts w ON w.id = c.contact_id "
+        f"WHERE w.wa_id = '{WA_ID_DROP3}') FROM bookings b WHERE b.id = '{g[0]}'") == [("handed_over", "unmatched", 1, "human")])
+
+    print("Drop-out inside 2 hours: straight to the choice; Full refund returns everything, no fee")
+    h, cg2 = accepted_close_to_the_visit(run, WA_ID_DROP2, "H", "Kemi Ajayi", 1.5)
+    choice = chat_step(run, lambda: caregiver_act(run, cg2, str(h[0]), "cancel"))
+    run.check("the choice arrives at once", [b["reply"]["title"] for b in choice[0]["interactive"]["action"]["buttons"]]
+              == ["Keep waiting", "Pick another time", "Full refund"], str(choice[0]))
+    refunded = tap(run, WA_ID_DROP2, f"bk:refund:{h[0]}", "H1")
+    run.check("Full refund: the whole amount, no fee", "₦44,000" in to_naira_text(refunded[0]) and "fee" not in to_naira_text(refunded[0]).lower(),
+              to_naira_text(refunded[0]))
+    run.check("the booking is cancelled and queued for a full refund", [(r[0].lower(), *r[1:]) for r in db_rows(
+        f"SELECT status, refund_required, refund_amount_kobo, refund_required_reason, dropout_state FROM bookings WHERE id = '{h[0]}'")]
+        == [("cancelled", True, 4_400_000, "caregiver_cancelled", "closed")])
+    again = tap(run, WA_ID_DROP2, f"bk:refund:{h[0]}", "H2")
+    run.check("a second tap is harmless", "already been dealt with" in to_naira_text(again[0]))
+
+    print("Two-tier fee: late tier inside 2 hours; the quoted terms are the terms charged")
+    def edit_policy_after_quote() -> None:
+        sql_exec("UPDATE booking_policies SET cancel_fee_percent = 30, cancel_late_fee_percent = 70")
+    try:
+        k, cg3 = accepted_close_to_the_visit(run, WA_ID_LATE, "K", "Ada Obi", 1, after_quote=edit_policy_after_quote)
+    finally:
+        sql_exec("UPDATE booking_policies SET cancel_fee_percent = 20, cancel_late_fee_percent = 50")
+    run.check("the booking kept the terms that were quoted, not the policy edited since", json.loads(db_rows(
+        f"SELECT cancel_policy::text FROM bookings WHERE id = '{k[0]}'")[0][0]) == {
+        "free_hours": 12, "late_hours": 2, "fee_percent": 20, "late_fee_percent": 50})
+    fee_row = db_rows(f"SELECT service_fee_kobo, total_amount_kobo FROM bookings WHERE id = '{k[0]}'")[0]
+    late_fee = (fee_row[0] * 50 + 50) // 100
+    ask = tap(run, WA_ID_LATE, f"bk:cancel:{k[0]}", "K1")
+    text = to_naira_text(ask[0])
+    run.check("the late fee is stated before confirming", "within 2 hours" in text and "50% fee" in text
+              and f"₦{late_fee // 100:,}" in text, text)
+    done = tap(run, WA_ID_LATE, ask[0]["interactive"]["action"]["buttons"][0]["reply"]["id"], "K2")
+    run.check("the late fee is kept and the rest refunded", "a fee of" in to_naira_text(done[0]))
+    run.check("the tier is stored, and the late tier was not compensable (nobody set out)", db_rows(
+        f"SELECT cancel_fee_tier, late_cancel_compensable, refund_amount_kobo FROM bookings WHERE id = '{k[0]}'")
+        == [("late", False, fee_row[1] - late_fee)])
+
+    print("Late cancel after a qualifying on my way is recorded as compensable")
+    m, cg4 = accepted_close_to_the_visit(run, WA_ID_LATE2, "M", "Tola Bakare", 1.5)
+    lat, lon = db_rows(f"SELECT patient_latitude, patient_longitude FROM bookings WHERE id = '{m[0]}'")[0]
+    sql_exec("INSERT INTO caregiver_locations (id, caregiver_id, latitude, longitude, is_active, is_available, recorded_at, updated_at) "
+             f"VALUES (gen_random_uuid(), '{cg4['id']}', {lat + 0.0135}, {lon}, true, true, now(), now())")
+    chat_step(run, lambda: caregiver_act(run, cg4, str(m[0]), "on_my_way"))
+    sql_exec(f"UPDATE caregiver_locations SET latitude = {lat + 0.0075}, updated_at = now() + interval '5 seconds' WHERE caregiver_id = '{cg4['id']}'")
+    ask = tap(run, WA_ID_LATE2, f"bk:cancel:{m[0]}", "M1")
+    tap(run, WA_ID_LATE2, ask[0]["interactive"]["action"]["buttons"][0]["reply"]["id"], "M2")
+    run.check("on my way in time, then moved toward the patient: late tier, compensable", db_rows(
+        f"SELECT cancel_fee_tier, late_cancel_compensable FROM bookings WHERE id = '{m[0]}'") == [("late", True)])
+
+    # The last scenario's events are only just written: the worker delivers every 15 seconds, so wait for them.
+    stuck_sql = ("SELECT event, delivered_at IS NULL, last_error FROM booking_events WHERE delivered_at IS NULL OR "
+                 "(last_error IS NOT NULL AND last_error NOT IN ('no_device'))")
+    try:
+        wait_for("every booking event to be delivered", lambda: not db_rows(stuck_sql), 60)
+    except AssertionError:
+        pass
+    stuck = db_rows(stuck_sql)
+    run.check("no event is stuck or failed after the drop-out scenarios", not stuck, str(stuck))
+    spoken = json.dumps(graph.bodies)
+    run.check("the condition is in none of the new messages", "SENTINEL" not in spoken and "wound" not in spoken.lower())
 
 
 def wait_for_api(base: str, timeout: float = 240.0) -> None:
@@ -816,6 +991,7 @@ def main() -> int:
         scenario(run)
         booking_scenarios(run)
         notification_scenarios(run)
+        dropout_and_fee_scenarios(run)
         more_emergencies(run)
         print(f"\nALL {len(run.results)} CHECKS PASSED")
         code = 0

@@ -337,12 +337,69 @@ def bookings_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
              note="Every action above wrote one entry, newest first.")
 
 
+# --- the booking policy (cancellation tiers, drop-out timings) ----------------------------------------------------
+
+
+def booking_policy_section(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
+    """GET and PATCH /admin/booking-policy as the roles that use them. The policy row itself is seeded by the
+    migration; every request here is a real HTTP call, and the policy is put back at the end."""
+    admins = Admins(db, env, tag + "pol")
+    wait_for_new_rate_window()
+    rec.quiet = True
+    tokens = {}
+    for who, role in (("boss", "super_admin"), ("ops", "operations"), ("sup", "support")):
+        tokens[who] = login_and_verify(rec, admins, who, admins.seed(who, role, f"Placeholder {role}"))["access_token"]
+    rec.quiet = False
+    boss, ops, sup = tokens["boss"], tokens["ops"], tokens["sup"]
+    P = f"{ADMIN}/booking-policy"
+    rec.call("policy-get", "GET", P, token=sup,
+             note="Support holds bookings.read, which is what reading needs. The row is seeded by migration 0010.")
+    rec.call("policy-get-no-token", "GET", P, expect=401)
+    rec.call("policy-update-no-reason", "PATCH", P, token=ops, expect=422, json_body={"cancel_late_fee_percent": 60})
+    rec.call("policy-update-nothing", "PATCH", P, token=ops, expect=422, json_body={"reason": "No field sent"})
+    rec.call("policy-update-unknown-field", "PATCH", P, token=ops, expect=422,
+             json_body={"reason": "Typo", "cancel_late_fee": 60})
+    rec.call("policy-update-percent-over-100", "PATCH", P, token=ops, expect=422,
+             json_body={"reason": "Too high", "cancel_fee_percent": 150})
+    rec.call("policy-update-late-not-shorter", "PATCH", P, token=ops, expect=422,
+             json_body={"reason": "Late window longer than the free one", "cancel_late_hours": 12})
+    rec.call("policy-update-decision-not-shorter", "PATCH", P, token=ops, expect=422,
+             json_body={"reason": "Decision lead too long", "dropout_decision_lead_minutes": 120})
+    rec.call("policy-update-as-support", "PATCH", P, token=sup, expect=403,
+             json_body={"reason": "Not allowed", "cancel_late_fee_percent": 60})
+    rec.call("policy-update", "PATCH", P, token=ops, json_body={
+        "reason": "Raise the late fee while we measure no-shows", "cancel_late_fee_percent": 60,
+        "dropout_decision_lead_minutes": 45},
+        note="Send only what changes. The merged policy is validated as a whole. Bookings already quoted keep their terms.")
+    rec.call("policy-get-after", "GET", P, token=sup)
+    rec.call("audit-policy-update", "GET", f"{ADMIN}/audit", token=boss, params={
+        "entity_type": "booking_policy", "action": "booking_policy.update", "limit": 1},
+        note="One entry per change, with the old and the new values and the reason.")
+    rec.call("policy-restore", "PATCH", P, token=boss, json_body={
+        "reason": "Back to the launch defaults", "cancel_late_fee_percent": 50, "dropout_decision_lead_minutes": 60})
+
+
 def run(args) -> None:
     out = Path(args.out)
     env = read_env(args.env_file)
     rec = AdminRecorder(args.base_url, out)
     db = DB(args.db_url)
     tag = uuid.uuid4().hex[:6]
+    if args.section == "policy":
+        # Replace only the booking-policy captures: they follow the bookings section, which stays as it is.
+        index = json.loads((out / "000-index.json").read_text())
+        first = index.get("sections", {}).get("policy", len(index["captures"]) + 1)
+        for stale in out.glob("*.json"):
+            if stale.name != "000-index.json" and int(stale.name[:3]) >= first:
+                stale.unlink()
+        rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
+        rec.n = first - 1
+        index.setdefault("sections", {})["policy"] = first
+        booking_policy_section(rec, db, env, tag)
+        index["captures"] = rec.index
+        (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
+        print(f"wrote {len(rec.index)} captures to {out}")
+        return
     if args.section == "bookings":
         # Replace only the A2 captures: everything numbered from the section's first file is deleted and made
         # again after the earlier ones, which stay as they are.
@@ -354,6 +411,7 @@ def run(args) -> None:
         rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
         rec.n = first - 1
         index.setdefault("sections", {})["bookings"] = first
+        index["sections"].pop("policy", None)  # the policy captures came after these and were just deleted: re-run --section policy
         bookings_ops(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
@@ -603,9 +661,12 @@ def run(args) -> None:
 
     first_bookings = rec.n + 1
     bookings_ops(rec, db, env, tag)
+    first_policy = rec.n + 1
+    booking_policy_section(rec, db, env, tag)
 
     (out / "000-index.json").write_text(json.dumps({
-        "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag, "sections": {"bookings": first_bookings},
+        "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag,
+        "sections": {"bookings": first_bookings, "policy": first_policy},
         "captures": rec.index}, indent=2) + "\n")
     print(f"wrote {len(rec.index)} captures to {out}")
 
@@ -616,8 +677,9 @@ def main() -> None:
     p.add_argument("--db-url", default="postgresql://oakly:oakly@127.0.0.1:5432/oakly")
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Fernet key)")
     p.add_argument("--out", default="docs/fe-captures/admin")
-    p.add_argument("--section", choices=["all", "bookings"], default="all",
-                   help="'bookings' re-captures only the A2 section and appends it to the existing captures")
+    p.add_argument("--section", choices=["all", "bookings", "policy"], default="all",
+                   help="'bookings' re-captures only the A2 section (and drops the policy captures after it), 'policy' only "
+                        "the booking-policy section; both append to the existing captures")
     run(p.parse_args())
 
 
