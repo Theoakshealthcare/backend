@@ -1,65 +1,79 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+"""Pricing settings. Reads need an admin with ``bookings.read``; writes need ``pricing.write`` and a reason.
+
+Settings are versioned: POST and PUT both publish a new row and write an ``admin_audit_log`` row; old rows (the ones
+quotes and bookings were priced with) are never edited or removed. The app and the WhatsApp flow read pricing straight
+from the database, not through these routes.
+"""
+
 from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_db, require_permission
+from app.db.models.admin import AdminUser
 from app.db.models.booking_settings import BookingSettings
-from app.schemas.booking_settings import (
-    BookingSettingsCreate, BookingSettingsUpdate, BookingSettingsResponse
-)
-from app.api.deps import get_db, get_current_user, require_permission
+from app.schemas.booking_settings import BookingSettingsCreate, BookingSettingsResponse, BookingSettingsUpdate
+from app.services import booking_settings as service
 
 router = APIRouter()
 
-# Public GET (all users)
+
 @router.get("/", response_model=List[BookingSettingsResponse])
-def get_booking_settings(db: Session = Depends(get_db)):
-    settings = db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).all()
-    return settings
+def get_booking_settings(
+    db: Session = Depends(get_db),
+    _admin: AdminUser = Depends(require_permission("bookings.read")),
+):
+    return db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).all()
+
 
 @router.get("/latest", response_model=BookingSettingsResponse)
-def get_latest_booking_settings(db: Session = Depends(get_db)):
-    settings = db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+def get_latest_booking_settings(
+    db: Session = Depends(get_db),
+    _admin: AdminUser = Depends(require_permission("bookings.read")),
+):
+    settings = service.latest(db)
     if not settings:
         raise HTTPException(status_code=404, detail="Booking settings not found")
     return settings
 
-# Admin-only endpoints
+
 @router.post("/", response_model=BookingSettingsResponse)
 def create_booking_settings(
-    settings_in: BookingSettingsCreate,
+    settings_in: BookingSettingsCreate, request: Request,
     db: Session = Depends(get_db),
-    current_admin=Depends(require_permission("pricing.write"))
+    admin: AdminUser = Depends(require_permission("pricing.write")),
 ):
-    settings = BookingSettings(**settings_in.dict())
-    db.add(settings)
-    db.commit()
-    db.refresh(settings)
-    return settings
+    """Publish a new pricing version; it applies to quotes made from now on."""
+    return service.publish(db, admin_id=admin.id, body=settings_in, request=request)
+
 
 @router.put("/{settings_id}", response_model=BookingSettingsResponse)
 def update_booking_settings(
-    settings_id: str,
-    settings_in: BookingSettingsUpdate,
+    settings_id: UUID, settings_in: BookingSettingsUpdate, request: Request,
     db: Session = Depends(get_db),
-    current_admin=Depends(require_permission("pricing.write"))
+    admin: AdminUser = Depends(require_permission("pricing.write")),
 ):
-    settings = db.query(BookingSettings).filter(BookingSettings.id == settings_id).first()
-    if not settings:
+    """Publish a new version that replaces ``settings_id``, which must still be the latest. The old row is untouched."""
+    try:
+        return service.publish(db, admin_id=admin.id, body=settings_in, supersedes=settings_id, request=request)
+    except service.SettingsNotFound:
+        db.rollback()
         raise HTTPException(status_code=404, detail="Booking settings not found")
-    for key, value in settings_in.dict(exclude_unset=True).items():
-        setattr(settings, key, value)
-    db.commit()
-    db.refresh(settings)
-    return settings
+    except service.SettingsSuperseded as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"A newer pricing version exists ({exc.latest_id}); reload it and edit that one")
 
-@router.delete("/{settings_id}", status_code=204)
+
+@router.delete("/{settings_id}", responses={409: {"description": "Always: pricing versions are never deleted"}})
 def delete_booking_settings(
-    settings_id: str,
-    db: Session = Depends(get_db),
-    current_admin=Depends(require_permission("pricing.write"))
+    settings_id: UUID,
+    _admin: AdminUser = Depends(require_permission("pricing.write")),
 ):
-    settings = db.query(BookingSettings).filter(BookingSettings.id == settings_id).first()
-    if not settings:
-        raise HTTPException(status_code=404, detail="Booking settings not found")
-    db.delete(settings)
-    db.commit()
-    return None 
+    """Refused: versions are the pricing history that quotes and bookings point at. To change the price, publish a new
+    version (PUT); to go back, publish the old values again."""
+    raise HTTPException(
+        status_code=409, detail="Pricing versions cannot be deleted; publish a new version instead")

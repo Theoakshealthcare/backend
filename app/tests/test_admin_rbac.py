@@ -39,6 +39,8 @@ ADMIN_ONLY = {
     ("POST", f"{API}/admin/bookings/{{booking_id}}/correct-status"): "bookings.correct_status",
     ("GET", f"{API}/admin/booking-policy"): "bookings.read",
     ("PATCH", f"{API}/admin/booking-policy"): "settings.write",
+    ("GET", f"{API}/booking-settings/"): "bookings.read",
+    ("GET", f"{API}/booking-settings/latest"): "bookings.read",
     ("POST", f"{API}/booking-settings/"): "pricing.write",
     ("PUT", f"{API}/booking-settings/{{settings_id}}"): "pricing.write",
     ("DELETE", f"{API}/booking-settings/{{settings_id}}"): "pricing.write",

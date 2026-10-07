@@ -379,6 +379,55 @@ def booking_policy_section(rec: Recorder, db: DB, env: Dict[str, str], tag: str)
         "reason": "Back to the launch defaults", "cancel_late_fee_percent": 50, "dropout_decision_lead_minutes": 60})
 
 
+# --- pricing settings (versioned) -------------------------------------------------------------------------------
+
+
+def pricing_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
+    """Pricing settings: versioned writes, reasons, validation, audit rows and admin-only reads."""
+    admins = Admins(db, env, tag + "pr")
+    wait_for_new_rate_window()
+    rec.quiet = True
+    tokens = {}
+    for who, role in (("boss", "super_admin"), ("ops", "operations"), ("sup", "support"), ("ana", "read_only_analyst")):
+        tokens[who] = login_and_verify(rec, admins, who, admins.seed(who, role, f"Placeholder {role}"))["access_token"]
+    rec.quiet = False
+    boss, ops, sup, ana = tokens["boss"], tokens["ops"], tokens["sup"], tokens["ana"]
+    P = f"{API}/booking-settings/"
+    body = {"base_fee": 5000, "platform_fee_percent": 10, "multipliers": {"nurse": 1.0, "doctor": 2.0},
+            "surge_pricing": False, "surge_multiplier": 1.0, "discount": 0, "reason": "Opening price list"}
+
+    db.run("DELETE FROM booking_settings")  # a capture stack only: start from "no version yet"
+    rec.call("pricing-get-no-token", "GET", f"{P}latest", expect=401)
+    rec.call("pricing-get-as-analyst", "GET", f"{P}latest", token=ana, expect=403,
+             note="Read-only Analyst holds only dashboard.read.")
+    rec.call("pricing-get-empty", "GET", f"{P}latest", token=sup, expect=404,
+             note="Before any version exists. (Run against an empty booking_settings table.)")
+    rec.call("pricing-create-as-support", "POST", P, token=sup, expect=403, json_body=body)
+    rec.call("pricing-create-no-reason", "POST", P, token=boss, expect=422,
+             json_body={k: v for k, v in body.items() if k != "reason"})
+    rec.call("pricing-create-negative-fee", "POST", P, token=boss, expect=422, json_body={**body, "base_fee": -1})
+    rec.call("pricing-create-percent-over-100", "POST", P, token=boss, expect=422,
+             json_body={**body, "platform_fee_percent": 150})
+    rec.call("pricing-create-unknown-service", "POST", P, token=boss, expect=422,
+             json_body={**body, "multipliers": {"wizard": 1.0}})
+    rec.call("pricing-create-multiplier-too-high", "POST", P, token=boss, expect=422,
+             json_body={**body, "multipliers": {"nurse": 150}})
+    rec.call("pricing-create-unknown-field", "POST", P, token=boss, expect=422, json_body={**body, "id": str(uuid.uuid4())})
+    first = rec.call("pricing-create", "POST", P, token=boss, json_body=body,
+                     note="Publishes version 1. The response is the new row.").json()
+    rec.call("pricing-update", "PUT", f"{P}{first['id']}", token=boss, json_body={
+        **body, "base_fee": 6500, "surge_pricing": True, "surge_multiplier": 1.5, "reason": "Fuel costs went up"},
+        note="Publishes version 2 as a NEW row (new id). Version 1 is not edited.")
+    rec.call("pricing-update-superseded", "PUT", f"{P}{first['id']}", token=boss, expect=409,
+             json_body={**body, "base_fee": 9000, "reason": "Edited from a stale screen"})
+    rec.call("pricing-update-unknown-id", "PUT", f"{P}{uuid.uuid4()}", token=boss, expect=404, json_body=body)
+    rec.call("pricing-list", "GET", P, token=ops, note="Newest first. Version 1 still has its original values.")
+    rec.call("pricing-get-latest", "GET", f"{P}latest", token=ops)
+    rec.call("pricing-delete", "DELETE", f"{P}{first['id']}", token=boss, expect=409)
+    rec.call("audit-pricing", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "booking_settings", "limit": 2},
+             note="One entry per write, newest first; before and after hold the whole version in naira.")
+
+
 def run(args) -> None:
     out = Path(args.out)
     env = read_env(args.env_file)
@@ -395,7 +444,23 @@ def run(args) -> None:
         rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
         rec.n = first - 1
         index.setdefault("sections", {})["policy"] = first
+        index["sections"].pop("pricing", None)  # the pricing captures came after these and were just deleted: re-run --section pricing
         booking_policy_section(rec, db, env, tag)
+        index["captures"] = rec.index
+        (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
+        print(f"wrote {len(rec.index)} captures to {out}")
+        return
+    if args.section == "pricing":
+        # Replace only the pricing captures: they follow the policy section, which stays as it is.
+        index = json.loads((out / "000-index.json").read_text())
+        first = index.get("sections", {}).get("pricing", len(index["captures"]) + 1)
+        for stale in out.glob("*.json"):
+            if stale.name != "000-index.json" and int(stale.name[:3]) >= first:
+                stale.unlink()
+        rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
+        rec.n = first - 1
+        index.setdefault("sections", {})["pricing"] = first
+        pricing_ops(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
         print(f"wrote {len(rec.index)} captures to {out}")
@@ -411,6 +476,7 @@ def run(args) -> None:
         rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
         rec.n = first - 1
         index.setdefault("sections", {})["bookings"] = first
+        index["sections"].pop("pricing", None)
         index["sections"].pop("policy", None)  # the policy captures came after these and were just deleted: re-run --section policy
         bookings_ops(rec, db, env, tag)
         index["captures"] = rec.index
@@ -663,10 +729,12 @@ def run(args) -> None:
     bookings_ops(rec, db, env, tag)
     first_policy = rec.n + 1
     booking_policy_section(rec, db, env, tag)
+    first_pricing = rec.n + 1
+    pricing_ops(rec, db, env, tag)
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag,
-        "sections": {"bookings": first_bookings, "policy": first_policy},
+        "sections": {"bookings": first_bookings, "policy": first_policy, "pricing": first_pricing},
         "captures": rec.index}, indent=2) + "\n")
     print(f"wrote {len(rec.index)} captures to {out}")
 
@@ -677,9 +745,9 @@ def main() -> None:
     p.add_argument("--db-url", default="postgresql://oakly:oakly@127.0.0.1:5432/oakly")
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Fernet key)")
     p.add_argument("--out", default="docs/fe-captures/admin")
-    p.add_argument("--section", choices=["all", "bookings", "policy"], default="all",
+    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing"], default="all",
                    help="'bookings' re-captures only the A2 section (and drops the policy captures after it), 'policy' only "
-                        "the booking-policy section; both append to the existing captures")
+                        "the booking-policy section, 'pricing' only the pricing section (the last one); all append to the existing captures")
     run(p.parse_args())
 
 

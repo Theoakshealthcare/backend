@@ -2,6 +2,8 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
+**Update (2026-10-07, pricing):** Pricing settings hardened (section 13): versioned writes, reason and audit, validation, admin-only reads, branch `fix/booking-settings-audit`, no migration.
+
 **Update (2026-10-07):** Account deletion fixed (section 12): erasure as anonymisation, branch `fix/account-deletion-anonymise`, no migration.
 
 **Update (2026-10-06, evening):** Admin A0 and A1 merged; tech debt merged (#23: Python 3.13, pwdlib, PyJWT, google-genai, typed responses). WhatsApp W1 merged, W2 (booking in chat) in review. See sections 9–11.
@@ -281,12 +283,22 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] Response model `DetailResponse`; caregiver FE guide section 3 re-captured live
 - [x] Privacy review fixes (8): unpaid bookings cancelled, erased caregivers never matchable, vitals access revoked, pending money blocks, purge queue, retained-data wipes, locked caregiver check, unlinked WhatsApp contacts. Migration `0009_account_erasure` (down_revision `0007`): **re-parent onto `0008_dropout_fee_tiers` at merge**
 
+## 13. Pricing settings hardening — 🟢 done on `fix/booking-settings-audit` (2026-10-07, [SOP](../sop/2026-10-07-pricing-settings-audit.md)), pending merge
+- [x] ⚠️ `PUT /booking-settings/{id}` edited the row in place, silently re-pricing quotes that point at it. Every write now inserts a new version; old rows are never changed
+- [x] ⚠️ `POST`/`PUT`/`DELETE` wrote no audit row and took no reason. `reason` required; `booking_settings.create` / `booking_settings.update` audit rows with before and after
+- [x] ⚠️ Unchecked values (negative fee, percent over 100). Strict typed model with bounds, known service keys, unknown fields refused
+- [x] `DELETE` always refused (`409`); stale `PUT` refused (`409`); concurrent writers serialised
+- [x] Both `GET`s need an admin with `bookings.read` (no client calls them)
+- [x] Admin FE guide section 13 captured live (119 to 136)
+
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
 - [x] Push notifications for caregiver job offers (Expo). 2026-10-05, C3, [SOP](../sop/2026-10-05-caregiver-mobile-support.md). Patient-side pushes and WhatsApp are not built.
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (Pricing) `/prescription/settings` routes still edit in place with no audit row; give them the same versioning and audit
+- [ ] (Pricing) A public price-preview route if a client ever needs one (none calls `/booking-settings` today)
 - [ ] ⚠️ (Erasure review) `Booking.condition` is plaintext for app bookings (WhatsApp bookings encrypt it as `condition_encrypted`); encrypt it and migrate existing rows
 - [ ] (Erasure review) A purge job for `pending_media_purges` and for caregiver document files
 - [ ] (Erasure) Caregiver document files (`file_path` targets) and the ID-verification files at the providers are not deleted from storage, only the database references are blanked; add a purge job. Medical records and care recipients created for other people are kept (clinical and booking retention); decide the retention period with counsel
