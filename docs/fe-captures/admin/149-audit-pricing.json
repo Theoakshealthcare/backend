@@ -1,0 +1,83 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=booking_settings&limit=2",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "3bd68988-f729-4c0b-8562-842d44c7e231",
+          "admin_user_id": "6835e24f-0dda-4165-8006-7543f36ee758",
+          "admin_email": "boss-2bdaccpr@example.com",
+          "action": "booking_settings.update",
+          "entity_type": "booking_settings",
+          "entity_id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+          "before": {
+            "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+            "base_fee": 5000.0,
+            "platform_fee_percent": 10.0,
+            "multipliers": {
+              "nurse": 1.0,
+              "doctor": 2.0
+            },
+            "surge_pricing": false,
+            "surge_multiplier": 1.0,
+            "discount": 0.0
+          },
+          "after": {
+            "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+            "base_fee": 6500.0,
+            "platform_fee_percent": 10.0,
+            "multipliers": {
+              "nurse": 1.0,
+              "doctor": 2.0
+            },
+            "surge_pricing": true,
+            "surge_multiplier": 1.5,
+            "discount": 0.0
+          },
+          "reason": "Fuel costs went up",
+          "ip": "172.18.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-07T14:36:03.922388"
+        },
+        {
+          "id": "7c285c5c-e0b9-4268-a1b8-294ea3d58402",
+          "admin_user_id": "6835e24f-0dda-4165-8006-7543f36ee758",
+          "admin_email": "boss-2bdaccpr@example.com",
+          "action": "booking_settings.create",
+          "entity_type": "booking_settings",
+          "entity_id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+          "before": null,
+          "after": {
+            "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+            "base_fee": 5000.0,
+            "platform_fee_percent": 10.0,
+            "multipliers": {
+              "nurse": 1.0,
+              "doctor": 2.0
+            },
+            "surge_pricing": false,
+            "surge_multiplier": 1.0,
+            "discount": 0.0
+          },
+          "reason": "Opening price list",
+          "ip": "172.18.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-07T14:36:03.913152"
+        }
+      ],
+      "total": 2,
+      "limit": 2,
+      "offset": 0
+    }
+  },
+  "note": "One entry per write, newest first; before and after hold the whole version in naira."
+}

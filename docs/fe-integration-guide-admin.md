@@ -1,8 +1,8 @@
-# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy)
+# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy, pricing)
 
 | | |
 |---|---|
-| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers` |
+| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers`. Pricing settings (section 13), branch `fix/booking-settings-audit`, no migration |
 | **Audience** | `apps/admin` (the console): A1, A2 |
 | **Base URL** | `http://127.0.0.1:8000` for the local stack; every path below starts with `/api/v1` |
 | **Source of truth** | Every request and response body, status code and error string below was **copied from a real response** captured by `scripts/capture_admin_flow.py` against the running docker compose stack. The files are in [`docs/fe-captures/admin/`](fe-captures/admin/); each example names its file. Anything that could not be exercised live is marked **[not live]** with the reason. |
@@ -15,7 +15,7 @@
 - **Some things were seeded or simulated**, because the API cannot do them yet. Each one is marked **[seeded]** or **[db-simulated]** here and has a `note` in its capture:
   - the first Super Admin and a Read-only Analyst were inserted straight into the database (in production the first Super Admin is created with `python -m scripts.create_super_admin`);
   - the 30-minute idle timeout and the 48-hour invite expiry were simulated by moving a timestamp into the past.
-- Section 13 is the table of what is verified live and what is not.
+- Section 14 is the table of what is verified live and what is not.
 
 ## 1. What this is, in the console's terms
 
@@ -474,7 +474,8 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
 | `GET /admin/caregivers`, `GET /admin/caregivers/{id}` | `caregivers.read` |
 | `POST /admin/caregivers/documents/{id}/decision`, `.../identity-decision`, `.../background-check-decision`, `PUT .../skills`, `.../approve`, `.../reject`, `.../request-changes` | `caregivers.approve` |
 | `POST /admin/caregivers/{id}/suspend`, `.../reinstate` | `caregivers.suspend` |
-| `POST`/`PUT`/`DELETE /booking-settings/...` | `pricing.write` |
+| `GET /booking-settings/`, `GET /booking-settings/latest` | `bookings.read` (section 13) |
+| `POST`/`PUT`/`DELETE /booking-settings/...` | `pricing.write` (section 13) |
 | `POST`/`PUT`/`DELETE /prescription/settings/...`, `PATCH /prescription/{id}`, `POST /prescription/{id}/upload_note`, `PATCH /prescription/{id}/status` | `prescriptions.manage` |
 | `POST`/`PUT`/`DELETE /fallguard/admin/question...`, `GET /fallguard/admin/questions` | `fallguard.write` |
 | `GET /patient/admin/refund/requests`, `PUT /patient/admin/refund/requests/{id}` | `refunds.approve` |
@@ -1871,7 +1872,352 @@ The audit entry (`GET /admin/audit?entity_type=booking_policy`), `entity_id` is 
 ]
 ```
 
-## 13. Verification table
+## 13. Pricing settings: `/api/v1/booking-settings`
+
+The price list the app and the WhatsApp flow quote from: base fee per hour, platform fee, per-service multipliers, surge and discount. **Money is in naira here**, as before.
+
+**Versions, not edits.** Every save publishes a **new row with a new `id`**. Old rows are never changed, because quotes and bookings point at the version they were priced with. The newest row is the live price list. So after a `PUT`, the `id` you edited is no longer the one in use; use the `id` from the response.
+
+| Route | Permission | What it does |
+|---|---|---|
+| `GET /booking-settings/latest` | `bookings.read` | the live version |
+| `GET /booking-settings/` | `bookings.read` | every version, newest first (the history) |
+| `POST /booking-settings/` | `pricing.write` | create the **first** version only; `409` once any version exists |
+| `PUT /booking-settings/{id}` | `pricing.write` | publish a new version that replaces `{id}`; `{id}` must still be the latest |
+| `DELETE /booking-settings/{id}` | `pricing.write` | always refused (`409`); to go back, publish the old values again |
+
+Both reads were open to anyone before; they now need an admin token (`401` without one, `403` for an admin without `bookings.read`). The caregiver app and the WhatsApp flow do not call them.
+
+### 13.1 Request body (POST and PUT)
+
+All fields are sent every time (a full version, not a patch). Unknown fields are refused. Numbers must be JSON numbers (`5000`, `5000.5`), never strings, and `surge_pricing` must be `true` or `false`, not `1` or `"true"` (`422`).
+
+| Field | Rule |
+|---|---|
+| `base_fee` | naira per hour; at least 0.01, at most 1,000,000, at most 2 decimal places |
+| `platform_fee_percent` | 0 to 100 |
+| `multipliers` | optional object; keys must be `nurse`, `doctor`, `physiotherapist`, `caregiver` or `nutritionist`; each above 0 and at most 10 |
+| `surge_pricing` | boolean, default `false` |
+| `surge_multiplier` | 1 to 5, default `1` |
+| `discount` | 0 to 100, default `0` |
+| `reason` | **required**, not blank, at most 2000 characters; stored in the audit log |
+
+### 13.2 Publish a version
+
+`POST` (first version only) and `PUT` return the new row (same shape as the reads). `reason` is not echoed back.
+
+<!-- capture: 142-pricing-create.json request.body -->
+```json
+{
+  "base_fee": 5000,
+  "platform_fee_percent": 10,
+  "multipliers": {
+    "nurse": 1.0,
+    "doctor": 2.0
+  },
+  "surge_pricing": false,
+  "surge_multiplier": 1.0,
+  "discount": 0,
+  "reason": "Opening price list"
+}
+```
+
+<!-- capture: 142-pricing-create.json response.body -->
+```json
+{
+  "base_fee": 5000.0,
+  "platform_fee_percent": 10.0,
+  "multipliers": {
+    "nurse": 1.0,
+    "doctor": 2.0
+  },
+  "surge_pricing": false,
+  "surge_multiplier": 1.0,
+  "discount": 0.0,
+  "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+  "created_at": "2026-10-07T14:36:03.911993",
+  "updated_at": "2026-10-07T14:36:03.911993"
+}
+```
+
+`PUT` of the row above with `base_fee` 6500 and surge on. Note the new `id`:
+
+<!-- capture: 143-pricing-update.json response.body -->
+```json
+{
+  "base_fee": 6500.0,
+  "platform_fee_percent": 10.0,
+  "multipliers": {
+    "nurse": 1.0,
+    "doctor": 2.0
+  },
+  "surge_pricing": true,
+  "surge_multiplier": 1.5,
+  "discount": 0.0,
+  "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+  "created_at": "2026-10-07T14:36:03.921849",
+  "updated_at": "2026-10-07T14:36:03.921849"
+}
+```
+
+The history keeps both. Version 1 still has its original values:
+
+<!-- capture: 146-pricing-list.json response.body -->
+```json
+[
+  {
+    "base_fee": 6500.0,
+    "platform_fee_percent": 10.0,
+    "multipliers": {
+      "nurse": 1.0,
+      "doctor": 2.0
+    },
+    "surge_pricing": true,
+    "surge_multiplier": 1.5,
+    "discount": 0.0,
+    "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+    "created_at": "2026-10-07T14:36:03.921849",
+    "updated_at": "2026-10-07T14:36:03.921849"
+  },
+  {
+    "base_fee": 5000.0,
+    "platform_fee_percent": 10.0,
+    "multipliers": {
+      "nurse": 1.0,
+      "doctor": 2.0
+    },
+    "surge_pricing": false,
+    "surge_multiplier": 1.0,
+    "discount": 0.0,
+    "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+    "created_at": "2026-10-07T14:36:03.911993",
+    "updated_at": "2026-10-07T14:36:03.911993"
+  }
+]
+```
+
+### 13.3 Errors
+
+Validation errors are the usual list-of-objects `detail` (section 9); the reason rule matches the booking policy's (section 12.9). Examples of the ones that matter:
+
+No `reason` (`422`):
+
+<!-- capture: 136-pricing-create-no-reason.json response.body keys=detail -->
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "reason"
+      ],
+      "msg": "Field required",
+      "input": {
+        "base_fee": 5000,
+        "platform_fee_percent": 10,
+        "multipliers": {
+          "nurse": 1.0,
+          "doctor": 2.0
+        },
+        "surge_pricing": false,
+        "surge_multiplier": 1.0,
+        "discount": 0
+      }
+    }
+  ]
+}
+```
+
+A negative `base_fee` (`422`):
+
+<!-- capture: 137-pricing-create-negative-fee.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "greater_than_equal",
+      "loc": [
+        "body",
+        "base_fee"
+      ],
+      "msg": "Input should be greater than or equal to 0.01",
+      "input": -1,
+      "ctx": {
+        "ge": 0.01
+      }
+    }
+  ]
+}
+```
+
+An unknown service type in `multipliers` (`422`):
+
+<!-- capture: 139-pricing-create-unknown-service.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body",
+        "multipliers"
+      ],
+      "msg": "Value error, unknown service type(s): wizard",
+      "input": {
+        "wizard": 1.0
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+An unexpected field (`422`):
+
+<!-- capture: 141-pricing-create-unknown-field.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "extra_forbidden",
+      "loc": [
+        "body",
+        "id"
+      ],
+      "msg": "Extra inputs are not permitted",
+      "input": "3aef457e-34cd-4a24-bcb3-f91aa3d2f155"
+    }
+  ]
+}
+```
+
+Editing a version that is no longer the latest (`409`, `detail` is a string and contains the id of the newer one):
+
+<!-- capture: 144-pricing-update-superseded.json response.body -->
+```json
+{
+  "detail": "A newer pricing version exists (baf282ad-31ae-466c-96cb-d4249b1bfa2d); reload it and edit that one"
+}
+```
+
+`POST` when a version already exists (`409`; use `PUT` on the latest):
+
+<!-- capture: 150-pricing-create-when-one-exists.json response.body -->
+```json
+{
+  "detail": "Pricing already exists; use PUT on the latest version (baf282ad-31ae-466c-96cb-d4249b1bfa2d)"
+}
+```
+
+A number sent as a string (`422`):
+
+<!-- capture: 151-pricing-create-string-number.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "float_type",
+      "loc": [
+        "body",
+        "base_fee"
+      ],
+      "msg": "Input should be a valid number",
+      "input": "5000"
+    }
+  ]
+}
+```
+
+Unknown id on `PUT` (`404`), no version yet on `GET /latest` (`404`), `DELETE` (`409`), no token (`401`), no permission (`403`):
+
+<!-- capture: 145-pricing-update-unknown-id.json response.body -->
+```json
+{
+  "detail": "Booking settings not found"
+}
+```
+
+<!-- capture: 148-pricing-delete.json response.body -->
+```json
+{
+  "detail": "Pricing versions cannot be deleted; publish a new version instead"
+}
+```
+
+<!-- capture: 135-pricing-create-as-support.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: pricing.write"
+}
+```
+
+<!-- capture: 133-pricing-get-as-analyst.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: bookings.read"
+}
+```
+
+### 13.4 What the console must do
+
+- **Use `POST` only when there is no version yet** (`GET /latest` is `404`). Otherwise edit with `PUT` on the latest `id`.
+- **After a save, switch to the `id` in the response.** Keep it as the id to send on the next `PUT`. A `PUT` with the old id is a `409`.
+- **On `409` from `PUT`, reload `GET /latest` and show the newer values** to the admin before they save again. Someone else published first; do not retry blindly.
+- **Ask for a reason before every save.** It is mandatory and is what the audit log shows.
+- **Tell the admin a new price applies to quotes made from now on.** Bookings and quotes already made keep the price they were made at; nothing already booked changes.
+- **Do not offer delete.** Offer "restore this version" on the history list instead: `POST` that version's values with a reason.
+- **Multiplier fields:** offer only the five service types, and limit input to 10.
+
+### 13.5 The audit entry
+
+Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=booking_settings`): `action` is `booking_settings.create` (`POST`) or `booking_settings.update` (`PUT`), `entity_id` is the **new** version's id, `before` is the version that was live (`null` for the very first) and `after` the new one, both with `base_fee` in naira.
+
+<!-- capture: 149-audit-pricing.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "3bd68988-f729-4c0b-8562-842d44c7e231",
+    "admin_user_id": "6835e24f-0dda-4165-8006-7543f36ee758",
+    "admin_email": "boss-2bdaccpr@example.com",
+    "action": "booking_settings.update",
+    "entity_type": "booking_settings",
+    "entity_id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+    "before": {
+      "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+      "base_fee": 5000.0,
+      "platform_fee_percent": 10.0,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": false,
+      "surge_multiplier": 1.0,
+      "discount": 0.0
+    },
+    "after": {
+      "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+      "base_fee": 6500.0,
+      "platform_fee_percent": 10.0,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": true,
+      "surge_multiplier": 1.5,
+      "discount": 0.0
+    },
+    "reason": "Fuel costs went up",
+    "ip": "172.18.0.1",
+    "user_agent": "python-httpx/0.28.1",
+    "created_at": "2026-10-07T14:36:03.922388"
+  }
+]
+```
+
+## 14. Verification table
 
 "Live" means a request/response was captured from the running docker stack (the capture number is given). "Test only" means covered by pytest but not captured. "Not live" means neither could be exercised end to end; the shape or behaviour comes from the named source.
 
@@ -1948,3 +2294,13 @@ The audit entry (`GET /admin/audit?entity_type=booking_policy`), `entity_id` is 
 | Booking policy errors: no reason, empty change, unknown field, percent over 100, late not shorter than free, decision not shorter than re-dispatch lead, Support `403`, no token `401` | Verified live | 120 to 127 |
 | Booking policy: the database rejects out-of-range values and a second row | Test only | `test_dropout_migration.py` |
 | An edit leaves already-quoted bookings on their old terms | Test only | `test_cancellation_tiers.py`; the Docker e2e (`scripts/whatsapp_local_e2e.py`) checks it through the chat |
+| Pricing: reads need an admin (`401`, `403`), empty `404` | Verified live | 132, 133, 134 |
+| Pricing: publish with `POST`, `PUT` creates a new row, history keeps the old one | Verified live | 142, 143, 146, 147 |
+| Pricing: validation errors (reason, negative fee, percent, unknown service, multiplier cap, unknown field), stale `PUT` `409`, unknown id `404`, `DELETE` `409`, `403` as Support | Verified live | 135 to 141, 144, 145, 148 |
+| Pricing: audit entry with before/after | Verified live | 149 |
+| Pricing: `POST` when a version exists `409`; a string number `422` | Verified live | 150, 151 |
+| Pricing: fee decimals (0.001, 5000.123 refused), strict types (bool, `1`, strings), clock-skew ordering, two simultaneous first `POST`s | Test only | `test_booking_settings_pricing.py` |
+| Pricing: two simultaneous `PUT`s on one version (exactly one wins) | Test only | `test_booking_settings_pricing.py` (real threads) |
+| Pricing: boundary values, every rejected value, quotes and bookings keep the version they were priced with | Test only | `test_booking_settings_pricing.py` |
+| Pricing: every `/booking-settings` route against every role | Test only | `test_admin_rbac.py` |
+| Pricing: the empty-state `404` was captured after deleting rows on the throwaway capture stack | **[db-simulated]** | 134 note |

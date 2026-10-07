@@ -85,7 +85,7 @@ class BookingService:
         """Calculate booking pricing and details for preview without creating booking"""
         
         # Fetch latest booking settings
-        settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+        settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
         if not settings:
             raise Exception("Booking settings not configured.")
         
@@ -186,7 +186,7 @@ class BookingService:
             price = locked_price
         else:
             # Fetch latest booking settings
-            settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc()).first()
+            settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
             if not settings:
                 raise Exception("Booking settings not configured.")
 

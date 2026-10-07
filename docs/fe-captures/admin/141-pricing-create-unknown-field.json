@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking-settings/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "base_fee": 5000,
+      "platform_fee_percent": 10,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": false,
+      "surge_multiplier": 1.0,
+      "discount": 0,
+      "reason": "Opening price list",
+      "id": "3aef457e-34cd-4a24-bcb3-f91aa3d2f155"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "extra_forbidden",
+          "loc": [
+            "body",
+            "id"
+          ],
+          "msg": "Extra inputs are not permitted",
+          "input": "3aef457e-34cd-4a24-bcb3-f91aa3d2f155"
+        }
+      ]
+    }
+  }
+}

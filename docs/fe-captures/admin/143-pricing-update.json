@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/booking-settings/fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "base_fee": 6500,
+      "platform_fee_percent": 10,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": true,
+      "surge_multiplier": 1.5,
+      "discount": 0,
+      "reason": "Fuel costs went up"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "base_fee": 6500.0,
+      "platform_fee_percent": 10.0,
+      "multipliers": {
+        "nurse": 1.0,
+        "doctor": 2.0
+      },
+      "surge_pricing": true,
+      "surge_multiplier": 1.5,
+      "discount": 0.0,
+      "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+      "created_at": "2026-10-07T14:36:03.921849",
+      "updated_at": "2026-10-07T14:36:03.921849"
+    }
+  },
+  "note": "Publishes version 2 as a NEW row (new id). Version 1 is not edited."
+}
