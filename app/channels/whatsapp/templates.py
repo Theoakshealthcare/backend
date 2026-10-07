@@ -49,6 +49,9 @@ class Template:
     category: str = UTILITY
     url_button: Optional[Tuple[str, str]] = None      # (label, base url): one variable appended to the base
     quick_reply: Optional[Tuple[str, str]] = None     # (label, payload sent back when tapped)
+    # Labels of several quick-reply buttons whose payloads are decided per message (they carry the booking they are
+    # about): ``choose(..., button_ids=...)`` supplies one id per label, in order.
+    choice_buttons: Optional[Tuple[str, ...]] = None
     essential: bool = False           # may still be sent to someone who sent STOP (a paid booking, WA-FR-8)
 
 
@@ -129,6 +132,22 @@ TEMPLATES: Dict[str, Template] = {t.name: t for t in (
         ("amount", "booking_code", "status"),
         essential=True,  # it is about their money
     ),
+    # --- a caregiver dropped out (owner decision 2026-10-06): no health data, booking code only ---
+    Template(
+        "dropout_replacing",
+        "Booking {{1}}: your professional had to cancel. We're finding you another one, so there's nothing you need "
+        "to do. Reply here if you need help.",
+        ("booking_code",),
+        essential=True,  # a paid visit changed: they must hear it even after STOP
+    ),
+    Template(
+        "dropout_choice",
+        "Booking {{1}}: your professional had to cancel and we haven't found a replacement yet. What would you like "
+        "to do?",
+        ("booking_code",),
+        choice_buttons=("Keep waiting", "Pick another time", "Full refund"),
+        essential=True,
+    ),
 )}
 
 
@@ -148,10 +167,17 @@ def render_text(name: str, params: Dict[str, str]) -> str:
     return _fill(template.body, template, params)
 
 
-def as_template(name: str, params: Dict[str, str], *, url_suffix: Optional[str] = None) -> TemplateMessage:
+def _check_buttons(template: Template, button_ids: Optional[Tuple[str, ...]]) -> None:
+    if template.choice_buttons is not None and (button_ids is None or len(button_ids) != len(template.choice_buttons)):
+        raise ValueError(f"template {template.name} needs {len(template.choice_buttons)} button ids")
+
+
+def as_template(name: str, params: Dict[str, str], *, url_suffix: Optional[str] = None,
+                button_ids: Optional[Tuple[str, ...]] = None) -> TemplateMessage:
     """The Cloud API template message: body variables in ``params`` order, plus the button component."""
     template = TEMPLATES[name]
     _fill(template.body, template, params)  # validates the variables
+    _check_buttons(template, button_ids)
     components: list[dict[str, Any]] = []
     if template.params:
         components.append({"type": "body", "parameters": [
@@ -164,25 +190,34 @@ def as_template(name: str, params: Dict[str, str], *, url_suffix: Optional[str] 
     if template.quick_reply:
         components.append({"type": "button", "sub_type": "quick_reply", "index": "0",
                            "parameters": [{"type": "payload", "payload": template.quick_reply[1]}]})
+    if template.choice_buttons:
+        for index, payload in enumerate(button_ids or ()):
+            components.append({"type": "button", "sub_type": "quick_reply", "index": str(index),
+                               "parameters": [{"type": "payload", "payload": payload}]})
     return TemplateMessage(name=name, language=LANGUAGE, components=tuple(components), category=template.category)
 
 
-def choose(name: str, params: Dict[str, str], *, in_window: bool, url: Optional[str] = None) -> OutboundMessage:
+def choose(name: str, params: Dict[str, str], *, in_window: bool, url: Optional[str] = None,
+           button_ids: Optional[Tuple[str, ...]] = None) -> OutboundMessage:
     """What to send for ``name``: the interactive/free-text form inside the window, the template outside it.
-    ``url`` is the full checkout link, for templates with a Pay now button."""
+    ``url`` is the full checkout link, for templates with a Pay now button; ``button_ids`` the payloads of a
+    ``choice_buttons`` template, one per label."""
     template = TEMPLATES[name]
+    _check_buttons(template, button_ids)
     if not in_window:
         suffix = None
         if template.url_button:
             if not url or not url.startswith(template.url_button[1]):
                 raise ValueError(f"template {name} cannot carry this link")
             suffix = url[len(template.url_button[1]):]
-        return as_template(name, params, url_suffix=suffix)
+        return as_template(name, params, url_suffix=suffix, button_ids=button_ids)
     text = render_text(name, params)
     if template.url_button:
         if not url:
             return TextMessage(text)
         return CtaUrlMessage(text, template.url_button[0], url)
+    if template.choice_buttons:
+        return ButtonsMessage(text, tuple(zip(button_ids or (), template.choice_buttons)))
     if template.quick_reply:
         return ButtonsMessage(text, ((template.quick_reply[1], template.quick_reply[0]),))
     return TextMessage(text)

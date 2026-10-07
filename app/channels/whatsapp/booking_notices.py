@@ -36,10 +36,14 @@ TEMPLATE_FOR = {
     "caregiver_reassigned": "booking_update",
     "refund_flagged": "refund_update",
     "refund_processed": "refund_update",
+    "caregiver_dropped_replacing": "dropout_replacing",
+    "dropout_choice_needed": "dropout_choice",
+    "dropout_handed_over": "booking_update",
 }
 JOURNEY_EVENTS = ("caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
                   "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "caregiver_reassigned",
-                  "refund_flagged", "refund_processed")
+                  "refund_flagged", "refund_processed",
+                  "caregiver_dropped_replacing", "dropout_choice_needed", "dropout_handed_over")
 
 _HAS_CAREGIVER = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
 Built = Tuple[Optional[OutboundMessage], Optional[str]]
@@ -131,6 +135,20 @@ def build(db: Session, event: BookingEvent, booking: Booking, now: datetime, *, 
         if status != BookingStatus.CANCELLED or booking.payment_status == PaymentStatus.PENDING:
             return None, "stale"  # nothing was paid, so there is no visit they were counting on
         params = {"booking_code": code, "update": _update_sentence(name, booking)}
+    elif name in ("caregiver_dropped_replacing", "dropout_choice_needed", "dropout_handed_over"):
+        wanted = {"caregiver_dropped_replacing": "redispatching", "dropout_choice_needed": "awaiting_choice",
+                  "dropout_handed_over": "handed_over"}[name]
+        if booking.dropout_state != wanted or status != BookingStatus.PENDING or booking.caregiver_id is not None:
+            return None, "stale"  # they have since chosen, or a replacement was found: old news
+        if name == "dropout_choice_needed":
+            ids = tuple(f"bk:{action}:{booking.id}" for action in ("wait", "resched", "refund"))
+            return choose("dropout_choice", {"booking_code": code}, in_window=in_window, button_ids=ids), None
+        if name == "dropout_handed_over":
+            params = {"booking_code": code, "update": (
+                "We couldn't find a replacement in time, so our team is now looking after your booking and will "
+                "contact you here.")}
+        else:
+            params = {"booking_code": code}
     elif name in ("refund_flagged", "refund_processed"):
         if name == "refund_flagged" and not booking.refund_required:
             return None, "stale"

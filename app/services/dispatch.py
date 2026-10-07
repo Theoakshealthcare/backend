@@ -37,6 +37,7 @@ from app.db.models.booking import (
     PaymentStatus,
 )
 from app.db.models.caregiver import Caregiver
+from app.db.models.dropout import CaregiverDropout
 from app.services import push as push_service
 from app.services.booking import BookingService
 
@@ -100,7 +101,10 @@ def _send_wave(db: Session, booking: Booking, wave_no: int, now: datetime,
         )
         for cid in ids
     }
-    chosen = [c for c in find_candidates(db, booking, now, radius_km) if c["caregiver_id"] not in already]
+    # Never offer a visit back to a caregiver who dropped out of it (whatever the wave, and for an admin re-dispatch too).
+    dropped = {row[0] for row in db.query(CaregiverDropout.caregiver_id).filter(CaregiverDropout.booking_id == booking.id)}
+    chosen = [c for c in find_candidates(db, booking, now, radius_km)
+              if c["caregiver_id"] not in already and c["caregiver_id"] not in dropped]
     chosen = chosen[: settings.DISPATCH_WAVE_SIZE]
     if not chosen:
         return False
@@ -187,7 +191,10 @@ def _advance(db: Session, booking: Booking, now: datetime,
     wave_count = latest.wave_no if latest else 0
 
     started = booking.dispatch_started_at or now
-    if now - started >= timedelta(minutes=settings.DISPATCH_ESCALATE_MINUTES):
+    # A booking being re-dispatched after a drop-out (or whose family chose "Keep waiting") is looked after until the
+    # drop-out machine decides (decision lead / visit time), not for 30 minutes.
+    waiting = booking.dropout_state in ("redispatching", "waiting")
+    if not waiting and now - started >= timedelta(minutes=settings.DISPATCH_ESCALATE_MINUTES):
         _mark_unmatched(booking, "escalation window elapsed", wave_count)
         return True
 
@@ -195,8 +202,8 @@ def _advance(db: Session, booking: Booking, now: datetime,
         return False  # the current wave is still open
 
     if not _send_wave(db, booking, wave_count + 1, now, offers):
-        if wave_count == 0:
-            return False  # nobody online yet: stay dispatching, retry next tick until the window ends
+        if wave_count == 0 or waiting:
+            return False  # nobody online yet: stay dispatching, retry next tick (a waiting family: until the visit time)
         _mark_unmatched(booking, "no candidates left", wave_count)
     return True
 

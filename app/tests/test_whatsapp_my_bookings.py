@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.core.config import settings
 from app.core.security import decrypt
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.whatsapp import WhatsAppConversation
@@ -22,6 +21,7 @@ from app.tests.whatsapp_notify_helpers import (  # noqa: F401
     offer, onboarded, wa_booking,
 )
 from app.tests.factories import make_caregiver
+from app.tests.policy_helpers import set_policy
 
 
 @pytest.fixture
@@ -186,27 +186,50 @@ def test_assigned_inside_twelve_hours_keeps_the_fee_and_says_so_before_and_after
     assert booking.refund_amount_kobo == booking.total_amount_kobo - fee and booking.refund_required
 
 
-def test_the_fee_and_window_follow_the_settings(db, chat, monkeypatch):
-    monkeypatch.setattr(settings, "WHATSAPP_CANCEL_FEE_PERCENT", 50)
-    monkeypatch.setattr(settings, "WHATSAPP_CANCEL_FREE_HOURS", 48)
+def test_the_fee_and_window_follow_the_policy_when_the_booking_has_no_snapshot(db, chat):
+    set_policy(db, cancel_fee_percent=50, cancel_free_hours=48, cancel_late_fee_percent=80)
     booking, _ = accepted_booking(db, chat, hours_ahead=30)
     fee = (booking.service_fee_kobo * 50 + 50) // 100
     confirm(chat, booking)
     assert reload(db, booking).refund_amount_kobo == booking.total_amount_kobo - fee
 
 
-def test_a_zero_percent_fee_means_a_full_refund_even_when_close(db, chat, monkeypatch):
-    monkeypatch.setattr(settings, "WHATSAPP_CANCEL_FEE_PERCENT", 0)
-    booking, _ = accepted_booking(db, chat, hours_ahead=3)
+def test_a_zero_percent_fee_means_a_full_refund_even_when_close(db, chat):
+    set_policy(db, cancel_fee_percent=0)
+    booking, _ = accepted_booking(db, chat, hours_ahead=6)
     assert "full refund" in body_text(chat.tap(f"bk:cancel:{booking.id}")[0])
     confirm(chat, booking)
     assert reload(db, booking).refund_amount_kobo == booking.total_amount_kobo
 
 
-def test_a_caregiver_already_on_the_way_is_always_inside_the_fee_window(db, chat):
+def test_inside_the_late_window_the_late_fee_is_shown_before_and_applied_after(db, chat):
+    booking, _ = accepted_booking(db, chat, hours_ahead=1)
+    fee = (booking.service_fee_kobo * 50 + 50) // 100
+    text = body_text(chat.tap(f"bk:cancel:{booking.id}")[0])
+    assert "within 2 hours" in text and "50% fee on the service fee applies" in text
+    assert f"₦{fee // 100:,}" in text
+    done = confirm(chat, booking)
+    assert "a fee of" in body_text(done[0])
+    b = reload(db, booking)
+    assert b.refund_amount_kobo == b.total_amount_kobo - fee and b.cancel_fee_tier == "late"
+
+
+def test_a_caregiver_already_on_the_way_gets_the_late_tier_and_the_text_says_why(db, chat):
     booking, caregiver = accepted_booking(db, chat, hours_ahead=40)
     act(db, booking, caregiver, "on_my_way")
-    assert "fee" in body_text(chat.tap(f"bk:cancel:{booking.id}")[0])
+    text = body_text(chat.tap(f"bk:cancel:{booking.id}")[0])
+    assert "50% fee" in text and "on the way" in text
+
+
+def test_the_policy_edited_after_booking_does_not_change_the_terms_shown_or_charged(db, chat):
+    booking, _ = accepted_booking(db, chat, hours_ahead=6, cancel_policy={
+        "free_hours": 12, "late_hours": 2, "fee_percent": 20, "late_fee_percent": 50})
+    set_policy(db, cancel_fee_percent=90)
+    ask = chat.tap(f"bk:cancel:{booking.id}")
+    assert "20% fee" in body_text(ask[0])
+    chat.tap(buttons(ask[0])[0])
+    fee = (booking.service_fee_kobo * 20 + 50) // 100
+    assert reload(db, booking).refund_amount_kobo == booking.total_amount_kobo - fee
 
 
 def test_keep_booking_goes_back_to_the_detail_and_cancels_nothing(db, chat):
@@ -366,10 +389,10 @@ def test_the_twelve_hour_boundary_passing_between_the_ask_and_the_tap_re_asks(db
     assert reload(db, booking).status == BookingStatus.ACCEPTED
 
 
-def test_a_lower_fee_than_shown_is_fine(db, chat, monkeypatch):
+def test_a_lower_fee_than_shown_is_fine(db, chat):
     booking, _ = accepted_booking(db, chat, hours_ahead=6)
     ask = chat.tap(f"bk:cancel:{booking.id}")
-    monkeypatch.setattr(settings, "WHATSAPP_CANCEL_FEE_PERCENT", 10)  # the fee dropped since it was shown
+    set_policy(db, cancel_fee_percent=10)  # the fee dropped since it was shown (no snapshot on this booking)
     done = chat.tap(buttons(ask[0])[0])
     fee = (booking.service_fee_kobo * 10 + 50) // 100
     assert reload(db, booking).refund_amount_kobo == booking.total_amount_kobo - fee

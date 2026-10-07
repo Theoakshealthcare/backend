@@ -81,6 +81,19 @@ class NotificationService:
         """The caregiver dropped out. The booker is told the next step (the booking's refund fields say which)."""
         self._emit(booking, "booking_cancelled_by_caregiver", self._caregiver_key(booking))
 
+    def dropout_replacing(self, booking: Booking, dropout_id: str) -> None:
+        """The caregiver dropped out far enough ahead that we are finding another one: tell the booker there is nothing
+        to do. Keyed by the drop-out (a booking can lose more than one caregiver)."""
+        self._emit(booking, "caregiver_dropped_replacing", dropout_id)
+
+    def dropout_choice_needed(self, booking: Booking, dropout_id: str) -> None:
+        """No replacement yet and little time left (or they were already on the way): give the booker the choice."""
+        self._emit(booking, "dropout_choice_needed", dropout_id)
+
+    def dropout_handed_over(self, booking: Booking, dropout_state_key: str = "") -> None:
+        """Nobody was found by the start time: a person takes over."""
+        self._emit(booking, "dropout_handed_over", dropout_state_key)
+
     def caregiver_reassigned(self, booking: Booking) -> None:
         """An admin moved the visit to another caregiver (A2 reassign). The booker hears who is coming now and gets
         the new visit code (the old one died with the old assignment). Keyed by the new assignment."""

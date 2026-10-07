@@ -67,7 +67,7 @@ from app.schemas.admin_booking import (
     UnmatchedList,
     WaveOut,
 )
-from app.services import booking_events, dispatch
+from app.services import booking_events, dispatch, dropout
 from app.services.booking_cancellation import flag_refund
 from app.services.notification_service import NotificationService
 from app.services import push as push_service
@@ -625,6 +625,7 @@ class AdminBookingService:
         booking.caregiver_id = caregiver_id
         booking.status = BookingStatus.ACCEPTED
         booking.dispatch_state = dispatch.MATCHED
+        dropout.clear_on_assignment(booking)  # an operator found someone: any drop-out in progress is over
         booking.visit_code_enc = encrypt(f"{secrets.randbelow(10_000):04d}")
         booking.visit_code_failed_attempts = 0
         booking.visit_code_locked_until = None

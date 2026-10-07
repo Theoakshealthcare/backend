@@ -26,18 +26,17 @@ from sqlalchemy.orm import Session
 from app.channels.whatsapp import booking_chat, booking_rules as rules, copy
 from app.channels.whatsapp.booking_chat import Ctx, Result
 from app.channels.whatsapp.engine import (
-    AskCancelBooking, ConfirmCancelBooking, ListBookings, ShowBooking, State,
+    AskCancelBooking, ConfirmCancelBooking, DropoutChoice, ListBookings, ShowBooking, State,
 )
 from app.channels.whatsapp.messages import (
     ButtonsMessage, ListMessage, ListRow, ListSection, OutboundMessage,
 )
-from app.core.config import settings
 from app.core.security import decrypt
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.care import CareRecipient, CareRelationship
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
-from app.services import booking_cancellation as cancellation
+from app.services import booking_cancellation as cancellation, dropout
 from app.services.support import SupportService
 
 logger = logging.getLogger(__name__)
@@ -162,6 +161,8 @@ def detail_message(ctx: Ctx, booking: Booking) -> OutboundMessage:
 def apply(ctx: Ctx, effect: Any) -> Result:
     if isinstance(effect, ListBookings):
         return Result([list_message(ctx)], State.IDLE)
+    if isinstance(effect, DropoutChoice):
+        return _dropout_choice(ctx, effect)
     raw_id, _, shown_fee = effect.booking_id.partition(":")  # confirm carries ``<id>:<fee shown, kobo>``
     booking = _find(ctx, raw_id)
     if booking is None:
@@ -192,10 +193,12 @@ def _ask_message(ctx: Ctx, booking: Booking, terms: cancellation.Terms, *, chang
                (f"bk:keep:{booking.id}", copy.t(lang, "cancel_keep")))
     if terms.refusal == cancellation.REASON_UNPAID and booking.status == BookingStatus.PENDING:
         text = copy.t(lang, "cancel_ask_unpaid", code=booking.booking_code)
-    elif terms.fee_kobo:
-        text = copy.t(lang, "cancel_ask_fee", code=booking.booking_code, hours=str(settings.WHATSAPP_CANCEL_FREE_HOURS),
-                      percent=str(max(0, min(100, settings.WHATSAPP_CANCEL_FEE_PERCENT))),
-                      fee=rules.naira(terms.fee_kobo), refund=rules.naira(terms.refund_kobo))
+    elif terms.fee_kobo and terms.policy is not None:
+        late = terms.tier == cancellation.TIER_LATE
+        text = copy.t(lang, "cancel_ask_late_fee" if late else "cancel_ask_fee", code=booking.booking_code,
+                      hours=str(terms.policy.late_hours if late else terms.policy.free_hours),
+                      percent=str(terms.fee_percent), fee=rules.naira(terms.fee_kobo),
+                      refund=rules.naira(terms.refund_kobo))
     else:
         text = copy.t(lang, "cancel_ask_full", code=booking.booking_code, refund=rules.naira(terms.refund_kobo))
     if changed:
@@ -206,7 +209,7 @@ def _ask_message(ctx: Ctx, booking: Booking, terms: cancellation.Terms, *, chang
 def _ask_cancel(ctx: Ctx, booking: Booking, *, changed: bool = False) -> Result:
     if not _is_booker(ctx.db, booking, ctx.contact.user_id):
         return Result([copy.text(ctx.lang, "cancel_not_booker_body")], State.IDLE)
-    terms = cancellation.terms(booking, ctx.now)
+    terms = cancellation.terms_for(ctx.db, booking, ctx.now)
     if not terms.allowed and not (terms.refusal == cancellation.REASON_UNPAID and booking.status == BookingStatus.PENDING):
         return _refusal(ctx, booking, terms)
     return _ask_message(ctx, booking, terms, changed=changed)
@@ -250,3 +253,25 @@ def _cancel_unpaid(db: Session, contact_id: uuid.UUID, booking_id: uuid.UUID) ->
     if result.state == State.AWAITING_PAYMENT:
         result.state = State.IDLE
     return result
+
+
+def _dropout_choice(ctx: Ctx, effect: DropoutChoice) -> Result:
+    """A tap on Keep waiting / Pick another time / Full refund. Stateless: the booking is named by the button and is
+    re-checked here (visible to this contact, theirs to decide) and again under the booking lock in ``dropout.choose``."""
+    lang = ctx.lang
+    booking = _find(ctx, effect.booking_id)
+    if booking is None:
+        return Result([copy.text(lang, "bookings_not_found_body"), list_message(ctx)], State.IDLE)
+    if not _is_booker(ctx.db, booking, ctx.contact.user_id):
+        return Result([copy.text(lang, "dropout_not_booker_body")], State.IDLE)
+    outcome = dropout.choose(ctx.db, booking.id, ctx.contact.user_id, effect.action, ctx.now,
+                             contact_id=ctx.contact.id, commit=False)
+    code = outcome.booking_code or booking.booking_code
+    if outcome.status != "done":
+        return Result([copy.text(lang, "dropout_stale_body", code=code)], State.IDLE)
+    if effect.action == "wait":
+        return Result([copy.menu_with_body(lang, copy.t(lang, "dropout_wait_body", code=code))], State.IDLE)
+    if effect.action == "resched":
+        return Result([copy.text(lang, "dropout_resched_body", code=code)], State.HUMAN)  # a person, for now
+    return Result([copy.menu_with_body(lang, copy.t(lang, "dropout_refund_body", code=code,
+                                                    refund=rules.naira(outcome.refund_kobo)))], State.IDLE)

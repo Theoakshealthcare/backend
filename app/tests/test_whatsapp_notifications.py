@@ -198,18 +198,12 @@ def test_two_workers_delivering_at_once_send_one_copy(db, chat):
 
 
 # --- the caregiver cancels -----------------------------------------------------------------------------------
-def test_caregiver_cancel_before_the_visit_refunds_in_full_and_tells_the_booker(db, chat):
-    booking, caregiver = accepted_booking(db, chat)
-    deliver(db, chat)
+def cancel_mid_visit(db, chat, booking, caregiver):
+    """Since the re-dispatch work, a cancel *before* the visit reopens the booking (test_dropout_redispatch); the
+    refund-and-tell wording below is what remains for a visit that had started."""
+    act(db, booking, caregiver, "start", visit_code=decrypt(booking.visit_code_enc))
+    deliver(db, chat)  # "the visit has started" goes out first
     act(db, booking, caregiver, "cancel")
-    db.expire_all()
-    booking = db.get(Booking, booking.id)
-    assert booking.status == BookingStatus.CANCELLED and booking.cancel_reason == "caregiver_cancelled"
-    assert booking.refund_required and booking.refund_required_reason == "caregiver_cancelled"
-    assert booking.refund_amount_kobo == booking.total_amount_kobo
-    text = body_text(deliver(db, chat)[0])
-    assert text == (f"Update on booking {booking.booking_code}: Your professional can no longer attend, so the visit "
-                    "is cancelled. We've started a refund of ₦44,000. Reply here if you need help.")
 
 
 def test_caregiver_cancel_mid_visit_leaves_the_amount_to_a_person(db, chat):
@@ -237,7 +231,7 @@ def test_caregiver_cancel_leaves_an_app_booking_exactly_as_before(db, chat):
 def test_cancel_notice_outside_the_window_is_the_booking_update_template(db, chat):
     booking, caregiver = accepted_booking(db, chat)
     deliver(db, chat)
-    act(db, booking, caregiver, "cancel")
+    cancel_mid_visit(db, chat, booking, caregiver)
     leave_window(db, chat)
     sent = deliver(db, chat)
     assert sent[0]["template"]["name"] == "booking_update"
@@ -248,7 +242,7 @@ def test_the_cancel_notice_still_reaches_someone_who_sent_stop(db, chat):
     booking, caregiver = accepted_booking(db, chat)
     deliver(db, chat)
     chat.say("STOP")
-    act(db, booking, caregiver, "cancel")
+    cancel_mid_visit(db, chat, booking, caregiver)
     assert len(deliver(db, chat)) == 1
 
 
