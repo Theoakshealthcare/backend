@@ -270,7 +270,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] WhatsApp contact unlinked and anonymised through the STOP DATA code (`app/channels/whatsapp/withdrawal.py`, now shared with the processor)
 - [x] Profile image deleted from Cloudinary after commit, never failing the request
 - [x] Response model `DetailResponse`; caregiver FE guide section 3 re-captured live
-- [x] No migration: `users.is_active=false` is the closed marker, so there is nothing to re-parent at merge
+- [x] Privacy review fixes (8): unpaid bookings cancelled, erased caregivers never matchable, vitals access revoked, pending money blocks, purge queue, retained-data wipes, locked caregiver check, unlinked WhatsApp contacts. Migration `0009_account_erasure` (down_revision `0007`): **re-parent onto `0008_dropout_fee_tiers` at merge**
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
@@ -278,6 +278,8 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] ⚠️ (Erasure review) `Booking.condition` is plaintext for app bookings (WhatsApp bookings encrypt it as `condition_encrypted`); encrypt it and migrate existing rows
+- [ ] (Erasure review) A purge job for `pending_media_purges` and for caregiver document files
 - [ ] (Erasure) Caregiver document files (`file_path` targets) and the ID-verification files at the providers are not deleted from storage, only the database references are blanked; add a purge job. Medical records and care recipients created for other people are kept (clinical and booking retention); decide the retention period with counsel
 - [ ] (Erasure) The admin console has no view of erased accounts; they are recognisable by `email LIKE 'deleted+%@example.com'`
 - [x] `patient.py` admin refund routes checked `user_type != "admin"` (never true). Fixed: they use `require_permission("refunds.approve")` (A0)

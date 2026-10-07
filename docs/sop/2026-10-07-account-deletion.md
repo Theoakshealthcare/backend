@@ -4,7 +4,7 @@
 |---|---|
 | **Date** | 2026-10-07 |
 | **Branch** | `fix/account-deletion-anonymise` (base `main` at `1daa634`) |
-| **Migration** | None (alembic head stays `0007_whatsapp_notifications`) |
+| **Migration** | `0009_account_erasure` (down_revision `0007_whatsapp_notifications`). **Re-parent onto `0008_dropout_fee_tiers` when that branch merges** (change `down_revision` in `app/alembic/versions/0009_account_erasure.py`) |
 | **Status** | Verified locally: full suite green, CI steps reproduced, FE guide re-captured on the Docker stack |
 
 ## What shipped
@@ -52,10 +52,41 @@ Decisions and rejected alternatives:
 | Live | Captured on the Docker stack (compose project `oakly-del`): 409s for caregiver and patient, 200, 403/400/401 afterwards, re-register 200 |
 
 ## Operate / roll back
-No migration and no config. Roll back by reverting the commits. Rows already erased stay erased (that is the point); there is no un-delete. To find them: `SELECT id FROM users WHERE email LIKE 'deleted+%@example.com'`.
+Run `alembic upgrade head` (round-trip tested). Roll back by reverting the commits; `alembic downgrade -1` restores NOT NULL on the three booking location columns and fails if an erased booking exists. Roll back by reverting the commits. Rows already erased stay erased (that is the point); there is no un-delete. To find them: `SELECT id FROM users WHERE email LIKE 'deleted+%@example.com'`.
 
 ## Follow-ups
 - Files are not purged from storage: caregiver document files and provider-side ID checks keep their objects; only the database references are blanked. Add a purge job.
 - Medical records and care recipients created for other people are kept; set the retention period with counsel.
 - The caregiver and patient apps need the delete screen and to show the 409 `detail`.
 - No concurrency test for withdraw-vs-erase; the wallet row lock covers it by construction.
+
+## Privacy review fixes (same day)
+| # | Issue | Fix |
+|---|---|---|
+| 1 | Unpaid bookings stayed open; a late payment dispatched a caregiver to an erased patient | The patient's open bookings are locked `FOR UPDATE`; paid ones refuse (409), unpaid ones are cancelled with `cancel_reason='account_erased'`. A payment arriving later takes the existing `paid_after_cancellation` refund path, no dispatch |
+| 2 | An erased caregiver could re-enter matching (open socket recreating locations; matcher ignored `User.is_active`) | `_wipe_caregiver` sets `profile_status='suspended'`, `suspended_at` (so the matcher and accept both refuse); `find_nearby_caregivers` joins `User.is_active`; the endpoint closes the open socket after commit (`websocket_manager.close_caregiver`, via `anyio.from_thread`); the ping handler ignores and closes for an inactive user (covers other workers) |
+| 3 | `PatientCaregiverAccess` rows still let caregivers read and write the erased patient's vitals | `revoked_at` set on all of the patient's open grants |
+| 4 | Money in flight into an erased wallet | 409 for a `pending` `PatientTransaction` or a `pending`/`processing` `PatientRefundRequest`, checked under the wallet lock |
+| 5 | Cloudinary `False` return ignored; file reference already gone | Checked; a warning logs the user id only (never the URL), and the `public_id` is queued in `pending_media_purges` (new table) for a purge job |
+| 6 | Retained personal data | See the retention table |
+| 7 | Caregiver booking check unlocked | Bookings `FOR UPDATE`, then the caregiver row `FOR UPDATE`, then the bookings are checked again, in accept's order (booking before caregiver), so an accept in flight finishes first. Threaded test: an accept that holds the locks makes the erase wait and then return 409 |
+| 8 | Unlinked WhatsApp contact with the same number | Phones (user, caregiver, patient; normalised, captured before the wipe) also match contacts with `user_id` null by `phone_e164` or `wa_id`; they go through the same STOP DATA path and anonymisation |
+
+### Retention table
+| Data | Action | Reason |
+|---|---|---|
+| Finished or cancelled bookings of an erased patient: address, coordinates, special instructions, `condition`, `condition_encrypted` | **Wiped** (null; the three location columns became nullable in `0009`, and the typed booking responses accept null) | Where the person lives and what they said about their health serve no obligation once the visit is over |
+| Same bookings: amounts, references, status, city and state, timestamps | Kept | Payment and tax records |
+| Chat messages the erased user sent | `message` = `[deleted]`, `attachment_url` null | Free text from the person; the row stays so the other party's thread still reads in order |
+| Chat messages the other party sent | Kept | Their data |
+| `BookingNote` (caregiver clinical notes) | Kept | Health record of the care given, owned by the caregiver's professional duty |
+| Vitals, `FallGuardAssessment`, prescriptions, medical records | Kept | Health records; access by caregivers is revoked (item 3) |
+| Caregiver `background_check_evidence`, `CaregiverDocument.onfido_document_id` | Kept | Proof the background check happened (compliance obligation); the extracted ID data is wiped |
+| `suspension_reason`, `rejection_reason`, `changes_requested`, approval fields | Kept (an erased caregiver gets `suspension_reason='account_erased'` only if none existed) | Admin records about the account |
+| Consents, support tickets, transactions, wallet | Kept | Legal and audit retention (see above) |
+
+### Verification (fixes)
+18 new tests (35 in `test_account_deletion.py`), including the late-webhook refund, matcher, socket close, ping from an inactive user, access revoked, pending money, purge queue, retention wipes and the threaded accept race. The migration round-trips (`upgrade head`, `downgrade -1`, `upgrade head`) on a throwaway Postgres. Full suite: 1767 passed. CI steps (lock check, bug-class ruff, ci_smoke, both guide checks) clean. The caregiver FE guide did not change (no caregiver response or message changed), so no recapture.
+
+### Follow-up found (not fixed here)
+`Booking.condition` is stored in **plaintext** for app-channel bookings (`BookingCreate.condition` goes straight into `Booking(condition=...)` in `app/services/booking.py:203`, and is returned in booking responses), while WhatsApp bookings store `condition_encrypted` (Fernet, `booking_chat.py:443`). Health text at rest should be encrypted for both channels; this needs a data migration and a response change, so it is a separate piece of work.

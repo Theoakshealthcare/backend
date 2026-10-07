@@ -1,4 +1,6 @@
 import logging
+
+import anyio.from_thread
 from datetime import timedelta
 from typing import Any, Optional
 
@@ -32,6 +34,8 @@ from app.schemas.user import (
     DetailResponse,
 )
 from app.services.email import send_verification_email, send_password_reset_email
+from app.db.models.media_purge import PendingMediaPurge
+from app.services.websocket_manager import websocket_manager
 from app.services.account_erasure import AccountErasureService, ErasureBlocked
 from app.services.user import UserService
 from app.services.cloudinary_service import cloudinary_service
@@ -394,20 +398,42 @@ def delete_account(
         db.rollback()
         logger.exception("account erasure failed user=%s", current_user.id)
         raise
-    # After the commit and outside the transaction: a Cloudinary failure must never undo or fail the erasure.
-    _delete_cloudinary_image(result.profile_image_url)
+    # After the commit and outside the transaction: none of this may undo or fail the erasure.
+    _close_caregiver_socket(current_user.id)
+    _delete_cloudinary_image(db, current_user.id, result.profile_image_url)
     return DetailResponse(detail="Account deleted successfully.")
 
 
-def _delete_cloudinary_image(url: Optional[str]) -> None:
+def _close_caregiver_socket(user_id) -> None:
+    """Drop the caregiver's open location socket (the manager lives on the event loop; this endpoint runs in
+    a worker thread). Other workers' sockets are refused on their next ping, which checks the user."""
+    try:
+        anyio.from_thread.run(websocket_manager.close_caregiver, str(user_id))
+    except Exception:
+        logger.warning("could not close the socket of erased user %s", user_id, exc_info=True)
+
+
+def _delete_cloudinary_image(db: Session, user_id, url: Optional[str]) -> None:
     if not url:
         return
+    public_id = cloudinary_service.get_public_id_from_url(url)
+    if not public_id:
+        return
     try:
-        public_id = cloudinary_service.get_public_id_from_url(url)
-        if public_id:
-            cloudinary_service.delete_image(public_id)
+        deleted = cloudinary_service.delete_image(public_id)
     except Exception:
-        logger.warning("could not delete the profile image of an erased account", exc_info=True)
+        deleted = False
+    if deleted:
+        return
+    # The database reference is already gone, so queue the file for a later purge. Never log the URL.
+    logger.warning("profile image of erased user %s was not deleted at the provider; queued for purge", user_id)
+    try:
+        db.add(PendingMediaPurge(provider="cloudinary", public_id=public_id, reason="account_erased",
+                                 user_id=user_id))
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.error("could not queue the profile image of erased user %s for purge", user_id, exc_info=True)
 
 
 @router.post("/profile/upload-image", response_model=dict)

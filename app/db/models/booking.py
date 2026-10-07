@@ -70,9 +70,9 @@ class Booking(Base):
     condition_encrypted = Column(Text, nullable=True)
 
     # Location
-    patient_address = Column(Text, nullable=False)
-    patient_latitude = Column(Float, nullable=False)
-    patient_longitude = Column(Float, nullable=False)
+    patient_address = Column(Text, nullable=True)  # NULL once an erased patient's booking is finished
+    patient_latitude = Column(Float, nullable=True)
+    patient_longitude = Column(Float, nullable=True)
     patient_city = Column(String, nullable=False)
     patient_state = Column(String, nullable=False)
     # No map pin was shared, so the coordinates are a city-centre placeholder. Dispatch is held until an

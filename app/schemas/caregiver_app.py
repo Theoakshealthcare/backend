@@ -26,7 +26,7 @@ class HomeVisit(BaseModel):
     scheduled_end_date: datetime
     duration_hours: int
     patient_name: Optional[str] = None
-    patient_address: str
+    patient_address: Optional[str] = None
     patient_city: str
     patient_state: str
 
