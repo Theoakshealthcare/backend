@@ -690,6 +690,37 @@ def run(args) -> None:
                 "wallet history of an erased caregiver also stay; only the personal data is gone.",
     })
 
+    # --- a WhatsApp booking close to the visit: the app refuses the cancel (appended last, numbers above do not move) --
+    rec.call("a-availability-on-for-whatsapp", "POST", "/api/v1/caregiver/availability", token=ta,
+             json_body={"is_available": True})
+    post_location(ctx, "a-location-for-whatsapp", ta, available=True)
+    rec.quiet = True
+    post_location(ctx, "d-location-for-whatsapp", td, available=False, offset=0.004)
+    rec.quiet = False
+    b7 = seed_booking(ctx, patient_email, hours_ahead=1.0)
+    db.run("UPDATE bookings SET channel = 'whatsapp' WHERE id = %s", (b7["id"],))
+    rec.save("db-seeded-whatsapp-booking", {
+        "request": {"method": "SQL", "path": "UPDATE bookings SET channel = 'whatsapp' WHERE id = <booking 7>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SEEDED: a WhatsApp booking is made in the chat, not through this API, so an ordinary seeded booking "
+                "was switched to channel 'whatsapp'. It starts one hour from now, inside the 120-minute policy lead.",
+    })
+    pay_booking_quiet(ctx, b7)
+    rec.call("a-accept-whatsapp-booking", "POST", f"/api/v1/booking/caregiver/action/{b7['id']}", token=ta,
+             json_body={"action": "accept"})
+    rec.call("a-whatsapp-booking-detail", "GET", f"/api/v1/booking/booking/{b7['id']}", token=ta)
+    rec.call("a-bookings-accepted-with-channel", "GET", "/api/v1/booking/caregiver/bookings?status=accepted", token=ta)
+    rec.call("a-cancel-whatsapp-too-close", "POST", f"/api/v1/booking/caregiver/action/{b7['id']}", token=ta, expect=409,
+             json_body={"action": "cancel", "reason": "Placeholder: cannot make it"})
+    (still,) = db.run("SELECT status, caregiver_id IS NOT NULL FROM bookings WHERE id = %s", (b7["id"],))[0:1]
+    rec.save("db-whatsapp-booking-unchanged-after-refused-cancel", {
+        "request": {"method": "SQL", "path": "SELECT status, caregiver_id IS NOT NULL FROM bookings WHERE id = <booking 7>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"status": still[0], "still_assigned": still[1]}},
+        "note": "The refused cancel changed nothing: the booking is still accepted and still assigned to the caregiver.",
+    })
+
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_caregiver_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")
     expo.stop()

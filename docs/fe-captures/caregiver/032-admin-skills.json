@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PUT",
-    "path": "/api/v1/admin/caregivers/7ec8f419-0dee-4d7d-9857-1796b335caf0/skills",
+    "path": "/api/v1/admin/caregivers/c40e90d9-a8f8-400b-8fef-4c3f25a9dea6/skills",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "skills": [

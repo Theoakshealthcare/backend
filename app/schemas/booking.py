@@ -218,6 +218,7 @@ class PatientDetails(BaseModel):
 class BookingResponse(BaseModel):
     id: uuid.UUID
     booking_code: str
+    channel: Literal["app", "whatsapp", "admin"]
     patient_id: uuid.UUID
     patient_details: Optional[PatientDetails] = None
     caregiver_id: Optional[uuid.UUID] = None
@@ -335,6 +336,7 @@ class CaregiverActionBooking(BaseModel):
 
     id: uuid.UUID
     booking_code: str
+    channel: Literal["app", "whatsapp", "admin"]
     patient_id: uuid.UUID
     patient_details: Optional[PatientDetails] = None
     caregiver_id: Optional[uuid.UUID] = None

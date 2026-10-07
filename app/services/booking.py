@@ -452,6 +452,20 @@ class BookingService:
             flag_refund(booking, "caregiver_cancelled", None if started else int(booking.total_amount_kobo))  # kept for safety
         NotificationService(self.db).cancelled_by_caregiver(booking)
 
+    def apply_caregiver_dropout(self, booking: Booking, caregiver_id: UUID, offers: List[Dict[str, Any]]) -> None:
+        """The caregiver is out of this booking: reopen it for a replacement (paid WhatsApp booking, before the visit
+        started) or cancel it as it always was. No time-window rule here: the caregiver-facing cancel enforces that
+        before calling this, while an internal or admin-initiated drop-out (and a late one, which goes to the family's
+        choice) comes straight here. Caller holds the booking lock and owns the transaction."""
+        from app.services import dropout
+        before_visit = booking.status in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE)
+        reopened = before_visit and dropout.on_caregiver_cancel(
+            self.db, booking, caregiver_id, booking.status, datetime.utcnow(), offers)
+        if not reopened:
+            booking.status = BookingStatus.CANCELLED
+            booking.cancel_reason = "caregiver_cancelled"
+            self._after_caregiver_cancel(booking)
+
     def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID,
                             action_data: BookingActionRequest) -> Booking:
         """Handle a caregiver action on a booking.
@@ -583,14 +597,18 @@ class BookingService:
                 elif action == "cancel":
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):
                         raise BookingStateConflict("This booking can no longer be cancelled")
-                    from app.services import dropout
-                    before_visit = booking.status in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE)
-                    reopened = before_visit and dropout.on_caregiver_cancel(
-                        self.db, booking, caregiver_id, booking.status, datetime.utcnow(), offers)
-                    if not reopened:
-                        booking.status = BookingStatus.CANCELLED
-                        booking.cancel_reason = "caregiver_cancelled"
-                        self._after_caregiver_cancel(booking)
+                    from app.services import booking_policy
+                    if booking.channel == "whatsapp":
+                        # The family is relying on this visit: the app lets a caregiver drop it only while it is still
+                        # ACCEPTED and further out than the re-dispatch lead (same whole-minute floor and naive-UTC
+                        # clock as dropout.on_caregiver_cancel, so "allowed" always means "a replacement is searched
+                        # for"). Later, or once under way, they contact support, who reassign or cancel from the admin.
+                        lead = booking_policy.current(self.db).dropout_redispatch_min_lead_minutes
+                        minutes = int((booking.scheduled_date - datetime.utcnow()).total_seconds() // 60)
+                        if booking.status != BookingStatus.ACCEPTED or minutes <= lead:
+                            raise BookingStateConflict(
+                                "It's too close to the visit to cancel in the app. Please contact support.")
+                    self.apply_caregiver_dropout(booking, caregiver_id, offers)
 
             self.db.commit()
         except Exception:

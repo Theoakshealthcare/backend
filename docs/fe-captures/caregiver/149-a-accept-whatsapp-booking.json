@@ -1,0 +1,80 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/2bc9c8e6-49a0-4420-9565-d7c05d3dab33",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "accept"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "message": "Booking accept successfully",
+      "booking": {
+        "id": "2bc9c8e6-49a0-4420-9565-d7c05d3dab33",
+        "booking_code": "66501F65",
+        "channel": "whatsapp",
+        "patient_id": "36c8486b-d647-4a0d-87bf-d1cc58fb8e5c",
+        "patient_details": {
+          "patient_id": "36c8486b-d647-4a0d-87bf-d1cc58fb8e5c",
+          "full_name": "Placeholder Patient",
+          "phone_number": "+2340000903004",
+          "profile_image_url": null,
+          "emergency_contact_name": null,
+          "emergency_contact_phone": null
+        },
+        "caregiver_id": "c40e90d9-a8f8-400b-8fef-4c3f25a9dea6",
+        "caregiver_details": {
+          "caregiver_id": "c40e90d9-a8f8-400b-8fef-4c3f25a9dea6",
+          "full_name": "Placeholder Caregiver A",
+          "specialization": "Elderly Care",
+          "profile_image_url": null,
+          "current_latitude": 6.4494,
+          "current_longitude": 3.4723,
+          "distance_from_patient": 0.22,
+          "estimated_arrival_time": 5,
+          "last_location_update": "2026-10-07T14:32:04.428385",
+          "is_online": true
+        },
+        "service_type": "nurse",
+        "assistance_type": "Placeholder assistance",
+        "condition": "Placeholder condition",
+        "duration_hours": 2,
+        "scheduled_date": "2026-10-07T15:32:04.436163",
+        "scheduled_end_date": "2026-10-07T17:32:04.436163",
+        "actual_start_time": null,
+        "actual_end_time": null,
+        "patient_address": "12 Placeholder Street, Lekki",
+        "patient_latitude": 6.4474,
+        "patient_longitude": 3.4723,
+        "patient_city": "Lagos",
+        "patient_state": "Lagos",
+        "status": "accepted",
+        "payment_status": "paid",
+        "paystack_reference": "BKG_66501F65_3ef192b5",
+        "payment_expires_at": "2026-10-07T15:02:04.436176",
+        "payment_failure_reason": null,
+        "total_amount": "55000.00",
+        "service_fee": "50000.00",
+        "platform_fee": "5000.00",
+        "total_amount_kobo": 5500000,
+        "service_fee_kobo": 5000000,
+        "platform_fee_kobo": 500000,
+        "special_instructions": "Placeholder instructions",
+        "booking_for": "myself",
+        "cancel_reason": null,
+        "refund_required": false,
+        "refund_required_reason": null,
+        "dispatch_state": "matched",
+        "dispatch_started_at": "2026-10-07T14:32:04.438075",
+        "visit_code": null,
+        "created_at": "2026-10-07T14:32:04.435260",
+        "updated_at": "2026-10-07T14:32:04.476109"
+      }
+    }
+  }
+}

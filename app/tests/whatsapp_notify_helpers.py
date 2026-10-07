@@ -9,6 +9,7 @@ from app.db.models.care import CareRecipient, CareRelationship
 from app.db.models.patient import Patient
 from app.db.models.whatsapp_booking import BookingEvent
 from app.schemas.booking import BookingActionRequest
+from app.services import dispatch
 from app.services.booking import BookingService
 from app.tests.factories import make_booking, make_caregiver
 from app.tests.fake_meta import fake_meta  # noqa: F401  (fixture)
@@ -42,6 +43,19 @@ def offer(db, booking, caregiver) -> None:
 
 def act(db, booking, caregiver, action: str, **extra) -> Booking:
     return BookingService(db).handle_booking_action(booking.id, caregiver.id, BookingActionRequest(action=action, **extra))
+
+
+def internal_dropout(db, booking, caregiver) -> Booking:
+    """A caregiver drop-out that does not come through the caregiver's cancel button (which refuses a WhatsApp booking
+    close to the visit): the same code path an internal or admin-initiated drop-out uses, with no time-window rule."""
+    service = BookingService(db)
+    locked = db.query(Booking).filter(Booking.id == booking.id).with_for_update().populate_existing().one()
+    offers: list = []
+    service.apply_caregiver_dropout(locked, caregiver.id, offers)
+    db.commit()
+    dispatch.push_offers(db, offers)
+    db.expire_all()
+    return db.get(Booking, booking.id)
 
 
 def accepted_booking(db, chat, **kw):
