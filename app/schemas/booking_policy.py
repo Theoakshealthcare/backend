@@ -1,7 +1,7 @@
 """Admin booking policy (cancellation tiers and caregiver drop-out timings): request and response models."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -9,7 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 POLICY_FIELDS = (
     "cancel_free_hours", "cancel_late_hours", "cancel_fee_percent", "cancel_late_fee_percent",
     "dropout_redispatch_min_lead_minutes", "dropout_decision_lead_minutes", "onmyway_compensation_window_minutes",
-    "caregiver_late_fee_share_percent",
+    "caregiver_late_fee_share_percent", "caregiver_visit_share_percent", "earning_hold_hours", "payout_cadence",
+    "payout_min_naira", "finance_refund_limit_naira",
 )
 
 
@@ -21,7 +22,12 @@ class BookingPolicyOut(BaseModel):
     dropout_redispatch_min_lead_minutes: int = Field(description="A caregiver drop-out more than this many minutes before the start is re-dispatched automatically")
     dropout_decision_lead_minutes: int = Field(description="If nobody has accepted this many minutes before the start, the family is given the choice")
     onmyway_compensation_window_minutes: int = Field(description="An on-my-way tapped no earlier than this many minutes before the start can qualify for compensation")
-    caregiver_late_fee_share_percent: int = Field(description="Caregiver's share of a late fee, in percent (stored now, paid out by the compensation work)")
+    caregiver_late_fee_share_percent: int = Field(description="Caregiver's share of a kept late-cancellation fee, in percent")
+    caregiver_visit_share_percent: int = Field(description="Caregiver's share of a completed visit's service fee (not the platform fee), in percent")
+    earning_hold_hours: int = Field(description="An earning becomes withdrawable this many hours after the visit is completed")
+    payout_cadence: Literal["weekly", "biweekly", "monthly"] = Field(description="How often scheduled payouts run (used by the payouts work; not read yet)")
+    payout_min_naira: int = Field(description="Smallest available balance a scheduled payout pays out, in naira (not read yet)")
+    finance_refund_limit_naira: int = Field(description="Largest refund Finance may approve without a Super Admin, in naira (not read yet)")
     updated_at: Optional[datetime] = None
     updated_by: Optional[UUID] = None
 
@@ -39,6 +45,11 @@ class BookingPolicyPatch(BaseModel):
     dropout_decision_lead_minutes: Optional[int] = Field(default=None, strict=True)
     onmyway_compensation_window_minutes: Optional[int] = Field(default=None, strict=True)
     caregiver_late_fee_share_percent: Optional[int] = Field(default=None, strict=True)
+    caregiver_visit_share_percent: Optional[int] = Field(default=None, strict=True)
+    earning_hold_hours: Optional[int] = Field(default=None, strict=True)
+    payout_cadence: Optional[Literal["weekly", "biweekly", "monthly"]] = None
+    payout_min_naira: Optional[int] = Field(default=None, strict=True)
+    finance_refund_limit_naira: Optional[int] = Field(default=None, strict=True)
 
     @field_validator("reason")
     @classmethod

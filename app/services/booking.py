@@ -18,6 +18,7 @@ from app.db.models.booking_settings import BookingSettings
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPreviewRequest, BookingPreviewResponse
+from app.services import booking_policy, earnings
 from app.services.booking_cancellation import flag_refund
 from app.services.location import LocationService
 from app.services.notification_service import NotificationService
@@ -227,6 +228,7 @@ class BookingService:
             channel=channel,
             booked_by_user_id=booked_by_user_id,
             care_recipient_id=care_recipient_id,
+            earnings_terms=booking_policy.earnings_snapshot(booking_policy.current(self.db)),
             total_amount_kobo=price.total_kobo,
             service_fee_kobo=price.service_fee_kobo,
             platform_fee_kobo=price.platform_fee_kobo,
@@ -593,6 +595,7 @@ class BookingService:
                         raise BookingStateConflict("Only a booking in progress can be completed")
                     booking.status = BookingStatus.COMPLETED
                     booking.actual_end_time = datetime.utcnow()
+                    earnings.credit_visit(self.db, booking, booking.actual_end_time)  # same transaction, under the lock
                     NotificationService(self.db).visit_completed(booking)
                 elif action == "cancel":
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):

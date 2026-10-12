@@ -178,6 +178,18 @@ class AccountErasureService:
             raise ErasureBlocked(
                 "Your wallet still has a balance. Withdraw it to your bank account, then delete your account."
             )
+        unpaid_earning = (
+            self.db.query(CaregiverTransaction.id)
+            .filter(CaregiverTransaction.caregiver_id == caregiver.id,
+                    CaregiverTransaction.type.in_(("earning", "late_cancel_compensation")),
+                    CaregiverTransaction.status.in_(("pending_clearance", "held")))
+            .first()
+        )
+        if unpaid_earning is not None:
+            raise ErasureBlocked(
+                "You have earnings that are still being cleared. Once they are available, withdraw them to your bank "
+                "account, then delete your account."
+            )
         pending_payout = (
             self.db.query(CaregiverTransaction.id)
             .filter(CaregiverTransaction.caregiver_id == caregiver.id,

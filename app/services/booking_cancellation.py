@@ -18,7 +18,8 @@ Cancelling a paid booking never moves money. It sets ``refund_required`` (reason
 amount to refund in ``refund_amount_kobo``: the refund module (Admin PRD) consumes that queue. It also stores the tier
 that applied (``cancel_fee_tier``) and, for the late tier, whether it was due to a *qualifying* on-my-way
 (``late_cancel_compensable``: tapped in good time and followed by real movement toward the patient, see
-``app.services.onmyway``), decided under the booking lock. Paying the caregiver is not done here (A3). Money is integer
+``app.services.onmyway``), decided under the booking lock. The caregiver's share of the late fee is credited here (``earnings.credit_late_cancel``, pending like any earning);
+moving money to a bank account is the payouts' job. Money is integer
 kobo throughout; the fee is rounded half up.
 """
 
@@ -31,7 +32,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.db.models.booking import Booking, BookingStatus, CaregiverLocation, PaymentStatus
-from app.services import booking_policy, onmyway
+from app.services import booking_policy, earnings, onmyway
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -182,6 +183,8 @@ def cancel_by_booker(db: Session, booking_id: uuid.UUID, now: Optional[datetime]
     booking.cancel_fee_tier = decided.tier
     booking.late_cancel_compensable = compensable
     flag_refund(booking, CANCELLED_BY_BOOKER, decided.refund_kobo)
+    if compensable and decided.fee_kobo > 0:
+        earnings.credit_late_cancel(db, booking, decided.fee_kobo, now)  # a share of the fee kept; same transaction, same lock
     NotificationService(db).cancelled_by_booker(booking)  # the caregiver, if one was assigned: same transaction
     if commit:
         db.commit()

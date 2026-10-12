@@ -67,7 +67,7 @@ from app.schemas.admin_booking import (
     UnmatchedList,
     WaveOut,
 )
-from app.services import booking_events, dispatch, dropout
+from app.services import booking_events, dispatch, dropout, earnings
 from app.services.booking_cancellation import flag_refund
 from app.services.notification_service import NotificationService
 from app.services import push as push_service
@@ -849,6 +849,7 @@ class AdminBookingService:
             before = _snapshot(booking)
             booking.no_show_flagged_at = now
             booking.no_show_flagged_by = admin.id
+            earnings.hold_pending_for_booking(self.db, booking, admin_id=admin.id, reason=reason, request=request)
             self.audit.record(
                 admin_user_id=admin.id, action="booking.flag_no_show", entity_type="booking", entity_id=booking.id,
                 before=before, after={**_snapshot(booking), "caregiver_id": booking.caregiver_id},
@@ -871,13 +872,15 @@ class AdminBookingService:
             if why:
                 raise Conflict(why)
             before = _snapshot(booking)
-            # The same fields the caregiver's own start / complete set. Earnings (A3) and the feedback request
-            # hook onto the completed transition when they ship.
+            # The same fields the caregiver's own start / complete set, and (for completed) the earning credit. The
+            # feedback request hooks onto the completed transition when it ships.
             if target in (BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED) and booking.actual_start_time is None:
                 booking.actual_start_time = now
             if target == BookingStatus.COMPLETED:
                 booking.actual_end_time = now
             booking.status = target
+            if target == BookingStatus.COMPLETED:
+                earnings.credit_visit(self.db, booking, now)  # AD-FR-25: the normal completion side effect
             self.audit.record(
                 admin_user_id=admin.id, action="booking.correct_status", entity_type="booking",
                 entity_id=booking.id, before=before, after=_snapshot(booking), reason=body.reason, request=request)

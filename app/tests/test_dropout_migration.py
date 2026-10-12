@@ -58,9 +58,9 @@ def _event_check(eng) -> str:
             "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'ck_booking_events_event'")).scalar()
 
 
-def test_0010_is_the_head_and_follows_0009():
+def test_0010_is_in_the_history_and_follows_0009():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == [THIS]
+    assert THIS in {r.revision for r in scripts.walk_revisions()}
     assert scripts.get_revision(THIS).down_revision == PREVIOUS
 
 

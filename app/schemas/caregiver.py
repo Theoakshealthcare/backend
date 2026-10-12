@@ -116,17 +116,25 @@ class VerificationResultRequest(BaseModel):
 
 
 class CaregiverWalletSummary(BaseModel):
-    balance: int  # in kobo
-    total_earned: int  # in kobo
-    total_withdrawn: int  # in kobo
+    balance: int  # kobo; what can be withdrawn now. Same number as available_balance (kept for older app versions)
+    total_earned: int  # kobo; earnings already released to the balance (pending ones are in pending_balance)
+    total_withdrawn: int  # kobo
     currency: str = "NGN"
+    available_balance: int  # kobo; withdrawable
+    pending_balance: int  # kobo; earned but still inside the hold period; becomes available at next_available_at
+    held_balance: int  # kobo; earned but on hold by support (for example after a no-show flag)
+    total_pending: int  # kobo; pending_balance + held_balance
+    next_available_at: Optional[datetime] = None  # when the earliest pending earning becomes available
 
 
 class CaregiverTransactionOut(BaseModel):
     id: str
-    type: Literal['earning', 'withdrawal']
+    type: Literal['earning', 'late_cancel_compensation', 'withdrawal']
     amount: int  # in kobo
-    status: str
+    status: str  # earnings: pending_clearance | held | successful | voided; withdrawals: pending | successful | failed
+    booking_id: Optional[str] = None
+    available_at: Optional[datetime] = None  # earnings: when it becomes withdrawable (a UTC time)
+    released_at: Optional[datetime] = None
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
     account_name: Optional[str] = None

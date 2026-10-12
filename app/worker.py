@@ -22,6 +22,7 @@ from app.db.session import SessionLocal
 from app.services.booking_expiry import expire_unpaid_bookings
 from app.services.dispatch import dispatch_tick
 from app.services.dropout import tick as dropout_tick
+from app.services.earnings import release_due as release_due_earnings
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,14 @@ async def dropout_tick_job(ctx: dict) -> int:
     if changed:
         logger.info("dropout_tick: moved %d booking(s)", changed)
     return changed
+
+
+async def earnings_release_job(ctx: dict) -> int:
+    """Move caregiver earnings whose hold period has passed to the withdrawable balance (held and voided ones stay)."""
+    released = await asyncio.to_thread(_run_with_session, release_due_earnings)
+    if released:
+        logger.info("earnings_release: released %d earning(s)", released)
+    return released
 
 
 async def whatsapp_events_job(ctx: dict) -> dict:
@@ -103,7 +112,8 @@ def json_deserializer(data: bytes) -> Any:
 
 
 class WorkerSettings:
-    functions = [expire_unpaid_bookings_job, dispatch_tick_job, dropout_tick_job, whatsapp_events_job,
+    functions = [expire_unpaid_bookings_job, dispatch_tick_job, dropout_tick_job, earnings_release_job,
+                 whatsapp_events_job,
                  func(process_whatsapp_inbound_job, keep_result=0)]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
@@ -113,6 +123,7 @@ class WorkerSettings:
         # Offset from the others: it skips a booking another job has locked, and a job that started in the same second
         # (dispatch_tick locks every dispatching booking) would hide the same booking from it every minute.
         cron(dropout_tick_job, second=20),
+        cron(earnings_release_job, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, second=40),  # every 5 minutes
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)

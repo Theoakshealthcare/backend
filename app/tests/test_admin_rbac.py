@@ -62,6 +62,10 @@ ADMIN_ONLY = {
     ("PATCH", f"{API}/admin/admins/{{admin_id}}"): "admins.manage",
     ("POST", f"{API}/admin/admins/{{admin_id}}/reset-mfa"): "admins.manage",
     ("GET", f"{API}/admin/audit"): "audit.read",
+    ("GET", f"{API}/admin/earnings"): "payments.read",
+    ("POST", f"{API}/admin/earnings/{{earning_id}}/hold"): "ledger.adjust_request",
+    ("POST", f"{API}/admin/earnings/{{earning_id}}/release-hold"): "ledger.adjust_request",
+    ("POST", f"{API}/admin/earnings/{{earning_id}}/void"): "ledger.adjust",
 }
 # Shared with app users: a patient/caregiver token works as before, an admin token needs the permission.
 SHARED = {
