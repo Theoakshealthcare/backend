@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "transfers_sent": 1,
+      "transfer_requests_seen_by_the_fake": [
+        {
+          "amount": 6500000,
+          "recipient": "RCP_d27c071bb208",
+          "reference": "po-ab3ede3072be46bc8b0947523d7e6fbf-1"
+        }
+      ]
+    }
+  },
+  "note": "FAKE PAYSTACK: this is exactly what Oakly POSTed to Paystack's /transfer; the reply is the fake's."
+}

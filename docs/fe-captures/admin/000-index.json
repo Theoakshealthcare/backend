@@ -5,7 +5,8 @@
     "bookings": 79,
     "policy": 119,
     "pricing": 135,
-    "earnings": 155
+    "earnings": 155,
+    "payouts": 183
   },
   "captures": [
     {
@@ -916,6 +917,601 @@
     {
       "file": "182-audit-earnings.json",
       "label": "audit-earnings",
+      "status": 200
+    },
+    {
+      "file": "183-db-seeded-payout-caregivers.json",
+      "label": "db-seeded-payout-caregivers",
+      "status": null
+    },
+    {
+      "file": "184-worker-payout-batch-job.json",
+      "label": "worker-payout-batch-job",
+      "status": null
+    },
+    {
+      "file": "185-payout-batches-list.json",
+      "label": "payout-batches-list",
+      "status": 200
+    },
+    {
+      "file": "186-payout-batches-list-filtered.json",
+      "label": "payout-batches-list-filtered",
+      "status": 200
+    },
+    {
+      "file": "187-payout-batch-detail.json",
+      "label": "payout-batch-detail",
+      "status": 200
+    },
+    {
+      "file": "188-payout-batch-unknown.json",
+      "label": "payout-batch-unknown",
+      "status": 404
+    },
+    {
+      "file": "189-payouts-list.json",
+      "label": "payouts-list",
+      "status": 200
+    },
+    {
+      "file": "190-payouts-list-by-caregiver.json",
+      "label": "payouts-list-by-caregiver",
+      "status": 200
+    },
+    {
+      "file": "191-payouts-list-bad-status.json",
+      "label": "payouts-list-bad-status",
+      "status": 422
+    },
+    {
+      "file": "192-payouts-list-as-operations.json",
+      "label": "payouts-list-as-operations",
+      "status": 403
+    },
+    {
+      "file": "193-payouts-list-no-token.json",
+      "label": "payouts-list-no-token",
+      "status": 401
+    },
+    {
+      "file": "194-payout-cancel-as-finance.json",
+      "label": "payout-cancel-as-finance",
+      "status": 403
+    },
+    {
+      "file": "195-payout-cancel-no-reason.json",
+      "label": "payout-cancel-no-reason",
+      "status": 422
+    },
+    {
+      "file": "196-payout-cancel-unknown.json",
+      "label": "payout-cancel-unknown",
+      "status": 404
+    },
+    {
+      "file": "197-payout-cancel.json",
+      "label": "payout-cancel",
+      "status": 200
+    },
+    {
+      "file": "198-payout-cancel-again.json",
+      "label": "payout-cancel-again",
+      "status": 409
+    },
+    {
+      "file": "199-payout-retry-pending.json",
+      "label": "payout-retry-pending",
+      "status": 409
+    },
+    {
+      "file": "200-payout-batch-approve-as-finance.json",
+      "label": "payout-batch-approve-as-finance",
+      "status": 403
+    },
+    {
+      "file": "201-payout-batch-approve-no-reason.json",
+      "label": "payout-batch-approve-no-reason",
+      "status": 422
+    },
+    {
+      "file": "202-payout-batch-approve-blank-reason.json",
+      "label": "payout-batch-approve-blank-reason",
+      "status": 422
+    },
+    {
+      "file": "203-payout-batch-approve-unknown.json",
+      "label": "payout-batch-approve-unknown",
+      "status": 404
+    },
+    {
+      "file": "204-payout-batch-approve.json",
+      "label": "payout-batch-approve",
+      "status": 200
+    },
+    {
+      "file": "205-payout-batch-approve-again.json",
+      "label": "payout-batch-approve-again",
+      "status": 409
+    },
+    {
+      "file": "206-payout-cancel-after-approval.json",
+      "label": "payout-cancel-after-approval",
+      "status": 409
+    },
+    {
+      "file": "207-worker-payout-dispatch-job.json",
+      "label": "worker-payout-dispatch-job",
+      "status": null
+    },
+    {
+      "file": "208-payouts-list-after-send.json",
+      "label": "payouts-list-after-send",
+      "status": 200
+    },
+    {
+      "file": "209-paystack-transfer-success-webhook.json",
+      "label": "paystack-transfer-success-webhook",
+      "status": 200
+    },
+    {
+      "file": "210-payouts-list-after-success.json",
+      "label": "payouts-list-after-success",
+      "status": 200
+    },
+    {
+      "file": "211-payout-retry-as-operations.json",
+      "label": "payout-retry-as-operations",
+      "status": 403
+    },
+    {
+      "file": "212-payout-retry-no-reason.json",
+      "label": "payout-retry-no-reason",
+      "status": 422
+    },
+    {
+      "file": "213-payout-retry-success-payout.json",
+      "label": "payout-retry-success-payout",
+      "status": 409
+    },
+    {
+      "file": "214-payout-retry.json",
+      "label": "payout-retry",
+      "status": 200
+    },
+    {
+      "file": "215-payout-retry-again.json",
+      "label": "payout-retry-again",
+      "status": 409
+    },
+    {
+      "file": "216-paystack-transfer-success-webhook-retry.json",
+      "label": "paystack-transfer-success-webhook-retry",
+      "status": 200
+    },
+    {
+      "file": "217-paystack-transfer-reversed-webhook.json",
+      "label": "paystack-transfer-reversed-webhook",
+      "status": 200
+    },
+    {
+      "file": "218-payouts-list-after-reversal.json",
+      "label": "payouts-list-after-reversal",
+      "status": 200
+    },
+    {
+      "file": "219-paystack-transfer-reversed-webhook-again.json",
+      "label": "paystack-transfer-reversed-webhook-again",
+      "status": 200
+    },
+    {
+      "file": "220-payout-retry-needs-attention-after-reversal.json",
+      "label": "payout-retry-needs-attention-after-reversal",
+      "status": 409
+    },
+    {
+      "file": "221-payout-resolve-reversed-as-failed.json",
+      "label": "payout-resolve-reversed-as-failed",
+      "status": 200
+    },
+    {
+      "file": "222-payout-unfreeze-after-reversal.json",
+      "label": "payout-unfreeze-after-reversal",
+      "status": 200
+    },
+    {
+      "file": "223-payout-retry-reversed.json",
+      "label": "payout-retry-reversed",
+      "status": 200
+    },
+    {
+      "file": "224-db-simulated-missing-webhook.json",
+      "label": "db-simulated-missing-webhook",
+      "status": null
+    },
+    {
+      "file": "225-worker-payout-reconcile-job.json",
+      "label": "worker-payout-reconcile-job",
+      "status": null
+    },
+    {
+      "file": "226-payouts-list-final.json",
+      "label": "payouts-list-final",
+      "status": 200
+    },
+    {
+      "file": "227-payout-batches-list-final.json",
+      "label": "payout-batches-list-final",
+      "status": 200
+    },
+    {
+      "file": "228-audit-payouts.json",
+      "label": "audit-payouts",
+      "status": 200
+    },
+    {
+      "file": "229-audit-payout-actions.json",
+      "label": "audit-payout-actions",
+      "status": 200
+    },
+    {
+      "file": "230-db-seeded-attention-caregivers.json",
+      "label": "db-seeded-attention-caregivers",
+      "status": null
+    },
+    {
+      "file": "231-worker-payout-batch-job-2.json",
+      "label": "worker-payout-batch-job-2",
+      "status": null
+    },
+    {
+      "file": "232-payout-batch-approve-2.json",
+      "label": "payout-batch-approve-2",
+      "status": 200
+    },
+    {
+      "file": "233-db-simulated-suspended-after-approval.json",
+      "label": "db-simulated-suspended-after-approval",
+      "status": null
+    },
+    {
+      "file": "234-worker-payout-dispatch-job-2.json",
+      "label": "worker-payout-dispatch-job-2",
+      "status": null
+    },
+    {
+      "file": "235-payouts-list-attention-after-send.json",
+      "label": "payouts-list-attention-after-send",
+      "status": 200
+    },
+    {
+      "file": "236-payout-resolve-as-finance.json",
+      "label": "payout-resolve-as-finance",
+      "status": 403
+    },
+    {
+      "file": "237-payout-resolve-no-reason.json",
+      "label": "payout-resolve-no-reason",
+      "status": 422
+    },
+    {
+      "file": "238-payout-resolve-bad-outcome.json",
+      "label": "payout-resolve-bad-outcome",
+      "status": 422
+    },
+    {
+      "file": "239-payout-resolve-unknown.json",
+      "label": "payout-resolve-unknown",
+      "status": 404
+    },
+    {
+      "file": "240-payout-resolve-answer-not-final.json",
+      "label": "payout-resolve-answer-not-final",
+      "status": 409
+    },
+    {
+      "file": "241-fake-paystack-otp-entered.json",
+      "label": "fake-paystack-otp-entered",
+      "status": null
+    },
+    {
+      "file": "242-payout-resolve-contradicts-paystack.json",
+      "label": "payout-resolve-contradicts-paystack",
+      "status": 409
+    },
+    {
+      "file": "243-payout-resolve-paid.json",
+      "label": "payout-resolve-paid",
+      "status": 200
+    },
+    {
+      "file": "244-payout-resolve-again.json",
+      "label": "payout-resolve-again",
+      "status": 409
+    },
+    {
+      "file": "245-paystack-transfer-failed-webhook-late.json",
+      "label": "paystack-transfer-failed-webhook-late",
+      "status": 200
+    },
+    {
+      "file": "246-db-simulated-balance-changed.json",
+      "label": "db-simulated-balance-changed",
+      "status": null
+    },
+    {
+      "file": "247-paystack-transfer-success-webhook-late.json",
+      "label": "paystack-transfer-success-webhook-late",
+      "status": 200
+    },
+    {
+      "file": "248-payouts-list-needs-attention.json",
+      "label": "payouts-list-needs-attention",
+      "status": 200
+    },
+    {
+      "file": "249-db-observed-wallet-after-late-success.json",
+      "label": "db-observed-wallet-after-late-success",
+      "status": null
+    },
+    {
+      "file": "250-payout-retry-needs-attention.json",
+      "label": "payout-retry-needs-attention",
+      "status": 409
+    },
+    {
+      "file": "251-payout-resolve-paid-twice-failed.json",
+      "label": "payout-resolve-paid-twice-failed",
+      "status": 409
+    },
+    {
+      "file": "252-payout-unfreeze-as-finance.json",
+      "label": "payout-unfreeze-as-finance",
+      "status": 403
+    },
+    {
+      "file": "253-payout-unfreeze-no-reason.json",
+      "label": "payout-unfreeze-no-reason",
+      "status": 422
+    },
+    {
+      "file": "254-payout-unfreeze-unknown-caregiver.json",
+      "label": "payout-unfreeze-unknown-caregiver",
+      "status": 404
+    },
+    {
+      "file": "255-payout-unfreeze-not-frozen.json",
+      "label": "payout-unfreeze-not-frozen",
+      "status": 409
+    },
+    {
+      "file": "256-payout-unfreeze-refused-while-open.json",
+      "label": "payout-unfreeze-refused-while-open",
+      "status": 409
+    },
+    {
+      "file": "257-payout-resolve-late-success-paid.json",
+      "label": "payout-resolve-late-success-paid",
+      "status": 200
+    },
+    {
+      "file": "258-payout-unfreeze-refused-shortfall.json",
+      "label": "payout-unfreeze-refused-shortfall",
+      "status": 409
+    },
+    {
+      "file": "259-payout-unfreeze-debits-balance.json",
+      "label": "payout-unfreeze-debits-balance",
+      "status": 200
+    },
+    {
+      "file": "260-db-simulated-silent-transfer.json",
+      "label": "db-simulated-silent-transfer",
+      "status": null
+    },
+    {
+      "file": "261-worker-payout-reconcile-job-2.json",
+      "label": "worker-payout-reconcile-job-2",
+      "status": null
+    },
+    {
+      "file": "262-payout-no-record-needs-attention.json",
+      "label": "payout-no-record-needs-attention",
+      "status": 200
+    },
+    {
+      "file": "263-payout-resolve-no-record-without-force.json",
+      "label": "payout-resolve-no-record-without-force",
+      "status": 409
+    },
+    {
+      "file": "264-payout-resolve-no-record-forced.json",
+      "label": "payout-resolve-no-record-forced",
+      "status": 200
+    },
+    {
+      "file": "265-db-observed-wallet-after-forced-resolve.json",
+      "label": "db-observed-wallet-after-forced-resolve",
+      "status": null
+    },
+    {
+      "file": "266-payout-unfreeze-after-no-record.json",
+      "label": "payout-unfreeze-after-no-record",
+      "status": 200
+    },
+    {
+      "file": "267-paystack-transfer-failed-webhook-2.json",
+      "label": "paystack-transfer-failed-webhook-2",
+      "status": 200
+    },
+    {
+      "file": "268-fake-paystack-still-pending.json",
+      "label": "fake-paystack-still-pending",
+      "status": null
+    },
+    {
+      "file": "269-payout-retry-paystack-pending.json",
+      "label": "payout-retry-paystack-pending",
+      "status": 409
+    },
+    {
+      "file": "270-db-simulated-balance-changed-2.json",
+      "label": "db-simulated-balance-changed-2",
+      "status": null
+    },
+    {
+      "file": "271-payout-retry-paystack-paid.json",
+      "label": "payout-retry-paystack-paid",
+      "status": 409
+    },
+    {
+      "file": "272-payouts-list-after-retry-check.json",
+      "label": "payouts-list-after-retry-check",
+      "status": 200
+    },
+    {
+      "file": "273-payout-resolve-retry-check-paid.json",
+      "label": "payout-resolve-retry-check-paid",
+      "status": 200
+    },
+    {
+      "file": "274-payout-unfreeze-write-off.json",
+      "label": "payout-unfreeze-write-off",
+      "status": 200
+    },
+    {
+      "file": "275-worker-payout-batch-job-3.json",
+      "label": "worker-payout-batch-job-3",
+      "status": null
+    },
+    {
+      "file": "276-payout-batch-cancel-as-finance.json",
+      "label": "payout-batch-cancel-as-finance",
+      "status": 403
+    },
+    {
+      "file": "277-payout-batch-cancel-no-reason.json",
+      "label": "payout-batch-cancel-no-reason",
+      "status": 422
+    },
+    {
+      "file": "278-payout-batch-cancel-unknown.json",
+      "label": "payout-batch-cancel-unknown",
+      "status": 404
+    },
+    {
+      "file": "279-payout-batch-cancel.json",
+      "label": "payout-batch-cancel",
+      "status": 200
+    },
+    {
+      "file": "280-payout-batch-cancel-again.json",
+      "label": "payout-batch-cancel-again",
+      "status": 409
+    },
+    {
+      "file": "281-payout-batch-cancel-approved.json",
+      "label": "payout-batch-cancel-approved",
+      "status": 409
+    },
+    {
+      "file": "282-payout-batches-list-after-cancel.json",
+      "label": "payout-batches-list-after-cancel",
+      "status": 200
+    },
+    {
+      "file": "283-audit-payout-batch-cancel.json",
+      "label": "audit-payout-batch-cancel",
+      "status": 200
+    },
+    {
+      "file": "284-audit-payout-resolve.json",
+      "label": "audit-payout-resolve",
+      "status": 200
+    },
+    {
+      "file": "285-db-simulated-everyone-else-cooling-down.json",
+      "label": "db-simulated-everyone-else-cooling-down",
+      "status": null
+    },
+    {
+      "file": "286-worker-payout-batch-job-4.json",
+      "label": "worker-payout-batch-job-4",
+      "status": null
+    },
+    {
+      "file": "287-payout-batch-approve-4.json",
+      "label": "payout-batch-approve-4",
+      "status": 200
+    },
+    {
+      "file": "288-worker-payout-dispatch-job-4.json",
+      "label": "worker-payout-dispatch-job-4",
+      "status": null
+    },
+    {
+      "file": "289-paystack-transfer-failed-webhook-net-off.json",
+      "label": "paystack-transfer-failed-webhook-net-off",
+      "status": 200
+    },
+    {
+      "file": "290-worker-payout-batch-job-5.json",
+      "label": "worker-payout-batch-job-5",
+      "status": null
+    },
+    {
+      "file": "291-payout-batch-approve-5.json",
+      "label": "payout-batch-approve-5",
+      "status": 200
+    },
+    {
+      "file": "292-worker-payout-dispatch-job-5.json",
+      "label": "worker-payout-dispatch-job-5",
+      "status": null
+    },
+    {
+      "file": "293-paystack-transfer-success-webhook-net-off-late.json",
+      "label": "paystack-transfer-success-webhook-net-off-late",
+      "status": 200
+    },
+    {
+      "file": "294-payouts-list-net-off-frozen.json",
+      "label": "payouts-list-net-off-frozen",
+      "status": 200
+    },
+    {
+      "file": "295-paystack-transfer-failed-webhook-net-off-p2.json",
+      "label": "paystack-transfer-failed-webhook-net-off-p2",
+      "status": 200
+    },
+    {
+      "file": "296-payouts-list-net-off-p2-failed.json",
+      "label": "payouts-list-net-off-p2-failed",
+      "status": 200
+    },
+    {
+      "file": "297-payout-resolve-net-off.json",
+      "label": "payout-resolve-net-off",
+      "status": 200
+    },
+    {
+      "file": "298-payouts-list-net-off-resolved.json",
+      "label": "payouts-list-net-off-resolved",
+      "status": 200
+    },
+    {
+      "file": "299-payout-resolve-net-off-p1-paid.json",
+      "label": "payout-resolve-net-off-p1-paid",
+      "status": 200
+    },
+    {
+      "file": "300-payout-unfreeze-net-off.json",
+      "label": "payout-unfreeze-net-off",
+      "status": 200
+    },
+    {
+      "file": "301-audit-payout-unfreeze.json",
+      "label": "audit-payout-unfreeze",
       "status": 200
     }
   ]

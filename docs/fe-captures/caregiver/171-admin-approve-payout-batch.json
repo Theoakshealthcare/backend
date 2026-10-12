@@ -1,0 +1,68 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/batches/7641f081-00a9-491c-8d53-e48c0b486acd/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: totals checked against the ledger"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "7641f081-00a9-491c-8d53-e48c0b486acd",
+      "period_key": "2026-10-12",
+      "cadence": "weekly",
+      "min_payout_kobo": 500000,
+      "status": "approved",
+      "approved_by": "8f493a15-ee82-4a9d-a248-260dbda2cf9a",
+      "approved_at": "2026-10-12T13:35:34.307764",
+      "approval_reason": "Placeholder: totals checked against the ledger",
+      "created_at": "2026-10-12T13:35:34.083912",
+      "payout_count": 1,
+      "total_kobo": 6500000,
+      "counts": {
+        "processing": 1
+      },
+      "payouts": [
+        {
+          "id": "ab3ede30-72be-46bc-8b09-47523d7e6fbf",
+          "batch_id": "7641f081-00a9-491c-8d53-e48c0b486acd",
+          "batch_period": "2026-10-12",
+          "caregiver_id": "c75fce86-2eac-489f-b0f9-70b2286cf0de",
+          "caregiver_name": "Placeholder Caregiver A",
+          "amount_kobo": 6500000,
+          "status": "processing",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0000",
+          "account_name": "PLACEHOLDER CAREGIVER A",
+          "reference": "po-ab3ede3072be46bc8b0947523d7e6fbf-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-ab3ede3072be46bc8b0947523d7e6fbf-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-12T13:35:34.096959"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": "8f493a15-ee82-4a9d-a248-260dbda2cf9a",
+          "approved_at": "2026-10-12T13:35:34.307764",
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-12T13:35:34.094561"
+        }
+      ]
+    }
+  }
+}

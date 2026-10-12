@@ -1,0 +1,133 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts?batch_id=240f7286-ecd6-4511-ab8a-32a5b75c967e",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "3f98faae-3f42-479f-8cab-0e34f2a4d8dc",
+          "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
+          "batch_period": "2026-10-19",
+          "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
+          "caregiver_name": "Placeholder Cancelled",
+          "amount_kobo": 800000,
+          "status": "pending_approval",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0013",
+          "account_name": "PLACEHOLDER CANCELLED",
+          "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-12T16:52:06.595653"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-12T16:52:06.595035"
+        },
+        {
+          "id": "93d04961-704d-4177-abfa-39f35a0b7b76",
+          "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
+          "batch_period": "2026-10-19",
+          "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
+          "caregiver_name": "Placeholder Failing",
+          "amount_kobo": 3000000,
+          "status": "pending_approval",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0012",
+          "account_name": "PLACEHOLDER FAILING",
+          "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-12T16:52:06.591410"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-12T16:52:06.590658"
+        },
+        {
+          "id": "05e5c555-de52-4080-8071-575e11acb302",
+          "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
+          "batch_period": "2026-10-19",
+          "caregiver_id": "3302d88e-e1e4-482d-90d5-c636d2afb9c4",
+          "caregiver_name": "Placeholder Paid",
+          "amount_kobo": 1200000,
+          "status": "pending_approval",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0011",
+          "account_name": "PLACEHOLDER PAID",
+          "reference": "po-05e5c555de5240808071575e11acb302-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-05e5c555de5240808071575e11acb302-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-12T16:52:06.582997"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-12T16:52:06.580618"
+        }
+      ],
+      "total": 3
+    }
+  }
+}

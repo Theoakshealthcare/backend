@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/caregivers/9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e/unfreeze",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Both transfers accounted for"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "caregiver_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+      "payouts_frozen_at": null,
+      "debited_from_balance_kobo": 0,
+      "written_off_shortfall_kobo": 0,
+      "outstanding_shortfall_kobo": 0
+    }
+  }
+}

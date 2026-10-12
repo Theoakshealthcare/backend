@@ -13,17 +13,17 @@
     "body": {
       "profile_status": "approved",
       "is_available": true,
-      "location_updated_at": "2026-10-07T19:48:47.522099",
+      "location_updated_at": "2026-10-12T13:35:21.607113",
       "today_visits": [],
       "upcoming_visits": [
         {
-          "id": "948fcb92-c963-430f-9c0a-aab5aad1e98d",
-          "booking_code": "399AAB50",
+          "id": "cf77d01e-9bf1-48b5-a71f-d568161f014e",
+          "booking_code": "4C76FB1E",
           "service_type": "nurse",
           "status": "accepted",
           "dispatch_state": "matched",
-          "scheduled_date": "2026-10-10T19:48:51.649439",
-          "scheduled_end_date": "2026-10-10T21:48:51.649439",
+          "scheduled_date": "2026-10-15T13:35:25.787601",
+          "scheduled_end_date": "2026-10-15T15:35:25.787601",
           "duration_hours": 2,
           "patient_name": "Placeholder Patient",
           "patient_address": "12 Placeholder Street, Lekki",

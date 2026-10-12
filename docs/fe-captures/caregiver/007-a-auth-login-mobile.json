@@ -4,7 +4,7 @@
     "path": "/api/v1/auth/login/mobile",
     "auth": null,
     "body": {
-      "email_or_phone": "caregiver-a-d2e706@example.com",
+      "email_or_phone": "caregiver-a-d0c81e@example.com",
       "password": "<PLACEHOLDER_PASSWORD>"
     }
   },

@@ -1,0 +1,57 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts?caregiver_id=3302d88e-e1e4-482d-90d5-c636d2afb9c4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "05e5c555-de52-4080-8071-575e11acb302",
+          "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
+          "batch_period": "2026-10-19",
+          "caregiver_id": "3302d88e-e1e4-482d-90d5-c636d2afb9c4",
+          "caregiver_name": "Placeholder Paid",
+          "amount_kobo": 1200000,
+          "status": "success",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0011",
+          "account_name": "PLACEHOLDER PAID",
+          "reference": "po-05e5c555de5240808071575e11acb302-1",
+          "transfer_code": "TRF_3f06ba051282",
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-05e5c555de5240808071575e11acb302-1",
+              "status": "success",
+              "failure_reason": null,
+              "created_at": "2026-10-12T16:52:06.582997"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": "2026-10-12T16:52:08.911157",
+          "completed_at": "2026-10-12T16:52:09.157808",
+          "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
+          "approved_at": "2026-10-12T16:52:07.054767",
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-12T16:52:06.580618"
+        }
+      ],
+      "total": 1
+    }
+  }
+}

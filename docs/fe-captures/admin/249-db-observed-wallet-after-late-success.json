@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT balance FROM caregiver_wallets WHERE caregiver_id = <Placeholder Late Success>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "balance_kobo": 0
+    }
+  },
+  "note": "OBSERVED in the database: the available balance is 0, so the next batch cannot pay the same money again."
+}

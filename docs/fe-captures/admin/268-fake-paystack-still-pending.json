@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "FAKE",
+    "path": "the transfer's status on the fake Paystack: failed -> pending",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "reference": "po-8c1cdb5842754e6fa3103c6659f2204e-1",
+      "status": "pending"
+    }
+  },
+  "note": "SIMULATION: Paystack's own record disagrees with the webhook we got."
+}

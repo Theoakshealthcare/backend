@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<a payout date>), run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "period_key": "2026-11-02",
+      "payouts_made": 2
+    }
+  },
+  "note": "SIMULATION of the schedule (a third batch, three weeks ahead): the new caregiver and Placeholder Silent Transfer, whose money came back when its payout was resolved as failed."
+}

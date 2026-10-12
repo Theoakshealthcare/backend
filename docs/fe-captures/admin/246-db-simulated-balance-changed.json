@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "UPDATE caregiver_wallets SET balance = 300000 WHERE caregiver_id = <Placeholder Late Success>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SIMULATION: the caregiver's available balance falls to 3,000.00 NGN before the next event (as a ledger adjustment would), so the balance cannot cover the whole payout when the money is taken back."
+}

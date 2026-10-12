@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts?status=bogus",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "query",
+            "status"
+          ],
+          "msg": "Input should be 'pending_approval', 'processing', 'success', 'failed', 'reversed', 'cancelled' or 'needs_attention'",
+          "input": "bogus",
+          "ctx": {
+            "expected": "'pending_approval', 'processing', 'success', 'failed', 'reversed', 'cancelled' or 'needs_attention'"
+          }
+        }
+      ]
+    }
+  }
+}

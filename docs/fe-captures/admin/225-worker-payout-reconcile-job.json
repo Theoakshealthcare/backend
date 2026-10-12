@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_reconcile_job -> app.services.payouts.reconcile, run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "payouts_settled": 1
+    }
+  },
+  "note": "FAKE PAYSTACK answered GET /transfer/verify/<reference> with status success. In production the ARQ cron runs this every 15 minutes."
+}

@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_reconcile_job -> app.services.payouts.reconcile, run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "payouts_acted_on": 1
+    }
+  },
+  "note": "FAKE PAYSTACK answered GET /transfer/verify/<reference> with 404. The money is NOT returned: the payout becomes needs_attention."
+}

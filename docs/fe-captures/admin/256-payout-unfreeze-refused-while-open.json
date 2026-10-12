@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/caregivers/f33a040b-ed24-4418-b312-80e690394377/unfreeze",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Looks fine to me"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "1 payout(s) of this caregiver still need attention or are processing (b10cabbd-4b38-450f-8bdd-4ed37ebfbb94). Resolve them first"
+    }
+  },
+  "note": "The payout still needs attention: the freeze stays until an admin has resolved it."
+}

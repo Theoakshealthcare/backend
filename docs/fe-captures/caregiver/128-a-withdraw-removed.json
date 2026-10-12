@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/wallet/withdraw",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "amount": 200000,
+      "narration": "Placeholder"
+    }
+  },
+  "response": {
+    "status_code": 410,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Withdrawals are no longer available. Your available balance is paid to your bank account automatically on the payout schedule."
+    }
+  }
+}

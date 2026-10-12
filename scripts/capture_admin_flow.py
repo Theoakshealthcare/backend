@@ -15,6 +15,10 @@ What is real and what is not
 - Two shortcuts are simulated in the database and labelled "db-simulated": the 30-minute idle timeout
   (the refresh token's expiry is moved into the past) and the 48-hour invite expiry.
 - Invite delivery is not exercised: the API returns the invite token, and this script uses it directly.
+- The payouts section uses a LOCAL FAKE Paystack (app/tests/fake_meta.py on --paystack-port; the stack's PAYSTACK_BASE_URL must
+  point at it, e.g. http://host.docker.internal:9912). Its replies, and the transfer webhooks (correctly signed with the stack's
+  placeholder key), are shaped after Paystack's documented ones; no live Paystack account was used. The batch, send and reconcile
+  steps are the real functions run inside the worker container (in production the ARQ cron runs them).
 
 Everything created here uses placeholder data (example.com emails, fake names). Secrets are replaced in
 the files: JWTs, refresh/invite tokens, TOTP secrets and codes, passwords.
@@ -25,6 +29,7 @@ import json
 import re
 import shutil
 import time
+import types
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -35,7 +40,13 @@ from cryptography.fernet import Fernet
 
 from scripts.capture_caregiver_flow import (
     DB,
+    FakePaystack,
+    run_payout_batch_job,
+    run_payout_dispatch_job,
+    run_payout_reconcile_job,
     run_release_job,
+    serve_fake_paystack,
+    transfer_webhook,
     LAT,
     LON,
     PLACEHOLDER_PASSWORD,
@@ -49,6 +60,26 @@ ADMIN = f"{API}/admin"
 STRONG_PASSWORD = "Placeholder-Admin-Pass-9!"
 WINDOW_SECONDS = 60  # ADMIN_AUTH_IP_WINDOW_SECONDS default
 SECRET_PARAM = re.compile(r"secret=[A-Z2-7]+")
+
+
+class PayoutFake(FakePaystack):
+    """The repo's fake Paystack, with two recipients that behave differently so the second half of the payouts section can show
+    what an admin has to settle: one whose transfer stops at OTP, one whose transfer call gets a 502 (Paystack may or may not have
+    it)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.otp_recipients: set = set()
+        self.silent_recipients: set = set()
+
+    def _transfer(self, payload: Dict[str, Any]):
+        recipient = payload.get("recipient")
+        if recipient in self.silent_recipients:
+            return 502, {"status": False, "message": "Bad gateway"}
+        code, body = super()._transfer(payload)
+        if recipient in self.otp_recipients and code == 200:
+            self.transfers[payload["reference"]]["status"] = body["data"]["status"] = "otp"
+        return code, body
 
 
 class AdminRecorder(Recorder):
@@ -537,6 +568,497 @@ def earnings_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
              note="One entry per hold, release of a hold and void, newest first, with the old and new status and the reason.")
 
 
+def payouts_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str, paystack_port: int) -> None:
+    """A3 slice 2: the admin side of caregiver payouts. Caregivers, wallets and verified bank accounts are seeded; the batch,
+    send and reconcile steps are the real functions run in the worker container against a LOCAL FAKE Paystack; every admin
+    request is a real HTTP call."""
+    fake = PayoutFake()
+    server = serve_fake_paystack(fake, port=paystack_port)
+    ctx = types.SimpleNamespace(rec=rec, env=env)
+    admins = Admins(db, env, tag + "pay")
+    seed = OpsSeed(db, env, tag + "d", first=700)
+    wait_for_new_rate_window()
+    rec.quiet = True
+    tokens = {}
+    for who, role in (("boss", "super_admin"), ("fin", "finance"), ("ops", "operations")):
+        tokens[who] = login_and_verify(rec, admins, who, admins.seed(who, role, f"Placeholder {role}"))["access_token"]
+    rec.quiet = False
+    boss, fin, ops = tokens["boss"], tokens["fin"], tokens["ops"]
+    P = f"{ADMIN}/payouts"
+
+    def caregiver(name: str, balance_kobo: int, *, account: str, cooling: bool = False, behaviour: str = "") -> str:
+        cid = seed.caregiver(name, located=False)
+        code = "RCP_" + uuid.uuid4().hex[:12]
+        fake.recipients[code] = {"account_number": account, "bank_code": "058"}
+        if behaviour == "otp":
+            fake.otp_recipients.add(code)
+        elif behaviour == "silent":
+            fake.silent_recipients.add(code)
+        db.run("INSERT INTO caregiver_wallets (id, caregiver_id, balance, created_at, updated_at) VALUES (%s,%s,%s,now(),now())",
+               (str(uuid.uuid4()), cid, balance_kobo))
+        db.run("INSERT INTO caregiver_bank_accounts (id, caregiver_id, bank_name, bank_code, account_number, account_name,"
+               " recipient_code, verified_at, payout_blocked_until, created_at, updated_at) VALUES"
+               " (%s,%s,'Placeholder Bank','058',%s,%s,%s,now(),%s,now(),now())",
+               (str(uuid.uuid4()), cid, account, name.upper(), code,
+                datetime.utcnow() + timedelta(hours=12) if cooling else None))
+        return cid
+
+    paid = caregiver("Placeholder Paid", 1_200_000, account="0000000011")
+    failing = caregiver("Placeholder Failing", 3_000_000, account="0000000012")
+    cancelled = caregiver("Placeholder Cancelled", 800_000, account="0000000013")
+    small = caregiver("Placeholder Small Balance", 300_000, account="0000000014")
+    cooling = caregiver("Placeholder Cooling Down", 2_000_000, account="0000000015", cooling=True)
+    rec.save("db-seeded-payout-caregivers", {
+        "request": {"method": "SQL", "path": "INSERT INTO caregivers / caregiver_wallets / caregiver_bank_accounts ... (5 placeholder caregivers)",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"caregivers": {
+            "Placeholder Paid": {"available_kobo": 1_200_000, "bank_account": "verified"},
+            "Placeholder Failing": {"available_kobo": 3_000_000, "bank_account": "verified"},
+            "Placeholder Cancelled": {"available_kobo": 800_000, "bank_account": "verified"},
+            "Placeholder Small Balance": {"available_kobo": 300_000, "bank_account": "verified"},
+            "Placeholder Cooling Down": {"available_kobo": 2_000_000, "bank_account": "verified, changed 12 hours ago"}}}},
+        "note": "SEEDED: the caregivers, their available balances and verified bank accounts (a caregiver does this through "
+                "PUT /caregiver/bank-account; see the caregiver guide). The minimum payout is 5,000.00 NGN (500000 kobo)."})
+
+    # A week on from today: the caregiver capture run (same database) already made today's batch, and a period has one batch.
+    period = (datetime.utcnow().date() + timedelta(days=7)).isoformat()
+    made = run_payout_batch_job(period)
+    rec.save("worker-payout-batch-job", {
+        "request": {"method": "JOB", "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<a payout date>), run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"period_key": period, "payouts_made": made}},
+        "note": "SIMULATION of the schedule: in production the ARQ cron runs daily and makes a batch only on a payout day "
+                "(Mondays when the policy says weekly). Here the same function was run for a payout date a week ahead. Three of the five "
+                "caregivers get a payout: one is below the minimum, one changed bank account 12 hours ago."})
+
+    rec.call("payout-batches-list", "GET", f"{P}/batches", token=fin, note="Finance holds payments.read.")
+    batch_id = rec.http.get(f"{P}/batches", headers={"Authorization": f"Bearer {fin}"}).json()["items"][0]["id"]
+    rec.call("payout-batches-list-filtered", "GET", f"{P}/batches", token=fin, params={"status": "approved"})
+    rec.call("payout-batch-detail", "GET", f"{P}/batches/{batch_id}", token=fin,
+             note="account_number is masked to the last four digits for admins.")
+    rec.call("payout-batch-unknown", "GET", f"{P}/batches/{uuid.uuid4()}", token=fin, expect=404)
+    rec.call("payouts-list", "GET", P, token=fin, params={"batch_id": batch_id})
+    rec.call("payouts-list-by-caregiver", "GET", P, token=fin, params={"caregiver_id": cancelled})
+    rec.call("payouts-list-bad-status", "GET", P, token=fin, expect=422, params={"status": "bogus"})
+    rec.call("payouts-list-as-operations", "GET", P, token=ops, expect=403,
+             note="Operations does not hold payments.read.")
+    rec.call("payouts-list-no-token", "GET", P, expect=401)
+
+    def payout_of(cid: str) -> Dict[str, Any]:
+        items = rec.http.get(P, params={"caregiver_id": cid}, headers={"Authorization": f"Bearer {boss}"}).json()["items"]
+        return items[0]
+
+    paid_p, failing_p, cancelled_p = payout_of(paid), payout_of(failing), payout_of(cancelled)
+    rec.call("payout-cancel-as-finance", "POST", f"{P}/{cancelled_p['id']}/cancel", token=fin, expect=403,
+             json_body={"reason": "Finance may look but not cancel"},
+             note="Cancelling moves money, so it needs ledger.adjust (Super Admin only), like approving.")
+    rec.call("payout-cancel-no-reason", "POST", f"{P}/{cancelled_p['id']}/cancel", token=boss, expect=422, json_body={})
+    rec.call("payout-cancel-unknown", "POST", f"{P}/{uuid.uuid4()}/cancel", token=boss, expect=404, json_body={"reason": "Nobody"})
+    rec.call("payout-cancel", "POST", f"{P}/{cancelled_p['id']}/cancel", token=boss,
+             json_body={"reason": "Caregiver asked us to hold this payout"},
+             note="The reserved 8,000.00 NGN goes back to the caregiver's available balance.")
+    rec.call("payout-cancel-again", "POST", f"{P}/{cancelled_p['id']}/cancel", token=boss, expect=409,
+             json_body={"reason": "Again"})
+    rec.call("payout-retry-pending", "POST", f"{P}/{paid_p['id']}/retry", token=boss, expect=409,
+             json_body={"reason": "Not failed"})
+
+    rec.call("payout-batch-approve-as-finance", "POST", f"{P}/batches/{batch_id}/approve", token=fin, expect=403,
+             json_body={"reason": "Finance may not approve"})
+    rec.call("payout-batch-approve-no-reason", "POST", f"{P}/batches/{batch_id}/approve", token=boss, expect=422, json_body={})
+    rec.call("payout-batch-approve-blank-reason", "POST", f"{P}/batches/{batch_id}/approve", token=boss, expect=422,
+             json_body={"reason": "   "})
+    rec.call("payout-batch-approve-unknown", "POST", f"{P}/batches/{uuid.uuid4()}/approve", token=boss, expect=404,
+             json_body={"reason": "Nobody"})
+    rec.call("payout-batch-approve", "POST", f"{P}/batches/{batch_id}/approve", token=boss,
+             json_body={"reason": "Placeholder: totals checked against the ledger"},
+             note="Approving sends nothing by itself: payouts become 'processing' and the send job (every minute) pays them.")
+    rec.call("payout-batch-approve-again", "POST", f"{P}/batches/{batch_id}/approve", token=boss, expect=409,
+             json_body={"reason": "Again"})
+    rec.call("payout-cancel-after-approval", "POST", f"{P}/{paid_p['id']}/cancel", token=boss, expect=409,
+             json_body={"reason": "Too late"})
+
+    fake.balance_kobo = 2_000_000  # the Paystack balance covers the 12,000.00 payout but not the 30,000.00 one
+    sent = run_payout_dispatch_job()
+    rec.save("worker-payout-dispatch-job", {
+        "request": {"method": "JOB", "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"transfers_sent": sent, "transfer_requests_seen_by_the_fake": [
+            {"amount": r[3]["amount"], "reference": r[3]["reference"]}
+            for r in fake.requests if r[0] == "POST" and r[1].endswith("/transfer")]}},
+        "note": "FAKE PAYSTACK: the fake's balance was set to 20,000.00 NGN, so the 30,000.00 transfer is refused "
+                "('Your balance is not enough to fulfil this request', Paystack's wording for this case) and the 12,000.00 "
+                "one is accepted."})
+    rec.call("payouts-list-after-send", "GET", P, token=fin, params={"batch_id": batch_id},
+             note="Paid: processing, with Paystack's transfer_code. Failing: failed, the money is back in the caregiver's "
+                  "available balance, and failure_reason says why.")
+    paid_ref = payout_of(paid)["reference"]
+    transfer_webhook(ctx, "paystack-transfer-success-webhook", fake, paid_ref, "success",
+                     "FAKE PAYSTACK: shaped after Paystack's documented transfer.success event, signed with the stack's "
+                     "placeholder key.")
+    rec.call("payouts-list-after-success", "GET", P, token=fin, params={"caregiver_id": paid})
+
+    rec.call("payout-retry-as-operations", "POST", f"{P}/{failing_p['id']}/retry", token=ops, expect=403,
+             json_body={"reason": "Not allowed"})
+    rec.call("payout-retry-no-reason", "POST", f"{P}/{failing_p['id']}/retry", token=boss, expect=422, json_body={})
+    rec.call("payout-retry-success-payout", "POST", f"{P}/{paid_p['id']}/retry", token=boss, expect=409,
+             json_body={"reason": "Already paid"})
+    fake.balance_kobo = 10 ** 12
+    rec.call("payout-retry", "POST", f"{P}/{failing_p['id']}/retry", token=boss,
+             json_body={"reason": "Paystack balance topped up"},
+             note="The money is reserved again, the payout gets a NEW reference (attempts 2) and goes back to processing.")
+    rec.call("payout-retry-again", "POST", f"{P}/{failing_p['id']}/retry", token=boss, expect=409,
+             json_body={"reason": "Already processing"})
+    run_payout_dispatch_job()
+    failing_ref = payout_of(failing)["reference"]
+    transfer_webhook(ctx, "paystack-transfer-success-webhook-retry", fake, failing_ref, "success",
+                     "FAKE PAYSTACK: the retried transfer succeeds.")
+    transfer_webhook(ctx, "paystack-transfer-reversed-webhook", fake, failing_ref, "reversed",
+                     "FAKE PAYSTACK: shaped after Paystack's transfer.reversed event (Paystack paid, then took the money "
+                     "back). Paystack's two answers now disagree, so the caregiver's payouts are FROZEN and NO money returns "
+                     "by itself: the payout is needs_attention and its money stays reserved until an admin resolves it.")
+    rec.call("payouts-list-after-reversal", "GET", P, token=fin, params={"caregiver_id": failing},
+             note="needs_attention, and caregiver_payouts_frozen_at / caregiver_payouts_frozen_reason say why the caregiver is "
+                  "frozen. The 30,000.00 NGN is NOT back in the caregiver's available balance.")
+    transfer_webhook(ctx, "paystack-transfer-reversed-webhook-again", fake, failing_ref, "reversed",
+                     "The same event delivered again: acknowledged, nothing changes.")
+    rec.call("payout-retry-needs-attention-after-reversal", "POST", f"{P}/{failing_p['id']}/retry", token=boss, expect=409,
+             json_body={"reason": "Send again"}, note="A payout that needs attention cannot be retried; it is resolved first.")
+    rec.call("payout-resolve-reversed-as-failed", "POST", f"{P}/{failing_p['id']}/resolve", token=boss,
+             json_body={"outcome": "failed", "reason": "Paystack shows the transfer as reversed and the money back in our balance"},
+             note="Paystack agrees it was reversed, so the reserved money returns: returned_kobo is the whole 30,000.00 NGN and "
+                  "netted_kobo is 0 (the caregiver has no shortfall to net it against).")
+    rec.call("payout-unfreeze-after-reversal", "POST", f"{P}/caregivers/{failing}/unfreeze", token=boss,
+             json_body={"reason": "Reversal confirmed with Paystack and the money returned; nothing else is open"},
+             note="Nothing of this caregiver's is still needs_attention or processing, so the freeze can be lifted.")
+    rec.call("payout-retry-reversed", "POST", f"{P}/{failing_p['id']}/retry", token=boss,
+             json_body={"reason": "Reversal was a bank hiccup; send again"})
+    run_payout_dispatch_job()
+    reference3 = payout_of(failing)["reference"]
+    db.run("UPDATE payouts SET initiated_at = now() at time zone 'utc' - interval '20 minutes' WHERE reference = %s", (reference3,))
+    rec.save("db-simulated-missing-webhook", {
+        "request": {"method": "SQL", "path": "UPDATE payouts SET initiated_at = <20 minutes ago> WHERE reference = <the third attempt>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION: this transfer succeeded at Paystack but its webhook never arrived. The reconcile job asks Paystack "
+                "about transfers that have had no answer for 15 minutes; moving initiated_at back stands in for waiting."})
+    fake.settle_transfer(reference3, "success")
+    settled = run_payout_reconcile_job()
+    rec.save("worker-payout-reconcile-job", {
+        "request": {"method": "JOB", "path": "payout_reconcile_job -> app.services.payouts.reconcile, run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"payouts_settled": settled}},
+        "note": "FAKE PAYSTACK answered GET /transfer/verify/<reference> with status success. In production the ARQ cron runs "
+                "this every 15 minutes."})
+    rec.call("payouts-list-final", "GET", P, token=fin)
+    rec.call("payout-batches-list-final", "GET", f"{P}/batches", token=fin)
+    rec.call("audit-payouts", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "payout_batch", "limit": 2},
+             note="One entry for the batch approval, with the approved payouts, the total and the reason.")
+    rec.call("audit-payout-actions", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "payout", "limit": 6},
+             note="One entry per cancel and retry, newest first.")
+    payouts_attention(rec, db, env, ctx, fake, caregiver, payout_of, P, boss, fin, ops, paid, cancelled)
+    server.shutdown()
+
+
+def payouts_attention(rec, db, env, ctx, fake, caregiver, payout_of, P, boss, fin, ops, first_paid, cancelled) -> None:
+    """The second half of the payouts section (appended after the first so its capture numbers do not move): what an admin has
+    to settle by hand. Batch 2 holds five caregivers whose payouts go wrong in different ways, batch 3 is cancelled whole."""
+    today = datetime.utcnow().date()
+    otp = caregiver("Placeholder Stuck At Otp", 1_500_000, account="0000000021", behaviour="otp")
+    late = caregiver("Placeholder Late Success", 1_100_000, account="0000000022")
+    silent = caregiver("Placeholder Silent Transfer", 900_000, account="0000000023", behaviour="silent")
+    suspended = caregiver("Placeholder Suspended Later", 700_000, account="0000000025")
+    rec.save("db-seeded-attention-caregivers", {
+        "request": {"method": "SQL", "path": "INSERT INTO caregivers / caregiver_wallets / caregiver_bank_accounts ... (3 placeholder caregivers)",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"caregivers": {
+            "Placeholder Stuck At Otp": {"available_kobo": 1_500_000, "paystack_will": "accept the transfer but wait for an OTP"},
+            "Placeholder Late Success": {"available_kobo": 1_100_000, "paystack_will": "report the transfer failed, then paid"},
+            "Placeholder Silent Transfer": {"available_kobo": 900_000, "paystack_will": "answer the transfer call with a 502"},
+            "Placeholder Suspended Later": {"available_kobo": 700_000, "paystack_will": "behave (but the caregiver is suspended after approval)"},
+            "Placeholder Cancelled (from the first batch)": {"available_kobo": 800_000, "paystack_will": "behave"}}}},
+        "note": "SEEDED, with the fake Paystack set to misbehave for three of them. Placeholder Cancelled's 8,000.00 NGN came "
+               "back when its payout was cancelled and is paid in this batch."})
+
+    period2 = (today + timedelta(days=14)).isoformat()
+    made2 = run_payout_batch_job(period2)
+    rec.save("worker-payout-batch-job-2", {
+        "request": {"method": "JOB", "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<a payout date>), run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"period_key": period2, "payouts_made": made2}},
+        "note": "SIMULATION of the schedule (a second batch, two weeks ahead)."})
+    batch2 = rec.http.get(f"{P}/batches", headers={"Authorization": f"Bearer {fin}"}).json()["items"][0]["id"]
+    rec.call("payout-batch-approve-2", "POST", f"{P}/batches/{batch2}/approve", token=boss,
+             json_body={"reason": "Placeholder: totals checked against the ledger"})
+    db.run("UPDATE caregivers SET profile_status = 'suspended' WHERE id = %s", (suspended,))
+    rec.save("db-simulated-suspended-after-approval", {
+        "request": {"method": "SQL", "path": "UPDATE caregivers SET profile_status = 'suspended' WHERE id = <Placeholder Suspended Later>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION: the caregiver is suspended after the batch was approved and before the send job runs (an admin "
+                "would do this through the caregiver suspension route; the database edit stands in for it)."})
+    sent2 = run_payout_dispatch_job()
+    rec.save("worker-payout-dispatch-job-2", {
+        "request": {"method": "JOB", "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"transfers_sent": sent2, "transfers_the_fake_holds": [
+            {"amount": t["amount"], "status": t["status"], "reference": t["reference"]}
+            for t in fake.transfers.values() if t["reference"] in {p["reference"] for p in rec.http.get(
+                P, params={"batch_id": batch2}, headers={"Authorization": f"Bearer {boss}"}).json()["items"]}]}},
+        "note": "FAKE PAYSTACK: five payouts were approved. The suspended caregiver's was cancelled before sending, so nothing "
+               "was posted for it. One transfer is waiting for an OTP, two are pending, and the call for "
+               "Placeholder Silent Transfer got a 502, so the fake holds no transfer for it (Paystack may or may not have one: Oakly "
+               "keeps the money reserved)."})
+    rec.call("payouts-list-attention-after-send", "GET", P, token=fin, params={"batch_id": batch2},
+             note="Four are processing: the OTP one carries the OTP message in failure_reason, the silent one has no "
+                  "transfer_code. The suspended caregiver's payout was cancelled by the send job (cancelled_by is null) and "
+                  "its money returned.")
+
+    # --- stuck at OTP -------------------------------------------------------------------------------------------------
+    otp_p = payout_of(otp)
+    R = f"{P}/{otp_p['id']}/resolve"
+    rec.call("payout-resolve-as-finance", "POST", R, token=fin, expect=403,
+             json_body={"outcome": "paid", "reason": "Finance may not resolve"})
+    rec.call("payout-resolve-no-reason", "POST", R, token=boss, expect=422, json_body={"outcome": "paid"})
+    rec.call("payout-resolve-bad-outcome", "POST", R, token=boss, expect=422, json_body={"outcome": "maybe", "reason": "x"})
+    rec.call("payout-resolve-unknown", "POST", f"{P}/{uuid.uuid4()}/resolve", token=boss, expect=404,
+             json_body={"outcome": "paid", "reason": "Nobody"})
+    rec.call("payout-resolve-answer-not-final", "POST", R, token=boss, expect=409,
+             json_body={"outcome": "failed", "reason": "It has been stuck for an hour"},
+             note="Paystack still says the transfer is waiting for an OTP, which is not a final answer: nothing changes "
+                  "unless the admin sends force: true.")
+    fake.transfers[otp_p["reference"]]["status"] = "success"
+    rec.save("fake-paystack-otp-entered", {
+        "request": {"method": "FAKE", "path": "the transfer's status on the fake Paystack: otp -> success", "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"reference": otp_p["reference"], "status": "success"}},
+        "note": "SIMULATION: someone enters the OTP in the Paystack dashboard and the transfer goes through. No webhook is "
+                "sent, as in the case where Paystack's webhook never arrives."})
+    rec.call("payout-resolve-contradicts-paystack", "POST", R, token=boss, expect=409,
+             json_body={"outcome": "failed", "reason": "I think it failed", "force": True},
+             note="Paystack now says the transfer succeeded. A definite answer that contradicts the outcome refuses it, "
+                  "even with force.")
+    rec.call("payout-resolve-paid", "POST", R, token=boss,
+             json_body={"outcome": "paid", "reason": "OTP entered in the Paystack dashboard; Paystack shows the transfer as successful"})
+    rec.call("payout-resolve-again", "POST", R, token=boss, expect=409,
+             json_body={"outcome": "paid", "reason": "Again"})
+
+    # --- paid after Oakly returned the money --------------------------------------------------------------------------
+    late_p = payout_of(late)
+    transfer_webhook(ctx, "paystack-transfer-failed-webhook-late", fake, late_p["reference"], "failed",
+                     "FAKE PAYSTACK: Paystack reports the transfer as failed. The 11,000.00 NGN goes back to the caregiver's "
+                     "available balance.")
+    db.run("UPDATE caregiver_wallets SET balance = 300000 WHERE caregiver_id = %s", (late,))
+    rec.save("db-simulated-balance-changed", {
+        "request": {"method": "SQL", "path": "UPDATE caregiver_wallets SET balance = 300000 WHERE caregiver_id = <Placeholder Late Success>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION: the caregiver's available balance falls to 3,000.00 NGN before the next event (as a ledger adjustment "
+                "would), so the balance cannot cover the whole payout when the money is taken back."})
+    transfer_webhook(ctx, "paystack-transfer-success-webhook-late", fake, late_p["reference"], "success",
+                     "FAKE PAYSTACK: the same transfer is now reported as SUCCESSFUL (Paystack's own state can change after a "
+                     "failure). Oakly takes the returned money back from the balance: 3,000.00 NGN is all that is left to take, "
+                     "so 8,000.00 NGN is recorded as a shortfall.")
+    rec.call("payouts-list-needs-attention", "GET", P, token=fin, params={"status": "needs_attention"},
+             note="needs_attention is a live status: this caregiver is left out of new batches until an admin resolves it. "
+                  "shortfall_kobo is what Paystack paid that the balance could not cover. attempt_history keeps every attempt.")
+    (balance,) = db.run("SELECT balance FROM caregiver_wallets WHERE caregiver_id = %s", (late,))[0]
+    rec.save("db-observed-wallet-after-late-success", {
+        "request": {"method": "SQL", "path": "SELECT balance FROM caregiver_wallets WHERE caregiver_id = <Placeholder Late Success>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"balance_kobo": int(balance)}},
+        "note": "OBSERVED in the database: the available balance is 0, so the next batch cannot pay the same money again."})
+    LR = f"{P}/{late_p['id']}"
+    rec.call("payout-retry-needs-attention", "POST", f"{LR}/retry", token=boss, expect=409,
+             json_body={"reason": "Try again"})
+    rec.call("payout-resolve-paid-twice-failed", "POST", f"{LR}/resolve", token=boss, expect=409,
+             json_body={"outcome": "failed", "reason": "Give the money back", "force": True},
+             note="The transfer was paid, so the money is never returned by resolving it as failed.")
+    UF = lambda cid: f"{P}/caregivers/{cid}/unfreeze"  # noqa: E731
+    rec.call("payout-unfreeze-as-finance", "POST", UF(late), token=fin, expect=403, json_body={"reason": "Finance may not unfreeze"})
+    rec.call("payout-unfreeze-no-reason", "POST", UF(late), token=boss, expect=422, json_body={})
+    rec.call("payout-unfreeze-unknown-caregiver", "POST", UF(uuid.uuid4()), token=boss, expect=404, json_body={"reason": "Nobody"})
+    rec.call("payout-unfreeze-not-frozen", "POST", UF(first_paid), token=boss, expect=409, json_body={"reason": "Not frozen"},
+             note="Placeholder Paid was never frozen.")
+    rec.call("payout-unfreeze-refused-while-open", "POST", UF(late), token=boss, expect=409,
+             json_body={"reason": "Looks fine to me"},
+             note="The payout still needs attention: the freeze stays until an admin has resolved it.")
+    rec.call("payout-resolve-late-success-paid", "POST", f"{LR}/resolve", token=boss,
+             json_body={"outcome": "paid", "reason": "Paystack shows the transfer as successful; 8,000.00 NGN shortfall to be recovered by a ledger adjustment"},
+             note="Confirms the payout was paid. shortfall_kobo stays on the payout as the record of what was not recovered.")
+    rec.call("payout-unfreeze-refused-shortfall", "POST", UF(late), token=boss, expect=409,
+             json_body={"reason": "Payout confirmed paid; the 8,000.00 NGN shortfall is to be recovered by a ledger adjustment"},
+             note="write_off_shortfall is false (the default) and the available balance is 0, so there is nothing to debit the "
+                  "8,000.00 NGN shortfall from: the unfreeze is refused and nothing changes.")
+    db.run("UPDATE caregiver_wallets SET balance = 1100000 WHERE caregiver_id = %s", (late,))
+    rec.call("payout-unfreeze-debits-balance", "POST", UF(late), token=boss,
+             json_body={"reason": "Earnings kept accruing while frozen; the shortfall is taken from them"},
+             note="SIMULATION, done in the database just before this call: 11,000.00 NGN of earnings reach the caregiver's available "
+                  "balance while they are frozen (as completed bookings would). Unfreezing first DEBITS the 8,000.00 NGN shortfall "
+                  "from that balance (debited_from_balance_kobo), 3,000.00 NGN is left, nothing is left owed, so no write-off is "
+                  "needed.")
+
+    # --- Paystack has no record ---------------------------------------------------------------------------------------
+    silent_p = payout_of(silent)
+    db.run("UPDATE payouts SET initiated_at = now() at time zone 'utc' - interval '31 minutes' WHERE reference = %s",
+           (silent_p["reference"],))
+    rec.save("db-simulated-silent-transfer", {
+        "request": {"method": "SQL", "path": "UPDATE payouts SET initiated_at = <31 minutes ago> WHERE reference = <Placeholder Silent Transfer's>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION of waiting: the reconcile job asks about transfers that have had no answer for 15 minutes and treats "
+                "'no record' as meaningful only after 30."})
+    settled2 = run_payout_reconcile_job()
+    rec.save("worker-payout-reconcile-job-2", {
+        "request": {"method": "JOB", "path": "payout_reconcile_job -> app.services.payouts.reconcile, run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"payouts_acted_on": settled2}},
+        "note": "FAKE PAYSTACK answered GET /transfer/verify/<reference> with 404. The money is NOT returned: the payout becomes "
+                "needs_attention."})
+    rec.call("payout-no-record-needs-attention", "GET", P, token=fin, params={"caregiver_id": silent},
+             note="failure_reason says Paystack has no record. The money is still reserved (the caregiver's available balance is 0).")
+    SR = f"{P}/{silent_p['id']}/resolve"
+    rec.call("payout-resolve-no-record-without-force", "POST", SR, token=boss, expect=409,
+             json_body={"outcome": "failed", "reason": "Checked: no transfer in the dashboard"},
+             note="'No record' is not proof the transfer will never exist: it needs force.")
+    rec.call("payout-resolve-no-record-forced", "POST", SR, token=boss,
+             json_body={"outcome": "failed", "reason": "Checked the Paystack dashboard and support: no transfer exists for this reference", "force": True},
+             note="The reserved money returns to the caregiver's available balance. If the transfer shows up and is paid later, "
+                  "the late success is taken back and the payout needs attention again.")
+    (balance,) = db.run("SELECT balance FROM caregiver_wallets WHERE caregiver_id = %s", (silent,))[0]
+    rec.save("db-observed-wallet-after-forced-resolve", {
+        "request": {"method": "SQL", "path": "SELECT balance FROM caregiver_wallets WHERE caregiver_id = <Placeholder Silent Transfer>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"balance_kobo": int(balance)}},
+        "note": "OBSERVED in the database."})
+    rec.call("payout-unfreeze-after-no-record", "POST", f"{P}/caregivers/{silent}/unfreeze", token=boss,
+             json_body={"reason": "Checked with Paystack support: no transfer exists, and the money was returned by resolving the payout"},
+             note="The no-record flag froze the caregiver too. Once the payout is resolved the freeze is lifted, and the "
+                  "caregiver is in the next batch.")
+
+    # --- retry asks Paystack first --------------------------------------------------------------------------------------
+    cancelled_p = payout_of(cancelled)
+    transfer_webhook(ctx, "paystack-transfer-failed-webhook-2", fake, cancelled_p["reference"], "failed",
+                     "FAKE PAYSTACK: transfer.failed. The payout is failed and the money is back.")
+    fake.transfers[cancelled_p["reference"]]["status"] = "pending"
+    rec.save("fake-paystack-still-pending", {
+        "request": {"method": "FAKE", "path": "the transfer's status on the fake Paystack: failed -> pending", "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"reference": cancelled_p["reference"], "status": "pending"}},
+        "note": "SIMULATION: Paystack's own record disagrees with the webhook we got."})
+    CR = f"{P}/{cancelled_p['id']}/retry"
+    rec.call("payout-retry-paystack-pending", "POST", CR, token=boss, expect=409, json_body={"reason": "Send again"},
+             note="Retry first asks Paystack about the CURRENT attempt and goes ahead only on a definite failed or reversed "
+                  "answer.")
+    db.run("UPDATE caregiver_wallets SET balance = 300000 WHERE caregiver_id = %s", (cancelled,))
+    rec.save("db-simulated-balance-changed-2", {
+        "request": {"method": "SQL", "path": "UPDATE caregiver_wallets SET balance = 300000 WHERE caregiver_id = <Placeholder Cancelled>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION: the caregiver's available balance falls to 3,000.00 NGN (as a ledger adjustment would), so it cannot "
+                "cover the whole 8,000.00 NGN payout when the money is taken back."})
+    fake.transfers[cancelled_p["reference"]]["status"] = "success"
+    rec.call("payout-retry-paystack-paid", "POST", CR, token=boss, expect=409, json_body={"reason": "Send again"},
+             note="Paystack says the transfer was paid after all: the retry is refused, the caregiver is frozen and the payout is "
+                  "settled as needs_attention (what the balance holds is taken back).")
+    rec.call("payouts-list-after-retry-check", "GET", P, token=fin, params={"caregiver_id": cancelled},
+             note="shortfall_kobo is 500000: 3,000.00 NGN was taken back and 5,000.00 NGN is what the balance could not cover.")
+    rec.call("payout-resolve-retry-check-paid", "POST", f"{P}/{cancelled_p['id']}/resolve", token=boss,
+             json_body={"outcome": "paid", "reason": "Paystack shows the transfer as successful"})
+    rec.call("payout-unfreeze-write-off", "POST", f"{P}/caregivers/{cancelled}/unfreeze", token=boss,
+             json_body={"reason": "Caregiver agreed to a write-off of the 5,000.00 NGN shortfall", "write_off_shortfall": True},
+             note="write_off_shortfall: true. The 5,000.00 NGN shortfall is written off: written_off_shortfall_kobo reports it "
+                  "and the payout's shortfall_kobo goes to 0. The audit row records the amount.")
+
+    # --- cancelling a whole batch ----------------------------------------------------------------------------------------
+    caregiver("Placeholder Batch Cancel", 900_000, account="0000000024")
+    period3 = (today + timedelta(days=21)).isoformat()
+    made3 = run_payout_batch_job(period3)
+    rec.save("worker-payout-batch-job-3", {
+        "request": {"method": "JOB", "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<a payout date>), run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"period_key": period3, "payouts_made": made3}},
+        "note": "SIMULATION of the schedule (a third batch, three weeks ahead): the new caregiver and Placeholder Silent "
+                "Transfer, whose money came back when its payout was resolved as failed."})
+    batch3 = rec.http.get(f"{P}/batches", headers={"Authorization": f"Bearer {fin}"}).json()["items"][0]["id"]
+    BC = f"{P}/batches/{batch3}/cancel"
+    rec.call("payout-batch-cancel-as-finance", "POST", BC, token=fin, expect=403, json_body={"reason": "Finance may not cancel"})
+    rec.call("payout-batch-cancel-no-reason", "POST", BC, token=boss, expect=422, json_body={})
+    rec.call("payout-batch-cancel-unknown", "POST", f"{P}/batches/{uuid.uuid4()}/cancel", token=boss, expect=404,
+             json_body={"reason": "Nobody"})
+    rec.call("payout-batch-cancel", "POST", BC, token=boss,
+             json_body={"reason": "Placeholder: the totals do not match Finance's report"},
+             note="Every payout still waiting is cancelled and its money returned in one transaction.")
+    rec.call("payout-batch-cancel-again", "POST", BC, token=boss, expect=409, json_body={"reason": "Again"})
+    rec.call("payout-batch-cancel-approved", "POST", f"{P}/batches/{batch2}/cancel", token=boss, expect=409,
+             json_body={"reason": "Too late"})
+    rec.call("payout-batches-list-after-cancel", "GET", f"{P}/batches", token=fin)
+    rec.call("audit-payout-batch-cancel", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "payout_batch", "limit": 3},
+             note="Newest first: the cancellation of batch 3, then the approval of batch 2.")
+    rec.call("audit-payout-resolve", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "payout", "limit": 4},
+             note="payout.resolve entries carry the outcome, whether it was forced, and what Paystack said.")
+    payouts_net_off(rec, db, ctx, fake, caregiver, payout_of, P, boss, fin, today)
+
+
+def payouts_net_off(rec, db, ctx, fake, caregiver, payout_of, P, boss, fin, today) -> None:
+    """The last part of the payouts section: Paystack pays an old payout late while the newer one is already sent. The two
+    payouts are in two batches that hold nobody else (every other caregiver is put in the cool-down first)."""
+    netoff = caregiver("Placeholder Net Off", 1_000_000, account="0000000031")
+    db.run("UPDATE caregiver_bank_accounts SET payout_blocked_until = now() at time zone 'utc' + interval '12 hours' "
+           "WHERE caregiver_id <> %s", (netoff,))
+    rec.save("db-simulated-everyone-else-cooling-down", {
+        "request": {"method": "SQL", "path": "UPDATE caregiver_bank_accounts SET payout_blocked_until = <12 hours ahead> WHERE caregiver_id <> <Placeholder Net Off>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION: every other caregiver is put in the bank-account cool-down so the next two batches hold only "
+                "Placeholder Net Off (10,000.00 NGN)."})
+    batches = []
+    for weeks in (4, 5):
+        period_n = (today + timedelta(days=7 * weeks)).isoformat()
+        made_n = run_payout_batch_job(period_n)
+        rec.save(f"worker-payout-batch-job-{weeks}", {
+            "request": {"method": "JOB", "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<a payout date>), run in the worker container",
+                        "auth": None, "body": None},
+            "response": {"status_code": None, "headers": {}, "body": {"period_key": period_n, "payouts_made": made_n}},
+            "note": "SIMULATION of the schedule."})
+        batch_n = rec.http.get(f"{P}/batches", headers={"Authorization": f"Bearer {fin}"}).json()["items"][0]["id"]
+        batches.append(batch_n)
+        rec.call(f"payout-batch-approve-{weeks}", "POST", f"{P}/batches/{batch_n}/approve", token=boss,
+                 json_body={"reason": "Placeholder: totals checked against the ledger"})
+        sent_n = run_payout_dispatch_job()
+        rec.save(f"worker-payout-dispatch-job-{weeks}", {
+            "request": {"method": "JOB", "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+                        "auth": None, "body": None},
+            "response": {"status_code": None, "headers": {}, "body": {"transfers_sent": sent_n}},
+            "note": "FAKE PAYSTACK accepted the transfer (status pending)."})
+        if weeks == 4:
+            p1 = payout_of(netoff)
+            transfer_webhook(ctx, "paystack-transfer-failed-webhook-net-off", fake, p1["reference"], "failed",
+                             "FAKE PAYSTACK: transfer.failed for the first payout. The 10,000.00 NGN goes back to the caregiver's "
+                             "balance, and the next batch reserves it again as a second payout.")
+    p1, p2 = rec.http.get(P, params={"caregiver_id": netoff, "limit": 2},
+                          headers={"Authorization": f"Bearer {boss}"}).json()["items"][::-1]  # oldest first
+    transfer_webhook(ctx, "paystack-transfer-success-webhook-net-off-late", fake, p1["reference"], "success",
+                     "FAKE PAYSTACK: the first transfer is reported SUCCESSFUL after its money was returned. The second payout "
+                     "is already sent and cannot be recalled, and the balance is empty, so the 10,000.00 NGN is a shortfall.")
+    rec.call("payouts-list-net-off-frozen", "GET", P, token=fin, params={"caregiver_id": netoff},
+             note="Both payouts are needs_attention and the caregiver is frozen. The first carries shortfall_kobo 1000000.")
+    transfer_webhook(ctx, "paystack-transfer-failed-webhook-net-off-p2", fake, p2["reference"], "failed",
+                     "FAKE PAYSTACK: transfer.failed for the second payout. Frozen: the attempt is recorded, but its 10,000.00 "
+                     "NGN stays reserved and is NOT returned to the balance.")
+    rec.call("payouts-list-net-off-p2-failed", "GET", P, token=fin, params={"caregiver_id": netoff},
+             note="The second payout is still needs_attention; the attempt in attempt_history says failed.")
+    rec.call("payout-resolve-net-off", "POST", f"{P}/{p2['id']}/resolve", token=boss,
+             json_body={"outcome": "failed", "reason": "Paystack shows the second transfer as failed"},
+             note="Resolving as failed nets the reservation against the caregiver's shortfall: 10,000.00 NGN reserved, 10,000.00 "
+                  "NGN shortfall, so returned_kobo is 0 and netted_kobo is 1000000. The first payout's shortfall_kobo goes to 0.")
+    rec.call("payouts-list-net-off-resolved", "GET", P, token=fin, params={"caregiver_id": netoff},
+             note="The first payout's shortfall_kobo is now 0 and it still needs attention.")
+    rec.call("payout-resolve-net-off-p1-paid", "POST", f"{P}/{p1['id']}/resolve", token=boss,
+             json_body={"outcome": "paid", "reason": "Paystack shows the first transfer as successful"})
+    rec.call("payout-unfreeze-net-off", "POST", f"{P}/caregivers/{netoff}/unfreeze", token=boss,
+             json_body={"reason": "Both transfers accounted for"})
+    rec.call("audit-payout-unfreeze", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "caregiver", "limit": 5},
+             note="payout.unfreeze entries: what the freeze was, the shortfall that was written off and what stays recorded.")
+
+
 def run(args) -> None:
     out = Path(args.out)
     env = read_env(args.env_file)
@@ -555,6 +1077,7 @@ def run(args) -> None:
         index.setdefault("sections", {})["policy"] = first
         index["sections"].pop("pricing", None)  # the pricing and earnings captures came after these and were just deleted
         index["sections"].pop("earnings", None)
+        index["sections"].pop("payouts", None)
         booking_policy_section(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
@@ -571,6 +1094,7 @@ def run(args) -> None:
         rec.n = first - 1
         index.setdefault("sections", {})["pricing"] = first
         index["sections"].pop("earnings", None)  # came after these and was just deleted: re-run --section earnings
+        index["sections"].pop("payouts", None)
         pricing_ops(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
@@ -586,7 +1110,23 @@ def run(args) -> None:
         rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
         rec.n = first - 1
         index.setdefault("sections", {})["earnings"] = first
+        index["sections"].pop("payouts", None)  # came after these and was just deleted: re-run --section payouts
         earnings_ops(rec, db, env, tag)
+        index["captures"] = rec.index
+        (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
+        print(f"wrote {len(rec.index)} captures to {out}")
+        return
+    if args.section == "payouts":
+        # Replace only the payouts captures: they follow the earnings section, which stays as it is.
+        index = json.loads((out / "000-index.json").read_text())
+        first = index.get("sections", {}).get("payouts", len(index["captures"]) + 1)
+        for stale in out.glob("*.json"):
+            if stale.name != "000-index.json" and int(stale.name[:3]) >= first:
+                stale.unlink()
+        rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
+        rec.n = first - 1
+        index.setdefault("sections", {})["payouts"] = first
+        payouts_ops(rec, db, env, tag, args.paystack_port)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
         print(f"wrote {len(rec.index)} captures to {out}")
@@ -605,6 +1145,7 @@ def run(args) -> None:
         index["sections"].pop("pricing", None)
         index["sections"].pop("policy", None)  # the policy, pricing and earnings captures came after these and were just deleted
         index["sections"].pop("earnings", None)
+        index["sections"].pop("payouts", None)
         bookings_ops(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
@@ -860,11 +1401,13 @@ def run(args) -> None:
     pricing_ops(rec, db, env, tag)
     first_earnings = rec.n + 1
     earnings_ops(rec, db, env, tag)
+    first_payouts = rec.n + 1
+    payouts_ops(rec, db, env, tag, args.paystack_port)
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag,
         "sections": {"bookings": first_bookings, "policy": first_policy, "pricing": first_pricing,
-                     "earnings": first_earnings},
+                     "earnings": first_earnings, "payouts": first_payouts},
         "captures": rec.index}, indent=2) + "\n")
     print(f"wrote {len(rec.index)} captures to {out}")
 
@@ -875,7 +1418,8 @@ def main() -> None:
     p.add_argument("--db-url", default="postgresql://oakly:oakly@127.0.0.1:5432/oakly")
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Fernet key)")
     p.add_argument("--out", default="docs/fe-captures/admin")
-    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing", "earnings"], default="all",
+    p.add_argument("--paystack-port", type=int, default=9912, help="where the local fake Paystack listens (payouts section)")
+    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing", "earnings", "payouts"], default="all",
                    help="'bookings' re-captures only the A2 section (and drops the policy captures after it), 'policy' only "
                         "the booking-policy section, 'pricing' only the pricing section (the last one); all append to the existing captures")
     run(p.parse_args())

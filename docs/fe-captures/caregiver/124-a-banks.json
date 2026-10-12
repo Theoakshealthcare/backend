@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/banks",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": [
+      {
+        "name": "Placeholder Bank",
+        "code": "058"
+      },
+      {
+        "name": "Sample Microfinance Bank",
+        "code": "090"
+      }
+    ]
+  },
+  "note": "FAKE PAYSTACK: the list is the local fake's two placeholder banks. The real call is Paystack GET /bank?country=nigeria."
+}

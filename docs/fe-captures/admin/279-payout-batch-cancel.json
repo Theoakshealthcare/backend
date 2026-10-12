@@ -1,0 +1,111 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/batches/a27984e3-3078-420f-a3e5-63a778ba78b1/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: the totals do not match Finance's report"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "a27984e3-3078-420f-a3e5-63a778ba78b1",
+      "period_key": "2026-11-02",
+      "cadence": "weekly",
+      "min_payout_kobo": 500000,
+      "status": "cancelled",
+      "approved_by": null,
+      "approved_at": null,
+      "approval_reason": null,
+      "created_at": "2026-10-12T16:52:24.006247",
+      "payout_count": 2,
+      "total_kobo": 0,
+      "counts": {
+        "cancelled": 2
+      },
+      "payouts": [
+        {
+          "id": "8bd20819-4245-4f5f-b512-45e60bf8332b",
+          "batch_id": "a27984e3-3078-420f-a3e5-63a778ba78b1",
+          "batch_period": "2026-11-02",
+          "caregiver_id": "60e3bacd-5c07-451a-af6e-d65e5567f270",
+          "caregiver_name": "Placeholder Silent Transfer",
+          "amount_kobo": 900000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0023",
+          "account_name": "PLACEHOLDER SILENT TRANSFER",
+          "reference": "po-8bd2081942454f5fb51245e60bf8332b-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-8bd2081942454f5fb51245e60bf8332b-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-12T16:52:24.018243"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
+          "cancelled_at": "2026-10-12T16:52:24.233690",
+          "cancel_reason": "Placeholder: the totals do not match Finance's report",
+          "created_at": "2026-10-12T16:52:24.016315"
+        },
+        {
+          "id": "6510f37b-c6a7-481f-86de-7729fbb96a2f",
+          "batch_id": "a27984e3-3078-420f-a3e5-63a778ba78b1",
+          "batch_period": "2026-11-02",
+          "caregiver_id": "ea2c48e9-d8d1-4c34-b3e5-111c615a6acd",
+          "caregiver_name": "Placeholder Batch Cancel",
+          "amount_kobo": 900000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0024",
+          "account_name": "PLACEHOLDER BATCH CANCEL",
+          "reference": "po-6510f37bc6a7481f86de7729fbb96a2f-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-6510f37bc6a7481f86de7729fbb96a2f-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-12T16:52:24.025673"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
+          "cancelled_at": "2026-10-12T16:52:24.233690",
+          "cancel_reason": "Placeholder: the totals do not match Finance's report",
+          "created_at": "2026-10-12T16:52:24.024987"
+        }
+      ]
+    }
+  },
+  "note": "Every payout still waiting is cancelled and its money returned in one transaction."
+}

@@ -10,5 +10,5 @@
     "headers": {},
     "body": null
   },
-  "note": "SEEDED: an AVAILABLE balance of 25,000.00 NGN, so withdrawals can be exercised now (a real earning needs its hold to pass first; see the earnings captures at the end). The visit completed above also credited a real PENDING earning, which shows in pending_balance."
+  "note": "SEEDED: an AVAILABLE balance of 25,000.00 NGN, so the payout flow can be shown now (a real earning needs its hold to pass first; see the earnings captures at the end). The visit completed above also credited a real PENDING earning, which shows in pending_balance."
 }
