@@ -44,6 +44,23 @@ def admin_clock(monkeypatch) -> FakeClock:
     return clock
 
 
+PINNED_IP_WINDOW = 10**9  # seconds; the current epoch-aligned window runs 2001 to 2033
+
+
+@pytest.fixture
+def pinned_ip_window(monkeypatch) -> int:
+    """Widen the per-IP window (``AdminAuthService.rate_limit``) so a test's burst cannot straddle it.
+
+    The window is aligned to the epoch: with the real 60s, a burst that crosses a minute resets
+    the counter and the expected 429s never come (a CI flake). Use it in every test that expects
+    a 429 from that limiter.
+    """
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ADMIN_AUTH_IP_WINDOW_SECONDS", PINNED_IP_WINDOW)
+    return PINNED_IP_WINDOW
+
+
 def fake_request(ip: str = "203.0.113.9"):
     """Enough of a Request for services that read the client address and user agent."""
     return SimpleNamespace(client=SimpleNamespace(host=ip), headers={"user-agent": "pytest"})

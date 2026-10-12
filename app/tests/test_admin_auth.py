@@ -1,6 +1,7 @@
 """Admin sign-in: password, TOTP enrolment and replay, token audiences, refresh rotation, lockout."""
 
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -519,7 +520,7 @@ def test_locking_one_account_does_not_lock_another(db, client):
     assert _login(client, b).status_code == 200
 
 
-def test_per_ip_rate_limit(db, client, monkeypatch):
+def test_per_ip_rate_limit(db, client, monkeypatch, pinned_ip_window):
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 5)
     admin = make_admin(db)
     codes = [_login(client, admin, "wrong-password-123").status_code for _ in range(7)]
@@ -528,10 +529,12 @@ def test_per_ip_rate_limit(db, client, monkeypatch):
     r = _login(client, admin)
     assert r.status_code == 429
     assert r.json() == {"detail": "Too many requests. Try again later."}
-    assert 1 <= int(r.headers["Retry-After"]) <= settings.ADMIN_AUTH_IP_WINDOW_SECONDS + 1
+    # Retry-After is the time left in the window, plus one
+    left = pinned_ip_window - int(time.time()) % pinned_ip_window
+    assert abs(int(r.headers["Retry-After"]) - (left + 1)) <= 2
 
 
-def test_rate_limit_covers_login_and_verify_but_not_refresh(db, client, monkeypatch):
+def test_rate_limit_covers_login_and_verify_but_not_refresh(db, client, monkeypatch, pinned_ip_window):
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 2)
     assert client.post(VERIFY, json={"mfa_token": "x", "code": "000000"}).status_code == 401
     assert client.post(VERIFY, json={"mfa_token": "x", "code": "000000"}).status_code == 401
@@ -541,7 +544,7 @@ def test_rate_limit_covers_login_and_verify_but_not_refresh(db, client, monkeypa
         assert client.post(REFRESH, json={"refresh_token": "x"}).status_code == 401
 
 
-def test_rate_limit_window_rolls_over(db, client, monkeypatch):
+def test_rate_limit_window_rolls_over(db, client, monkeypatch, pinned_ip_window):
     from sqlalchemy import text
 
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 1)

@@ -89,7 +89,7 @@ def test_trusted_proxies_accepts_a_comma_separated_string(monkeypatch):
     assert s.TRUSTED_PROXIES == ["10.0.0.0/8", "192.168.1.1"]
 
 
-def test_spoofed_xff_from_an_untrusted_peer_does_not_dodge_the_limit(db, monkeypatch):
+def test_spoofed_xff_from_an_untrusted_peer_does_not_dodge_the_limit(db, monkeypatch, pinned_ip_window):
     monkeypatch.setattr(settings, "TRUSTED_PROXIES", [])
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 3)
     c = _from("203.0.113.50")
@@ -98,7 +98,7 @@ def test_spoofed_xff_from_an_untrusted_peer_does_not_dodge_the_limit(db, monkeyp
     assert codes == [401, 401, 401, 429, 429]
 
 
-def test_one_noisy_client_behind_a_trusted_proxy_does_not_429_the_others(db, monkeypatch):
+def test_one_noisy_client_behind_a_trusted_proxy_does_not_429_the_others(db, monkeypatch, pinned_ip_window):
     monkeypatch.setattr(settings, "TRUSTED_PROXIES", ["10.0.0.0/8"])
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 3)
     proxy = _from("10.0.0.5")
@@ -122,7 +122,7 @@ def test_audit_ip_is_the_real_client_behind_a_trusted_proxy(db, monkeypatch, adm
     assert ips == {"198.51.100.7"}
 
 
-def test_refresh_is_not_limited_by_login_traffic(db, client, admin_clock, monkeypatch):
+def test_refresh_is_not_limited_by_login_traffic(db, client, admin_clock, monkeypatch, pinned_ip_window):
     admin = make_admin(db)
     body = admin_login(client, admin_clock, admin)
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 2)
@@ -138,7 +138,7 @@ def test_junk_refresh_tokens_neither_count_nor_leave_rows(db, client, monkeypatc
     assert db.execute(text("SELECT count(*) FROM admin_rate_limits")).scalar_one() == 0
 
 
-def test_refresh_is_rate_limited_per_token(db, client, admin_clock, monkeypatch):
+def test_refresh_is_rate_limited_per_token(db, client, admin_clock, monkeypatch, pinned_ip_window):
     admin = make_admin(db)
     body = admin_login(client, admin_clock, admin)
     monkeypatch.setattr(settings, "ADMIN_AUTH_IP_LIMIT", 2)
