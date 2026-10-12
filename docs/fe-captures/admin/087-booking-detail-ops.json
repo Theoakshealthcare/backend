@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/bookings/298911c7-8ff3-470b-895b-218232595b9a",
+    "path": "/api/v1/admin/bookings/b0c5091e-4731-4a67-beb2-73d9a29b1149",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -11,26 +11,26 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "298911c7-8ff3-470b-895b-218232595b9a",
-      "booking_code": "176803E9",
+      "id": "b0c5091e-4731-4a67-beb2-73d9a29b1149",
+      "booking_code": "12FF3CB2",
       "service_type": "nurse",
       "assistance_type": "Placeholder assistance",
       "booking_for": "myself",
       "duration_hours": 2,
-      "scheduled_date": "2026-10-07T01:16:05.548617",
-      "scheduled_end_date": "2026-10-07T03:16:05.548617",
+      "scheduled_date": "2026-10-08T01:38:05.522142",
+      "scheduled_end_date": "2026-10-08T03:38:05.522142",
       "actual_start_time": null,
       "actual_end_time": null,
       "status": "pending",
       "channel": "app",
       "cancel_reason": null,
-      "created_at": "2026-10-06T19:36:05.547492",
-      "updated_at": "2026-10-06T20:16:05.547492",
+      "created_at": "2026-10-07T19:58:05.521649",
+      "updated_at": "2026-10-07T20:38:05.521649",
       "age_minutes": 40,
       "patient": {
-        "id": "aecb971c-aa74-42d4-9cc9-ab244b17334e",
+        "id": "78633756-a277-4e57-bf21-ff53a7e1a80b",
         "full_name": "Ada Okafor",
-        "phone": "+2340000780001",
+        "phone": "+2340000302011",
         "masked": false
       },
       "caregiver": null,
@@ -57,16 +57,17 @@
       },
       "payment": {
         "status": "paid",
-        "paystack_reference": "BKG_176803E9_72c932bc",
+        "paystack_reference": "BKG_12FF3CB2_dddf1043",
         "failure_reason": null,
         "expires_at": null,
         "refund_required": false,
         "refund_required_reason": null,
+        "refund_amount_kobo": null,
         "attempts": []
       },
       "dispatch": {
         "state": "unmatched",
-        "started_at": "2026-10-06T18:46:05.549313",
+        "started_at": "2026-10-07T19:08:05.522350",
         "waves": [],
         "offers": []
       },
@@ -76,14 +77,14 @@
       "note_count": 0,
       "timeline": [
         {
-          "at": "2026-10-06T18:46:05.549313",
+          "at": "2026-10-07T19:08:05.522350",
           "kind": "dispatch_started",
           "title": "Dispatch started",
           "actor": "system",
           "detail": null
         },
         {
-          "at": "2026-10-06T19:36:05.547492",
+          "at": "2026-10-07T19:58:05.521649",
           "kind": "booking_created",
           "title": "Booking created via app",
           "actor": "system",

@@ -6,7 +6,10 @@
     "body": {
       "reason": "Back to the launch defaults",
       "cancel_late_fee_percent": 50,
-      "dropout_decision_lead_minutes": 60
+      "dropout_decision_lead_minutes": 60,
+      "caregiver_visit_share_percent": 80,
+      "earning_hold_hours": 24,
+      "payout_cadence": "weekly"
     }
   },
   "response": {
@@ -23,8 +26,13 @@
       "dropout_decision_lead_minutes": 60,
       "onmyway_compensation_window_minutes": 120,
       "caregiver_late_fee_share_percent": 80,
-      "updated_at": "2026-10-07T10:59:03.712494",
-      "updated_by": "88fea4fe-b8ed-4ace-9eb5-12be8f578bb3"
+      "caregiver_visit_share_percent": 80,
+      "earning_hold_hours": 24,
+      "payout_cadence": "weekly",
+      "payout_min_naira": 5000,
+      "finance_refund_limit_naira": 50000,
+      "updated_at": "2026-10-07T20:39:03.236938",
+      "updated_by": "1435e85b-4e64-45c0-8fc4-5bf3a3661a9c"
     }
   }
 }

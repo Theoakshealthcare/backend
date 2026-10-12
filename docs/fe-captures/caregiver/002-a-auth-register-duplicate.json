@@ -4,7 +4,7 @@
     "path": "/api/v1/auth/register",
     "auth": null,
     "body": {
-      "email": "caregiver-a-f57f47@example.com",
+      "email": "caregiver-a-d2e706@example.com",
       "password": "<PLACEHOLDER_PASSWORD>",
       "full_name": "Placeholder Caregiver A",
       "user_type": "caregiver"

@@ -1,10 +1,10 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/db418452-c9a7-4da5-9f36-60b2c14ff241/reassign",
+    "path": "/api/v1/admin/bookings/b94b0bd1-a9bd-4d7f-99fd-49793772ff80/reassign",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
       "reason": "First caregiver is unwell"
     }
   },
@@ -14,15 +14,16 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "db418452-c9a7-4da5-9f36-60b2c14ff241",
-      "booking_code": "9B7F0978",
+      "id": "b94b0bd1-a9bd-4d7f-99fd-49793772ff80",
+      "booking_code": "22B3A2FC",
       "status": "accepted",
       "payment_status": "paid",
       "dispatch_state": "matched",
-      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
       "needs_address_check": false,
       "refund_required": false,
       "refund_required_reason": null,
+      "refund_amount_kobo": null,
       "no_show_flagged_at": null,
       "notified_caregivers": 0
     }

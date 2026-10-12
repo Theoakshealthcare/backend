@@ -52,7 +52,7 @@ Request body:
 <!-- capture: 004-login.json request.body -->
 ```json
 {
-  "email": "boss-1b46d2@example.com",
+  "email": "boss-f722ce@example.com",
   "password": "<PLACEHOLDER_PASSWORD>"
 }
 ```
@@ -76,7 +76,7 @@ Request body:
 {
   "mfa_enrollment_required": true,
   "mfa_token": "<MFA_TOKEN_JWT>",
-  "otpauth_uri": "otpauth://totp/Oakly%20Admin:verifier-1b46d2%40example.com?secret=<TOTP_SECRET>&issuer=Oakly%20Admin",
+  "otpauth_uri": "otpauth://totp/Oakly%20Admin:verifier-f722ce%40example.com?secret=<TOTP_SECRET>&issuer=Oakly%20Admin",
   "secret": "<TOTP_SECRET>"
 }
 ```
@@ -144,8 +144,8 @@ Request body (`code` is the 6 digits from the authenticator app; the real code i
   "token_type": "bearer",
   "expires_in": 900,
   "admin": {
-    "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
-    "email": "verifier-1b46d2@example.com",
+    "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
+    "email": "verifier-f722ce@example.com",
     "full_name": "Placeholder Verifier",
     "roles": [
       "verification"
@@ -412,8 +412,8 @@ Needs an admin access token, no particular permission. Use it after sign-in and 
 <!-- capture: 039-verifier-me.json response.body -->
 ```json
 {
-  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
-  "email": "verifier-1b46d2@example.com",
+  "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
+  "email": "verifier-f722ce@example.com",
   "full_name": "Placeholder Verifier",
   "roles": [
     "verification"
@@ -518,7 +518,7 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
 <!-- capture: 025-invite.json request.body -->
 ```json
 {
-  "email": "verifier-1b46d2@example.com",
+  "email": "verifier-f722ce@example.com",
   "full_name": "Placeholder Verifier",
   "roles": [
     "verification"
@@ -531,8 +531,8 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
 <!-- capture: 025-invite.json response.body -->
 ```json
 {
-  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
-  "email": "verifier-1b46d2@example.com",
+  "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
+  "email": "verifier-f722ce@example.com",
   "full_name": "Placeholder Verifier",
   "status": "invited",
   "mfa_enabled": false,
@@ -541,9 +541,9 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
   ],
   "last_login_at": null,
   "locked_until": null,
-  "created_at": "2026-10-06T14:09:01.528488",
+  "created_at": "2026-10-07T20:34:01.526293",
   "invite_token": "<INVITE_TOKEN>",
-  "invite_expires_at": "2026-10-08T14:09:01.527034"
+  "invite_expires_at": "2026-10-09T20:34:01.524768"
 }
 ```
 
@@ -592,7 +592,7 @@ And separately, MFA for an `active` admin: `not enrolled` -> (first login, secre
 ```json
 {
   "accepted": true,
-  "email": "verifier-1b46d2@example.com"
+  "email": "verifier-f722ce@example.com"
 }
 ```
 
@@ -651,30 +651,30 @@ Returns an array (not an object with `items`) of every admin, oldest first.
 ```json
 [
   {
-    "id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
-    "email": "boss-1b46d2@example.com",
+    "id": "48b05fdb-dc10-49ca-9c76-b9019a7405ce",
+    "email": "boss-f722ce@example.com",
     "full_name": "Placeholder Super Admin",
     "status": "active",
     "mfa_enabled": true,
     "roles": [
       "super_admin"
     ],
-    "last_login_at": "2026-10-06T14:08:30.524504",
+    "last_login_at": "2026-10-07T20:33:30.510311",
     "locked_until": null,
-    "created_at": "2026-10-06T14:07:44.515392"
+    "created_at": "2026-10-07T20:32:16.007039"
   },
   {
-    "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
-    "email": "verifier-1b46d2@example.com",
+    "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
+    "email": "verifier-f722ce@example.com",
     "full_name": "Placeholder Verifier",
     "status": "active",
     "mfa_enabled": true,
     "roles": [
       "verification"
     ],
-    "last_login_at": "2026-10-06T14:09:02.377169",
+    "last_login_at": "2026-10-07T20:34:02.340501",
     "locked_until": null,
-    "created_at": "2026-10-06T14:09:01.528488"
+    "created_at": "2026-10-07T20:34:01.526293"
   }
 ]
 ```
@@ -699,8 +699,8 @@ Body: `{"roles": [...]}` and/or `{"status": "active" | "disabled"}`. Both are op
 <!-- capture: 046-admin-update-roles.json response.body -->
 ```json
 {
-  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
-  "email": "verifier-1b46d2@example.com",
+  "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
+  "email": "verifier-f722ce@example.com",
   "full_name": "Placeholder Verifier",
   "status": "active",
   "mfa_enabled": true,
@@ -708,9 +708,9 @@ Body: `{"roles": [...]}` and/or `{"status": "active" | "disabled"}`. Both are op
     "support",
     "verification"
   ],
-  "last_login_at": "2026-10-06T14:09:02.377169",
+  "last_login_at": "2026-10-07T20:34:02.340501",
   "locked_until": null,
-  "created_at": "2026-10-06T14:09:01.528488"
+  "created_at": "2026-10-07T20:34:01.526293"
 }
 ```
 
@@ -747,7 +747,7 @@ Disabling revokes every session of that admin on the spot; their access token fa
 <!-- capture: 051-admin-disable.json response.body keys=id,status,roles -->
 ```json
 {
-  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+  "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
   "status": "disabled",
   "roles": [
     "support",
@@ -764,8 +764,8 @@ No body. Clears the admin's authenticator, ends all their sessions, **and lifts 
 <!-- capture: 056-reset-mfa.json response.body -->
 ```json
 {
-  "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
-  "email": "verifier-1b46d2@example.com",
+  "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
+  "email": "verifier-f722ce@example.com",
   "full_name": "Placeholder Verifier",
   "status": "active",
   "mfa_enabled": false,
@@ -773,9 +773,9 @@ No body. Clears the admin's authenticator, ends all their sessions, **and lifts 
     "support",
     "verification"
   ],
-  "last_login_at": "2026-10-06T14:09:02.377169",
+  "last_login_at": "2026-10-07T20:34:02.340501",
   "locked_until": null,
-  "created_at": "2026-10-06T14:09:01.528488"
+  "created_at": "2026-10-07T20:34:01.526293"
 }
 ```
 
@@ -829,18 +829,18 @@ Needs `audit.read` (Super Admin only). Newest first.
 ```json
 [
   {
-    "id": "850d2542-4a3a-4179-aea9-575a03aa26d2",
-    "admin_user_id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
-    "admin_email": "boss-1b46d2@example.com",
+    "id": "8465841d-6a61-49de-9ae2-d38825333df1",
+    "admin_user_id": "48b05fdb-dc10-49ca-9c76-b9019a7405ce",
+    "admin_email": "boss-f722ce@example.com",
     "action": "admin.reset_mfa",
     "entity_type": "admin_user",
-    "entity_id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+    "entity_id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
     "before": null,
     "after": null,
     "reason": null,
-    "ip": "172.21.0.1",
+    "ip": "172.18.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-06T14:09:03.594775"
+    "created_at": "2026-10-07T20:34:03.547689"
   }
 ]
 ```
@@ -901,17 +901,17 @@ Query parameters, all optional: `q` (booking code; with `people.pii` also patien
 ```json
 [
   {
-    "id": "c8b9e484-ec10-4339-8ccb-d53a478c9f05",
-    "booking_code": "871705FF",
+    "id": "83995098-cb64-44ca-a158-5e8505779b3e",
+    "booking_code": "DDDE4418",
     "service_type": "nurse",
-    "scheduled_date": "2026-10-09T08:16:05.556184",
-    "scheduled_end_date": "2026-10-09T10:16:05.556184",
+    "scheduled_date": "2026-10-10T08:38:05.531904",
+    "scheduled_end_date": "2026-10-10T10:38:05.531904",
     "city": "Lagos",
     "state": "Lagos",
     "patient": {
-      "id": "3f2eb4aa-17f3-4af2-9086-f2b4971d9d3f",
+      "id": "50537f4e-b132-4a1f-b2ea-d7f07df939eb",
       "full_name": "Chidi Eze",
-      "phone": "+2340000780003",
+      "phone": "+2340000302013",
       "masked": false
     },
     "caregiver": null,
@@ -920,7 +920,7 @@ Query parameters, all optional: `q` (booking code; with `people.pii` also patien
     "dispatch_state": null,
     "total_amount_kobo": 5500000,
     "channel": "app",
-    "created_at": "2026-10-06T19:36:05.554254",
+    "created_at": "2026-10-07T19:58:05.531010",
     "age_minutes": 40,
     "needs_address_check": false,
     "refund_required": false,
@@ -947,17 +947,17 @@ The same call as Finance, who lacks `people.pii` (first item):
 ```json
 [
   {
-    "id": "c8b9e484-ec10-4339-8ccb-d53a478c9f05",
-    "booking_code": "871705FF",
+    "id": "83995098-cb64-44ca-a158-5e8505779b3e",
+    "booking_code": "DDDE4418",
     "service_type": "nurse",
-    "scheduled_date": "2026-10-09T08:16:05.556184",
-    "scheduled_end_date": "2026-10-09T10:16:05.556184",
+    "scheduled_date": "2026-10-10T08:38:05.531904",
+    "scheduled_end_date": "2026-10-10T10:38:05.531904",
     "city": "Lagos",
     "state": "Lagos",
     "patient": {
-      "id": "3f2eb4aa-17f3-4af2-9086-f2b4971d9d3f",
+      "id": "50537f4e-b132-4a1f-b2ea-d7f07df939eb",
       "full_name": "Chidi E.",
-      "phone": "+234****0003",
+      "phone": "+234****2013",
       "masked": true
     },
     "caregiver": null,
@@ -966,7 +966,7 @@ The same call as Finance, who lacks `people.pii` (first item):
     "dispatch_state": null,
     "total_amount_kobo": 5500000,
     "channel": "app",
-    "created_at": "2026-10-06T19:36:05.554254",
+    "created_at": "2026-10-07T19:58:05.531010",
     "age_minutes": 40,
     "needs_address_check": false,
     "refund_required": false,
@@ -1016,17 +1016,17 @@ Paid bookings still waiting for a caregiver and needing a person, soonest visit 
 ```json
 [
   {
-    "id": "298911c7-8ff3-470b-895b-218232595b9a",
-    "booking_code": "176803E9",
+    "id": "b0c5091e-4731-4a67-beb2-73d9a29b1149",
+    "booking_code": "12FF3CB2",
     "service_type": "nurse",
-    "scheduled_date": "2026-10-07T01:16:05.548617",
-    "scheduled_end_date": "2026-10-07T03:16:05.548617",
+    "scheduled_date": "2026-10-08T01:38:05.522142",
+    "scheduled_end_date": "2026-10-08T03:38:05.522142",
     "city": "Lagos",
     "state": "Lagos",
     "patient": {
-      "id": "aecb971c-aa74-42d4-9cc9-ab244b17334e",
+      "id": "78633756-a277-4e57-bf21-ff53a7e1a80b",
       "full_name": "Ada Okafor",
-      "phone": "+2340000780001",
+      "phone": "+2340000302011",
       "masked": false
     },
     "caregiver": null,
@@ -1035,7 +1035,7 @@ Paid bookings still waiting for a caregiver and needing a person, soonest visit 
     "dispatch_state": "unmatched",
     "total_amount_kobo": 5500000,
     "channel": "app",
-    "created_at": "2026-10-06T19:36:05.547492",
+    "created_at": "2026-10-07T19:58:05.521649",
     "age_minutes": 40,
     "needs_address_check": false,
     "refund_required": false,
@@ -1054,26 +1054,26 @@ One call returns everything the detail screen needs. As Operations (address visi
 <!-- capture: 087-booking-detail-ops.json response.body -->
 ```json
 {
-  "id": "298911c7-8ff3-470b-895b-218232595b9a",
-  "booking_code": "176803E9",
+  "id": "b0c5091e-4731-4a67-beb2-73d9a29b1149",
+  "booking_code": "12FF3CB2",
   "service_type": "nurse",
   "assistance_type": "Placeholder assistance",
   "booking_for": "myself",
   "duration_hours": 2,
-  "scheduled_date": "2026-10-07T01:16:05.548617",
-  "scheduled_end_date": "2026-10-07T03:16:05.548617",
+  "scheduled_date": "2026-10-08T01:38:05.522142",
+  "scheduled_end_date": "2026-10-08T03:38:05.522142",
   "actual_start_time": null,
   "actual_end_time": null,
   "status": "pending",
   "channel": "app",
   "cancel_reason": null,
-  "created_at": "2026-10-06T19:36:05.547492",
-  "updated_at": "2026-10-06T20:16:05.547492",
+  "created_at": "2026-10-07T19:58:05.521649",
+  "updated_at": "2026-10-07T20:38:05.521649",
   "age_minutes": 40,
   "patient": {
-    "id": "aecb971c-aa74-42d4-9cc9-ab244b17334e",
+    "id": "78633756-a277-4e57-bf21-ff53a7e1a80b",
     "full_name": "Ada Okafor",
-    "phone": "+2340000780001",
+    "phone": "+2340000302011",
     "masked": false
   },
   "caregiver": null,
@@ -1100,16 +1100,17 @@ One call returns everything the detail screen needs. As Operations (address visi
   },
   "payment": {
     "status": "paid",
-    "paystack_reference": "BKG_176803E9_72c932bc",
+    "paystack_reference": "BKG_12FF3CB2_dddf1043",
     "failure_reason": null,
     "expires_at": null,
     "refund_required": false,
     "refund_required_reason": null,
+    "refund_amount_kobo": null,
     "attempts": []
   },
   "dispatch": {
     "state": "unmatched",
-    "started_at": "2026-10-06T18:46:05.549313",
+    "started_at": "2026-10-07T19:08:05.522350",
     "waves": [],
     "offers": []
   },
@@ -1119,14 +1120,14 @@ One call returns everything the detail screen needs. As Operations (address visi
   "note_count": 0,
   "timeline": [
     {
-      "at": "2026-10-06T18:46:05.549313",
+      "at": "2026-10-07T19:08:05.522350",
       "kind": "dispatch_started",
       "title": "Dispatch started",
       "actor": "system",
       "detail": null
     },
     {
-      "at": "2026-10-06T19:36:05.547492",
+      "at": "2026-10-07T19:58:05.521649",
       "kind": "booking_created",
       "title": "Booking created via app",
       "actor": "system",
@@ -1193,12 +1194,12 @@ With `clinical.read` (a Clinical Reviewer here) the text comes back, and that ca
 ```json
 [
   {
-    "id": "3e16c514-650b-4e15-b13a-17c848a6dcc0",
-    "admin_user_id": "a12f9eae-56fb-493e-b610-910e72a01ad5",
-    "admin_email": "clin-7d8bc4ops@example.com",
+    "id": "51c82acc-b30d-4e77-9f5f-998d5e403b05",
+    "admin_user_id": "7874ee15-24f9-4186-b591-0ea02e37d058",
+    "admin_email": "clin-f722ceops@example.com",
     "action": "booking.clinical_view",
     "entity_type": "booking",
-    "entity_id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
+    "entity_id": "5b521068-1e0c-4e08-a910-70e2247edee1",
     "before": null,
     "after": {
       "fields": [
@@ -1207,9 +1208,9 @@ With `clinical.read` (a Clinical Reviewer here) the text comes back, and that ca
       ]
     },
     "reason": null,
-    "ip": "172.20.0.1",
+    "ip": "172.18.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-06T20:16:05.711881"
+    "created_at": "2026-10-07T20:38:05.699900"
   }
 ]
 ```
@@ -1222,35 +1223,35 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 ```json
 [
   {
-    "at": "2026-10-06T19:36:05.549631",
+    "at": "2026-10-07T19:58:05.524967",
     "kind": "booking_created",
     "title": "Booking created via whatsapp",
     "actor": "system",
     "detail": null
   },
   {
-    "at": "2026-10-06T20:16:05.711881",
+    "at": "2026-10-07T20:38:05.699900",
     "kind": "admin_action",
     "title": "booking.clinical_view",
     "actor": "admin: Placeholder clinical_reviewer",
     "detail": null
   },
   {
-    "at": "2026-10-06T20:16:05.881099",
+    "at": "2026-10-07T20:38:05.870942",
     "kind": "dispatch_started",
     "title": "Dispatch started",
     "actor": "system",
     "detail": null
   },
   {
-    "at": "2026-10-06T20:16:05.881099",
+    "at": "2026-10-07T20:38:05.870942",
     "kind": "wave_sent",
     "title": "Wave 1 sent",
     "actor": "system",
     "detail": "2 caregiver(s) offered the visit"
   },
   {
-    "at": "2026-10-06T20:16:05.881938",
+    "at": "2026-10-07T20:38:05.871843",
     "kind": "admin_action",
     "title": "booking.confirm_address",
     "actor": "admin: Placeholder operations",
@@ -1282,8 +1283,8 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 <!-- capture: 096-redispatch.json response.body -->
 ```json
 {
-  "id": "298911c7-8ff3-470b-895b-218232595b9a",
-  "booking_code": "176803E9",
+  "id": "b0c5091e-4731-4a67-beb2-73d9a29b1149",
+  "booking_code": "12FF3CB2",
   "status": "pending",
   "payment_status": "paid",
   "dispatch_state": "dispatching",
@@ -1291,6 +1292,7 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
   "needs_address_check": false,
   "refund_required": false,
   "refund_required_reason": null,
+  "refund_amount_kobo": null,
   "no_show_flagged_at": null,
   "notified_caregivers": 2
 }
@@ -1331,7 +1333,7 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 {
   "items": [
     {
-      "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+      "caregiver_id": "d9d06786-abc3-422d-93d1-31074b0359cb",
       "full_name": "Placeholder Nurse One",
       "specialization": "nurse",
       "distance_km": 0.22,
@@ -1339,7 +1341,7 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
       "match_score": 232.56
     },
     {
-      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
       "full_name": "Placeholder Nurse Two",
       "specialization": "nurse",
       "distance_km": 0.44,
@@ -1357,8 +1359,8 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 <!-- capture: 097-assign-offer.json response.body -->
 ```json
 {
-  "id": "9840bf70-56cd-4786-8a1c-bd7d5628697e",
-  "booking_code": "49E0EF92",
+  "id": "820fe9c4-ccc8-42c2-bfd3-b627c7f33147",
+  "booking_code": "7F2A1CFC",
   "status": "pending",
   "payment_status": "paid",
   "dispatch_state": "dispatching",
@@ -1366,6 +1368,7 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
   "needs_address_check": false,
   "refund_required": false,
   "refund_required_reason": null,
+  "refund_amount_kobo": null,
   "no_show_flagged_at": null,
   "notified_caregivers": 1
 }
@@ -1390,15 +1393,16 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 <!-- capture: 100-assign-force.json response.body -->
 ```json
 {
-  "id": "7b87dae5-da81-48e1-b472-3a93ee299227",
-  "booking_code": "20EB3DF4",
+  "id": "2d772592-2670-4373-9f08-ffcd9ad2f215",
+  "booking_code": "F69A59BB",
   "status": "accepted",
   "payment_status": "paid",
   "dispatch_state": "matched",
-  "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+  "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
   "needs_address_check": false,
   "refund_required": false,
   "refund_required_reason": null,
+  "refund_amount_kobo": null,
   "no_show_flagged_at": null,
   "notified_caregivers": 0
 }
@@ -1418,15 +1422,16 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 <!-- capture: 102-reassign.json response.body -->
 ```json
 {
-  "id": "db418452-c9a7-4da5-9f36-60b2c14ff241",
-  "booking_code": "9B7F0978",
+  "id": "b94b0bd1-a9bd-4d7f-99fd-49793772ff80",
+  "booking_code": "22B3A2FC",
   "status": "accepted",
   "payment_status": "paid",
   "dispatch_state": "matched",
-  "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+  "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
   "needs_address_check": false,
   "refund_required": false,
   "refund_required_reason": null,
+  "refund_amount_kobo": null,
   "no_show_flagged_at": null,
   "notified_caregivers": 0
 }
@@ -1451,8 +1456,8 @@ Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid 
 <!-- capture: 105-cancel.json response.body -->
 ```json
 {
-  "id": "195e0918-821a-45dc-a0c2-5a9d30182b95",
-  "booking_code": "5939F55D",
+  "id": "61cc3da4-2a0d-4760-b20b-dcc41d12c5bd",
+  "booking_code": "16CEFA37",
   "status": "cancelled",
   "payment_status": "paid",
   "dispatch_state": "dispatching",
@@ -1460,6 +1465,7 @@ Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid 
   "needs_address_check": false,
   "refund_required": true,
   "refund_required_reason": "admin_cancelled_full",
+  "refund_amount_kobo": 5500000,
   "no_show_flagged_at": null,
   "notified_caregivers": 0
 }
@@ -1536,8 +1542,8 @@ Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid 
 <!-- capture: 110-confirm-address.json response.body -->
 ```json
 {
-  "id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
-  "booking_code": "06C5304A",
+  "id": "5b521068-1e0c-4e08-a910-70e2247edee1",
+  "booking_code": "81931E50",
   "status": "pending",
   "payment_status": "paid",
   "dispatch_state": "dispatching",
@@ -1545,6 +1551,7 @@ Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid 
   "needs_address_check": false,
   "refund_required": false,
   "refund_required_reason": null,
+  "refund_amount_kobo": null,
   "no_show_flagged_at": null,
   "notified_caregivers": 2
 }
@@ -1562,16 +1569,17 @@ Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid 
 <!-- capture: 113-no-show.json response.body -->
 ```json
 {
-  "id": "8d27d2d6-3ab0-4fc5-a9c5-6d4fbe0fa88b",
-  "booking_code": "5F02D072",
+  "id": "bcfecce6-4fca-4779-bf5f-4ba1f1e66d36",
+  "booking_code": "550BDFF3",
   "status": "accepted",
   "payment_status": "paid",
   "dispatch_state": "matched",
-  "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+  "caregiver_id": "d9d06786-abc3-422d-93d1-31074b0359cb",
   "needs_address_check": false,
   "refund_required": false,
   "refund_required_reason": null,
-  "no_show_flagged_at": "2026-10-06T20:16:05.907604",
+  "refund_amount_kobo": null,
+  "no_show_flagged_at": "2026-10-07T20:38:05.896930",
   "notified_caregivers": 0
 }
 ```
@@ -1595,15 +1603,16 @@ Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid 
 <!-- capture: 116-correct-status.json response.body -->
 ```json
 {
-  "id": "5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905",
-  "booking_code": "224AF65E",
+  "id": "7842c39a-ffa3-4d4f-a2a2-d7638b5b8752",
+  "booking_code": "46BDBAF2",
   "status": "completed",
   "payment_status": "paid",
   "dispatch_state": "matched",
-  "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+  "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
   "needs_address_check": false,
   "refund_required": false,
   "refund_required_reason": null,
+  "refund_amount_kobo": null,
   "no_show_flagged_at": null,
   "notified_caregivers": 0
 }
@@ -1624,17 +1633,17 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
 ```json
 [
   {
-    "id": "d47ba049-7ef0-4fc5-9547-ebdc1e24ba3a",
-    "admin_user_id": "64f146c8-233c-44dd-acb0-00cb2c2686b2",
-    "admin_email": "boss-7d8bc4ops@example.com",
+    "id": "a154db5c-be21-492f-b4c4-1f844a4381bf",
+    "admin_user_id": "3b9c1a7b-e859-46ca-a6c1-f95858aea6e8",
+    "admin_email": "boss-f722ceops@example.com",
     "action": "booking.correct_status",
     "entity_type": "booking",
-    "entity_id": "5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905",
+    "entity_id": "7842c39a-ffa3-4d4f-a2a2-d7638b5b8752",
     "before": {
       "status": "in_progress",
       "payment_status": "paid",
       "dispatch_state": "matched",
-      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
       "needs_address_check": false,
       "refund_required": false,
       "refund_required_reason": null,
@@ -1645,7 +1654,7 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
       "status": "completed",
       "payment_status": "paid",
       "dispatch_state": "matched",
-      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
       "needs_address_check": false,
       "refund_required": false,
       "refund_required_reason": null,
@@ -1653,9 +1662,9 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
       "no_show_flagged_at": null
     },
     "reason": "Caregiver forgot to check out",
-    "ip": "172.20.0.1",
+    "ip": "172.18.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-06T20:16:05.933118"
+    "created_at": "2026-10-07T20:38:05.921413"
   }
 ]
 ```
@@ -1672,7 +1681,7 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
 
 ### 12.9 Booking policy: `GET` and `PATCH /api/v1/admin/booking-policy`
 
-The cancellation fee tiers and the caregiver drop-out timings are **data an admin edits**, not settings. One policy, eight whole numbers. Reading needs `bookings.read` (Support has it); changing needs `settings.write` (Operations and Super Admin) **and a `reason`**, and writes an audit entry with the old and new values. Errors here are `{"detail": ...}` like the other admin routes.
+The cancellation fee tiers and the caregiver drop-out timings are **data an admin edits**, not settings. One policy: thirteen settings (twelve whole numbers and one choice, `payout_cadence`). Reading needs `bookings.read` (Support has it); changing needs `settings.write` (Operations and Super Admin) **and a `reason`**, and writes an audit entry with the old and new values. Errors here are `{"detail": ...}` like the other admin routes.
 
 | Field | Meaning | Default |
 |---|---|---|
@@ -1683,11 +1692,16 @@ The cancellation fee tiers and the caregiver drop-out timings are **data an admi
 | `dropout_redispatch_min_lead_minutes` | a caregiver drop-out further ahead than this is re-dispatched automatically | 120 |
 | `dropout_decision_lead_minutes` | no replacement by this long before the start: the family is asked | 60 |
 | `onmyway_compensation_window_minutes` | an on-my-way tapped no earlier than this before the start can qualify for compensation | 120 |
-| `caregiver_late_fee_share_percent` | caregiver's share of a late fee (stored now; paid by a later work package) | 80 |
+| `caregiver_late_fee_share_percent` | caregiver's share of a kept late-cancellation fee (credited as a pending earning, section 12.10) | 80 |
+| `caregiver_visit_share_percent` | caregiver's share of a completed visit's **service fee** (never the platform fee), percent. Copied onto each booking when it is created | 80 |
+| `earning_hold_hours` | an earning becomes withdrawable this many hours after the visit is completed (0 to 168). Copied onto each booking when it is created | 24 |
+| `payout_cadence` | `weekly`, `biweekly` or `monthly`. Stored for the payouts work; **nothing reads it yet** | `weekly` |
+| `payout_min_naira` | smallest balance a scheduled payout will pay, in **naira**. Not read yet | 5000 |
+| `finance_refund_limit_naira` | largest refund Finance may approve alone, in **naira**. Not read yet | 50000 |
 
-Rules the form should mirror (the server enforces them, and so does the database): percents 0 to 100, hours and minutes 0 or more, `cancel_late_hours` shorter than `cancel_free_hours`, `dropout_decision_lead_minutes` shorter than `dropout_redispatch_min_lead_minutes`. Send **only the fields that change**; the merged result is validated as a whole.
+Rules the form should mirror (the server enforces them, and so does the database): percents 0 to 100, hours 0 to 168, minutes 0 or more, the two `_naira` fields 0 to 100,000,000, `payout_cadence` one of the three words (anything else is a `422` validation object, below), `cancel_late_hours` shorter than `cancel_free_hours`, `dropout_decision_lead_minutes` shorter than `dropout_redispatch_min_lead_minutes`. Send **only the fields that change**; the merged result is validated as a whole.
 
-**UX consequences to surface.** An edit changes the cancellation terms only for bookings **quoted afterwards**: each quote and booking keeps a copy of the tiers the family was shown. The drop-out timings and the on-my-way window apply immediately. Say so on the save confirmation.
+**UX consequences to surface.** An edit changes the cancellation terms only for bookings **quoted afterwards**: each quote and booking keeps a copy of the tiers the family was shown. The caregiver share and the hold are copied onto a booking the same way, **when it is created**, so changing them never alters what a caregiver was already promised. The drop-out timings and the on-my-way window apply immediately. Say so on the save confirmation.
 
 Read (Support), `GET`:
 
@@ -1702,23 +1716,31 @@ Read (Support), `GET`:
   "dropout_decision_lead_minutes": 60,
   "onmyway_compensation_window_minutes": 120,
   "caregiver_late_fee_share_percent": 80,
-  "updated_at": "2026-10-07T10:58:36.331403",
+  "caregiver_visit_share_percent": 80,
+  "earning_hold_hours": 24,
+  "payout_cadence": "weekly",
+  "payout_min_naira": 5000,
+  "finance_refund_limit_naira": 50000,
+  "updated_at": "2026-10-07T20:31:25.551552",
   "updated_by": null
 }
 ```
 
 Change, `PATCH` (Operations):
 
-<!-- capture: 128-policy-update.json request.body -->
+<!-- capture: 131-policy-update.json request.body -->
 ```json
 {
   "reason": "Raise the late fee while we measure no-shows",
   "cancel_late_fee_percent": 60,
-  "dropout_decision_lead_minutes": 45
+  "dropout_decision_lead_minutes": 45,
+  "caregiver_visit_share_percent": 75,
+  "earning_hold_hours": 48,
+  "payout_cadence": "biweekly"
 }
 ```
 
-<!-- capture: 128-policy-update.json response.body -->
+<!-- capture: 131-policy-update.json response.body -->
 ```json
 {
   "cancel_free_hours": 12,
@@ -1729,8 +1751,13 @@ Change, `PATCH` (Operations):
   "dropout_decision_lead_minutes": 45,
   "onmyway_compensation_window_minutes": 120,
   "caregiver_late_fee_share_percent": 80,
-  "updated_at": "2026-10-07T10:59:03.679353",
-  "updated_by": "ed75f068-d405-423b-9c2f-e9de5b9abb05"
+  "caregiver_visit_share_percent": 75,
+  "earning_hold_hours": 48,
+  "payout_cadence": "biweekly",
+  "payout_min_naira": 5000,
+  "finance_refund_limit_naira": 50000,
+  "updated_at": "2026-10-07T20:39:03.215386",
+  "updated_by": "c499ba9f-c4de-4e44-acab-bd94cd0e4ba5"
 }
 ```
 
@@ -1816,9 +1843,45 @@ A rule broken by the merged policy (these are plain strings, not lists):
 }
 ```
 
+The earning terms are checked the same way (share over 100, hold over a week, a cadence that is not one of the three):
+
+<!-- capture: 127-policy-update-share-over-100.json response.body -->
+```json
+{
+  "detail": "caregiver_visit_share_percent must be between 0 and 100"
+}
+```
+
+<!-- capture: 128-policy-update-hold-too-long.json response.body -->
+```json
+{
+  "detail": "earning_hold_hours cannot be more than 168 hours"
+}
+```
+
+<!-- capture: 129-policy-update-bad-cadence.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "literal_error",
+      "loc": [
+        "body",
+        "payout_cadence"
+      ],
+      "msg": "Input should be 'weekly', 'biweekly' or 'monthly'",
+      "input": "daily",
+      "ctx": {
+        "expected": "'weekly', 'biweekly' or 'monthly'"
+      }
+    }
+  ]
+}
+```
+
 Support cannot change it (`403`), and no token is `401`:
 
-<!-- capture: 127-policy-update-as-support.json response.body -->
+<!-- capture: 130-policy-update-as-support.json response.body -->
 ```json
 {
   "detail": "Access denied. Missing permission: settings.write"
@@ -1834,13 +1897,13 @@ Support cannot change it (`403`), and no token is `401`:
 
 The audit entry (`GET /admin/audit?entity_type=booking_policy`), `entity_id` is the string `"1"`:
 
-<!-- capture: 130-audit-policy-update.json response.body path=items first=1 -->
+<!-- capture: 133-audit-policy-update.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "92c9caca-9e2a-454b-88eb-3056b49d0e7b",
-    "admin_user_id": "ed75f068-d405-423b-9c2f-e9de5b9abb05",
-    "admin_email": "ops-bb44e1pol@example.com",
+    "id": "97d0e51d-a1bb-4bbf-9e73-80fb36708156",
+    "admin_user_id": "c499ba9f-c4de-4e44-acab-bd94cd0e4ba5",
+    "admin_email": "ops-f722cepol@example.com",
     "action": "booking_policy.update",
     "entity_type": "booking_policy",
     "entity_id": "1",
@@ -1852,7 +1915,12 @@ The audit entry (`GET /admin/audit?entity_type=booking_policy`), `entity_id` is 
       "dropout_redispatch_min_lead_minutes": 120,
       "dropout_decision_lead_minutes": 60,
       "onmyway_compensation_window_minutes": 120,
-      "caregiver_late_fee_share_percent": 80
+      "caregiver_late_fee_share_percent": 80,
+      "caregiver_visit_share_percent": 80,
+      "earning_hold_hours": 24,
+      "payout_cadence": "weekly",
+      "payout_min_naira": 5000,
+      "finance_refund_limit_naira": 50000
     },
     "after": {
       "cancel_free_hours": 12,
@@ -1862,15 +1930,362 @@ The audit entry (`GET /admin/audit?entity_type=booking_policy`), `entity_id` is 
       "dropout_redispatch_min_lead_minutes": 120,
       "dropout_decision_lead_minutes": 45,
       "onmyway_compensation_window_minutes": 120,
-      "caregiver_late_fee_share_percent": 80
+      "caregiver_late_fee_share_percent": 80,
+      "caregiver_visit_share_percent": 75,
+      "earning_hold_hours": 48,
+      "payout_cadence": "biweekly",
+      "payout_min_naira": 5000,
+      "finance_refund_limit_naira": 50000
     },
     "reason": "Raise the late fee while we measure no-shows",
-    "ip": "172.21.0.1",
+    "ip": "172.18.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-07T10:59:03.680537"
+    "created_at": "2026-10-07T20:39:03.216582"
   }
 ]
 ```
+
+## 12.10 Caregiver earnings (A3): `/api/v1/admin/earnings`
+
+**What it is.** When a visit is completed, the assigned caregiver is credited **one earning** equal to `caregiver_visit_share_percent` (default 80%) of the booking's **service fee**, rounded half up to the kobo. The platform fee and the total are never part of the base. The earning starts `pending_clearance` and becomes withdrawable `earning_hold_hours` (default 24) after completion, when a worker job (every five minutes) releases it. A family cancellation in the late tier that was compensable and kept a fee credits a `late_cancel_compensation` the same way (share = `caregiver_late_fee_share_percent` of the fee kept). All amounts here are **integer kobo**, fields end in `_kobo`.
+
+Money flow: `completed` -> `pending_clearance` -> (release job, after `available_at`) `successful` and the caregiver's available balance goes up. Support staff can put a pending earning on `held` (the job skips it), take the hold off, or `voided` it (never paid). A released earning cannot be changed here.
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /admin/earnings` | `payments.read` (Finance, Super Admin) | filters `caregiver_id`, `booking_id`, `status`; `limit` (1 to 200), `offset`; newest first |
+| `POST /admin/earnings/{id}/hold` | `ledger.adjust_request` (Finance, Super Admin) | body `{"reason": "..."}`, reason required |
+| `POST /admin/earnings/{id}/release-hold` | `ledger.adjust_request`; **also `ledger.adjust` while the booking is flagged as a no-show** | same body; the earning is pending again and keeps its original `available_at`. For a flagged booking a Finance admin gets `403` with `detail` "This booking is flagged as a no-show; releasing its hold needs the ledger.adjust permission" (**[not live]**: string asserted in `test_caregiver_earnings.py`, not captured); hide or disable the button for them |
+| `POST /admin/earnings/{id}/void` | `ledger.adjust` (**Super Admin only**) | same body; also allowed from `held` |
+
+Every hold, release of a hold and void writes an audit entry (`earning.hold`, `earning.release_hold`, `earning.void`, `entity_type` `caregiver_transaction`) with the old and new status and the reason. **[seeded]** The patient, caregiver and bookings are inserted directly; the earnings themselves come from the real completion path (a Super Admin status correction to `completed`). **[db-simulated]** `available_at` was moved into the past to stand in for the 24-hour wait, then the real job function was run once in the worker container (`worker-release-job`).
+
+The list (`GET /admin/earnings`), first item:
+
+<!-- capture: 158-earnings-list.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "a3138efc-a698-4ea3-b9f3-bc982aed3526",
+    "type": "earning",
+    "status": "pending_clearance",
+    "amount_kobo": 4000000,
+    "base_amount_kobo": 5000000,
+    "share_percent": 80,
+    "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+    "caregiver_name": "Placeholder Nurse Earnings",
+    "booking_id": "52998575-5b0c-4186-9443-d29a4336d9d1",
+    "booking_code": "99650F53",
+    "available_at": "2026-10-08T20:41:04.317472",
+    "released_at": null,
+    "status_reason": null,
+    "status_changed_by": null,
+    "status_changed_at": null,
+    "created_at": "2026-10-07T20:41:04.319484"
+  }
+]
+```
+
+Note `base_amount_kobo` (the service fee the share was taken of) and `share_percent` (the percent that was snapshotted on the booking): `amount_kobo` can always be re-derived from them. Filtering by booking:
+
+<!-- capture: 159-earnings-list-filtered.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+      "type": "earning",
+      "status": "pending_clearance",
+      "amount_kobo": 4000000,
+      "base_amount_kobo": 5000000,
+      "share_percent": 80,
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "caregiver_name": "Placeholder Nurse Earnings",
+      "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+      "booking_code": "0A521CEA",
+      "available_at": "2026-10-08T20:41:04.296220",
+      "released_at": null,
+      "status_reason": null,
+      "status_changed_by": null,
+      "status_changed_at": null,
+      "created_at": "2026-10-07T20:41:04.299886"
+    }
+  ],
+  "total": 1
+}
+```
+
+Hold, again, and release the hold:
+
+<!-- capture: 166-earning-hold.json response.body -->
+```json
+{
+  "id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+  "type": "earning",
+  "status": "held",
+  "amount_kobo": 4000000,
+  "base_amount_kobo": 5000000,
+  "share_percent": 80,
+  "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+  "caregiver_name": "Placeholder Nurse Earnings",
+  "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+  "booking_code": "0A521CEA",
+  "available_at": "2026-10-08T20:41:04.296220",
+  "released_at": null,
+  "status_reason": "The family disputes this visit",
+  "status_changed_by": "d243ad6f-c5e7-4bda-af33-0e4401313bf6",
+  "status_changed_at": "2026-10-07T20:41:04.404903",
+  "created_at": "2026-10-07T20:41:04.299886"
+}
+```
+
+<!-- capture: 167-earning-hold-again.json response.body -->
+```json
+{
+  "detail": "This earning is already on hold"
+}
+```
+
+<!-- capture: 169-earning-release-hold.json response.body -->
+```json
+{
+  "id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+  "type": "earning",
+  "status": "pending_clearance",
+  "amount_kobo": 4000000,
+  "base_amount_kobo": 5000000,
+  "share_percent": 80,
+  "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+  "caregiver_name": "Placeholder Nurse Earnings",
+  "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+  "booking_code": "0A521CEA",
+  "available_at": "2026-10-08T20:41:04.296220",
+  "released_at": null,
+  "status_reason": "Dispute resolved",
+  "status_changed_by": "d243ad6f-c5e7-4bda-af33-0e4401313bf6",
+  "status_changed_at": "2026-10-07T20:41:04.428779",
+  "created_at": "2026-10-07T20:41:04.299886"
+}
+```
+
+<!-- capture: 170-earning-release-hold-again.json response.body -->
+```json
+{
+  "detail": "This earning is not on hold"
+}
+```
+
+Void (Super Admin) and what a voided earning refuses:
+
+<!-- capture: 172-earning-void.json response.body -->
+```json
+{
+  "id": "a0946e7f-6f17-4beb-b16c-9b0b1b87f2fd",
+  "type": "earning",
+  "status": "voided",
+  "amount_kobo": 4000000,
+  "base_amount_kobo": 5000000,
+  "share_percent": 80,
+  "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+  "caregiver_name": "Placeholder Nurse Earnings",
+  "booking_id": "3751ded6-e371-4bbc-b7bf-84c8bef47c4e",
+  "booking_code": "B0EBFBB0",
+  "available_at": "2026-10-08T20:41:04.307997",
+  "released_at": null,
+  "status_reason": "Caregiver never attended",
+  "status_changed_by": "df20089a-d1c4-4d5f-bcd8-c5ec3c32455d",
+  "status_changed_at": "2026-10-07T20:41:04.445614",
+  "created_at": "2026-10-07T20:41:04.310090"
+}
+```
+
+<!-- capture: 173-earning-void-again.json response.body -->
+```json
+{
+  "detail": "This earning has been voided"
+}
+```
+
+Finance cannot void, Support cannot hold, Operations cannot read, no token:
+
+<!-- capture: 171-earning-void-as-finance.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: ledger.adjust"
+}
+```
+
+<!-- capture: 163-earning-hold-as-support.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: ledger.adjust_request"
+}
+```
+
+<!-- capture: 160-earnings-list-as-operations.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: payments.read"
+}
+```
+
+<!-- capture: 161-earnings-list-no-token.json response.body -->
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+Other errors: a missing `reason` is `422`, an unknown earning is `404`, a bad `status` filter is `422`:
+
+<!-- capture: 164-earning-hold-no-reason.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "reason"
+      ],
+      "msg": "Field required",
+      "input": {}
+    }
+  ]
+}
+```
+
+<!-- capture: 165-earning-hold-unknown.json response.body -->
+```json
+{
+  "detail": "Earning not found"
+}
+```
+
+<!-- capture: 162-earnings-list-bad-status.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "literal_error",
+      "loc": [
+        "query",
+        "status"
+      ],
+      "msg": "Input should be 'pending_clearance', 'held', 'successful' or 'voided'",
+      "input": "bogus",
+      "ctx": {
+        "expected": "'pending_clearance', 'held', 'successful' or 'voided'"
+      }
+    }
+  ]
+}
+```
+
+**The no-show flag.** Flagging a no-show holds the booking's pending earning. The flag is only offered before a visit starts, so there is normally no earning yet; if an admin then completes that booking, the earning is **credited already `held`** with the no-show as the reason, and it cannot clear until Finance releases the hold. Flag, complete, and the earning:
+
+<!-- capture: 177-earning-of-flagged-visit.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "93a76a78-39a2-4050-bff6-602d9dee686c",
+    "type": "earning",
+    "status": "held",
+    "amount_kobo": 4000000,
+    "base_amount_kobo": 5000000,
+    "share_percent": 80,
+    "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+    "caregiver_name": "Placeholder Nurse Earnings",
+    "booking_id": "54dfa5dd-f099-4bf0-8212-95f614ffa143",
+    "booking_code": "CE454A59",
+    "available_at": "2026-10-08T20:41:04.468853",
+    "released_at": null,
+    "status_reason": "No-show flagged on this booking",
+    "status_changed_by": "11f2512a-b186-41d5-a07a-81b10c5d2aec",
+    "status_changed_at": "2026-10-07T20:41:04.468853",
+    "created_at": "2026-10-07T20:41:04.470590"
+  }
+]
+```
+
+**Release job.** Of the four earnings in this run, the two pending ones were released; the voided one and the no-show one (held) were left alone (`worker-release-job` body: `{"released": 2}`). After it, a hold on a released earning is refused:
+
+<!-- capture: 181-earning-hold-released.json response.body -->
+```json
+{
+  "detail": "This earning has already been released to the caregiver's balance; correct it with a ledger adjustment"
+}
+```
+
+The audit entries (`GET /admin/audit?entity_type=caregiver_transaction`), newest first:
+
+<!-- capture: 182-audit-earnings.json response.body path=items first=2 -->
+```json
+[
+  {
+    "id": "e4dab3b1-6229-4777-b52a-f4e0dd690bb7",
+    "admin_user_id": "df20089a-d1c4-4d5f-bcd8-c5ec3c32455d",
+    "admin_email": "boss-f722ceearn@example.com",
+    "action": "earning.void",
+    "entity_type": "caregiver_transaction",
+    "entity_id": "a0946e7f-6f17-4beb-b16c-9b0b1b87f2fd",
+    "before": {
+      "status": "pending_clearance",
+      "amount": 4000000,
+      "available_at": "2026-10-08T20:41:04.307997",
+      "booking_id": "3751ded6-e371-4bbc-b7bf-84c8bef47c4e",
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "type": "earning"
+    },
+    "after": {
+      "status": "voided",
+      "amount": 4000000,
+      "available_at": "2026-10-08T20:41:04.307997",
+      "booking_id": "3751ded6-e371-4bbc-b7bf-84c8bef47c4e",
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "type": "earning"
+    },
+    "reason": "Caregiver never attended",
+    "ip": "172.18.0.1",
+    "user_agent": "python-httpx/0.28.1",
+    "created_at": "2026-10-07T20:41:04.445850"
+  },
+  {
+    "id": "da51b602-b98a-4741-973c-1bdc77ef727b",
+    "admin_user_id": "d243ad6f-c5e7-4bda-af33-0e4401313bf6",
+    "admin_email": "fin-f722ceearn@example.com",
+    "action": "earning.release_hold",
+    "entity_type": "caregiver_transaction",
+    "entity_id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+    "before": {
+      "status": "held",
+      "amount": 4000000,
+      "available_at": "2026-10-08T20:41:04.296220",
+      "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "type": "earning"
+    },
+    "after": {
+      "status": "pending_clearance",
+      "amount": 4000000,
+      "available_at": "2026-10-08T20:41:04.296220",
+      "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "type": "earning"
+    },
+    "reason": "Dispute resolved",
+    "ip": "172.18.0.1",
+    "user_agent": "python-httpx/0.28.1",
+    "created_at": "2026-10-07T20:41:04.429014"
+  }
+]
+```
+
+**UX the console must surface.**
+- Voiding writes money off for good. Use a confirmation that says so; a voided earning cannot be reinstated here.
+- Show `status` and `available_at` on every row. A `held` row has no countdown: the caregiver sees it under "held", not "pending".
+- A `successful` earning is already in the caregiver's balance; the only correction is a ledger adjustment (a later work package). Disable hold and void on it and show the `409` text if it races the job.
+- Self-withdrawal by caregivers still exists and uses only the available balance; it is slated for removal when scheduled payouts ship.
 
 ## 13. Pricing settings: `/api/v1/booking-settings`
 
@@ -1906,7 +2321,7 @@ All fields are sent every time (a full version, not a patch). Unknown fields are
 
 `POST` (first version only) and `PUT` return the new row (same shape as the reads). `reason` is not echoed back.
 
-<!-- capture: 142-pricing-create.json request.body -->
+<!-- capture: 145-pricing-create.json request.body -->
 ```json
 {
   "base_fee": 5000,
@@ -1922,7 +2337,7 @@ All fields are sent every time (a full version, not a patch). Unknown fields are
 }
 ```
 
-<!-- capture: 142-pricing-create.json response.body -->
+<!-- capture: 145-pricing-create.json response.body -->
 ```json
 {
   "base_fee": 5000.0,
@@ -1934,15 +2349,15 @@ All fields are sent every time (a full version, not a patch). Unknown fields are
   "surge_pricing": false,
   "surge_multiplier": 1.0,
   "discount": 0.0,
-  "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
-  "created_at": "2026-10-07T14:36:03.911993",
-  "updated_at": "2026-10-07T14:36:03.911993"
+  "id": "37fab89f-6286-4aa0-b23f-fcd28bd7096b",
+  "created_at": "2026-10-07T20:40:03.779220",
+  "updated_at": "2026-10-07T20:40:03.779220"
 }
 ```
 
 `PUT` of the row above with `base_fee` 6500 and surge on. Note the new `id`:
 
-<!-- capture: 143-pricing-update.json response.body -->
+<!-- capture: 146-pricing-update.json response.body -->
 ```json
 {
   "base_fee": 6500.0,
@@ -1954,15 +2369,15 @@ All fields are sent every time (a full version, not a patch). Unknown fields are
   "surge_pricing": true,
   "surge_multiplier": 1.5,
   "discount": 0.0,
-  "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
-  "created_at": "2026-10-07T14:36:03.921849",
-  "updated_at": "2026-10-07T14:36:03.921849"
+  "id": "35727fd8-5030-48d5-b98f-b11bcdcfbe14",
+  "created_at": "2026-10-07T20:40:03.790260",
+  "updated_at": "2026-10-07T20:40:03.790260"
 }
 ```
 
 The history keeps both. Version 1 still has its original values:
 
-<!-- capture: 146-pricing-list.json response.body -->
+<!-- capture: 149-pricing-list.json response.body -->
 ```json
 [
   {
@@ -1975,9 +2390,9 @@ The history keeps both. Version 1 still has its original values:
     "surge_pricing": true,
     "surge_multiplier": 1.5,
     "discount": 0.0,
-    "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
-    "created_at": "2026-10-07T14:36:03.921849",
-    "updated_at": "2026-10-07T14:36:03.921849"
+    "id": "35727fd8-5030-48d5-b98f-b11bcdcfbe14",
+    "created_at": "2026-10-07T20:40:03.790260",
+    "updated_at": "2026-10-07T20:40:03.790260"
   },
   {
     "base_fee": 5000.0,
@@ -1989,9 +2404,9 @@ The history keeps both. Version 1 still has its original values:
     "surge_pricing": false,
     "surge_multiplier": 1.0,
     "discount": 0.0,
-    "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
-    "created_at": "2026-10-07T14:36:03.911993",
-    "updated_at": "2026-10-07T14:36:03.911993"
+    "id": "37fab89f-6286-4aa0-b23f-fcd28bd7096b",
+    "created_at": "2026-10-07T20:40:03.779220",
+    "updated_at": "2026-10-07T20:40:03.779220"
   }
 ]
 ```
@@ -2002,7 +2417,7 @@ Validation errors are the usual list-of-objects `detail` (section 9); the reason
 
 No `reason` (`422`):
 
-<!-- capture: 136-pricing-create-no-reason.json response.body keys=detail -->
+<!-- capture: 139-pricing-create-no-reason.json response.body keys=detail -->
 ```json
 {
   "detail": [
@@ -2031,7 +2446,7 @@ No `reason` (`422`):
 
 A negative `base_fee` (`422`):
 
-<!-- capture: 137-pricing-create-negative-fee.json response.body -->
+<!-- capture: 140-pricing-create-negative-fee.json response.body -->
 ```json
 {
   "detail": [
@@ -2053,7 +2468,7 @@ A negative `base_fee` (`422`):
 
 An unknown service type in `multipliers` (`422`):
 
-<!-- capture: 139-pricing-create-unknown-service.json response.body -->
+<!-- capture: 142-pricing-create-unknown-service.json response.body -->
 ```json
 {
   "detail": [
@@ -2077,7 +2492,7 @@ An unknown service type in `multipliers` (`422`):
 
 An unexpected field (`422`):
 
-<!-- capture: 141-pricing-create-unknown-field.json response.body -->
+<!-- capture: 144-pricing-create-unknown-field.json response.body -->
 ```json
 {
   "detail": [
@@ -2088,7 +2503,7 @@ An unexpected field (`422`):
         "id"
       ],
       "msg": "Extra inputs are not permitted",
-      "input": "3aef457e-34cd-4a24-bcb3-f91aa3d2f155"
+      "input": "580f3ec9-3f77-4bc6-9bfb-f02373dc0ee8"
     }
   ]
 }
@@ -2096,25 +2511,25 @@ An unexpected field (`422`):
 
 Editing a version that is no longer the latest (`409`, `detail` is a string and contains the id of the newer one):
 
-<!-- capture: 144-pricing-update-superseded.json response.body -->
+<!-- capture: 147-pricing-update-superseded.json response.body -->
 ```json
 {
-  "detail": "A newer pricing version exists (baf282ad-31ae-466c-96cb-d4249b1bfa2d); reload it and edit that one"
+  "detail": "A newer pricing version exists (35727fd8-5030-48d5-b98f-b11bcdcfbe14); reload it and edit that one"
 }
 ```
 
 `POST` when a version already exists (`409`; use `PUT` on the latest):
 
-<!-- capture: 150-pricing-create-when-one-exists.json response.body -->
+<!-- capture: 153-pricing-create-when-one-exists.json response.body -->
 ```json
 {
-  "detail": "Pricing already exists; use PUT on the latest version (baf282ad-31ae-466c-96cb-d4249b1bfa2d)"
+  "detail": "Pricing already exists; use PUT on the latest version (35727fd8-5030-48d5-b98f-b11bcdcfbe14)"
 }
 ```
 
 A number sent as a string (`422`):
 
-<!-- capture: 151-pricing-create-string-number.json response.body -->
+<!-- capture: 154-pricing-create-string-number.json response.body -->
 ```json
 {
   "detail": [
@@ -2133,28 +2548,28 @@ A number sent as a string (`422`):
 
 Unknown id on `PUT` (`404`), no version yet on `GET /latest` (`404`), `DELETE` (`409`), no token (`401`), no permission (`403`):
 
-<!-- capture: 145-pricing-update-unknown-id.json response.body -->
+<!-- capture: 148-pricing-update-unknown-id.json response.body -->
 ```json
 {
   "detail": "Booking settings not found"
 }
 ```
 
-<!-- capture: 148-pricing-delete.json response.body -->
+<!-- capture: 151-pricing-delete.json response.body -->
 ```json
 {
   "detail": "Pricing versions cannot be deleted; publish a new version instead"
 }
 ```
 
-<!-- capture: 135-pricing-create-as-support.json response.body -->
+<!-- capture: 138-pricing-create-as-support.json response.body -->
 ```json
 {
   "detail": "Access denied. Missing permission: pricing.write"
 }
 ```
 
-<!-- capture: 133-pricing-get-as-analyst.json response.body -->
+<!-- capture: 136-pricing-get-as-analyst.json response.body -->
 ```json
 {
   "detail": "Access denied. Missing permission: bookings.read"
@@ -2175,18 +2590,18 @@ Unknown id on `PUT` (`404`), no version yet on `GET /latest` (`404`), `DELETE` (
 
 Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=booking_settings`): `action` is `booking_settings.create` (`POST`) or `booking_settings.update` (`PUT`), `entity_id` is the **new** version's id, `before` is the version that was live (`null` for the very first) and `after` the new one, both with `base_fee` in naira.
 
-<!-- capture: 149-audit-pricing.json response.body path=items first=1 -->
+<!-- capture: 152-audit-pricing.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "3bd68988-f729-4c0b-8562-842d44c7e231",
-    "admin_user_id": "6835e24f-0dda-4165-8006-7543f36ee758",
-    "admin_email": "boss-2bdaccpr@example.com",
+    "id": "17090945-d09f-45d3-928c-3d1362b7c80b",
+    "admin_user_id": "25773b68-4c57-49f5-a5fc-091660298541",
+    "admin_email": "boss-f722cepr@example.com",
     "action": "booking_settings.update",
     "entity_type": "booking_settings",
-    "entity_id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+    "entity_id": "35727fd8-5030-48d5-b98f-b11bcdcfbe14",
     "before": {
-      "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+      "id": "37fab89f-6286-4aa0-b23f-fcd28bd7096b",
       "base_fee": 5000.0,
       "platform_fee_percent": 10.0,
       "multipliers": {
@@ -2198,7 +2613,7 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
       "discount": 0.0
     },
     "after": {
-      "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+      "id": "35727fd8-5030-48d5-b98f-b11bcdcfbe14",
       "base_fee": 6500.0,
       "platform_fee_percent": 10.0,
       "multipliers": {
@@ -2212,7 +2627,7 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
     "reason": "Fuel costs went up",
     "ip": "172.18.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-07T14:36:03.922388"
+    "created_at": "2026-10-07T20:40:03.790926"
   }
 ]
 ```
@@ -2290,17 +2705,25 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | First Super Admin and the Analyst in these captures | **[seeded]** | 004, 043 notes |
 | `Retry-After` readable from the browser (CORS) | **[not live]** | The API exposes the header, but the capture stack has no allowed origin and no browser was used; check it once the console runs |
 | A real authenticator app scanning the QR code | **[not live]** | the captures generate codes with the same TOTP algorithm (`pyotp`), which is what authenticator apps implement |
-| Booking policy: read as Support, change as Operations (partial body), read after, audit entry with old and new values and the reason | Verified live | 119, 128, 129, 130 (131 puts the defaults back) |
-| Booking policy errors: no reason, empty change, unknown field, percent over 100, late not shorter than free, decision not shorter than re-dispatch lead, Support `403`, no token `401` | Verified live | 120 to 127 |
+| Booking policy: read as Support, change as Operations (partial body), read after, audit entry with old and new values and the reason | Verified live | 119, 131, 132, 133 (134 puts the defaults back) |
+| Booking policy errors: no reason, empty change, unknown field, percent over 100, late not shorter than free, decision not shorter than re-dispatch lead, Support `403`, no token `401`; the earning terms: share over 100, hold over a week, a cadence that does not exist | Verified live | 120 to 130 |
 | Booking policy: the database rejects out-of-range values and a second row | Test only | `test_dropout_migration.py` |
 | An edit leaves already-quoted bookings on their old terms | Test only | `test_cancellation_tiers.py`; the Docker e2e (`scripts/whatsapp_local_e2e.py`) checks it through the chat |
-| Pricing: reads need an admin (`401`, `403`), empty `404` | Verified live | 132, 133, 134 |
-| Pricing: publish with `POST`, `PUT` creates a new row, history keeps the old one | Verified live | 142, 143, 146, 147 |
-| Pricing: validation errors (reason, negative fee, percent, unknown service, multiplier cap, unknown field), stale `PUT` `409`, unknown id `404`, `DELETE` `409`, `403` as Support | Verified live | 135 to 141, 144, 145, 148 |
-| Pricing: audit entry with before/after | Verified live | 149 |
-| Pricing: `POST` when a version exists `409`; a string number `422` | Verified live | 150, 151 |
+| Pricing: reads need an admin (`401`, `403`), empty `404` | Verified live | 135, 136, 137 |
+| Pricing: publish with `POST`, `PUT` creates a new row, history keeps the old one | Verified live | 145, 146, 149, 150 |
+| Pricing: validation errors (reason, negative fee, percent, unknown service, multiplier cap, unknown field), stale `PUT` `409`, unknown id `404`, `DELETE` `409`, `403` as Support | Verified live | 138 to 144, 147, 148, 151 |
+| Pricing: audit entry with before/after | Verified live | 152 |
+| Pricing: `POST` when a version exists `409`; a string number `422` | Verified live | 153, 154 |
 | Pricing: fee decimals (0.001, 5000.123 refused), strict types (bool, `1`, strings), clock-skew ordering, two simultaneous first `POST`s | Test only | `test_booking_settings_pricing.py` |
 | Pricing: two simultaneous `PUT`s on one version (exactly one wins) | Test only | `test_booking_settings_pricing.py` (real threads) |
 | Pricing: boundary values, every rejected value, quotes and bookings keep the version they were priced with | Test only | `test_booking_settings_pricing.py` |
 | Pricing: every `/booking-settings` route against every role | Test only | `test_admin_rbac.py` |
-| Pricing: the empty-state `404` was captured after deleting rows on the throwaway capture stack | **[db-simulated]** | 134 note |
+| Pricing: the empty-state `404` was captured after deleting rows on the throwaway capture stack | **[db-simulated]** | 137 note |
+| Earnings: list, filter by booking, newest first; `payments.read` only (Operations `403`, no token `401`, bad status `422`) | Verified live | 158, 159, 160, 161, 162 |
+| Earnings: hold, hold again `409`, release the hold, release again `409`; Support `403`; no reason `422`; unknown `404` | Verified live | 163 to 170 |
+| Earnings: void as Super Admin, Finance `403`, void again `409`, hold on a voided one `409` | Verified live | 171 to 174 |
+| Earnings: a no-show flag, then completing the visit credits the earning already held | Verified live | 175, 176, 177 |
+| Earnings: the release job moves due pending rows and leaves held and voided ones; a released row refuses hold | Verified live | 178 (**[db-simulated]** wait), 179, 180, 181 |
+| Earnings: audit entries for hold, release of hold and void | Verified live | 182 |
+| Earnings: credit amount, rounding, the snapshot ignoring a later policy edit, idempotency under concurrent completes, SKIP LOCKED with two workers, late-cancel compensation rules | Test only | `test_caregiver_earnings.py` (real threads, real row locks) |
+| Earnings: the cron schedule (every five minutes) | Test only | `test_caregiver_earnings.py::test_the_job_is_registered_in_the_worker`; not waited for live |

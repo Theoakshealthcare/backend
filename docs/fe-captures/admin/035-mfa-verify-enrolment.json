@@ -19,8 +19,8 @@
       "token_type": "bearer",
       "expires_in": 900,
       "admin": {
-        "id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
-        "email": "verifier-1b46d2@example.com",
+        "id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
+        "email": "verifier-f722ce@example.com",
         "full_name": "Placeholder Verifier",
         "roles": [
           "verification"

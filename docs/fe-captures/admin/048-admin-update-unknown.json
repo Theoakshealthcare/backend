@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PATCH",
-    "path": "/api/v1/admin/admins/4222f088-6fc1-409c-88b0-08e642ded2b3",
+    "path": "/api/v1/admin/admins/e280f8f7-27cf-430c-9a20-caa2c05488dc",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "status": "disabled"

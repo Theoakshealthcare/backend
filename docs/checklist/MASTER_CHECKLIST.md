@@ -2,12 +2,14 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
+**Update (2026-10-07, A3 slice 1):** caregiver earnings are credited on completion, held, and released by a worker job (migration `0011`, on `feat/a3-earnings`, not yet merged). Payouts, refunds v2 and ledger adjustments are next.
+
 **Update (2026-10-07):** Backend PRs #1–#32 and caregiver monorepo PRs #1–#11 are merged. Done since the last roll-up: admin A0 (#21) and A1 console (monorepo #6); tech debt (#23); WhatsApp W1–W3 (#22, #24, #27), default multipliers and geocoding (#28), drop-out re-dispatch with two-tier fees and the booking policy (#30), caregiver cancel window (#32); A2 bookings ops API (#26, backend only); account deletion as anonymisation (#29); pricing settings audit (#31); caregiver app account, wallet, notifications and directions screens (monorepo #7–#11). Migrations `0001`–`0010` are on `main`. Still open: A2 console screens, A3–A5, W4–W5, the remaining caregiver app screens (section 8), and the owner and device items.
 
 **Snapshot (2026-10-07):** 
-- **Items:** 160 done (`[x]`), 127 open (`[ ]`), counted over every task line.
+- **Items:** 168 done (`[x]`), 124 open (`[ ]`), counted over every task line.
 - **Sections done:** 8 (Phase C, code complete, device run pending), 11 (tech debt), 12 (account deletion), 13 (pricing audit).
-- **Sections in progress:** 0, 6, 7, 9 (A0, A1 and the A2 API done), 10 (W1–W3b done).
+- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API and A3 slice 1 done), 10 (W1–W3b done).
 - **Sections planned or not started:** 1 and 2 (open items are mostly the owner's secret rotation and the remaining hardening list), 3–5, plus A2 screens, A3–A5, W4 and W5.
 
 **Baseline:** the full review of all three repos on 2026-09-24 (it predates this file).
@@ -146,7 +148,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **Bookings:** list and detail, unmatched queue, assign/reassign, admin cancel, status correction (AD-FR-19–25). API merged 2026-10-06 (A2, #26); console screens not built
 - [ ] **Payments:** payment list, webhook exceptions, daily reconciliation (AD-FR-28–31)
 - [ ] **Refunds v2:** exactly one destination per refund, approval limits, refund webhooks, notifications (AD-FR-32–36)
-- [ ] **Caregiver pay:** earnings credited on completion, ledger, Paystack Transfer payout batches, validated withdrawals (AD-FR-38–42)
+- [ ] **Caregiver pay:** earnings credited on completion and ledger done (A3 slice 1); Paystack Transfer payout batches, validated withdrawals and ledger adjustments (AD-FR-39–42) open
 - [ ] **People:** search, masked view, suspend, consent records (AD-FR-45–48)
 - [ ] **Pricing:** (APIs `/booking-settings` and `/admin/booking-policy` exist; console screens are A4) versioned price books with preview and publish; service areas; Nigerian form options (AD-FR-51–56)
 - [ ] **Support inbox:** WhatsApp handovers, 24-hour window enforcement, urgent alerts (AD-FR-59–63)
@@ -229,11 +231,15 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] 8. FE guide section 12 from live captures 079 to 118 (`capture_admin_flow.py --section bookings`), `--check` clean
   - [x] 9. Opus review of the lock, permission and clinical paths: clean, 2 findings fixed with tests
   - [ ] 10. **A2 console screens:** list, detail with timeline, unmatched queue, action dialogs (backend done)
-- [ ] **A3** Money (none built)
-  - [ ] Earnings credited on completion
-  - [ ] Caregiver ledger
-  - [ ] Scheduled Paystack Transfer payouts
-  - [ ] 80% caregiver share of qualifying late-cancel fees (policy `caregiver_late_fee_share_percent`, booking flag `late_cancel_compensable`; both are recorded today, nothing is paid)
+- [ ] **A3** Money. Slice 1 (caregiver earnings, API only) done 2026-10-07, [SOP](../sop/2026-10-07-caregiver-earnings.md), migration `0011_caregiver_earnings`
+  - [x] Slice 1: earnings credited on completion (80% of the service fee, snapshotted on the booking, held 24 hours, admin-editable in `booking_policies`)
+  - [x] Slice 1: caregiver ledger rows (`caregiver_transactions`: pending clearance, held, voided, released), unique per booking and type
+  - [x] Slice 1: `GET /caregiver/wallet` adds `available_balance`, `pending_balance`, `held_balance`; withdraw takes available money only
+  - [x] Slice 1: ARQ `earnings_release_job` every five minutes (SKIP LOCKED, idempotent)
+  - [x] Slice 1: admin `GET /admin/earnings`, hold, release hold, void (audited, reason required); the A2 no-show flag holds that booking's earning
+  - [x] 80% caregiver share of qualifying late-cancel fees (`late_cancel_compensation`, same hold)
+  - [x] Slice 1: FE guides (caregiver section 10, admin section 12.10) from live captures
+  - [ ] Slice 2: scheduled Paystack Transfer payouts by `payout_cadence` / `payout_min_naira` (stored, not read yet); remove caregiver self-withdraw
   - [ ] Refunds v2 queue (`refund_required`), payments and webhook exceptions
   - [ ] Gap: on the app channel a caregiver cancel sets the booking to cancelled with no refund flag, so the patient is not queued for a refund
   - [ ] Bank list and account-name resolve endpoints
@@ -285,7 +291,8 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] Two templates (`dropout_replacing`, `dropout_choice`) added to the registry and the SOP owner list
   - [ ] **Owner:** submit templates 13 and 14; tell the caregiver app team a dropped WhatsApp booking now comes back as `pending` from `cancel`
   - [x] Caregiver cancel window (owner decision; merged 2026-10-07, #32), [SOP](../sop/2026-10-07-caregiver-cancel-window.md): `POST /booking/caregiver/action/{id}` `cancel` on a WhatsApp booking is refused with `409` unless it is `accepted` and more than `dropout_redispatch_min_lead_minutes` before the start; inside that, en route or in progress the caregiver contacts support (admins reassign or cancel through the A2 routes); app bookings unchanged; `channel` now returned on the caregiver booking responses
-  - [ ] Deferred (A3): pay the caregiver from `late_cancel_compensable` and `caregiver_late_fee_share_percent`; admin console views of drop-outs and a policy page; rescheduling ("Pick another time" is a person for now)
+  - [x] Caregiver paid from `late_cancel_compensable` and `caregiver_late_fee_share_percent` (A3 slice 1, 2026-10-07)
+  - [ ] Deferred: admin console views of drop-outs and a policy page; rescheduling ("Pick another time" is a person for now)
 - [ ] **W4** Web companion: API and `apps/companion` (magic links, step-up auth, tracking and booking pages, Paystack return page; not started)
 - [ ] **W5** FallGuard Flow, vitals reminders, care circle, Pidgin (not started)
 
@@ -319,6 +326,8 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (A3) Refunds v2 (slice 3): void/adjust the `late_cancel_compensation` earning when a late-cancel fee is later waived/refunded
+- [ ] (A3) Product: consider waiving the late-cancel fee for a no-show-flagged booking
 - [ ] (Pricing) `/prescription/settings` routes still edit in place with no audit row; give them the same versioning and audit
 - [ ] (Pricing) A public price-preview route if a client ever needs one (none calls `/booking-settings` today)
 - [ ] ⚠️ (Erasure review) `Booking.condition` is plaintext for app bookings (WhatsApp bookings encrypt it as `condition_encrypted`); encrypt it and migrate existing rows

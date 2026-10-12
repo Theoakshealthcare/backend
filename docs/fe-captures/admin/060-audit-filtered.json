@@ -13,12 +13,12 @@
     "body": {
       "items": [
         {
-          "id": "e2225027-00c0-413a-9d09-775c6675ab5c",
-          "admin_user_id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
-          "admin_email": "boss-1b46d2@example.com",
+          "id": "7dddf32f-7fb1-4aac-97a6-97f6e011867b",
+          "admin_user_id": "48b05fdb-dc10-49ca-9c76-b9019a7405ce",
+          "admin_email": "boss-f722ce@example.com",
           "action": "admin.update",
           "entity_type": "admin_user",
-          "entity_id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+          "entity_id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
           "before": {
             "roles": [
               "support",
@@ -34,17 +34,17 @@
             "status": "active"
           },
           "reason": null,
-          "ip": "172.21.0.1",
+          "ip": "172.18.0.1",
           "user_agent": "python-httpx/0.28.1",
-          "created_at": "2026-10-06T14:09:03.576547"
+          "created_at": "2026-10-07T20:34:03.525921"
         },
         {
-          "id": "42c4f78d-7ab3-45eb-8a5d-60b76d974a52",
-          "admin_user_id": "65d6a321-d38b-4cd4-a2fb-ae6b8621038c",
-          "admin_email": "boss-1b46d2@example.com",
+          "id": "01dd96fa-d449-4da6-b4aa-6534df59a9b8",
+          "admin_user_id": "48b05fdb-dc10-49ca-9c76-b9019a7405ce",
+          "admin_email": "boss-f722ce@example.com",
           "action": "admin.update",
           "entity_type": "admin_user",
-          "entity_id": "b27c8dbb-0a3c-4566-8e37-65d41a1e3c5e",
+          "entity_id": "d84eb03e-c858-4cb9-8f5b-1d4bf1af1896",
           "before": {
             "roles": [
               "support",
@@ -60,9 +60,9 @@
             "status": "disabled"
           },
           "reason": null,
-          "ip": "172.21.0.1",
+          "ip": "172.18.0.1",
           "user_agent": "python-httpx/0.28.1",
-          "created_at": "2026-10-06T14:09:03.306429"
+          "created_at": "2026-10-07T20:34:03.266069"
         }
       ],
       "total": 3,

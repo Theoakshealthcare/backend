@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905/correct-status",
+    "path": "/api/v1/admin/bookings/7842c39a-ffa3-4d4f-a2a2-d7638b5b8752/correct-status",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "status": "completed",
@@ -14,15 +14,16 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905",
-      "booking_code": "224AF65E",
+      "id": "7842c39a-ffa3-4d4f-a2a2-d7638b5b8752",
+      "booking_code": "46BDBAF2",
       "status": "completed",
       "payment_status": "paid",
       "dispatch_state": "matched",
-      "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+      "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
       "needs_address_check": false,
       "refund_required": false,
       "refund_required_reason": null,
+      "refund_amount_kobo": null,
       "no_show_flagged_at": null,
       "notified_caregivers": 0
     }

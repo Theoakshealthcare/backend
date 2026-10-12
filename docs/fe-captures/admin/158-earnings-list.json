@@ -1,0 +1,92 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/earnings",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "a3138efc-a698-4ea3-b9f3-bc982aed3526",
+          "type": "earning",
+          "status": "pending_clearance",
+          "amount_kobo": 4000000,
+          "base_amount_kobo": 5000000,
+          "share_percent": 80,
+          "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+          "caregiver_name": "Placeholder Nurse Earnings",
+          "booking_id": "52998575-5b0c-4186-9443-d29a4336d9d1",
+          "booking_code": "99650F53",
+          "available_at": "2026-10-08T20:41:04.317472",
+          "released_at": null,
+          "status_reason": null,
+          "status_changed_by": null,
+          "status_changed_at": null,
+          "created_at": "2026-10-07T20:41:04.319484"
+        },
+        {
+          "id": "a0946e7f-6f17-4beb-b16c-9b0b1b87f2fd",
+          "type": "earning",
+          "status": "pending_clearance",
+          "amount_kobo": 4000000,
+          "base_amount_kobo": 5000000,
+          "share_percent": 80,
+          "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+          "caregiver_name": "Placeholder Nurse Earnings",
+          "booking_id": "3751ded6-e371-4bbc-b7bf-84c8bef47c4e",
+          "booking_code": "B0EBFBB0",
+          "available_at": "2026-10-08T20:41:04.307997",
+          "released_at": null,
+          "status_reason": null,
+          "status_changed_by": null,
+          "status_changed_at": null,
+          "created_at": "2026-10-07T20:41:04.310090"
+        },
+        {
+          "id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+          "type": "earning",
+          "status": "pending_clearance",
+          "amount_kobo": 4000000,
+          "base_amount_kobo": 5000000,
+          "share_percent": 80,
+          "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+          "caregiver_name": "Placeholder Nurse Earnings",
+          "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+          "booking_code": "0A521CEA",
+          "available_at": "2026-10-08T20:41:04.296220",
+          "released_at": null,
+          "status_reason": null,
+          "status_changed_by": null,
+          "status_changed_at": null,
+          "created_at": "2026-10-07T20:41:04.299886"
+        },
+        {
+          "id": "8ff87d22-3fcc-4d0d-ac3c-f1ebb547bc8b",
+          "type": "earning",
+          "status": "pending_clearance",
+          "amount_kobo": 4000000,
+          "base_amount_kobo": 5000000,
+          "share_percent": 80,
+          "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
+          "caregiver_name": "Placeholder Nurse Two",
+          "booking_id": "7842c39a-ffa3-4d4f-a2a2-d7638b5b8752",
+          "booking_code": "46BDBAF2",
+          "available_at": "2026-10-08T20:38:05.916345",
+          "released_at": null,
+          "status_reason": null,
+          "status_changed_by": null,
+          "status_changed_at": null,
+          "created_at": "2026-10-07T20:38:05.920375"
+        }
+      ],
+      "total": 4
+    }
+  },
+  "note": "Finance holds payments.read. Newest first. base_amount_kobo is the service fee the share was taken of; the platform fee is never part of it."
+}

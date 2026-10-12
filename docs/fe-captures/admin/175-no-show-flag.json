@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/54dfa5dd-f099-4bf0-8212-95f614ffa143/no-show",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Caregiver not at the door at the start time"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "54dfa5dd-f099-4bf0-8212-95f614ffa143",
+      "booking_code": "CE454A59",
+      "status": "accepted",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "refund_amount_kobo": null,
+      "no_show_flagged_at": "2026-10-07T20:41:04.461698",
+      "notified_caregivers": 0
+    }
+  },
+  "note": "A no-show flag holds the booking's pending earning. There is none yet (the visit has not happened), so what it changes is the credit that follows."
+}

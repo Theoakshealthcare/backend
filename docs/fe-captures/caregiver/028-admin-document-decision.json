@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/documents/31aba2ee-a650-4593-8441-7da01b7b3ba9/decision",
+    "path": "/api/v1/admin/caregivers/documents/8ca8f9ca-8edb-484a-b141-4de7e5f21266/decision",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "decision": "verified"
@@ -15,12 +15,12 @@
     "body": {
       "auto_suspended": false,
       "affected_bookings": [],
-      "id": "31aba2ee-a650-4593-8441-7da01b7b3ba9",
-      "caregiver_id": "c40e90d9-a8f8-400b-8fef-4c3f25a9dea6",
+      "id": "8ca8f9ca-8edb-484a-b141-4de7e5f21266",
+      "caregiver_id": "657acd80-fa63-4f0d-a301-83ff3877fcd8",
       "verification_status": "verified",
       "rejection_reason": null,
       "expires_on": null,
-      "verified_at": "2026-10-07T14:31:55.292384"
+      "verified_at": "2026-10-07T19:48:45.607806"
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/admins/9aa00abc-3ac1-4446-a050-e6d023ec6fd9/reset-mfa",
+    "path": "/api/v1/admin/admins/2b1fa58b-8813-47af-bb5b-f426d68d0776/reset-mfa",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

@@ -22,7 +22,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "detail": "Pricing already exists; use PUT on the latest version (baf282ad-31ae-466c-96cb-d4249b1bfa2d)"
+      "detail": "Pricing already exists; use PUT on the latest version (35727fd8-5030-48d5-b98f-b11bcdcfbe14)"
     }
   },
   "note": "POST only creates the first version. Afterwards use PUT on the latest."

@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/wallet",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "balance": 3300000,
+      "total_earned": 4000000,
+      "total_withdrawn": 0,
+      "currency": "NGN",
+      "available_balance": 3300000,
+      "pending_balance": 0,
+      "held_balance": 0,
+      "total_pending": 0,
+      "next_available_at": null
+    }
+  }
+}

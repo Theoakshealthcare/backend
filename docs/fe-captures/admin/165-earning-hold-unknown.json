@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/earnings/40337ead-2d28-4a1d-9f97-5b71f49b3cd8/hold",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Nobody"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Earning not found"
+    }
+  }
+}

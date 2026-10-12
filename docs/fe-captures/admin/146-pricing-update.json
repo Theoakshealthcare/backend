@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PUT",
-    "path": "/api/v1/booking-settings/fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+    "path": "/api/v1/booking-settings/37fab89f-6286-4aa0-b23f-fcd28bd7096b",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "base_fee": 6500,
@@ -31,9 +31,9 @@
       "surge_pricing": true,
       "surge_multiplier": 1.5,
       "discount": 0.0,
-      "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
-      "created_at": "2026-10-07T14:36:03.921849",
-      "updated_at": "2026-10-07T14:36:03.921849"
+      "id": "35727fd8-5030-48d5-b98f-b11bcdcfbe14",
+      "created_at": "2026-10-07T20:40:03.790260",
+      "updated_at": "2026-10-07T20:40:03.790260"
     }
   },
   "note": "Publishes version 2 as a NEW row (new id). Version 1 is not edited."

@@ -1,10 +1,10 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/9840bf70-56cd-4786-8a1c-bd7d5628697e/assign",
+    "path": "/api/v1/admin/bookings/820fe9c4-ccc8-42c2-bfd3-b627c7f33147/assign",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "caregiver_id": "e4cccfb2-9603-48cc-b906-9bb5f206b5a0",
+      "caregiver_id": "7b212fce-fe5f-4daf-aee3-31f33f2d8633",
       "reason": "Trying"
     }
   },

@@ -12,17 +12,36 @@
     },
     "body": [
       {
-        "id": "7a34edb3-485a-4181-b2c6-561b60656e7b",
+        "id": "8ff45b85-42bd-4f5a-aca3-08c4f113d63b",
         "type": "withdrawal",
         "amount": 200000,
         "status": "pending",
+        "booking_id": null,
+        "available_at": null,
+        "released_at": null,
         "bank_name": "Placeholder Bank",
         "account_number": "0000000000",
         "account_name": "Placeholder Caregiver A",
         "reference": null,
         "narration": "Placeholder",
-        "created_at": "2026-10-07T14:32:02.759349",
-        "updated_at": "2026-10-07T14:32:02.759351"
+        "created_at": "2026-10-07T19:48:52.785350",
+        "updated_at": "2026-10-07T19:48:52.785353"
+      },
+      {
+        "id": "a922a046-adbd-47e5-82dc-e374d127d795",
+        "type": "earning",
+        "amount": 4000000,
+        "status": "pending_clearance",
+        "booking_id": "33aab3da-4b4d-4c99-a221-c2c276904a8c",
+        "available_at": "2026-10-08T19:48:51.599904",
+        "released_at": null,
+        "bank_name": null,
+        "account_number": null,
+        "account_name": null,
+        "reference": "71DC62E0",
+        "narration": "Visit 71DC62E0",
+        "created_at": "2026-10-07T19:48:51.603145",
+        "updated_at": "2026-10-07T19:48:51.603147"
       }
     ]
   }

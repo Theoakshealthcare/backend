@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "More than a week",
+      "earning_hold_hours": 169
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "earning_hold_hours cannot be more than 168 hours"
+    }
+  }
+}

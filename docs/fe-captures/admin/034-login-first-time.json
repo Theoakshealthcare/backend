@@ -4,7 +4,7 @@
     "path": "/api/v1/admin/auth/login",
     "auth": null,
     "body": {
-      "email": "verifier-1b46d2@example.com",
+      "email": "verifier-f722ce@example.com",
       "password": "<PLACEHOLDER_PASSWORD>"
     }
   },
@@ -16,7 +16,7 @@
     "body": {
       "mfa_enrollment_required": true,
       "mfa_token": "<MFA_TOKEN_JWT>",
-      "otpauth_uri": "otpauth://totp/Oakly%20Admin:verifier-1b46d2%40example.com?secret=<TOTP_SECRET>&issuer=Oakly%20Admin",
+      "otpauth_uri": "otpauth://totp/Oakly%20Admin:verifier-f722ce%40example.com?secret=<TOTP_SECRET>&issuer=Oakly%20Admin",
       "secret": "<TOTP_SECRET>"
     }
   },

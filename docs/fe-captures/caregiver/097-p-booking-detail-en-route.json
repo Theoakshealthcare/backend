@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/booking/booking/fd0c880b-c232-46ee-8c12-843cdf21c11f",
+    "path": "/api/v1/booking/booking/33aab3da-4b4d-4c99-a221-c2c276904a8c",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -11,21 +11,21 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "fd0c880b-c232-46ee-8c12-843cdf21c11f",
-      "booking_code": "44E98730",
+      "id": "33aab3da-4b4d-4c99-a221-c2c276904a8c",
+      "booking_code": "71DC62E0",
       "channel": "app",
-      "patient_id": "36c8486b-d647-4a0d-87bf-d1cc58fb8e5c",
+      "patient_id": "15be1b3b-b31e-4438-8245-d0a5eef6b101",
       "patient_details": {
-        "patient_id": "36c8486b-d647-4a0d-87bf-d1cc58fb8e5c",
+        "patient_id": "15be1b3b-b31e-4438-8245-d0a5eef6b101",
         "full_name": "Placeholder Patient",
-        "phone_number": "+2340000903004",
+        "phone_number": "+2340000702004",
         "profile_image_url": null,
         "emergency_contact_name": null,
         "emergency_contact_phone": null
       },
-      "caregiver_id": "c40e90d9-a8f8-400b-8fef-4c3f25a9dea6",
+      "caregiver_id": "657acd80-fa63-4f0d-a301-83ff3877fcd8",
       "caregiver_details": {
-        "caregiver_id": "c40e90d9-a8f8-400b-8fef-4c3f25a9dea6",
+        "caregiver_id": "657acd80-fa63-4f0d-a301-83ff3877fcd8",
         "full_name": "Placeholder Caregiver A",
         "specialization": "Elderly Care",
         "profile_image_url": null,
@@ -33,15 +33,15 @@
         "current_longitude": 3.4723,
         "distance_from_patient": 0.0,
         "estimated_arrival_time": 5,
-        "last_location_update": "2026-10-07T14:31:57.334112",
+        "last_location_update": "2026-10-07T19:48:47.522099",
         "is_online": true
       },
       "service_type": "nurse",
       "assistance_type": "Placeholder assistance",
       "condition": "Placeholder condition",
       "duration_hours": 2,
-      "scheduled_date": "2026-10-07T14:46:59.390047",
-      "scheduled_end_date": "2026-10-07T16:46:59.390047",
+      "scheduled_date": "2026-10-07T20:03:49.596766",
+      "scheduled_end_date": "2026-10-07T22:03:49.596766",
       "patient_address": "12 Placeholder Street, Lekki",
       "patient_latitude": 6.4474,
       "patient_longitude": 3.4723,
@@ -54,10 +54,10 @@
       "platform_fee": 5000.0,
       "special_instructions": "Placeholder instructions",
       "booking_for": "myself",
-      "created_at": "2026-10-07T14:31:59.389155",
-      "updated_at": "2026-10-07T14:32:01.419652",
+      "created_at": "2026-10-07T19:48:49.595651",
+      "updated_at": "2026-10-07T19:48:51.495672",
       "dispatch_state": "matched",
-      "visit_code": "3629",
+      "visit_code": "0091",
       "payment_url": null,
       "payment_access_code": null,
       "payment_error": null

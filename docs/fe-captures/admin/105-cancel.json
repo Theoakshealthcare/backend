@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/195e0918-821a-45dc-a0c2-5a9d30182b95/cancel",
+    "path": "/api/v1/admin/bookings/61cc3da4-2a0d-4760-b20b-dcc41d12c5bd/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason_code": "patient_request",
@@ -15,8 +15,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "195e0918-821a-45dc-a0c2-5a9d30182b95",
-      "booking_code": "5939F55D",
+      "id": "61cc3da4-2a0d-4760-b20b-dcc41d12c5bd",
+      "booking_code": "16CEFA37",
       "status": "cancelled",
       "payment_status": "paid",
       "dispatch_state": "dispatching",
@@ -24,6 +24,7 @@
       "needs_address_check": false,
       "refund_required": true,
       "refund_required_reason": "admin_cancelled_full",
+      "refund_amount_kobo": 5500000,
       "no_show_flagged_at": null,
       "notified_caregivers": 0
     }

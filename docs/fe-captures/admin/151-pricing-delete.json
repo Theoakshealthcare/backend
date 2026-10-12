@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "DELETE",
-    "path": "/api/v1/booking-settings/fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+    "path": "/api/v1/booking-settings/37fab89f-6286-4aa0-b23f-fcd28bd7096b",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

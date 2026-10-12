@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/booking/booking/565d4fac-8c14-4c40-9459-3a58334bb5e5",
+    "path": "/api/v1/booking/booking/e39aae3d-21a9-4b17-91a4-3d05b71f490b",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Too high",
+      "caregiver_visit_share_percent": 101
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "caregiver_visit_share_percent must be between 0 and 100"
+    }
+  }
+}

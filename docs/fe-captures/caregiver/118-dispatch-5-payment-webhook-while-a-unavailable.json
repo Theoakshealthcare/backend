@@ -6,7 +6,7 @@
     "body": {
       "event": "charge.success",
       "data": {
-        "reference": "BKG_5A209C8A_cf4238c9",
+        "reference": "BKG_EE991DF4_f21f330d",
         "amount": 5500000,
         "status": "success",
         "channel": "card",

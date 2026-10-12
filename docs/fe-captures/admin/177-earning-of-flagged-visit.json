@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/earnings?booking_id=54dfa5dd-f099-4bf0-8212-95f614ffa143",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "93a76a78-39a2-4050-bff6-602d9dee686c",
+          "type": "earning",
+          "status": "held",
+          "amount_kobo": 4000000,
+          "base_amount_kobo": 5000000,
+          "share_percent": 80,
+          "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+          "caregiver_name": "Placeholder Nurse Earnings",
+          "booking_id": "54dfa5dd-f099-4bf0-8212-95f614ffa143",
+          "booking_code": "CE454A59",
+          "available_at": "2026-10-08T20:41:04.468853",
+          "released_at": null,
+          "status_reason": "No-show flagged on this booking",
+          "status_changed_by": "11f2512a-b186-41d5-a07a-81b10c5d2aec",
+          "status_changed_at": "2026-10-07T20:41:04.468853",
+          "created_at": "2026-10-07T20:41:04.470590"
+        }
+      ],
+      "total": 1
+    }
+  },
+  "note": "Credited already held, with the no-show as the reason: it cannot clear until Finance releases the hold."
+}

@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/earnings/3b7c3e27-843a-4423-8a6f-00ee53cdd546/release-hold",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Dispute resolved"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+      "type": "earning",
+      "status": "pending_clearance",
+      "amount_kobo": 4000000,
+      "base_amount_kobo": 5000000,
+      "share_percent": 80,
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "caregiver_name": "Placeholder Nurse Earnings",
+      "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+      "booking_code": "0A521CEA",
+      "available_at": "2026-10-08T20:41:04.296220",
+      "released_at": null,
+      "status_reason": "Dispute resolved",
+      "status_changed_by": "d243ad6f-c5e7-4bda-af33-0e4401313bf6",
+      "status_changed_at": "2026-10-07T20:41:04.428779",
+      "created_at": "2026-10-07T20:41:04.299886"
+    }
+  },
+  "note": "Pending again. Its original available_at still applies."
+}

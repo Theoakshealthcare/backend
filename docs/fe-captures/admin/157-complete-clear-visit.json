@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/52998575-5b0c-4186-9443-d29a4336d9d1/correct-status",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "status": "completed",
+      "reason": "Caregiver forgot to check out"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "52998575-5b0c-4186-9443-d29a4336d9d1",
+      "booking_code": "99650F53",
+      "status": "completed",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "refund_amount_kobo": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  }
+}

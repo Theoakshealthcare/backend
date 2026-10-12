@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/wallet/withdraw",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "amount": 3000000,
+      "narration": "Placeholder: more than the available balance"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Insufficient wallet balance."
+    }
+  },
+  "note": "30,000.00 would fit in available + pending, but only the available balance can be withdrawn."
+}

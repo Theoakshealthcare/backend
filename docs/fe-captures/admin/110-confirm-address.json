@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/b316785e-b27a-44c6-85bd-3246c2ea9648/confirm-address",
+    "path": "/api/v1/admin/bookings/5b521068-1e0c-4e08-a910-70e2247edee1/confirm-address",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Called the booker and confirmed the street",
@@ -16,8 +16,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
-      "booking_code": "06C5304A",
+      "id": "5b521068-1e0c-4e08-a910-70e2247edee1",
+      "booking_code": "81931E50",
       "status": "pending",
       "payment_status": "paid",
       "dispatch_state": "dispatching",
@@ -25,6 +25,7 @@
       "needs_address_check": false,
       "refund_required": false,
       "refund_required_reason": null,
+      "refund_amount_kobo": null,
       "no_show_flagged_at": null,
       "notified_caregivers": 2
     }

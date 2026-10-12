@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "UPDATE caregiver_transactions SET available_at = <1 minute ago> WHERE caregiver_id = <the caregiver>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SIMULATION: stands in for waiting 24 hours so the capture can continue."
+}

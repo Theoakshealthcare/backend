@@ -2,14 +2,18 @@
 to docs/fe-captures/caregiver/*.json. docs/fe-integration-guide-caregiver.md is copied from these
 files, never from the schemas.
 
-    OAKLY_ENV_FILE_PATH=/path/to/temp.env docker compose -p oakly-c3 up --build -d
+    OAKLY_ENV_FILE_PATH=/path/to/temp.env docker compose up --build -d
     poetry run python -m scripts.capture_caregiver_flow --env-file /path/to/temp.env
 
 What is real and what is not
 - Every API call is a real HTTP call to the running API (default http://127.0.0.1:8000).
 - Seeded directly in the database (there is no API for it): the admin user, the booking rows (the
   patient booking endpoint needs a live Paystack account), the caregiver wallet balance, and two
-  "wait 15 minutes" shortcuts (the visit-code lock expiry). Each is labelled in the captures.
+  "wait 15 minutes" shortcuts (the visit-code lock expiry) and the 24-hour earning hold (the earning's available_at
+  is moved into the past). Each is labelled in the captures.
+- The earnings release job is the real function (app.services.earnings.release_due, the body of the worker's
+  earnings_release_job), run once inside the worker container with `docker compose exec`; in production the ARQ
+  cron runs it every five minutes.
 - Payment is settled with a correctly signed Paystack *webhook* sent to the API's own webhook route.
 - Expo is a local fake receiver started by this script (the API is pointed at it through
   EXPO_PUSH_URL in the env file). The push REQUEST bodies are exactly what the API sent; the
@@ -25,6 +29,7 @@ import hmac
 import json
 import re
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -216,6 +221,15 @@ def seed_admin_session(rec: "Recorder", db: "DB", env: Dict[str, str], email: st
                      json_body={"email": email, "password": PLACEHOLDER_PASSWORD}).json()
     return rec.call("admin-mfa-verify", "POST", "/api/v1/admin/auth/mfa/verify", json_body={
         "mfa_token": step1["mfa_token"], "code": pyotp.TOTP(secret).now()}).json()["access_token"]
+
+
+def run_release_job() -> int:
+    """Run the earnings release job once, inside the worker container of the default compose project."""
+    code = ("from app.db.session import SessionLocal; from app.services.earnings import release_due; "
+            "db = SessionLocal(); print('released=%d' % release_due(db))")
+    out = subprocess.run(["docker", "compose", "exec", "-T", "worker", "python", "-c", code],
+                         capture_output=True, text=True, check=True).stdout
+    return int(out.strip().splitlines()[-1].split("=")[1])
 
 
 class Ctx:
@@ -637,7 +651,9 @@ def run(args) -> None:
     rec.save("db-seeded-wallet-balance", {
         "request": {"method": "SQL", "path": "INSERT INTO caregiver_wallets ... balance = 2500000 (kobo)", "auth": None, "body": None},
         "response": {"status_code": None, "headers": {}, "body": None},
-        "note": "SEEDED: nothing in the API credits a caregiver wallet yet, so the balance was inserted directly.",
+        "note": "SEEDED: an AVAILABLE balance of 25,000.00 NGN, so withdrawals can be exercised now (a real earning needs "
+                "its hold to pass first; see the earnings captures at the end). The visit completed above also credited "
+                "a real PENDING earning, which shows in pending_balance.",
     })
     rec.call("a-wallet", "GET", "/api/v1/caregiver/wallet", token=ta)
     rec.call("a-bank-account-not-set", "GET", "/api/v1/caregiver/bank-account", token=ta, expect=404)
@@ -720,6 +736,53 @@ def run(args) -> None:
         "response": {"status_code": None, "headers": {}, "body": {"status": still[0], "still_assigned": still[1]}},
         "note": "The refused cancel changed nothing: the booking is still accepted and still assigned to the caregiver.",
     })
+
+    # --- earnings: pending -> held -> pending -> available (appended last, numbers above do not move) --------------
+    (earning_id,) = db.run("SELECT id FROM caregiver_transactions WHERE caregiver_id = %s AND type = 'earning'",
+                           (a["id"],))[0]
+    rec.call("a-wallet-with-pending-earning", "GET", "/api/v1/caregiver/wallet", token=ta,
+             note="The visit completed earlier credited 80% of its 50,000.00 service fee as a pending earning. "
+                  "available_balance is only the seeded 23,000.00 left after the earlier withdrawal.")
+    rec.call("a-transactions-with-pending-earning", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
+    rec.call("a-withdraw-pending-money-refused", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta, expect=400,
+             json_body={"amount": 3000000, "narration": "Placeholder: more than the available balance"},
+             note="30,000.00 would fit in available + pending, but only the available balance can be withdrawn.")
+    rec.call("admin-hold-earning", "POST", f"/api/v1/admin/earnings/{earning_id}/hold", token=admin,
+             json_body={"reason": "Placeholder: the family disputes the visit"})
+    rec.call("a-wallet-with-held-earning", "GET", "/api/v1/caregiver/wallet", token=ta)
+    rec.call("a-transactions-with-held-earning", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
+    db.run("UPDATE caregiver_transactions SET available_at = now() at time zone 'utc' - interval '1 minute' WHERE id = %s",
+           (earning_id,))
+    rec.save("db-simulated-24-hour-earning-hold", {
+        "request": {"method": "SQL", "path": "UPDATE caregiver_transactions SET available_at = <1 minute ago> WHERE id = <the earning>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION: stands in for waiting 24 hours so the capture can continue.",
+    })
+    held_run = run_release_job()
+    rec.save("worker-release-job-while-held", {
+        "request": {"method": "JOB", "path": "earnings_release_job (app.services.earnings.release_due), run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"released": held_run}},
+        "note": "The hold has passed but the earning is held, so the job leaves it alone.",
+    })
+    rec.call("admin-release-hold-earning", "POST", f"/api/v1/admin/earnings/{earning_id}/release-hold", token=admin,
+             json_body={"reason": "Placeholder: dispute resolved in the caregiver's favour"})
+    released_run = run_release_job()
+    rec.save("worker-release-job", {
+        "request": {"method": "JOB", "path": "earnings_release_job (app.services.earnings.release_due), run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"released": released_run}},
+        "note": "In production the ARQ cron runs this every five minutes. Here the same function was run once.",
+    })
+    rec.call("a-wallet-after-release", "GET", "/api/v1/caregiver/wallet", token=ta)
+    rec.call("a-transactions-after-release", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
+    rec.call("admin-hold-released-earning", "POST", f"/api/v1/admin/earnings/{earning_id}/hold", token=admin, expect=409,
+             json_body={"reason": "Placeholder: too late"})
+    rec.call("a-withdraw-released-money", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta,
+             json_body={"amount": 3000000, "narration": "Placeholder"},
+             note="The same 30,000.00 that was refused while the earning was pending.")
+    rec.call("a-wallet-after-second-withdrawal", "GET", "/api/v1/caregiver/wallet", token=ta)
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_caregiver_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")
