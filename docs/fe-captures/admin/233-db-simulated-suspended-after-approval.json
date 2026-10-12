@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "UPDATE caregivers SET profile_status = 'suspended' WHERE id = <Placeholder Suspended Later>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SIMULATION: the caregiver is suspended after the batch was approved and before the send job runs (an admin would do this through the caregiver suspension route; the database edit stands in for it)."
+}

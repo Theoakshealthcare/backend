@@ -11,7 +11,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "detail": "Your wallet still has a balance. Withdraw it to your bank account, then delete your account."
+      "detail": "Your wallet still has a balance. It is paid to your bank account on the next payout day; once it has been paid out, you can delete your account."
     }
   }
 }

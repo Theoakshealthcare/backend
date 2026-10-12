@@ -1,8 +1,8 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, StreamingResponse
 import csv
 from io import StringIO
@@ -11,7 +11,6 @@ from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.deps import get_current_user, get_db, get_user_or_admin, is_admin
-from app.core.config import settings
 from app.db.models.admin import AdminUser
 from app.db.models.user import User
 from app.schemas.caregiver import (
@@ -27,12 +26,14 @@ from app.schemas.caregiver import (
     VerificationResultRequest,
     CaregiverWalletSummary,
     CaregiverTransactionOut,
+    BankAccountResolveOut,
+    BankAccountResolveRequest,
+    BankOut,
     CaregiverBankAccountOut,
     CaregiverBankAccountUpdate,
-    CaregiverWithdrawalRequest,
-    CaregiverWithdrawalResponse
 )
 from app.services.caregiver import CaregiverService
+from app.services import bank_accounts, booking_policy, payouts
 from app.services import earnings as earnings_service
 from app.db.models.caregiver import EARNING_TYPES, CaregiverWallet, CaregiverTransaction, CaregiverBankAccount, Caregiver, CaregiverDocument
 
@@ -290,10 +291,12 @@ def get_wallet_summary(
     ).with_entities(func.coalesce(func.sum(CaregiverTransaction.amount), 0)).scalar()
     total_withdrawn = db.query(CaregiverTransaction).filter(
         CaregiverTransaction.caregiver_id == caregiver.id,
-        CaregiverTransaction.type == 'withdrawal',
+        CaregiverTransaction.type.in_(('withdrawal', 'payout')),
         CaregiverTransaction.status == 'successful'
     ).with_entities(func.coalesce(func.sum(CaregiverTransaction.amount), 0)).scalar()
     bal = earnings_service.balances(db, caregiver.id, wallet)
+    policy = booking_policy.current(db)
+    acct = db.query(CaregiverBankAccount).filter(CaregiverBankAccount.caregiver_id == caregiver.id).first()
     return CaregiverWalletSummary(
         balance=bal.available_kobo,
         total_earned=total_earned or 0,
@@ -304,6 +307,11 @@ def get_wallet_summary(
         held_balance=bal.held_kobo,
         total_pending=bal.pending_kobo + bal.held_kobo,
         next_available_at=bal.next_available_at,
+        payout_cadence=policy.payout_cadence,
+        payout_min_kobo=policy.payout_min_naira * 100,
+        next_payout_on=payouts.next_payout_date(policy.payout_cadence, datetime.utcnow().date()),
+        payout_in_progress_kobo=payouts.in_progress_kobo(db, caregiver.id),
+        payouts_blocked_until=acct.payout_blocked_until if bank_accounts.is_cooling_down(acct) else None,
     )
 
 
@@ -392,117 +400,105 @@ def download_payslip(
     return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 
+def _caregiver_or_403(current_user: User, db: Session) -> Caregiver:
+    if current_user.user_type != "caregiver":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Caregiver account required.")
+    caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
+    if not caregiver:
+        raise HTTPException(status_code=404, detail="Caregiver profile not found.")
+    return caregiver
+
+
+def _bank_error(exc: bank_accounts.BankError) -> HTTPException:
+    if isinstance(exc, bank_accounts.BankThrottled):
+        return HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc))
+    if isinstance(exc, bank_accounts.BankUnavailable):
+        return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+def _bank_out(acct: CaregiverBankAccount) -> CaregiverBankAccountOut:
+    return CaregiverBankAccountOut(
+        bank_name=acct.bank_name,
+        bank_code=acct.bank_code,
+        account_number=acct.account_number,
+        account_name=acct.account_name,
+        verified=bool(acct.recipient_code),
+        payouts_blocked_until=acct.payout_blocked_until if bank_accounts.is_cooling_down(acct) else None,
+        created_at=acct.created_at,
+        updated_at=acct.updated_at
+    )
+
+
+@router.get("/banks", response_model=List[BankOut])
+def list_banks(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Banks a payout can go to (from Paystack, cached for a day). The app shows the names and sends back the code."""
+    _caregiver_or_403(current_user, db)
+    db.rollback()  # no transaction is held while Paystack is called
+    try:
+        return bank_accounts.list_banks()
+    except bank_accounts.BankError as exc:
+        raise _bank_error(exc)
+
+
+@router.post("/bank-account/resolve", response_model=BankAccountResolveOut)
+def resolve_bank_account(
+    data: BankAccountResolveRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check an account number and bank and return the name the bank holds for it, so the caregiver can confirm it is
+    theirs before saving. Rate limited per caregiver."""
+    caregiver = _caregiver_or_403(current_user, db)
+    caregiver_id = caregiver.id
+    db.rollback()
+    try:
+        resolved = bank_accounts.resolve(caregiver_id, data.account_number, data.bank_code)
+    except bank_accounts.BankError as exc:
+        raise _bank_error(exc)
+    return BankAccountResolveOut(account_name=resolved.account_name, account_number=resolved.account_number,
+                                 bank_code=resolved.bank_code, bank_name=resolved.bank_name)
+
+
 @router.get("/bank-account", response_model=CaregiverBankAccountOut)
 def get_bank_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.user_type != "caregiver":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Caregiver account required.")
-    caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
-    if not caregiver:
-        raise HTTPException(status_code=404, detail="Caregiver profile not found.")
+    caregiver = _caregiver_or_403(current_user, db)
     acct = db.query(CaregiverBankAccount).filter(CaregiverBankAccount.caregiver_id == caregiver.id).first()
     if not acct:
         raise HTTPException(status_code=404, detail="Bank account not set.")
-    return CaregiverBankAccountOut(
-        bank_name=acct.bank_name,
-        account_number=acct.account_number,
-        account_name=acct.account_name,
-        created_at=acct.created_at,
-        updated_at=acct.updated_at
-    )
+    return _bank_out(acct)
+
 
 @router.put("/bank-account", response_model=CaregiverBankAccountOut)
 def update_bank_account(
     data: CaregiverBankAccountUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.user_type != "caregiver":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Caregiver account required.")
-    caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
-    if not caregiver:
-        raise HTTPException(status_code=404, detail="Caregiver profile not found.")
-    acct = db.query(CaregiverBankAccount).filter(CaregiverBankAccount.caregiver_id == caregiver.id).first()
-    if not acct:
-        acct = CaregiverBankAccount(
-            caregiver_id=caregiver.id,
-            bank_name=data.bank_name,
-            account_number=data.account_number,
-            account_name=data.account_name
-        )
-        db.add(acct)
-    else:
-        acct.bank_name = data.bank_name
-        acct.account_number = data.account_number
-        acct.account_name = data.account_name
-    db.commit()
-    db.refresh(acct)
-    return CaregiverBankAccountOut(
-        bank_name=acct.bank_name,
-        account_number=acct.account_number,
-        account_name=acct.account_name,
-        created_at=acct.created_at,
-        updated_at=acct.updated_at
-    )
+    """Save the payout account. The server resolves the account holder's name itself (a name sent by the client is never
+    used) and registers the account with Paystack. Changing to a different account, or saving the first one while there is money in the wallet,
+    blocks payouts for 24 hours."""
+    caregiver = _caregiver_or_403(current_user, db)
+    db.rollback()
+    try:
+        result = bank_accounts.save(db, caregiver, data.account_number, data.bank_code, request=request)
+    except bank_accounts.BankError as exc:
+        raise _bank_error(exc)
+    return _bank_out(result.account)
 
 
-@router.post("/wallet/withdraw", response_model=CaregiverWithdrawalResponse)
-def request_withdrawal(
-    data: CaregiverWithdrawalRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+@router.post("/wallet/withdraw", status_code=status.HTTP_410_GONE, include_in_schema=True,
+             responses={410: {"description": "Self-withdrawal was replaced by scheduled payouts."}})
+def request_withdrawal(current_user: User = Depends(get_current_user)):
+    """Removed. Caregivers no longer withdraw: the available balance is paid to their bank account on the payout schedule
+    (A3 slice 2). Kept as a clear 410 so an older app version shows a message instead of an unexplained 404."""
     if current_user.user_type != "caregiver":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Caregiver account required.")
-    caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
-    if not caregiver:
-        raise HTTPException(status_code=404, detail="Caregiver profile not found.")
-    if data.amount < settings.MIN_WITHDRAWAL_KOBO:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Minimum withdrawal is {settings.MIN_WITHDRAWAL_KOBO} kobo.",
-        )
-    # Only the available balance can be withdrawn: wallet.balance never includes earnings that are pending or held.
-    # (Self-withdrawal is slated for removal when scheduled payouts ship; see docs/sop/2026-10-07-caregiver-earnings.md.)
-    # Lock the wallet row so check + deduct is atomic; populate_existing forces a fresh
-    # read of the balance after we acquire the lock.
-    wallet = (
-        db.query(CaregiverWallet)
-        .filter(CaregiverWallet.caregiver_id == caregiver.id)
-        .with_for_update()
-        .populate_existing()
-        .first()
-    )
-    if not wallet or wallet.balance < data.amount:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="Insufficient wallet balance.")
-    acct = db.query(CaregiverBankAccount).filter(CaregiverBankAccount.caregiver_id == caregiver.id).first()
-    if not acct:
-        db.rollback()
-        raise HTTPException(status_code=400, detail="Bank account not set.")
-    # Create withdrawal transaction (pending)
-    from uuid import uuid4
-    tx = CaregiverTransaction(
-        id=uuid4(),
-        caregiver_id=caregiver.id,
-        type='withdrawal',
-        amount=data.amount,
-        status='pending',
-        bank_name=acct.bank_name,
-        account_number=acct.account_number,
-        account_name=acct.account_name,
-        narration=data.narration
-    )
-    wallet.balance -= data.amount
-    db.add(tx)
-    db.commit()
-    db.refresh(tx)
-    db.refresh(wallet)
-    # In production, trigger payout process here (manual or automated)
-    return CaregiverWithdrawalResponse(
-        transaction_id=str(tx.id),
-        status=tx.status,
-        message="Withdrawal request submitted. Processing will be completed soon."
-    )
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Withdrawals are no longer available. Your available balance is paid to your bank account automatically "
+               "on the payout schedule.")

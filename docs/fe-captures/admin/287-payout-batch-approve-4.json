@@ -1,0 +1,72 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/batches/9cd7b121-359b-4433-a772-065b84ce0c42/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: totals checked against the ledger"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "9cd7b121-359b-4433-a772-065b84ce0c42",
+      "period_key": "2026-11-09",
+      "cadence": "weekly",
+      "min_payout_kobo": 500000,
+      "status": "approved",
+      "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
+      "approved_at": "2026-10-12T16:52:26.865863",
+      "approval_reason": "Placeholder: totals checked against the ledger",
+      "created_at": "2026-10-12T16:52:26.628520",
+      "payout_count": 1,
+      "total_kobo": 1000000,
+      "counts": {
+        "processing": 1
+      },
+      "payouts": [
+        {
+          "id": "b3f6d81c-7efb-47a3-a185-225fe53b13cb",
+          "batch_id": "9cd7b121-359b-4433-a772-065b84ce0c42",
+          "batch_period": "2026-11-09",
+          "caregiver_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+          "caregiver_name": "Placeholder Net Off",
+          "amount_kobo": 1000000,
+          "status": "processing",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0031",
+          "account_name": "PLACEHOLDER NET OFF",
+          "reference": "po-b3f6d81c7efb47a3a185225fe53b13cb-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-b3f6d81c7efb47a3a185225fe53b13cb-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-12T16:52:26.646622"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
+          "approved_at": "2026-10-12T16:52:26.865863",
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-12T16:52:26.644676"
+        }
+      ]
+    }
+  }
+}

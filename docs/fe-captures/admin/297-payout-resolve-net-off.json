@@ -1,0 +1,56 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/b32830a0-3b72-4a3c-a4b6-4e0aaed97f88/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "failed",
+      "reason": "Paystack shows the second transfer as failed"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "b32830a0-3b72-4a3c-a4b6-4e0aaed97f88",
+      "batch_id": "35131769-9992-451a-b5cb-e5711a330dff",
+      "batch_period": "2026-11-16",
+      "caregiver_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+      "caregiver_name": "Placeholder Net Off",
+      "amount_kobo": 1000000,
+      "status": "failed",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0031",
+      "account_name": "PLACEHOLDER NET OFF",
+      "reference": "po-b32830a03b724a3ca4b64e0aaed97f88-1",
+      "transfer_code": "TRF_3aa31c3d503b",
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-b32830a03b724a3ca4b64e0aaed97f88-1",
+          "status": "failed",
+          "failure_reason": "Resolved as failed by an admin: Paystack shows the second transfer as failed",
+          "created_at": "2026-10-12T16:52:30.364905"
+        }
+      ],
+      "shortfall_kobo": 0,
+      "returned_kobo": 0,
+      "netted_kobo": 1000000,
+      "caregiver_payouts_frozen_at": "2026-10-12T16:52:32.511577",
+      "caregiver_payouts_frozen_reason": "Payout b3f6d81c-7efb-47a3-a185-225fe53b13cb: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
+      "failure_reason": "Resolved as failed by an admin: Paystack shows the second transfer as failed",
+      "initiated_at": "2026-10-12T16:52:32.312137",
+      "completed_at": "2026-10-12T16:52:32.546114",
+      "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
+      "approved_at": "2026-10-12T16:52:30.589376",
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-12T16:52:30.362999"
+    }
+  },
+  "note": "Resolving as failed nets the reservation against the caregiver's shortfall: 10,000.00 NGN reserved, 10,000.00 NGN shortfall, so returned_kobo is 0 and netted_kobo is 1000000. The first payout's shortfall_kobo goes to 0."
+}

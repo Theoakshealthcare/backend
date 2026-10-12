@@ -4,10 +4,10 @@
     "path": "/api/v1/auth/register",
     "auth": null,
     "body": {
-      "email": "caregiver-e-d2e706@example.com",
+      "email": "caregiver-e-d0c81e@example.com",
       "password": "<PLACEHOLDER_PASSWORD>",
       "full_name": "Placeholder Caregiver E Again",
-      "phone_number": "+2340000702006",
+      "phone_number": "+2340000718006",
       "user_type": "caregiver"
     }
   },
@@ -17,16 +17,16 @@
       "content-type": "application/json"
     },
     "body": {
-      "email": "caregiver-e-d2e706@example.com",
-      "phone_number": "+2340000702006",
+      "email": "caregiver-e-d0c81e@example.com",
+      "phone_number": "+2340000718006",
       "full_name": "Placeholder Caregiver E Again",
       "user_type": "caregiver",
       "profile_image_url": null,
-      "id": "5e1d3c9d-a8ae-4b96-a1b2-05b78ccad836",
+      "id": "5dae7510-7e3a-4288-a254-951be97c177f",
       "is_active": true,
       "is_verified": false,
-      "created_at": "2026-10-07T19:48:54.444884",
-      "updated_at": "2026-10-07T19:48:54.448012"
+      "created_at": "2026-10-12T13:35:28.606152",
+      "updated_at": "2026-10-12T13:35:28.609132"
     }
   },
   "note": "The old account's email was replaced by a placeholder, so the same email registers a new account."

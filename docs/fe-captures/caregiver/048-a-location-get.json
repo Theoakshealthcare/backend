@@ -11,14 +11,14 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "baa013b4-c4f2-41dd-8228-4a85543b5899",
-      "caregiver_id": "657acd80-fa63-4f0d-a301-83ff3877fcd8",
+      "id": "7a6add1d-871a-455e-b4e9-055328d79e23",
+      "caregiver_id": "c75fce86-2eac-489f-b0f9-70b2286cf0de",
       "latitude": 6.4494,
       "longitude": 3.4723,
       "accuracy": 10.0,
       "is_active": true,
       "is_available": true,
-      "recorded_at": "2026-10-07T19:48:47.372875"
+      "recorded_at": "2026-10-12T13:35:21.484082"
     }
   }
 }

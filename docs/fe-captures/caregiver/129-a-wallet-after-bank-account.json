@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/wallet",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "balance": 2500000,
+      "total_earned": 0,
+      "total_withdrawn": 0,
+      "currency": "NGN",
+      "available_balance": 2500000,
+      "pending_balance": 4000000,
+      "held_balance": 0,
+      "total_pending": 4000000,
+      "next_available_at": "2026-10-13T13:35:25.708848",
+      "payout_cadence": "weekly",
+      "payout_min_kobo": 500000,
+      "next_payout_on": "2026-10-19",
+      "payout_in_progress_kobo": 0,
+      "payouts_blocked_until": "2026-10-13T13:35:26.985349"
+    }
+  }
+}

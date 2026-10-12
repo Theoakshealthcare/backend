@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/payment/paystack/webhook",
+    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>",
+    "body": {
+      "event": "transfer.success",
+      "data": {
+        "amount": 1200000,
+        "currency": "NGN",
+        "reason": "Oakly caregiver payout",
+        "reference": "po-05e5c555de5240808071575e11acb302-1",
+        "status": "success",
+        "transfer_code": "TRF_3f06ba051282",
+        "recipient": {
+          "recipient_code": "RCP_9809a8b99db3"
+        }
+      }
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {},
+    "body": {
+      "status": "success",
+      "message": "Webhook processed successfully"
+    }
+  },
+  "note": "FAKE PAYSTACK: shaped after Paystack's documented transfer.success event, signed with the stack's placeholder key."
+}

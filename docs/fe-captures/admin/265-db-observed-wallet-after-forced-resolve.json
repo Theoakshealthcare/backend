@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT balance FROM caregiver_wallets WHERE caregiver_id = <Placeholder Silent Transfer>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "balance_kobo": 900000
+    }
+  },
+  "note": "OBSERVED in the database."
+}

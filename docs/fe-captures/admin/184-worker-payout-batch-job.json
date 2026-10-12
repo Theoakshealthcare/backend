@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<a payout date>), run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "period_key": "2026-10-19",
+      "payouts_made": 3
+    }
+  },
+  "note": "SIMULATION of the schedule: in production the ARQ cron runs daily and makes a batch only on a payout day (Mondays when the policy says weekly). Here the same function was run for a payout date a week ahead. Three of the five caregivers get a payout: one is below the minimum, one changed bank account 12 hours ago."
+}

@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bank-account/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "account_number": "0000000000",
+      "bank_code": "058"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "account_name": "PLACEHOLDER CAREGIVER A",
+      "account_number": "0000000000",
+      "bank_code": "058",
+      "bank_name": "Placeholder Bank"
+    }
+  },
+  "note": "FAKE PAYSTACK: the name is what the local fake returns for this placeholder account."
+}

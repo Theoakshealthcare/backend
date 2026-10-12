@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<today>), run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "period_key": "2026-10-12",
+      "payouts_made": 1
+    }
+  },
+  "note": "SIMULATION of the schedule: in production the ARQ cron runs daily and makes a batch only on a payout day (Mondays when the policy says weekly). Here the same function was run for today's date so the capture can continue. Every caregiver with a verified account and at least the minimum balance gets a payout. ALSO SIMULATED just before: the 24 hour cool-down that saving the first account started (capture a-bank-account-set) was moved into the past in the database, standing in for waiting a day."
+}

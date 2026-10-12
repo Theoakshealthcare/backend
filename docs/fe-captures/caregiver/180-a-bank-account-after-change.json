@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bank-account",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "bank_name": "Sample Microfinance Bank",
+      "bank_code": "090",
+      "account_number": "0000000001",
+      "account_name": "PLACEHOLDER ACCOUNT 0001",
+      "verified": true,
+      "payouts_blocked_until": "2026-10-13T13:35:36.522785",
+      "created_at": "2026-10-12T13:35:26.985349",
+      "updated_at": "2026-10-12T13:35:36.522785"
+    }
+  }
+}

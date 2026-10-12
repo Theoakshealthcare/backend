@@ -1,0 +1,55 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/cb440ea3-64c2-477c-8fb9-b789f993c434/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "paid",
+      "reason": "OTP entered in the Paystack dashboard; Paystack shows the transfer as successful"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "cb440ea3-64c2-477c-8fb9-b789f993c434",
+      "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
+      "batch_period": "2026-10-26",
+      "caregiver_id": "77897624-ee68-4c1f-9b43-1535ec6f26b7",
+      "caregiver_name": "Placeholder Stuck At Otp",
+      "amount_kobo": 1500000,
+      "status": "success",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0021",
+      "account_name": "PLACEHOLDER STUCK AT OTP",
+      "reference": "po-cb440ea364c2477c8fb9b789f993c434-1",
+      "transfer_code": "TRF_76abe567e61f",
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-cb440ea364c2477c8fb9b789f993c434-1",
+          "status": "success",
+          "failure_reason": null,
+          "created_at": "2026-10-12T16:52:17.705163"
+        }
+      ],
+      "shortfall_kobo": 0,
+      "returned_kobo": 0,
+      "netted_kobo": 0,
+      "caregiver_payouts_frozen_at": null,
+      "caregiver_payouts_frozen_reason": null,
+      "failure_reason": null,
+      "initiated_at": "2026-10-12T16:52:19.669063",
+      "completed_at": "2026-10-12T16:52:20.003487",
+      "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
+      "approved_at": "2026-10-12T16:52:17.940800",
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-12T16:52:17.704505"
+    }
+  }
+}

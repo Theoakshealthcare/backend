@@ -135,7 +135,7 @@ def test_caregiver_with_a_positive_balance_is_refused(db, client):
     make_caregiver_wallet(db, cg, balance_kobo=250_000)
     r = client.delete(URL, headers=auth_headers(cg.user))
     assert r.status_code == 409
-    assert "withdraw" in r.json()["detail"].lower()
+    assert "payout" in r.json()["detail"].lower()
     db.expire_all()
     assert db.get(User, cg.user_id).is_active is True
 

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/3f98faae-3f42-479f-8cab-0e34f2a4d8dc/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Finance may look but not cancel"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: ledger.adjust"
+    }
+  },
+  "note": "Cancelling moves money, so it needs ledger.adjust (Super Admin only), like approving."
+}

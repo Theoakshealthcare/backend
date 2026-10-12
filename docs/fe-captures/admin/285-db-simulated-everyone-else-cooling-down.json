@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "UPDATE caregiver_bank_accounts SET payout_blocked_until = <12 hours ahead> WHERE caregiver_id <> <Placeholder Net Off>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SIMULATION: every other caregiver is put in the bank-account cool-down so the next two batches hold only Placeholder Net Off (10,000.00 NGN)."
+}

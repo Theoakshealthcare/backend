@@ -161,21 +161,31 @@ class CaregiverCertification(Base):
 
 class CaregiverWallet(Base):
     __tablename__ = "caregiver_wallets"
+    __table_args__ = (CheckConstraint("balance >= 0", name="ck_caregiver_wallets_balance_not_negative"),)
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False, unique=True)
-    balance = Column(Integer, default=0)  # kobo; the AVAILABLE (withdrawable) balance. Pending earnings are not in it.
+    balance = Column(Integer, default=0)  # kobo; the AVAILABLE balance (paid out weekly). Pending earnings are not in it.
+    # Set when Paystack's word contradicted a payout (see app/services/payouts.py). While set, the caregiver is left out of new
+    # batches and no automatic code returns money to the balance; an admin lifts it (``unfreeze``). It lives on the wallet
+    # because the wallet row is the lock every money move already takes.
+    payouts_frozen_at = Column(DateTime, nullable=True)
+    payouts_frozen_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     caregiver = relationship("Caregiver", backref="wallet")
 
 # Transaction types and statuses. An ``earning`` or ``late_cancel_compensation`` starts ``pending_clearance`` (credited,
 # not yet withdrawable), becomes ``successful`` when the release job moves it to the wallet balance, and can be put on
-# ``held`` or ``voided`` by an admin before that. A ``withdrawal`` is ``pending`` -> ``successful`` | ``failed``.
+# ``held`` or ``voided`` by an admin before that. A legacy ``withdrawal`` is ``pending`` -> ``successful`` | ``failed``.
 TX_EARNING = "earning"
 TX_LATE_CANCEL = "late_cancel_compensation"
-TX_WITHDRAWAL = "withdrawal"
+TX_WITHDRAWAL = "withdrawal"  # legacy self-withdrawals (the endpoint is gone); old rows stay
+TX_PAYOUT = "payout"          # a scheduled bank payout: see app/db/models/payout.py
 EARNING_TYPES = (TX_EARNING, TX_LATE_CANCEL)
 TX_PENDING_CLEARANCE, TX_HELD, TX_VOIDED, TX_SUCCESSFUL = "pending_clearance", "held", "voided", "successful"
+# A ``payout`` is pending_approval (reserved, awaiting an admin) -> pending (approved, transfer in flight) -> successful, or
+# failed / cancelled (the money is back in the balance).
+TX_PENDING_APPROVAL, TX_PENDING, TX_FAILED, TX_CANCELLED = "pending_approval", "pending", "failed", "cancelled"
 
 
 class CaregiverTransaction(Base):
@@ -184,15 +194,15 @@ class CaregiverTransaction(Base):
         # One earning and one compensation per booking, whatever the callers do: a double complete can never double-credit.
         # NULLs are distinct, so withdrawals (no booking) are not affected.
         UniqueConstraint("booking_id", "type", name="uq_caregiver_transactions_booking_type"),
-        CheckConstraint("type IN ('earning','late_cancel_compensation','withdrawal')", name="ck_caregiver_transactions_type"),
-        CheckConstraint("status IN ('pending','successful','failed','pending_clearance','held','voided')",
+        CheckConstraint("type IN ('earning','late_cancel_compensation','withdrawal','payout')", name="ck_caregiver_transactions_type"),
+        CheckConstraint("status IN ('pending','successful','failed','pending_clearance','held','voided','pending_approval','cancelled')",
                         name="ck_caregiver_transactions_status"),
         Index("ix_caregiver_transactions_release", "available_at", postgresql_where=text("status = 'pending_clearance'")),
         Index("ix_caregiver_transactions_caregiver", "caregiver_id", "created_at"),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
-    type = Column(String, nullable=False)  # earning | late_cancel_compensation | withdrawal
+    type = Column(String, nullable=False)  # earning | late_cancel_compensation | withdrawal | payout
     amount = Column(Integer, nullable=False)  # Store in kobo
     status = Column(String, nullable=False, default='pending')
     bank_name = Column(String, nullable=True)
@@ -220,7 +230,13 @@ class CaregiverBankAccount(Base):
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False, unique=True)
     bank_name = Column(String, nullable=False)
     account_number = Column(String, nullable=False)
-    account_name = Column(String, nullable=False)
+    account_name = Column(String, nullable=False)  # the name the bank returned for the account (Paystack resolve)
+    # Payout destination (A3 slice 2). ``recipient_code`` is set only after the account was resolved and registered as a
+    # Paystack transfer recipient: without it the caregiver is not paid. A change of account blocks payouts for 24 hours.
+    bank_code = Column(String, nullable=True)
+    recipient_code = Column(String, nullable=True)
+    verified_at = Column(DateTime, nullable=True)
+    payout_blocked_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     caregiver = relationship("Caregiver", backref="bank_account")

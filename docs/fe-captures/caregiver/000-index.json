@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/capture_caregiver_flow.py",
-  "run_tag": "d2e706",
+  "run_tag": "d0c81e",
   "captures": [
     {
       "file": "001-a-auth-register.json",
@@ -618,33 +618,33 @@
       "status": 404
     },
     {
-      "file": "124-a-withdraw-no-bank-account.json",
-      "label": "a-withdraw-no-bank-account",
+      "file": "124-a-banks.json",
+      "label": "a-banks",
+      "status": 200
+    },
+    {
+      "file": "125-a-bank-account-resolve.json",
+      "label": "a-bank-account-resolve",
+      "status": 200
+    },
+    {
+      "file": "126-a-bank-account-resolve-invalid.json",
+      "label": "a-bank-account-resolve-invalid",
       "status": 400
     },
     {
-      "file": "125-a-bank-account-set.json",
+      "file": "127-a-bank-account-set.json",
       "label": "a-bank-account-set",
       "status": 200
     },
     {
-      "file": "126-a-withdraw-below-minimum.json",
-      "label": "a-withdraw-below-minimum",
-      "status": 400
+      "file": "128-a-withdraw-removed.json",
+      "label": "a-withdraw-removed",
+      "status": 410
     },
     {
-      "file": "127-a-withdraw-insufficient.json",
-      "label": "a-withdraw-insufficient",
-      "status": 400
-    },
-    {
-      "file": "128-a-withdraw.json",
-      "label": "a-withdraw",
-      "status": 200
-    },
-    {
-      "file": "129-a-wallet-after-withdrawal.json",
-      "label": "a-wallet-after-withdrawal",
+      "file": "129-a-wallet-after-bank-account.json",
+      "label": "a-wallet-after-bank-account",
       "status": 200
     },
     {
@@ -778,68 +778,128 @@
       "status": 200
     },
     {
-      "file": "156-a-withdraw-pending-money-refused.json",
-      "label": "a-withdraw-pending-money-refused",
-      "status": 400
-    },
-    {
-      "file": "157-admin-hold-earning.json",
+      "file": "156-admin-hold-earning.json",
       "label": "admin-hold-earning",
       "status": 200
     },
     {
-      "file": "158-a-wallet-with-held-earning.json",
+      "file": "157-a-wallet-with-held-earning.json",
       "label": "a-wallet-with-held-earning",
       "status": 200
     },
     {
-      "file": "159-a-transactions-with-held-earning.json",
+      "file": "158-a-transactions-with-held-earning.json",
       "label": "a-transactions-with-held-earning",
       "status": 200
     },
     {
-      "file": "160-db-simulated-24-hour-earning-hold.json",
+      "file": "159-db-simulated-24-hour-earning-hold.json",
       "label": "db-simulated-24-hour-earning-hold",
       "status": null
     },
     {
-      "file": "161-worker-release-job-while-held.json",
+      "file": "160-worker-release-job-while-held.json",
       "label": "worker-release-job-while-held",
       "status": null
     },
     {
-      "file": "162-admin-release-hold-earning.json",
+      "file": "161-admin-release-hold-earning.json",
       "label": "admin-release-hold-earning",
       "status": 200
     },
     {
-      "file": "163-worker-release-job.json",
+      "file": "162-worker-release-job.json",
       "label": "worker-release-job",
       "status": null
     },
     {
-      "file": "164-a-wallet-after-release.json",
+      "file": "163-a-wallet-after-release.json",
       "label": "a-wallet-after-release",
       "status": 200
     },
     {
-      "file": "165-a-transactions-after-release.json",
+      "file": "164-a-transactions-after-release.json",
       "label": "a-transactions-after-release",
       "status": 200
     },
     {
-      "file": "166-admin-hold-released-earning.json",
+      "file": "165-admin-hold-released-earning.json",
       "label": "admin-hold-released-earning",
       "status": 409
     },
     {
-      "file": "167-a-withdraw-released-money.json",
-      "label": "a-withdraw-released-money",
+      "file": "166-a-wallet-before-payout.json",
+      "label": "a-wallet-before-payout",
       "status": 200
     },
     {
-      "file": "168-a-wallet-after-second-withdrawal.json",
-      "label": "a-wallet-after-second-withdrawal",
+      "file": "167-worker-payout-batch-job.json",
+      "label": "worker-payout-batch-job",
+      "status": null
+    },
+    {
+      "file": "168-a-wallet-payout-reserved.json",
+      "label": "a-wallet-payout-reserved",
+      "status": 200
+    },
+    {
+      "file": "169-a-transactions-payout-pending-approval.json",
+      "label": "a-transactions-payout-pending-approval",
+      "status": 200
+    },
+    {
+      "file": "170-admin-payout-batches.json",
+      "label": "admin-payout-batches",
+      "status": 200
+    },
+    {
+      "file": "171-admin-approve-payout-batch.json",
+      "label": "admin-approve-payout-batch",
+      "status": 200
+    },
+    {
+      "file": "172-worker-payout-dispatch-job.json",
+      "label": "worker-payout-dispatch-job",
+      "status": null
+    },
+    {
+      "file": "173-a-transactions-payout-processing.json",
+      "label": "a-transactions-payout-processing",
+      "status": 200
+    },
+    {
+      "file": "174-paystack-transfer-success-webhook.json",
+      "label": "paystack-transfer-success-webhook",
+      "status": 200
+    },
+    {
+      "file": "175-paystack-transfer-success-webhook-again.json",
+      "label": "paystack-transfer-success-webhook-again",
+      "status": 200
+    },
+    {
+      "file": "176-a-wallet-after-payout.json",
+      "label": "a-wallet-after-payout",
+      "status": 200
+    },
+    {
+      "file": "177-a-transactions-payout-paid.json",
+      "label": "a-transactions-payout-paid",
+      "status": 200
+    },
+    {
+      "file": "178-a-bank-account-change.json",
+      "label": "a-bank-account-change",
+      "status": 200
+    },
+    {
+      "file": "179-a-wallet-payouts-blocked.json",
+      "label": "a-wallet-payouts-blocked",
+      "status": 200
+    },
+    {
+      "file": "180-a-bank-account-after-change.json",
+      "label": "a-bank-account-after-change",
       "status": 200
     }
   ]

@@ -15,6 +15,12 @@ What is real and what is not
   earnings_release_job), run once inside the worker container with `docker compose exec`; in production the ARQ
   cron runs it every five minutes.
 - Payment is settled with a correctly signed Paystack *webhook* sent to the API's own webhook route.
+- Paystack itself is a LOCAL FAKE (app/tests/fake_meta.py, served on --paystack-port; the stack's PAYSTACK_BASE_URL must point
+  at it, e.g. http://host.docker.internal:9912). The bank list, the account-name lookup, the transfer recipient, the transfer
+  and its status are the fake's answers, shaped after Paystack's documented replies. Nothing here proves a live Paystack
+  account accepts the calls. The transfer webhooks are correctly signed requests the script sends to the API's own route.
+- The payout batch and send steps are the real functions (app.services.payouts.create_batch / dispatch_due, the bodies of the
+  worker's payout_batch_job / payout_dispatch_job) run inside the worker container; in production the ARQ cron runs them.
 - Expo is a local fake receiver started by this script (the API is pointed at it through
   EXPO_PUSH_URL in the env file). The push REQUEST bodies are exactly what the API sent; the
   responses are the fake's, shaped after Expo's documented ticket format. No real push is sent.
@@ -27,6 +33,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -39,8 +46,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import httpx
-import psycopg2
+# app.tests.fake_meta reads the app settings when it is imported, so they need harmless values (kept out of `docker compose`).
+_PLACEHOLDERS = {"OAKLY_ENV_FILE": "", "DATABASE_URL": "postgresql://x:x@127.0.0.1:1/x", "SECRET_KEY": "capture-local-only",
+                 "VITALS_ENCRYPTION_KEY": "0" * 43 + "="}
+_SET_HERE = [key for key in _PLACEHOLDERS if key not in os.environ]
+for _key in _SET_HERE:
+    os.environ[_key] = _PLACEHOLDERS[_key]
+
+import httpx  # noqa: E402
+import psycopg2  # noqa: E402
+
+from app.tests.fake_meta import FakePaystack, serve_fake_paystack  # noqa: E402
 
 PNG_1X1 = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
@@ -223,18 +239,65 @@ def seed_admin_session(rec: "Recorder", db: "DB", env: Dict[str, str], email: st
         "mfa_token": step1["mfa_token"], "code": pyotp.TOTP(secret).now()}).json()["access_token"]
 
 
+def run_in_worker(code: str) -> str:
+    """Run a snippet inside the worker container of the compose project (COMPOSE_PROJECT_NAME / COMPOSE_FILE from the
+    environment), and return the last line it printed."""
+    env = {k: v for k, v in os.environ.items() if k not in _SET_HERE}  # a placeholder DATABASE_URL must not reach compose
+    out = subprocess.run(["docker", "compose", "exec", "-T", "worker", "python", "-c", code],
+                         capture_output=True, text=True, check=True, env=env).stdout
+    return out.strip().splitlines()[-1]
+
+
 def run_release_job() -> int:
     """Run the earnings release job once, inside the worker container of the default compose project."""
     code = ("from app.db.session import SessionLocal; from app.services.earnings import release_due; "
             "db = SessionLocal(); print('released=%d' % release_due(db))")
-    out = subprocess.run(["docker", "compose", "exec", "-T", "worker", "python", "-c", code],
-                         capture_output=True, text=True, check=True).stdout
-    return int(out.strip().splitlines()[-1].split("=")[1])
+    return int(run_in_worker(code).split("=")[1])
+
+
+def run_payout_batch_job(period_key: str) -> int:
+    """The batch step of the payout job for ``period_key`` (the real create_batch, run in the worker container). Returns how
+    many payouts it made."""
+    code = ("from app.db.session import SessionLocal; from app.db.models.payout import Payout; from app.services import payouts; "
+            "db = SessionLocal(); b = payouts.create_batch(db, period_key=%r); "
+            "print('made=%%d' %% (0 if b is None else db.query(Payout).filter(Payout.batch_id == b.id).count()))" % period_key)
+    return int(run_in_worker(code).split("=")[1])
+
+
+def run_payout_dispatch_job() -> int:
+    """The send step (the real dispatch_due, run in the worker container). Returns how many transfers it sent to Paystack."""
+    code = ("from app.db.session import SessionLocal; from app.services import payouts; "
+            "print('sent=%d' % payouts.dispatch_due(SessionLocal()))")
+    return int(run_in_worker(code).split("=")[1])
+
+
+def run_payout_reconcile_job() -> int:
+    code = ("from app.db.session import SessionLocal; from app.services import payouts; "
+            "print('settled=%d' % payouts.reconcile(SessionLocal()))")
+    return int(run_in_worker(code).split("=")[1])
+
+
+def transfer_webhook(ctx: "Ctx", label: str, fake: FakePaystack, reference: str, outcome: str, note: str) -> Dict[str, Any]:
+    """Settle a transfer on the fake and send the API the correctly signed webhook Paystack would send."""
+    event = fake.settle_transfer(reference, outcome)
+    body = json.dumps(event).encode()
+    sig = hmac.new(ctx.env["PAYSTACK_SECRET_KEY"].encode(), body, hashlib.sha512).hexdigest()
+    r = ctx.rec.http.post("/api/v1/payment/paystack/webhook", content=body,
+                          headers={"x-paystack-signature": sig, "Content-Type": "application/json"})
+    ctx.rec.save(label, {
+        "request": {"method": "POST", "path": "/api/v1/payment/paystack/webhook",
+                    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>", "body": event},
+        "response": {"status_code": r.status_code, "headers": {}, "body": r.json()},
+        "note": note})
+    if r.status_code != 200:
+        sys.exit(f"transfer webhook failed: {r.status_code} {r.text}")
+    return event
 
 
 class Ctx:
-    def __init__(self, rec: Recorder, db: DB, env: Dict[str, str], expo: FakeExpo, tag: str):
-        self.rec, self.db, self.env, self.expo, self.tag = rec, db, env, expo, tag
+    def __init__(self, rec: Recorder, db: DB, env: Dict[str, str], expo: FakeExpo, tag: str,
+                 paystack: Optional[FakePaystack] = None):
+        self.rec, self.db, self.env, self.expo, self.tag, self.paystack = rec, db, env, expo, tag, paystack
         self.phone_counter = 0
 
     def phone(self) -> str:
@@ -414,7 +477,10 @@ def run(args) -> None:
     rec = Recorder(args.base_url, out)
     db = DB(args.db_url)
     tag = uuid.uuid4().hex[:6]
-    ctx = Ctx(rec, db, env, expo, tag)
+    fake_paystack = FakePaystack()
+    fake_paystack.accounts[("0000000000", "058")] = "PLACEHOLDER CAREGIVER A"
+    paystack_server = serve_fake_paystack(fake_paystack, port=args.paystack_port)
+    ctx = Ctx(rec, db, env, expo, tag, fake_paystack)
     mail = lambda who: f"{who}-{tag}@example.com"  # noqa: E731
 
     # --- admin (seeded directly: the only API to create one needs an existing admin) --------------
@@ -644,30 +710,34 @@ def run(args) -> None:
     })
     rec.call("a-home-unavailable-no-offers", "GET", "/api/v1/caregiver/home", token=ta)
 
-    # --- wallet and withdrawal ---------------------------------------------------------------------
+    # --- wallet, bank account and payouts ----------------------------------------------------------
     db.run("INSERT INTO caregiver_wallets (id, caregiver_id, balance, created_at, updated_at)"
            " VALUES (%s,%s,2500000,now(),now()) ON CONFLICT (caregiver_id) DO UPDATE SET balance = 2500000",
            (str(uuid.uuid4()), a["id"]))
     rec.save("db-seeded-wallet-balance", {
         "request": {"method": "SQL", "path": "INSERT INTO caregiver_wallets ... balance = 2500000 (kobo)", "auth": None, "body": None},
         "response": {"status_code": None, "headers": {}, "body": None},
-        "note": "SEEDED: an AVAILABLE balance of 25,000.00 NGN, so withdrawals can be exercised now (a real earning needs "
+        "note": "SEEDED: an AVAILABLE balance of 25,000.00 NGN, so the payout flow can be shown now (a real earning needs "
                 "its hold to pass first; see the earnings captures at the end). The visit completed above also credited "
                 "a real PENDING earning, which shows in pending_balance.",
     })
     rec.call("a-wallet", "GET", "/api/v1/caregiver/wallet", token=ta)
     rec.call("a-bank-account-not-set", "GET", "/api/v1/caregiver/bank-account", token=ta, expect=404)
-    rec.call("a-withdraw-no-bank-account", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta, expect=400,
+    rec.call("a-banks", "GET", "/api/v1/caregiver/banks", token=ta,
+             note="FAKE PAYSTACK: the list is the local fake's two placeholder banks. The real call is Paystack GET /bank?country=nigeria.")
+    rec.call("a-bank-account-resolve", "POST", "/api/v1/caregiver/bank-account/resolve", token=ta,
+             json_body={"account_number": "0000000000", "bank_code": "058"},
+             note="FAKE PAYSTACK: the name is what the local fake returns for this placeholder account.")
+    rec.call("a-bank-account-resolve-invalid", "POST", "/api/v1/caregiver/bank-account/resolve", token=ta, expect=400,
+             json_body={"account_number": "12345", "bank_code": "058"})
+    rec.call("a-bank-account-set", "PUT", "/api/v1/caregiver/bank-account", token=ta,
+             json_body={"account_number": "0000000000", "bank_code": "058"},
+             note="FAKE PAYSTACK: the account name was resolved and the transfer recipient created by the local fake. "
+                  "This caregiver already has money in the wallet (25,000.00 seeded above), so saving the FIRST account also "
+                  "starts the 24 hour cool-down: payouts_blocked_until is set. With an empty wallet it stays null.")
+    rec.call("a-withdraw-removed", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta, expect=410,
              json_body={"amount": 200000, "narration": "Placeholder"})
-    rec.call("a-bank-account-set", "PUT", "/api/v1/caregiver/bank-account", token=ta, json_body={
-        "bank_name": "Placeholder Bank", "account_number": "0000000000", "account_name": "Placeholder Caregiver A"})
-    rec.call("a-withdraw-below-minimum", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta, expect=400,
-             json_body={"amount": 5000, "narration": "Placeholder"})
-    rec.call("a-withdraw-insufficient", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta, expect=400,
-             json_body={"amount": 99999999, "narration": "Placeholder"})
-    rec.call("a-withdraw", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta,
-             json_body={"amount": 200000, "narration": "Placeholder"})
-    rec.call("a-wallet-after-withdrawal", "GET", "/api/v1/caregiver/wallet", token=ta)
+    rec.call("a-wallet-after-bank-account", "GET", "/api/v1/caregiver/wallet", token=ta)
     rec.call("a-wallet-transactions", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
     rec.call("a-home-final", "GET", "/api/v1/caregiver/home", token=ta)
     rec.call("a-home-as-patient", "GET", "/api/v1/caregiver/home", token=tp, expect=403)
@@ -742,11 +812,8 @@ def run(args) -> None:
                            (a["id"],))[0]
     rec.call("a-wallet-with-pending-earning", "GET", "/api/v1/caregiver/wallet", token=ta,
              note="The visit completed earlier credited 80% of its 50,000.00 service fee as a pending earning. "
-                  "available_balance is only the seeded 23,000.00 left after the earlier withdrawal.")
+                  "available_balance is only the seeded 25,000.00.")
     rec.call("a-transactions-with-pending-earning", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
-    rec.call("a-withdraw-pending-money-refused", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta, expect=400,
-             json_body={"amount": 3000000, "narration": "Placeholder: more than the available balance"},
-             note="30,000.00 would fit in available + pending, but only the available balance can be withdrawn.")
     rec.call("admin-hold-earning", "POST", f"/api/v1/admin/earnings/{earning_id}/hold", token=admin,
              json_body={"reason": "Placeholder: the family disputes the visit"})
     rec.call("a-wallet-with-held-earning", "GET", "/api/v1/caregiver/wallet", token=ta)
@@ -779,14 +846,65 @@ def run(args) -> None:
     rec.call("a-transactions-after-release", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
     rec.call("admin-hold-released-earning", "POST", f"/api/v1/admin/earnings/{earning_id}/hold", token=admin, expect=409,
              json_body={"reason": "Placeholder: too late"})
-    rec.call("a-withdraw-released-money", "POST", "/api/v1/caregiver/wallet/withdraw", token=ta,
-             json_body={"amount": 3000000, "narration": "Placeholder"},
-             note="The same 30,000.00 that was refused while the earning was pending.")
-    rec.call("a-wallet-after-second-withdrawal", "GET", "/api/v1/caregiver/wallet", token=ta)
+
+    # --- payouts: reserve, approve, send, settle (appended last, numbers above do not move) --------------------------
+    paystack = ctx.paystack
+    rec.call("a-wallet-before-payout", "GET", "/api/v1/caregiver/wallet", token=ta,
+             note="25,000.00 seeded + the released 40,000.00 earning: 65,000.00 available, no payout started yet.")
+    day = datetime.utcnow().date().isoformat()
+    # SIMULATION, stated in the next capture's note: the 24 hour cool-down of the first account is over. (A capture of its own
+    # would renumber every capture after it.)
+    db.run("UPDATE caregiver_bank_accounts SET payout_blocked_until = now() at time zone 'utc' - interval '1 minute'"
+           " WHERE caregiver_id = %s", (a["id"],))
+    made = run_payout_batch_job(day)
+    rec.save("worker-payout-batch-job", {
+        "request": {"method": "JOB", "path": "payout_batch_job -> app.services.payouts.create_batch(period_key=<today>), run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"period_key": day, "payouts_made": made}},
+        "note": "SIMULATION of the schedule: in production the ARQ cron runs daily and makes a batch only on a payout day "
+                "(Mondays when the policy says weekly). Here the same function was run for today's date so the capture can "
+                "continue. Every caregiver with a verified account and at least the minimum balance gets a payout. ALSO SIMULATED just "
+                "before: the 24 hour cool-down that saving the first account started (capture a-bank-account-set) was moved into "
+                "the past in the database, standing in for waiting a day.",
+    })
+    rec.call("a-wallet-payout-reserved", "GET", "/api/v1/caregiver/wallet", token=ta,
+             note="The money left available_balance when the payout was reserved; payout_in_progress_kobo shows it.")
+    rec.call("a-transactions-payout-pending-approval", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
+    batches = rec.call("admin-payout-batches", "GET", "/api/v1/admin/payouts/batches", token=admin).json()
+    batch_id = batches["items"][0]["id"]
+    (payout_id,) = db.run("SELECT id FROM payouts WHERE caregiver_id = %s", (a["id"],))[0]
+    rec.call("admin-approve-payout-batch", "POST", f"/api/v1/admin/payouts/batches/{batch_id}/approve", token=admin,
+             json_body={"reason": "Placeholder: totals checked against the ledger"})
+    sent = run_payout_dispatch_job()
+    rec.save("worker-payout-dispatch-job", {
+        "request": {"method": "JOB", "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"transfers_sent": sent, "transfer_requests_seen_by_the_fake": [
+            {"amount": r[3]["amount"], "recipient": r[3]["recipient"], "reference": r[3]["reference"]}
+            for r in paystack.requests if r[0] == "POST" and r[1].endswith("/transfer")]}},
+        "note": "FAKE PAYSTACK: this is exactly what Oakly POSTed to Paystack's /transfer; the reply is the fake's.",
+    })
+    rec.call("a-transactions-payout-processing", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
+    (reference,) = db.run("SELECT reference FROM payouts WHERE id = %s", (payout_id,))[0]
+    transfer_webhook(ctx, "paystack-transfer-success-webhook", paystack, reference, "success",
+                     "FAKE PAYSTACK: the body is shaped after Paystack's documented transfer.success event; the signature is "
+                     "computed with the stack's placeholder key. Replaying it changes nothing.")
+    transfer_webhook(ctx, "paystack-transfer-success-webhook-again", paystack, reference, "success",
+                     "The same event delivered a second time (Paystack retries): acknowledged, nothing changes.")
+    rec.call("a-wallet-after-payout", "GET", "/api/v1/caregiver/wallet", token=ta,
+             note="total_withdrawn now counts the paid-out money; available_balance is 0.")
+    rec.call("a-transactions-payout-paid", "GET", "/api/v1/caregiver/wallet/transactions", token=ta)
+    rec.call("a-bank-account-change", "PUT", "/api/v1/caregiver/bank-account", token=ta,
+             json_body={"account_number": "0000000001", "bank_code": "090"},
+             note="FAKE PAYSTACK for the lookup. A DIFFERENT account: payouts are blocked for 24 hours "
+                  "(payouts_blocked_until). The change is recorded in caregiver_bank_events with masked numbers.")
+    rec.call("a-wallet-payouts-blocked", "GET", "/api/v1/caregiver/wallet", token=ta)
+    rec.call("a-bank-account-after-change", "GET", "/api/v1/caregiver/bank-account", token=ta)
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_caregiver_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")
     expo.stop()
+    paystack_server.shutdown()
     print(f"wrote {len(rec.index)} captures to {out}")
 
 
@@ -804,6 +922,8 @@ def main() -> None:
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Paystack key)")
     p.add_argument("--out", default="docs/fe-captures/caregiver")
     p.add_argument("--expo-port", type=int, default=9999)
+    p.add_argument("--paystack-port", type=int, default=9912, help="where the local fake Paystack listens; the stack's "
+                   "PAYSTACK_BASE_URL must point at it (http://host.docker.internal:<port>)")
     run(p.parse_args())
 
 

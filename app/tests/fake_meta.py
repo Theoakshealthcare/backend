@@ -21,6 +21,7 @@ import hmac
 import json
 import os
 import threading
+import urllib.parse
 import uuid
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -348,22 +349,109 @@ def flow_request(action: str, screen: Optional[str] = None, data: Optional[dict]
 
 # --- a fake Paystack ----------------------------------------------------------------------------
 class FakePaystack:
-    """Stands in for the two Paystack calls the booking flow makes. ``handle`` is plain request-in,
-    response-out (also served over HTTP for the Docker script); ``install`` swaps the service methods in tests."""
+    """Stands in for the Paystack calls Oakly makes: the booking flow's initialize and verify, and the payout calls (bank list,
+    account resolve, transfer recipients, transfers). ``handle`` is plain request-in, response-out (also served over HTTP for the
+    Docker scripts); ``install`` swaps the service methods in tests."""
 
     def __init__(self):
         self.initialised: list[dict] = []
         self.verified: list[str] = []
         self.paid: set[str] = set()
         self.fail_init: Optional[str] = None  # the error message to return from initialize
+        # payouts
+        self.banks = [{"name": "Placeholder Bank", "code": "058", "slug": "placeholder-bank"},
+                      {"name": "Sample Microfinance Bank", "code": "090", "slug": "sample-mfb"}]
+        self.accounts: dict[tuple, str] = {}  # (account_number, bank_code) -> the name to resolve; others get a default
+        self.unresolvable: set[tuple] = set()  # (account_number, bank_code) pairs Paystack cannot resolve
+        self.recipients: dict[str, dict] = {}  # recipient_code -> the request
+        self.transfers: dict[str, dict] = {}  # reference -> {reference, amount, recipient, status, transfer_code}
+        self.balance_kobo = 10 ** 12  # what the Paystack balance can send
+        self.transfer_initial_status = "pending"  # or "otp" (OTP still enabled on the account) or "success"
+        self.transfer_error: Optional[tuple] = None  # (http status, message) every transfer call answers with
+        self.offline = False  # no answer at all (a timeout)
+        self.requests: list[tuple] = []  # (method, path, query, body) of every call, in order
 
-    def handle(self, method: str, path: str, body: bytes) -> tuple[int, dict]:
+    def handle(self, method: str, path: str, body: bytes, query: Optional[dict] = None) -> tuple[int, dict]:
+        query = query or {}
+        payload = json.loads(body) if body else {}
+        self.requests.append((method, path, query, payload))
+        if self.offline:
+            raise TimeoutError("fake Paystack offline")
         if method == "POST" and path.endswith("/transaction/initialize"):
-            return 200, self._initialize(json.loads(body or b"{}"))
+            return 200, self._initialize(payload)
         if method == "GET" and "/transaction/verify/" in path:
             return 200, self._verify(path.rsplit("/", 1)[1])
+        if method == "GET" and path.endswith("/bank/resolve"):
+            return self._resolve(query)
+        if method == "GET" and path.endswith("/bank"):
+            return 200, {"status": True, "message": "Banks retrieved",
+                         "data": [{**b, "country": "Nigeria", "currency": "NGN", "is_deleted": False} for b in self.banks],
+                         "meta": {"next": None, "previous": None, "perPage": 100}}
+        if method == "POST" and path.endswith("/transferrecipient"):
+            return self._recipient(payload)
+        if method == "POST" and path.endswith("/transfer"):
+            return self._transfer(payload)
+        if method == "GET" and "/transfer/verify/" in path:
+            return self._verify_transfer(path.rsplit("/", 1)[1])
         return 404, {"status": False, "message": "not found"}
 
+    def call(self, method: str, path: str, params: Optional[dict] = None, json_body: Optional[dict] = None):
+        """The ``PaystackService._call`` stand-in: (status, body), or (None, None) when offline."""
+        try:
+            return self.handle(method, path, json.dumps(json_body).encode() if json_body else b"", params)
+        except TimeoutError:
+            return None, None
+
+    # --- payouts -------------------------------------------------------------------------------------
+    def account_name(self, account_number: str, bank_code: str) -> str:
+        return self.accounts.get((account_number, bank_code)) or f"PLACEHOLDER ACCOUNT {account_number[-4:]}"
+
+    def _resolve(self, query: dict) -> tuple[int, dict]:
+        number, bank_code = str(query.get("account_number", "")), str(query.get("bank_code", ""))
+        if (number, bank_code) in self.unresolvable or len(number) != 10 or not any(b["code"] == bank_code for b in self.banks):
+            return 422, {"status": False, "message": "Could not resolve account name. Check parameters or try again."}
+        return 200, {"status": True, "message": "Account number resolved",
+                     "data": {"account_number": number, "account_name": self.account_name(number, bank_code), "bank_id": 9}}
+
+    def _recipient(self, payload: dict) -> tuple[int, dict]:
+        code = "RCP_" + uuid.uuid5(uuid.NAMESPACE_URL, f"{payload.get('account_number')}/{payload.get('bank_code')}").hex[:12]
+        self.recipients[code] = payload
+        return 201, {"status": True, "message": "Recipient created", "data": {
+            "type": "nuban", "name": payload.get("name"), "currency": "NGN", "recipient_code": code,
+            "details": {"account_number": payload.get("account_number"), "bank_code": payload.get("bank_code")}}}
+
+    def _transfer(self, payload: dict) -> tuple[int, dict]:
+        if self.transfer_error:
+            return self.transfer_error[0], {"status": False, "message": self.transfer_error[1]}
+        reference = payload.get("reference", "")
+        if payload.get("recipient") not in self.recipients:
+            return 400, {"status": False, "message": "Recipient specified is invalid"}
+        if reference in self.transfers:
+            return 400, {"status": False, "message": "Transfer with this reference already exists"}
+        if int(payload.get("amount", 0)) > self.balance_kobo:
+            return 400, {"status": False, "message": "Your balance is not enough to fulfil this request"}
+        record = {"reference": reference, "amount": int(payload["amount"]), "recipient": payload["recipient"],
+                  "status": self.transfer_initial_status, "transfer_code": "TRF_" + uuid.uuid4().hex[:12],
+                  "reason": payload.get("reason")}
+        self.transfers[reference] = record
+        return 200, {"status": True, "message": "Transfer has been queued", "data": {
+            **record, "currency": "NGN", "source": "balance", "integration": 1, "domain": "test"}}
+
+    def _verify_transfer(self, reference: str) -> tuple[int, dict]:
+        record = self.transfers.get(reference)
+        if record is None:
+            return 404, {"status": False, "message": "Transfer not found"}
+        return 200, {"status": True, "message": "Transfer retrieved", "data": {**record, "currency": "NGN"}}
+
+    def settle_transfer(self, reference: str, outcome: str) -> dict:
+        """Move a transfer to success | failed | reversed and return the webhook body Paystack would send for it."""
+        record = self.transfers[reference]
+        record["status"] = outcome
+        return {"event": f"transfer.{outcome}", "data": {
+            "amount": record["amount"], "currency": "NGN", "reason": record.get("reason"), "reference": reference,
+            "status": outcome, "transfer_code": record["transfer_code"], "recipient": {"recipient_code": record["recipient"]}}}
+
+    # --- booking payments ----------------------------------------------------------------------------
     def _initialize(self, payload: dict) -> dict:
         if self.fail_init:
             return {"status": False, "message": self.fail_init}
@@ -413,6 +501,9 @@ def fake_paystack(monkeypatch):
                         lambda self, *a, **kw: fake.initialize_transaction(self, *a, **kw))
     monkeypatch.setattr(PaystackService, "verify_transaction",
                         lambda self, *a, **kw: fake.verify_transaction(self, *a, **kw))
+    # The payout calls run the real PaystackService code (parsing, error classification) against the fake's replies.
+    monkeypatch.setattr(PaystackService, "_call",
+                        lambda self, method, path, params=None, json_body=None: fake.call(method, path, params, json_body))
     return fake
 
 
@@ -423,8 +514,10 @@ def serve_fake_paystack(fake: FakePaystack, host: str = "0.0.0.0", port: int = 9
         def _reply(self, method: str):
             length = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(length) if length else b""
+            path, _, qs = self.path.partition("?")
+            query = {k: v[0] for k, v in urllib.parse.parse_qs(qs).items()}
             with lock:
-                status, payload = fake.handle(method, self.path.split("?")[0], body)
+                status, payload = fake.handle(method, path, body, query)
             out = json.dumps(payload).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")

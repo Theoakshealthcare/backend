@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "transfers_sent": 2,
+      "transfer_requests_seen_by_the_fake": [
+        {
+          "amount": 1200000,
+          "reference": "po-05e5c555de5240808071575e11acb302-1"
+        },
+        {
+          "amount": 3000000,
+          "reference": "po-93d04961704d4177abfa39f35a0b7b76-1"
+        }
+      ]
+    }
+  },
+  "note": "FAKE PAYSTACK: the fake's balance was set to 20,000.00 NGN, so the 30,000.00 transfer is refused ('Your balance is not enough to fulfil this request', Paystack's wording for this case) and the 12,000.00 one is accepted."
+}

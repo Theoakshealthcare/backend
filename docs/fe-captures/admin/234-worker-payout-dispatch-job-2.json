@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "transfers_sent": 4,
+      "transfers_the_fake_holds": [
+        {
+          "amount": 800000,
+          "status": "pending",
+          "reference": "po-8c1cdb5842754e6fa3103c6659f2204e-1"
+        },
+        {
+          "amount": 1100000,
+          "status": "pending",
+          "reference": "po-b10cabbd4b38450f8bdd4ed37ebfbb94-1"
+        },
+        {
+          "amount": 1500000,
+          "status": "otp",
+          "reference": "po-cb440ea364c2477c8fb9b789f993c434-1"
+        }
+      ]
+    }
+  },
+  "note": "FAKE PAYSTACK: five payouts were approved. The suspended caregiver's was cancelled before sending, so nothing was posted for it. One transfer is waiting for an OTP, two are pending, and the call for Placeholder Silent Transfer got a 502, so the fake holds no transfer for it (Paystack may or may not have one: Oakly keeps the money reserved)."
+}

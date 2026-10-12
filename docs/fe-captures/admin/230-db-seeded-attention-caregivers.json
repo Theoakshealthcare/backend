@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "INSERT INTO caregivers / caregiver_wallets / caregiver_bank_accounts ... (3 placeholder caregivers)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "caregivers": {
+        "Placeholder Stuck At Otp": {
+          "available_kobo": 1500000,
+          "paystack_will": "accept the transfer but wait for an OTP"
+        },
+        "Placeholder Late Success": {
+          "available_kobo": 1100000,
+          "paystack_will": "report the transfer failed, then paid"
+        },
+        "Placeholder Silent Transfer": {
+          "available_kobo": 900000,
+          "paystack_will": "answer the transfer call with a 502"
+        },
+        "Placeholder Suspended Later": {
+          "available_kobo": 700000,
+          "paystack_will": "behave (but the caregiver is suspended after approval)"
+        },
+        "Placeholder Cancelled (from the first batch)": {
+          "available_kobo": 800000,
+          "paystack_will": "behave"
+        }
+      }
+    }
+  },
+  "note": "SEEDED, with the fake Paystack set to misbehave for three of them. Placeholder Cancelled's 8,000.00 NGN came back when its payout was cancelled and is paid in this batch."
+}

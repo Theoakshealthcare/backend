@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts/batches",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
+          "period_key": "2026-10-19",
+          "cadence": "weekly",
+          "min_payout_kobo": 500000,
+          "status": "pending_approval",
+          "approved_by": null,
+          "approved_at": null,
+          "approval_reason": null,
+          "created_at": "2026-10-12T16:52:06.569281",
+          "payout_count": 3,
+          "total_kobo": 5000000,
+          "counts": {
+            "pending_approval": 3
+          }
+        }
+      ],
+      "total": 1
+    }
+  },
+  "note": "Finance holds payments.read."
+}

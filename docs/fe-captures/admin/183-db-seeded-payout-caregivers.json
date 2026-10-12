@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "INSERT INTO caregivers / caregiver_wallets / caregiver_bank_accounts ... (5 placeholder caregivers)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "caregivers": {
+        "Placeholder Paid": {
+          "available_kobo": 1200000,
+          "bank_account": "verified"
+        },
+        "Placeholder Failing": {
+          "available_kobo": 3000000,
+          "bank_account": "verified"
+        },
+        "Placeholder Cancelled": {
+          "available_kobo": 800000,
+          "bank_account": "verified"
+        },
+        "Placeholder Small Balance": {
+          "available_kobo": 300000,
+          "bank_account": "verified"
+        },
+        "Placeholder Cooling Down": {
+          "available_kobo": 2000000,
+          "bank_account": "verified, changed 12 hours ago"
+        }
+      }
+    }
+  },
+  "note": "SEEDED: the caregivers, their available balances and verified bank accounts (a caregiver does this through PUT /caregiver/bank-account; see the caregiver guide). The minimum payout is 5,000.00 NGN (500000 kobo)."
+}

@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "UPDATE payouts SET initiated_at = <31 minutes ago> WHERE reference = <Placeholder Silent Transfer's>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "SIMULATION of waiting: the reconcile job asks about transfers that have had no answer for 15 minutes and treats 'no record' as meaningful only after 30."
+}
