@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/capture_caregiver_flow.py",
-  "run_tag": "f57f47",
+  "run_tag": "d2e706",
   "captures": [
     {
       "file": "001-a-auth-register.json",
@@ -766,6 +766,81 @@
       "file": "153-db-whatsapp-booking-unchanged-after-refused-cancel.json",
       "label": "db-whatsapp-booking-unchanged-after-refused-cancel",
       "status": null
+    },
+    {
+      "file": "154-a-wallet-with-pending-earning.json",
+      "label": "a-wallet-with-pending-earning",
+      "status": 200
+    },
+    {
+      "file": "155-a-transactions-with-pending-earning.json",
+      "label": "a-transactions-with-pending-earning",
+      "status": 200
+    },
+    {
+      "file": "156-a-withdraw-pending-money-refused.json",
+      "label": "a-withdraw-pending-money-refused",
+      "status": 400
+    },
+    {
+      "file": "157-admin-hold-earning.json",
+      "label": "admin-hold-earning",
+      "status": 200
+    },
+    {
+      "file": "158-a-wallet-with-held-earning.json",
+      "label": "a-wallet-with-held-earning",
+      "status": 200
+    },
+    {
+      "file": "159-a-transactions-with-held-earning.json",
+      "label": "a-transactions-with-held-earning",
+      "status": 200
+    },
+    {
+      "file": "160-db-simulated-24-hour-earning-hold.json",
+      "label": "db-simulated-24-hour-earning-hold",
+      "status": null
+    },
+    {
+      "file": "161-worker-release-job-while-held.json",
+      "label": "worker-release-job-while-held",
+      "status": null
+    },
+    {
+      "file": "162-admin-release-hold-earning.json",
+      "label": "admin-release-hold-earning",
+      "status": 200
+    },
+    {
+      "file": "163-worker-release-job.json",
+      "label": "worker-release-job",
+      "status": null
+    },
+    {
+      "file": "164-a-wallet-after-release.json",
+      "label": "a-wallet-after-release",
+      "status": 200
+    },
+    {
+      "file": "165-a-transactions-after-release.json",
+      "label": "a-transactions-after-release",
+      "status": 200
+    },
+    {
+      "file": "166-admin-hold-released-earning.json",
+      "label": "admin-hold-released-earning",
+      "status": 409
+    },
+    {
+      "file": "167-a-withdraw-released-money.json",
+      "label": "a-withdraw-released-money",
+      "status": 200
+    },
+    {
+      "file": "168-a-wallet-after-second-withdrawal.json",
+      "label": "a-wallet-after-second-withdrawal",
+      "status": 200
     }
   ]
 }

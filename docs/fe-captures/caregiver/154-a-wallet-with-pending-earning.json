@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/wallet",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "balance": 2300000,
+      "total_earned": 0,
+      "total_withdrawn": 0,
+      "currency": "NGN",
+      "available_balance": 2300000,
+      "pending_balance": 4000000,
+      "held_balance": 0,
+      "total_pending": 4000000,
+      "next_available_at": "2026-10-08T19:48:51.599904"
+    }
+  },
+  "note": "The visit completed earlier credited 80% of its 50,000.00 service fee as a pending earning. available_balance is only the seeded 23,000.00 left after the earlier withdrawal."
+}

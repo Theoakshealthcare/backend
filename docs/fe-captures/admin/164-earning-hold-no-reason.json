@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/earnings/3b7c3e27-843a-4423-8a6f-00ee53cdd546/hold",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "reason"
+          ],
+          "msg": "Field required",
+          "input": {}
+        }
+      ]
+    }
+  }
+}

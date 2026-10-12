@@ -14,7 +14,12 @@
       "balance": 2300000,
       "total_earned": 0,
       "total_withdrawn": 0,
-      "currency": "NGN"
+      "currency": "NGN",
+      "available_balance": 2300000,
+      "pending_balance": 4000000,
+      "held_balance": 0,
+      "total_pending": 4000000,
+      "next_available_at": "2026-10-08T19:48:51.599904"
     }
   }
 }

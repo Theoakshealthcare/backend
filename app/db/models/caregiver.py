@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 from typing import Optional, List
 
-from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Index, String, Text, ForeignKey, Date, Integer, JSON, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, Index, String, Text, ForeignKey, Date, Integer, JSON, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
 
@@ -163,23 +163,53 @@ class CaregiverWallet(Base):
     __tablename__ = "caregiver_wallets"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False, unique=True)
-    balance = Column(Integer, default=0)  # Store in kobo for accuracy
+    balance = Column(Integer, default=0)  # kobo; the AVAILABLE (withdrawable) balance. Pending earnings are not in it.
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     caregiver = relationship("Caregiver", backref="wallet")
 
+# Transaction types and statuses. An ``earning`` or ``late_cancel_compensation`` starts ``pending_clearance`` (credited,
+# not yet withdrawable), becomes ``successful`` when the release job moves it to the wallet balance, and can be put on
+# ``held`` or ``voided`` by an admin before that. A ``withdrawal`` is ``pending`` -> ``successful`` | ``failed``.
+TX_EARNING = "earning"
+TX_LATE_CANCEL = "late_cancel_compensation"
+TX_WITHDRAWAL = "withdrawal"
+EARNING_TYPES = (TX_EARNING, TX_LATE_CANCEL)
+TX_PENDING_CLEARANCE, TX_HELD, TX_VOIDED, TX_SUCCESSFUL = "pending_clearance", "held", "voided", "successful"
+
+
 class CaregiverTransaction(Base):
     __tablename__ = "caregiver_transactions"
+    __table_args__ = (
+        # One earning and one compensation per booking, whatever the callers do: a double complete can never double-credit.
+        # NULLs are distinct, so withdrawals (no booking) are not affected.
+        UniqueConstraint("booking_id", "type", name="uq_caregiver_transactions_booking_type"),
+        CheckConstraint("type IN ('earning','late_cancel_compensation','withdrawal')", name="ck_caregiver_transactions_type"),
+        CheckConstraint("status IN ('pending','successful','failed','pending_clearance','held','voided')",
+                        name="ck_caregiver_transactions_status"),
+        Index("ix_caregiver_transactions_release", "available_at", postgresql_where=text("status = 'pending_clearance'")),
+        Index("ix_caregiver_transactions_caregiver", "caregiver_id", "created_at"),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
-    type = Column(String, nullable=False)  # 'earning' or 'withdrawal'
+    type = Column(String, nullable=False)  # earning | late_cancel_compensation | withdrawal
     amount = Column(Integer, nullable=False)  # Store in kobo
-    status = Column(String, nullable=False, default='pending')  # 'pending', 'successful', 'failed'
+    status = Column(String, nullable=False, default='pending')
     bank_name = Column(String, nullable=True)
     account_number = Column(String, nullable=True)
     account_name = Column(String, nullable=True)
     reference = Column(String, nullable=True)
     narration = Column(String, nullable=True)
+    # Earnings only: the booking, what the share was taken of and at what percent (kept so the amount can be re-derived),
+    # when it becomes withdrawable and when it did, and who last held or voided it and why.
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=True)
+    base_amount_kobo = Column(BigInteger, nullable=True)
+    share_percent = Column(Integer, nullable=True)
+    available_at = Column(DateTime, nullable=True)
+    released_at = Column(DateTime, nullable=True)
+    status_reason = Column(Text, nullable=True)
+    status_changed_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
+    status_changed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     caregiver = relationship("Caregiver", backref="transactions")

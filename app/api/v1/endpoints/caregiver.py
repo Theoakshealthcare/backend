@@ -8,6 +8,7 @@ import csv
 from io import StringIO
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.deps import get_current_user, get_db, get_user_or_admin, is_admin
 from app.core.config import settings
@@ -32,7 +33,8 @@ from app.schemas.caregiver import (
     CaregiverWithdrawalResponse
 )
 from app.services.caregiver import CaregiverService
-from app.db.models.caregiver import CaregiverWallet, CaregiverTransaction, CaregiverBankAccount, Caregiver, CaregiverDocument
+from app.services import earnings as earnings_service
+from app.db.models.caregiver import EARNING_TYPES, CaregiverWallet, CaregiverTransaction, CaregiverBankAccount, Caregiver, CaregiverDocument
 
 router = APIRouter()
 
@@ -276,13 +278,14 @@ def get_wallet_summary(
         raise HTTPException(status_code=404, detail="Caregiver profile not found.")
     wallet = db.query(CaregiverWallet).filter(CaregiverWallet.caregiver_id == caregiver.id).first()
     if not wallet:
-        wallet = CaregiverWallet(caregiver_id=caregiver.id, balance=0)
-        db.add(wallet)
+        # The release job creates wallets the same way: a concurrent insert must not turn into a 500.
+        db.execute(pg_insert(CaregiverWallet).values(caregiver_id=caregiver.id, balance=0).on_conflict_do_nothing(
+            index_elements=["caregiver_id"]))
         db.commit()
-        db.refresh(wallet)
+        wallet = db.query(CaregiverWallet).filter(CaregiverWallet.caregiver_id == caregiver.id).one()
     total_earned = db.query(CaregiverTransaction).filter(
         CaregiverTransaction.caregiver_id == caregiver.id,
-        CaregiverTransaction.type == 'earning',
+        CaregiverTransaction.type.in_(EARNING_TYPES),
         CaregiverTransaction.status == 'successful'
     ).with_entities(func.coalesce(func.sum(CaregiverTransaction.amount), 0)).scalar()
     total_withdrawn = db.query(CaregiverTransaction).filter(
@@ -290,11 +293,17 @@ def get_wallet_summary(
         CaregiverTransaction.type == 'withdrawal',
         CaregiverTransaction.status == 'successful'
     ).with_entities(func.coalesce(func.sum(CaregiverTransaction.amount), 0)).scalar()
+    bal = earnings_service.balances(db, caregiver.id, wallet)
     return CaregiverWalletSummary(
-        balance=wallet.balance,
+        balance=bal.available_kobo,
         total_earned=total_earned or 0,
         total_withdrawn=total_withdrawn or 0,
-        currency="NGN"
+        currency="NGN",
+        available_balance=bal.available_kobo,
+        pending_balance=bal.pending_kobo,
+        held_balance=bal.held_kobo,
+        total_pending=bal.pending_kobo + bal.held_kobo,
+        next_available_at=bal.next_available_at,
     )
 
 
@@ -327,6 +336,9 @@ def get_wallet_transactions(
         type=t.type,
         amount=t.amount,
         status=t.status,
+        booking_id=str(t.booking_id) if t.booking_id else None,
+        available_at=t.available_at,
+        released_at=t.released_at,
         bank_name=t.bank_name,
         account_number=t.account_number,
         account_name=t.account_name,
@@ -359,7 +371,7 @@ def download_payslip(
         raise HTTPException(status_code=404, detail="Caregiver profile not found.")
     transactions = db.query(CaregiverTransaction).filter(
         CaregiverTransaction.caregiver_id == caregiver.id,
-        CaregiverTransaction.type == 'earning',
+        CaregiverTransaction.type.in_(EARNING_TYPES),
         CaregiverTransaction.status == 'successful',
         CaregiverTransaction.created_at >= start,
         CaregiverTransaction.created_at < end
@@ -452,6 +464,8 @@ def request_withdrawal(
             status_code=400,
             detail=f"Minimum withdrawal is {settings.MIN_WITHDRAWAL_KOBO} kobo.",
         )
+    # Only the available balance can be withdrawn: wallet.balance never includes earnings that are pending or held.
+    # (Self-withdrawal is slated for removal when scheduled payouts ship; see docs/sop/2026-10-07-caregiver-earnings.md.)
     # Lock the wallet row so check + deduct is atomic; populate_existing forces a fresh
     # read of the balance after we acquire the lock.
     wallet = (

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/298911c7-8ff3-470b-895b-218232595b9a/redispatch",
+    "path": "/api/v1/admin/bookings/b0c5091e-4731-4a67-beb2-73d9a29b1149/redispatch",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {}
   },

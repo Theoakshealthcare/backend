@@ -1,0 +1,106 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=caregiver_transaction&limit=4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "e4dab3b1-6229-4777-b52a-f4e0dd690bb7",
+          "admin_user_id": "df20089a-d1c4-4d5f-bcd8-c5ec3c32455d",
+          "admin_email": "boss-f722ceearn@example.com",
+          "action": "earning.void",
+          "entity_type": "caregiver_transaction",
+          "entity_id": "a0946e7f-6f17-4beb-b16c-9b0b1b87f2fd",
+          "before": {
+            "status": "pending_clearance",
+            "amount": 4000000,
+            "available_at": "2026-10-08T20:41:04.307997",
+            "booking_id": "3751ded6-e371-4bbc-b7bf-84c8bef47c4e",
+            "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+            "type": "earning"
+          },
+          "after": {
+            "status": "voided",
+            "amount": 4000000,
+            "available_at": "2026-10-08T20:41:04.307997",
+            "booking_id": "3751ded6-e371-4bbc-b7bf-84c8bef47c4e",
+            "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+            "type": "earning"
+          },
+          "reason": "Caregiver never attended",
+          "ip": "172.18.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-07T20:41:04.445850"
+        },
+        {
+          "id": "da51b602-b98a-4741-973c-1bdc77ef727b",
+          "admin_user_id": "d243ad6f-c5e7-4bda-af33-0e4401313bf6",
+          "admin_email": "fin-f722ceearn@example.com",
+          "action": "earning.release_hold",
+          "entity_type": "caregiver_transaction",
+          "entity_id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+          "before": {
+            "status": "held",
+            "amount": 4000000,
+            "available_at": "2026-10-08T20:41:04.296220",
+            "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+            "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+            "type": "earning"
+          },
+          "after": {
+            "status": "pending_clearance",
+            "amount": 4000000,
+            "available_at": "2026-10-08T20:41:04.296220",
+            "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+            "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+            "type": "earning"
+          },
+          "reason": "Dispute resolved",
+          "ip": "172.18.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-07T20:41:04.429014"
+        },
+        {
+          "id": "4de730fb-a0ab-4d92-93dc-b62410832065",
+          "admin_user_id": "d243ad6f-c5e7-4bda-af33-0e4401313bf6",
+          "admin_email": "fin-f722ceearn@example.com",
+          "action": "earning.hold",
+          "entity_type": "caregiver_transaction",
+          "entity_id": "3b7c3e27-843a-4423-8a6f-00ee53cdd546",
+          "before": {
+            "status": "pending_clearance",
+            "amount": 4000000,
+            "available_at": "2026-10-08T20:41:04.296220",
+            "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+            "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+            "type": "earning"
+          },
+          "after": {
+            "status": "held",
+            "amount": 4000000,
+            "available_at": "2026-10-08T20:41:04.296220",
+            "booking_id": "3bfae2fb-4d36-450c-8108-735b60f5cf2e",
+            "caregiver_id": "f9ab2f24-4e17-4252-a0df-1466427d8c34",
+            "type": "earning"
+          },
+          "reason": "The family disputes this visit",
+          "ip": "172.18.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-07T20:41:04.405173"
+        }
+      ],
+      "total": 3,
+      "limit": 4,
+      "offset": 0
+    }
+  },
+  "note": "One entry per hold, release of a hold and void, newest first, with the old and new status and the reason."
+}

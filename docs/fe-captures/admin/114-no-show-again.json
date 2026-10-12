@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/8d27d2d6-3ab0-4fc5-a9c5-6d4fbe0fa88b/no-show",
+    "path": "/api/v1/admin/bookings/bcfecce6-4fca-4779-bf5f-4ba1f1e66d36/no-show",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Again"

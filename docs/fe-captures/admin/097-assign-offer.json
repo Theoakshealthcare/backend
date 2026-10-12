@@ -1,10 +1,10 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/9840bf70-56cd-4786-8a1c-bd7d5628697e/assign",
+    "path": "/api/v1/admin/bookings/820fe9c4-ccc8-42c2-bfd3-b627c7f33147/assign",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+      "caregiver_id": "d9d06786-abc3-422d-93d1-31074b0359cb",
       "reason": "Known to the patient"
     }
   },
@@ -14,8 +14,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "9840bf70-56cd-4786-8a1c-bd7d5628697e",
-      "booking_code": "49E0EF92",
+      "id": "820fe9c4-ccc8-42c2-bfd3-b627c7f33147",
+      "booking_code": "7F2A1CFC",
       "status": "pending",
       "payment_status": "paid",
       "dispatch_state": "dispatching",
@@ -23,6 +23,7 @@
       "needs_address_check": false,
       "refund_required": false,
       "refund_required_reason": null,
+      "refund_amount_kobo": null,
       "no_show_flagged_at": null,
       "notified_caregivers": 1
     }

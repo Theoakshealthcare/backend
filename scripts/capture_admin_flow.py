@@ -2,9 +2,9 @@
 request/response to docs/fe-captures/admin/*.json. docs/fe-integration-guide-admin.md is copied from
 these files, never from the schemas.
 
-    OAKLY_ENV_FILE_PATH=/path/to/temp.env docker compose -p oakly-a0 up --build -d db api
+    OAKLY_ENV_FILE_PATH=/path/to/temp.env docker compose up --build -d   # the worker is needed too: the earnings section runs its job
     poetry run python -m scripts.capture_admin_flow --env-file /path/to/temp.env
-    docker compose -p oakly-a0 down -v
+    docker compose down -v
 
 What is real and what is not
 - Every API call is a real HTTP call to the running API (default http://127.0.0.1:8000).
@@ -35,6 +35,7 @@ from cryptography.fernet import Fernet
 
 from scripts.capture_caregiver_flow import (
     DB,
+    run_release_job,
     LAT,
     LON,
     PLACEHOLDER_PASSWORD,
@@ -143,8 +144,8 @@ class OpsSeed:
     """Rows the bookings section needs and no API creates: patients, approved caregivers with a fresh location,
     and bookings in each state. Every seeded row is placeholder data."""
 
-    def __init__(self, db: DB, env: Dict[str, str], tag: str):
-        self.db, self.tag, self.n = db, tag, 0
+    def __init__(self, db: DB, env: Dict[str, str], tag: str, first: int = 10):
+        self.db, self.tag, self.n = db, tag, first  # ``first`` keeps the phone numbers clear of the .001 the auth section registers and of the other seeds
         self.fernet = Fernet(env["VITALS_ENCRYPTION_KEY"].split(",")[0].strip().encode())
 
     def _phone(self) -> str:
@@ -353,7 +354,7 @@ def booking_policy_section(rec: Recorder, db: DB, env: Dict[str, str], tag: str)
     boss, ops, sup = tokens["boss"], tokens["ops"], tokens["sup"]
     P = f"{ADMIN}/booking-policy"
     rec.call("policy-get", "GET", P, token=sup,
-             note="Support holds bookings.read, which is what reading needs. The row is seeded by migration 0010.")
+             note="Support holds bookings.read, which is what reading needs. The row is seeded by migration 0010; the earnings and payout fields by 0011.")
     rec.call("policy-get-no-token", "GET", P, expect=401)
     rec.call("policy-update-no-reason", "PATCH", P, token=ops, expect=422, json_body={"cancel_late_fee_percent": 60})
     rec.call("policy-update-nothing", "PATCH", P, token=ops, expect=422, json_body={"reason": "No field sent"})
@@ -365,18 +366,26 @@ def booking_policy_section(rec: Recorder, db: DB, env: Dict[str, str], tag: str)
              json_body={"reason": "Late window longer than the free one", "cancel_late_hours": 12})
     rec.call("policy-update-decision-not-shorter", "PATCH", P, token=ops, expect=422,
              json_body={"reason": "Decision lead too long", "dropout_decision_lead_minutes": 120})
+    rec.call("policy-update-share-over-100", "PATCH", P, token=ops, expect=422,
+             json_body={"reason": "Too high", "caregiver_visit_share_percent": 101})
+    rec.call("policy-update-hold-too-long", "PATCH", P, token=ops, expect=422,
+             json_body={"reason": "More than a week", "earning_hold_hours": 169})
+    rec.call("policy-update-bad-cadence", "PATCH", P, token=ops, expect=422,
+             json_body={"reason": "Not a cadence", "payout_cadence": "daily"})
     rec.call("policy-update-as-support", "PATCH", P, token=sup, expect=403,
              json_body={"reason": "Not allowed", "cancel_late_fee_percent": 60})
     rec.call("policy-update", "PATCH", P, token=ops, json_body={
         "reason": "Raise the late fee while we measure no-shows", "cancel_late_fee_percent": 60,
-        "dropout_decision_lead_minutes": 45},
+        "dropout_decision_lead_minutes": 45, "caregiver_visit_share_percent": 75, "earning_hold_hours": 48,
+        "payout_cadence": "biweekly"},
         note="Send only what changes. The merged policy is validated as a whole. Bookings already quoted keep their terms.")
     rec.call("policy-get-after", "GET", P, token=sup)
     rec.call("audit-policy-update", "GET", f"{ADMIN}/audit", token=boss, params={
         "entity_type": "booking_policy", "action": "booking_policy.update", "limit": 1},
         note="One entry per change, with the old and the new values and the reason.")
     rec.call("policy-restore", "PATCH", P, token=boss, json_body={
-        "reason": "Back to the launch defaults", "cancel_late_fee_percent": 50, "dropout_decision_lead_minutes": 60})
+        "reason": "Back to the launch defaults", "cancel_late_fee_percent": 50, "dropout_decision_lead_minutes": 60,
+        "caregiver_visit_share_percent": 80, "earning_hold_hours": 24, "payout_cadence": "weekly"})
 
 
 # --- pricing settings (versioned) -------------------------------------------------------------------------------
@@ -433,6 +442,101 @@ def pricing_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
              note="Numbers must be JSON numbers, not strings.")
 
 
+# --- caregiver earnings (hold, release a hold, void) ---------------------------------------------------------------
+
+
+def earnings_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
+    """A3 slice 1: the admin side of caregiver earnings. The earnings are created by the real completion path
+    (a Super Admin's status correction to completed); every request is a real HTTP call."""
+    admins = Admins(db, env, tag + "earn")
+    seed = OpsSeed(db, env, tag + "e", first=500)
+    wait_for_new_rate_window()
+    rec.quiet = True
+    tokens = {}
+    for who, role in (("boss", "super_admin"), ("fin", "finance"), ("ops", "operations"), ("sup", "support")):
+        tokens[who] = login_and_verify(rec, admins, who, admins.seed(who, role, f"Placeholder {role}"))["access_token"]
+    rec.quiet = False
+    boss, fin, ops, sup = tokens["boss"], tokens["fin"], tokens["ops"], tokens["sup"]
+    E, B = f"{ADMIN}/earnings", f"{ADMIN}/bookings"
+    seeded = "SEEDED: the patient, caregiver and bookings are inserted directly. Everything is placeholder data."
+
+    patient = seed.patient("Ebele Nwosu")
+    cg = seed.caregiver("Placeholder Nurse Earnings", offset=0.002)
+    visits = {name: seed.booking(patient, status="IN_PROGRESS", caregiver_id=cg, dispatch_state="matched",
+                                 hours_ahead=-1, started=True) for name in ("hold", "void", "clear")}
+    flagged = seed.booking(patient, status="ACCEPTED", caregiver_id=cg, dispatch_state="matched", hours_ahead=-0.5)
+
+    def earning_of(booking: Dict[str, Any]) -> Dict[str, Any]:
+        r = rec.http.get(E, params={"booking_id": booking["id"]}, headers={"Authorization": f"Bearer {fin}"}).json()
+        return r["items"][0]
+
+    for name, b in visits.items():
+        rec.call(f"complete-{name}-visit", "POST", f"{B}/{b['id']}/correct-status", token=boss,
+                 json_body={"status": "completed", "reason": "Caregiver forgot to check out"},
+                 note=("This is the same completion path the caregiver's own 'complete' takes: it credits ONE pending "
+                       "earning. " + seeded) if name == "hold" else None)
+    rec.call("earnings-list", "GET", E, token=fin, note="Finance holds payments.read. Newest first. "
+             "base_amount_kobo is the service fee the share was taken of; the platform fee is never part of it.")
+    rec.call("earnings-list-filtered", "GET", E, token=fin, params={"booking_id": visits["hold"]["id"]})
+    rec.call("earnings-list-as-operations", "GET", E, token=ops, expect=403)
+    rec.call("earnings-list-no-token", "GET", E, expect=401)
+    rec.call("earnings-list-bad-status", "GET", E, token=fin, expect=422, params={"status": "bogus"})
+
+    hold_id, void_id, clear_id = (earning_of(visits[n])["id"] for n in ("hold", "void", "clear"))
+    rec.call("earning-hold-as-support", "POST", f"{E}/{hold_id}/hold", token=sup, expect=403,
+             json_body={"reason": "Not allowed"})
+    rec.call("earning-hold-no-reason", "POST", f"{E}/{hold_id}/hold", token=fin, expect=422, json_body={})
+    rec.call("earning-hold-unknown", "POST", f"{E}/{uuid.uuid4()}/hold", token=fin, expect=404,
+             json_body={"reason": "Nobody"})
+    rec.call("earning-hold", "POST", f"{E}/{hold_id}/hold", token=fin,
+             json_body={"reason": "The family disputes this visit"},
+             note="The release job never touches a held earning.")
+    rec.call("earning-hold-again", "POST", f"{E}/{hold_id}/hold", token=fin, expect=409,
+             json_body={"reason": "Again"})
+    rec.call("earnings-list-held", "GET", E, token=fin, params={"status": "held"})
+    rec.call("earning-release-hold", "POST", f"{E}/{hold_id}/release-hold", token=fin,
+             json_body={"reason": "Dispute resolved"}, note="Pending again. Its original available_at still applies.")
+    rec.call("earning-release-hold-again", "POST", f"{E}/{hold_id}/release-hold", token=fin, expect=409,
+             json_body={"reason": "Again"})
+
+    rec.call("earning-void-as-finance", "POST", f"{E}/{void_id}/void", token=fin, expect=403,
+             json_body={"reason": "Finance may hold but not void"},
+             note="Voiding writes an earning off, so it needs ledger.adjust (Super Admin only).")
+    rec.call("earning-void", "POST", f"{E}/{void_id}/void", token=boss, json_body={"reason": "Caregiver never attended"})
+    rec.call("earning-void-again", "POST", f"{E}/{void_id}/void", token=boss, expect=409, json_body={"reason": "Again"})
+    rec.call("earning-hold-voided", "POST", f"{E}/{void_id}/hold", token=fin, expect=409, json_body={"reason": "Again"})
+
+    rec.call("no-show-flag", "POST", f"{B}/{flagged['id']}/no-show", token=ops,
+             json_body={"reason": "Caregiver not at the door at the start time"},
+             note="A no-show flag holds the booking's pending earning. There is none yet (the visit has not happened), "
+                  "so what it changes is the credit that follows.")
+    rec.call("complete-flagged-visit", "POST", f"{B}/{flagged['id']}/correct-status", token=boss,
+             json_body={"status": "completed", "reason": "Caregiver arrived late and finished the visit"})
+    rec.call("earning-of-flagged-visit", "GET", E, token=fin, params={"booking_id": flagged["id"]},
+             note="Credited already held, with the no-show as the reason: it cannot clear until Finance releases the hold.")
+
+    db.run("UPDATE caregiver_transactions SET available_at = now() at time zone 'utc' - interval '1 minute'"
+           " WHERE caregiver_id = %s AND type = 'earning'", (cg,))
+    rec.save("db-simulated-24-hour-earning-hold", {
+        "request": {"method": "SQL", "path": "UPDATE caregiver_transactions SET available_at = <1 minute ago> WHERE caregiver_id = <the caregiver>",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": "SIMULATION: stands in for waiting 24 hours so the capture can continue."})
+    released = run_release_job()
+    rec.save("worker-release-job", {
+        "request": {"method": "JOB", "path": "earnings_release_job (app.services.earnings.release_due), run in the worker container",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"released": released}},
+        "note": "In production the ARQ cron runs this every five minutes. Of the four earnings only the two pending ones "
+                "were due: the voided one and the one held for the no-show were left alone."})
+    rec.call("earnings-list-after-release", "GET", E, token=fin, params={"caregiver_id": cg})
+    rec.call("earning-hold-released", "POST", f"{E}/{clear_id}/hold", token=fin, expect=409,
+             json_body={"reason": "Too late"},
+             note="Once released the money is in the caregiver's balance; correct it with a ledger adjustment instead.")
+    rec.call("audit-earnings", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "caregiver_transaction", "limit": 4},
+             note="One entry per hold, release of a hold and void, newest first, with the old and new status and the reason.")
+
+
 def run(args) -> None:
     out = Path(args.out)
     env = read_env(args.env_file)
@@ -449,7 +553,8 @@ def run(args) -> None:
         rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
         rec.n = first - 1
         index.setdefault("sections", {})["policy"] = first
-        index["sections"].pop("pricing", None)  # the pricing captures came after these and were just deleted: re-run --section pricing
+        index["sections"].pop("pricing", None)  # the pricing and earnings captures came after these and were just deleted
+        index["sections"].pop("earnings", None)
         booking_policy_section(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
@@ -465,7 +570,23 @@ def run(args) -> None:
         rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
         rec.n = first - 1
         index.setdefault("sections", {})["pricing"] = first
+        index["sections"].pop("earnings", None)  # came after these and was just deleted: re-run --section earnings
         pricing_ops(rec, db, env, tag)
+        index["captures"] = rec.index
+        (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
+        print(f"wrote {len(rec.index)} captures to {out}")
+        return
+    if args.section == "earnings":
+        # Replace only the earnings captures: they follow the pricing section, which stays as it is.
+        index = json.loads((out / "000-index.json").read_text())
+        first = index.get("sections", {}).get("earnings", len(index["captures"]) + 1)
+        for stale in out.glob("*.json"):
+            if stale.name != "000-index.json" and int(stale.name[:3]) >= first:
+                stale.unlink()
+        rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
+        rec.n = first - 1
+        index.setdefault("sections", {})["earnings"] = first
+        earnings_ops(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
         print(f"wrote {len(rec.index)} captures to {out}")
@@ -482,7 +603,8 @@ def run(args) -> None:
         rec.n = first - 1
         index.setdefault("sections", {})["bookings"] = first
         index["sections"].pop("pricing", None)
-        index["sections"].pop("policy", None)  # the policy captures came after these and were just deleted: re-run --section policy
+        index["sections"].pop("policy", None)  # the policy, pricing and earnings captures came after these and were just deleted
+        index["sections"].pop("earnings", None)
         bookings_ops(rec, db, env, tag)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
@@ -736,10 +858,13 @@ def run(args) -> None:
     booking_policy_section(rec, db, env, tag)
     first_pricing = rec.n + 1
     pricing_ops(rec, db, env, tag)
+    first_earnings = rec.n + 1
+    earnings_ops(rec, db, env, tag)
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag,
-        "sections": {"bookings": first_bookings, "policy": first_policy, "pricing": first_pricing},
+        "sections": {"bookings": first_bookings, "policy": first_policy, "pricing": first_pricing,
+                     "earnings": first_earnings},
         "captures": rec.index}, indent=2) + "\n")
     print(f"wrote {len(rec.index)} captures to {out}")
 
@@ -750,7 +875,7 @@ def main() -> None:
     p.add_argument("--db-url", default="postgresql://oakly:oakly@127.0.0.1:5432/oakly")
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Fernet key)")
     p.add_argument("--out", default="docs/fe-captures/admin")
-    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing"], default="all",
+    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing", "earnings"], default="all",
                    help="'bookings' re-captures only the A2 section (and drops the policy captures after it), 'policy' only "
                         "the booking-policy section, 'pricing' only the pricing section (the last one); all append to the existing captures")
     run(p.parse_args())

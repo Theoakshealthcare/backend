@@ -4,7 +4,7 @@
     "path": "/api/v1/admin/auth/login",
     "auth": null,
     "body": {
-      "email": "throttled-1b46d2@example.com",
+      "email": "throttled-f722ce@example.com",
       "password": "<PLACEHOLDER_PASSWORD>"
     }
   },

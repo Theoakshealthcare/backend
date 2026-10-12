@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Not a cadence",
+      "payout_cadence": "daily"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "payout_cadence"
+          ],
+          "msg": "Input should be 'weekly', 'biweekly' or 'monthly'",
+          "input": "daily",
+          "ctx": {
+            "expected": "'weekly', 'biweekly' or 'monthly'"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/5b2c3e3c-15e8-41c6-a8d7-0f28eda6f905/correct-status",
+    "path": "/api/v1/admin/bookings/7842c39a-ffa3-4d4f-a2a2-d7638b5b8752/correct-status",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "status": "completed",

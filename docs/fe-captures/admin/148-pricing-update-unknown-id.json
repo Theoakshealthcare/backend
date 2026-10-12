@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PUT",
-    "path": "/api/v1/booking-settings/43a04678-a128-483a-bc4f-706ed3cf2eb2",
+    "path": "/api/v1/booking-settings/c7eb1561-5b33-47c7-ba5f-66a486443328",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "base_fee": 5000,

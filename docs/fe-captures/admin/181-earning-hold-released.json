@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/earnings/a3138efc-a698-4ea3-b9f3-bc982aed3526/hold",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Too late"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "This earning has already been released to the caregiver's balance; correct it with a ledger adjustment"
+    }
+  },
+  "note": "Once released the money is in the caregiver's balance; correct it with a ledger adjustment instead."
+}

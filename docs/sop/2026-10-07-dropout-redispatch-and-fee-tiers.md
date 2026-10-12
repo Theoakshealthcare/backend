@@ -11,7 +11,7 @@
 ## What shipped
 - **A caregiver drop-out on a WhatsApp booking is replaced automatically** instead of refunded (W3 refunded). App bookings are unchanged.
 - **Two-tier family cancellation fee** replacing the single 20%: free, then 20%, then 50% of the service fee, with the tier stored on the booking.
-- **`late_cancel_compensable`**: whether a late cancellation followed a *qualifying* on-my-way (A3 will pay the caregiver from it; nothing is paid here).
+- **`late_cancel_compensable`**: whether a late cancellation followed a *qualifying* on-my-way (A3 slice 1 now pays the caregiver from it; see [caregiver earnings](2026-10-07-caregiver-earnings.md). Nothing is paid in this change).
 - **The policy is data, not env**: a `booking_policies` row an admin edits (`GET`/`PATCH /api/v1/admin/booking-policy`), with a reason and an audit row. `WHATSAPP_CANCEL_FREE_HOURS` and `WHATSAPP_CANCEL_FEE_PERCENT` are gone from Settings and `.env.example`.
 - **Caregiver drop-outs are recorded** in `caregiver_dropouts` (any channel), for the admin console to show later.
 

@@ -1,6 +1,12 @@
 {
   "generated_by": "scripts/capture_admin_flow.py",
-  "run_tag": "1b46d2",
+  "run_tag": "f722ce",
+  "sections": {
+    "bookings": 79,
+    "policy": 119,
+    "pricing": 135,
+    "earnings": 155
+  },
   "captures": [
     {
       "file": "001-login-wrong-password.json",
@@ -633,134 +639,284 @@
       "status": 422
     },
     {
-      "file": "127-policy-update-as-support.json",
+      "file": "127-policy-update-share-over-100.json",
+      "label": "policy-update-share-over-100",
+      "status": 422
+    },
+    {
+      "file": "128-policy-update-hold-too-long.json",
+      "label": "policy-update-hold-too-long",
+      "status": 422
+    },
+    {
+      "file": "129-policy-update-bad-cadence.json",
+      "label": "policy-update-bad-cadence",
+      "status": 422
+    },
+    {
+      "file": "130-policy-update-as-support.json",
       "label": "policy-update-as-support",
       "status": 403
     },
     {
-      "file": "128-policy-update.json",
+      "file": "131-policy-update.json",
       "label": "policy-update",
       "status": 200
     },
     {
-      "file": "129-policy-get-after.json",
+      "file": "132-policy-get-after.json",
       "label": "policy-get-after",
       "status": 200
     },
     {
-      "file": "130-audit-policy-update.json",
+      "file": "133-audit-policy-update.json",
       "label": "audit-policy-update",
       "status": 200
     },
     {
-      "file": "131-policy-restore.json",
+      "file": "134-policy-restore.json",
       "label": "policy-restore",
       "status": 200
     },
     {
-      "file": "132-pricing-get-no-token.json",
+      "file": "135-pricing-get-no-token.json",
       "label": "pricing-get-no-token",
       "status": 401
     },
     {
-      "file": "133-pricing-get-as-analyst.json",
+      "file": "136-pricing-get-as-analyst.json",
       "label": "pricing-get-as-analyst",
       "status": 403
     },
     {
-      "file": "134-pricing-get-empty.json",
+      "file": "137-pricing-get-empty.json",
       "label": "pricing-get-empty",
       "status": 404
     },
     {
-      "file": "135-pricing-create-as-support.json",
+      "file": "138-pricing-create-as-support.json",
       "label": "pricing-create-as-support",
       "status": 403
     },
     {
-      "file": "136-pricing-create-no-reason.json",
+      "file": "139-pricing-create-no-reason.json",
       "label": "pricing-create-no-reason",
       "status": 422
     },
     {
-      "file": "137-pricing-create-negative-fee.json",
+      "file": "140-pricing-create-negative-fee.json",
       "label": "pricing-create-negative-fee",
       "status": 422
     },
     {
-      "file": "138-pricing-create-percent-over-100.json",
+      "file": "141-pricing-create-percent-over-100.json",
       "label": "pricing-create-percent-over-100",
       "status": 422
     },
     {
-      "file": "139-pricing-create-unknown-service.json",
+      "file": "142-pricing-create-unknown-service.json",
       "label": "pricing-create-unknown-service",
       "status": 422
     },
     {
-      "file": "140-pricing-create-multiplier-too-high.json",
+      "file": "143-pricing-create-multiplier-too-high.json",
       "label": "pricing-create-multiplier-too-high",
       "status": 422
     },
     {
-      "file": "141-pricing-create-unknown-field.json",
+      "file": "144-pricing-create-unknown-field.json",
       "label": "pricing-create-unknown-field",
       "status": 422
     },
     {
-      "file": "142-pricing-create.json",
+      "file": "145-pricing-create.json",
       "label": "pricing-create",
       "status": 200
     },
     {
-      "file": "143-pricing-update.json",
+      "file": "146-pricing-update.json",
       "label": "pricing-update",
       "status": 200
     },
     {
-      "file": "144-pricing-update-superseded.json",
+      "file": "147-pricing-update-superseded.json",
       "label": "pricing-update-superseded",
       "status": 409
     },
     {
-      "file": "145-pricing-update-unknown-id.json",
+      "file": "148-pricing-update-unknown-id.json",
       "label": "pricing-update-unknown-id",
       "status": 404
     },
     {
-      "file": "146-pricing-list.json",
+      "file": "149-pricing-list.json",
       "label": "pricing-list",
       "status": 200
     },
     {
-      "file": "147-pricing-get-latest.json",
+      "file": "150-pricing-get-latest.json",
       "label": "pricing-get-latest",
       "status": 200
     },
     {
-      "file": "148-pricing-delete.json",
+      "file": "151-pricing-delete.json",
       "label": "pricing-delete",
       "status": 409
     },
     {
-      "file": "149-audit-pricing.json",
+      "file": "152-audit-pricing.json",
       "label": "audit-pricing",
       "status": 200
     },
     {
-      "file": "150-pricing-create-when-one-exists.json",
+      "file": "153-pricing-create-when-one-exists.json",
       "label": "pricing-create-when-one-exists",
       "status": 409
     },
     {
-      "file": "151-pricing-create-string-number.json",
+      "file": "154-pricing-create-string-number.json",
       "label": "pricing-create-string-number",
       "status": 422
+    },
+    {
+      "file": "155-complete-hold-visit.json",
+      "label": "complete-hold-visit",
+      "status": 200
+    },
+    {
+      "file": "156-complete-void-visit.json",
+      "label": "complete-void-visit",
+      "status": 200
+    },
+    {
+      "file": "157-complete-clear-visit.json",
+      "label": "complete-clear-visit",
+      "status": 200
+    },
+    {
+      "file": "158-earnings-list.json",
+      "label": "earnings-list",
+      "status": 200
+    },
+    {
+      "file": "159-earnings-list-filtered.json",
+      "label": "earnings-list-filtered",
+      "status": 200
+    },
+    {
+      "file": "160-earnings-list-as-operations.json",
+      "label": "earnings-list-as-operations",
+      "status": 403
+    },
+    {
+      "file": "161-earnings-list-no-token.json",
+      "label": "earnings-list-no-token",
+      "status": 401
+    },
+    {
+      "file": "162-earnings-list-bad-status.json",
+      "label": "earnings-list-bad-status",
+      "status": 422
+    },
+    {
+      "file": "163-earning-hold-as-support.json",
+      "label": "earning-hold-as-support",
+      "status": 403
+    },
+    {
+      "file": "164-earning-hold-no-reason.json",
+      "label": "earning-hold-no-reason",
+      "status": 422
+    },
+    {
+      "file": "165-earning-hold-unknown.json",
+      "label": "earning-hold-unknown",
+      "status": 404
+    },
+    {
+      "file": "166-earning-hold.json",
+      "label": "earning-hold",
+      "status": 200
+    },
+    {
+      "file": "167-earning-hold-again.json",
+      "label": "earning-hold-again",
+      "status": 409
+    },
+    {
+      "file": "168-earnings-list-held.json",
+      "label": "earnings-list-held",
+      "status": 200
+    },
+    {
+      "file": "169-earning-release-hold.json",
+      "label": "earning-release-hold",
+      "status": 200
+    },
+    {
+      "file": "170-earning-release-hold-again.json",
+      "label": "earning-release-hold-again",
+      "status": 409
+    },
+    {
+      "file": "171-earning-void-as-finance.json",
+      "label": "earning-void-as-finance",
+      "status": 403
+    },
+    {
+      "file": "172-earning-void.json",
+      "label": "earning-void",
+      "status": 200
+    },
+    {
+      "file": "173-earning-void-again.json",
+      "label": "earning-void-again",
+      "status": 409
+    },
+    {
+      "file": "174-earning-hold-voided.json",
+      "label": "earning-hold-voided",
+      "status": 409
+    },
+    {
+      "file": "175-no-show-flag.json",
+      "label": "no-show-flag",
+      "status": 200
+    },
+    {
+      "file": "176-complete-flagged-visit.json",
+      "label": "complete-flagged-visit",
+      "status": 200
+    },
+    {
+      "file": "177-earning-of-flagged-visit.json",
+      "label": "earning-of-flagged-visit",
+      "status": 200
+    },
+    {
+      "file": "178-db-simulated-24-hour-earning-hold.json",
+      "label": "db-simulated-24-hour-earning-hold",
+      "status": null
+    },
+    {
+      "file": "179-worker-release-job.json",
+      "label": "worker-release-job",
+      "status": null
+    },
+    {
+      "file": "180-earnings-list-after-release.json",
+      "label": "earnings-list-after-release",
+      "status": 200
+    },
+    {
+      "file": "181-earning-hold-released.json",
+      "label": "earning-hold-released",
+      "status": 409
+    },
+    {
+      "file": "182-audit-earnings.json",
+      "label": "audit-earnings",
+      "status": 200
     }
-  ],
-  "sections": {
-    "bookings": 79,
-    "policy": 119,
-    "pricing": 132
-  }
+  ]
 }

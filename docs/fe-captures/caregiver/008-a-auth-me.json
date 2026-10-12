@@ -11,25 +11,25 @@
       "content-type": "application/json"
     },
     "body": {
-      "email": "caregiver-a-f57f47@example.com",
-      "phone_number": "+2340000903001",
+      "email": "caregiver-a-d2e706@example.com",
+      "phone_number": "+2340000702001",
       "full_name": "Placeholder Caregiver A",
       "user_type": "caregiver",
       "profile_image_url": null,
-      "id": "8e57a440-697f-448c-9ede-c7727ebcef38",
+      "id": "5b92bd67-9996-46ec-aa91-f01f23ec165c",
       "is_active": true,
       "is_verified": true,
-      "created_at": "2026-10-07T14:31:54.579525",
-      "updated_at": "2026-10-07T14:31:54.628822",
+      "created_at": "2026-10-07T19:48:44.933551",
+      "updated_at": "2026-10-07T19:48:44.979766",
       "patient": null,
       "caregiver": {
-        "email": "caregiver-a-f57f47@example.com",
+        "email": "caregiver-a-d2e706@example.com",
         "full_name": "Placeholder Caregiver A",
-        "phone_number": "+2340000903001",
-        "id": "c40e90d9-a8f8-400b-8fef-4c3f25a9dea6",
-        "user_id": "8e57a440-697f-448c-9ede-c7727ebcef38",
-        "created_at": "2026-10-07T14:31:54.581444",
-        "updated_at": "2026-10-07T14:31:54.581446"
+        "phone_number": "+2340000702001",
+        "id": "657acd80-fa63-4f0d-a301-83ff3877fcd8",
+        "user_id": "5b92bd67-9996-46ec-aa91-f01f23ec165c",
+        "created_at": "2026-10-07T19:48:44.935986",
+        "updated_at": "2026-10-07T19:48:44.935987"
       }
     }
   }

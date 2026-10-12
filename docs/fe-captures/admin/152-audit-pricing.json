@@ -13,14 +13,14 @@
     "body": {
       "items": [
         {
-          "id": "3bd68988-f729-4c0b-8562-842d44c7e231",
-          "admin_user_id": "6835e24f-0dda-4165-8006-7543f36ee758",
-          "admin_email": "boss-2bdaccpr@example.com",
+          "id": "17090945-d09f-45d3-928c-3d1362b7c80b",
+          "admin_user_id": "25773b68-4c57-49f5-a5fc-091660298541",
+          "admin_email": "boss-f722cepr@example.com",
           "action": "booking_settings.update",
           "entity_type": "booking_settings",
-          "entity_id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+          "entity_id": "35727fd8-5030-48d5-b98f-b11bcdcfbe14",
           "before": {
-            "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+            "id": "37fab89f-6286-4aa0-b23f-fcd28bd7096b",
             "base_fee": 5000.0,
             "platform_fee_percent": 10.0,
             "multipliers": {
@@ -32,7 +32,7 @@
             "discount": 0.0
           },
           "after": {
-            "id": "baf282ad-31ae-466c-96cb-d4249b1bfa2d",
+            "id": "35727fd8-5030-48d5-b98f-b11bcdcfbe14",
             "base_fee": 6500.0,
             "platform_fee_percent": 10.0,
             "multipliers": {
@@ -46,18 +46,18 @@
           "reason": "Fuel costs went up",
           "ip": "172.18.0.1",
           "user_agent": "python-httpx/0.28.1",
-          "created_at": "2026-10-07T14:36:03.922388"
+          "created_at": "2026-10-07T20:40:03.790926"
         },
         {
-          "id": "7c285c5c-e0b9-4268-a1b8-294ea3d58402",
-          "admin_user_id": "6835e24f-0dda-4165-8006-7543f36ee758",
-          "admin_email": "boss-2bdaccpr@example.com",
+          "id": "dc4f5581-cddb-42ea-a819-34277e87d333",
+          "admin_user_id": "25773b68-4c57-49f5-a5fc-091660298541",
+          "admin_email": "boss-f722cepr@example.com",
           "action": "booking_settings.create",
           "entity_type": "booking_settings",
-          "entity_id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+          "entity_id": "37fab89f-6286-4aa0-b23f-fcd28bd7096b",
           "before": null,
           "after": {
-            "id": "fb732890-c4f5-4462-ac17-9e24dc5db0e1",
+            "id": "37fab89f-6286-4aa0-b23f-fcd28bd7096b",
             "base_fee": 5000.0,
             "platform_fee_percent": 10.0,
             "multipliers": {
@@ -71,7 +71,7 @@
           "reason": "Opening price list",
           "ip": "172.18.0.1",
           "user_agent": "python-httpx/0.28.1",
-          "created_at": "2026-10-07T14:36:03.913152"
+          "created_at": "2026-10-07T20:40:03.780501"
         }
       ],
       "total": 2,

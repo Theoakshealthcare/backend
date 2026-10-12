@@ -109,6 +109,9 @@ class Booking(Base):
     # is created, so a later edit never changes terms the family agreed to. NULL (app and admin bookings): the live
     # policy applies.
     cancel_policy = Column(JSON, nullable=True)
+    # What the caregiver earns, copied from the admin policy when the booking is created (like ``cancel_policy``):
+    # ``{"visit_share_percent", "hold_hours", "late_fee_share_percent"}``. NULL: the live policy applies.
+    earnings_terms = Column(JSON, nullable=True)
     cancel_fee_tier = Column(String, nullable=True)  # none | standard | late: the tier a booker cancellation applied
     # For the late tier only: was it because the caregiver set out in good time and really moved toward the patient?
     # (The caregiver-compensation work, A3, reads this.) NULL when the late tier did not apply.

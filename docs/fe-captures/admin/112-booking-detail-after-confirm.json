@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/bookings/b316785e-b27a-44c6-85bd-3246c2ea9648",
+    "path": "/api/v1/admin/bookings/5b521068-1e0c-4e08-a910-70e2247edee1",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -11,26 +11,26 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "b316785e-b27a-44c6-85bd-3246c2ea9648",
-      "booking_code": "06C5304A",
+      "id": "5b521068-1e0c-4e08-a910-70e2247edee1",
+      "booking_code": "81931E50",
       "service_type": "nurse",
       "assistance_type": "Placeholder assistance",
       "booking_for": "myself",
       "duration_hours": 2,
-      "scheduled_date": "2026-10-08T02:16:05.551407",
-      "scheduled_end_date": "2026-10-08T04:16:05.551407",
+      "scheduled_date": "2026-10-09T02:38:05.525682",
+      "scheduled_end_date": "2026-10-09T04:38:05.525682",
       "actual_start_time": null,
       "actual_end_time": null,
       "status": "pending",
       "channel": "whatsapp",
       "cancel_reason": null,
-      "created_at": "2026-10-06T19:36:05.549631",
-      "updated_at": "2026-10-06T20:16:05.882432",
+      "created_at": "2026-10-07T19:58:05.524967",
+      "updated_at": "2026-10-07T20:38:05.872381",
       "age_minutes": 40,
       "patient": {
-        "id": "3c4bb293-6fc0-49a2-94af-82198d8605d0",
+        "id": "43a3393c-9aab-41b2-824c-ba8c8d0f8c5c",
         "full_name": "Bola Adeyemi",
-        "phone": "+2340000780002",
+        "phone": "+2340000302012",
         "masked": false
       },
       "caregiver": null,
@@ -57,36 +57,37 @@
       },
       "payment": {
         "status": "paid",
-        "paystack_reference": "BKG_06C5304A_d309d1b3",
+        "paystack_reference": "BKG_81931E50_56fd15bd",
         "failure_reason": null,
         "expires_at": null,
         "refund_required": false,
         "refund_required_reason": null,
+        "refund_amount_kobo": null,
         "attempts": []
       },
       "dispatch": {
         "state": "dispatching",
-        "started_at": "2026-10-06T20:16:05.881099",
+        "started_at": "2026-10-07T20:38:05.870942",
         "waves": [
           {
             "wave_no": 1,
-            "sent_at": "2026-10-06T20:16:05.881099",
-            "expires_at": "2026-10-06T20:26:05.881099",
+            "sent_at": "2026-10-07T20:38:05.870942",
+            "expires_at": "2026-10-07T20:48:05.870942",
             "notified_count": 2
           }
         ],
         "offers": [
           {
-            "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+            "caregiver_id": "d9d06786-abc3-422d-93d1-31074b0359cb",
             "caregiver_name": "Placeholder Nurse One",
-            "offered_at": "2026-10-06T20:16:05.886817",
+            "offered_at": "2026-10-07T20:38:05.877255",
             "response": null,
             "response_at": null
           },
           {
-            "caregiver_id": "1be82916-b8e1-4d84-9f9e-307d0ff1a569",
+            "caregiver_id": "fadb48ca-b532-4c09-8048-826a49d80a86",
             "caregiver_name": "Placeholder Nurse Two",
-            "offered_at": "2026-10-06T20:16:05.886821",
+            "offered_at": "2026-10-07T20:38:05.877259",
             "response": null,
             "response_at": null
           }
@@ -98,35 +99,35 @@
       "note_count": 0,
       "timeline": [
         {
-          "at": "2026-10-06T19:36:05.549631",
+          "at": "2026-10-07T19:58:05.524967",
           "kind": "booking_created",
           "title": "Booking created via whatsapp",
           "actor": "system",
           "detail": null
         },
         {
-          "at": "2026-10-06T20:16:05.711881",
+          "at": "2026-10-07T20:38:05.699900",
           "kind": "admin_action",
           "title": "booking.clinical_view",
           "actor": "admin: Placeholder clinical_reviewer",
           "detail": null
         },
         {
-          "at": "2026-10-06T20:16:05.881099",
+          "at": "2026-10-07T20:38:05.870942",
           "kind": "dispatch_started",
           "title": "Dispatch started",
           "actor": "system",
           "detail": null
         },
         {
-          "at": "2026-10-06T20:16:05.881099",
+          "at": "2026-10-07T20:38:05.870942",
           "kind": "wave_sent",
           "title": "Wave 1 sent",
           "actor": "system",
           "detail": "2 caregiver(s) offered the visit"
         },
         {
-          "at": "2026-10-06T20:16:05.881938",
+          "at": "2026-10-07T20:38:05.871843",
           "kind": "admin_action",
           "title": "booking.confirm_address",
           "actor": "admin: Placeholder operations",

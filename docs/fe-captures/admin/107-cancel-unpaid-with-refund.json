@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/c8b9e484-ec10-4339-8ccb-d53a478c9f05/cancel",
+    "path": "/api/v1/admin/bookings/83995098-cb64-44ca-a158-5e8505779b3e/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason_code": "duplicate",

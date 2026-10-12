@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "earnings_release_job (app.services.earnings.release_due), run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "released": 2
+    }
+  },
+  "note": "In production the ARQ cron runs this every five minutes. Of the four earnings only the two pending ones were due: the voided one and the one held for the no-show were left alone."
+}

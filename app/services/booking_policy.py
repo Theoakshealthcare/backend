@@ -4,7 +4,8 @@
 falls back to the defaults). ``update`` is the one writer: it validates the *merged* result, stores it and writes the
 audit row (old and new values, the reason) in the same transaction.
 
-The cancellation tiers are **snapshotted** onto the quote and the booking when they are made (``cancel_snapshot``), and
+The caregiver earnings terms (visit share, hold, late-fee share) are snapshotted onto the booking the same way
+(``earnings_snapshot``). The cancellation tiers are **snapshotted** onto the quote and the booking when they are made (``cancel_snapshot``), and
 cancellation reads the booking's copy, so an edit here only affects bookings quoted afterwards. The drop-out timings and
 the on-my-way window are read live.
 """
@@ -18,7 +19,7 @@ from uuid import UUID
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from app.db.models.booking_policy import POLICY_DEFAULTS, BookingPolicy
+from app.db.models.booking_policy import PAYOUT_CADENCES, POLICY_DEFAULTS, BookingPolicy
 from app.services.audit import AuditService
 
 logger = logging.getLogger(__name__)
@@ -40,21 +41,36 @@ class PolicyValues:
     dropout_decision_lead_minutes: int
     onmyway_compensation_window_minutes: int
     caregiver_late_fee_share_percent: int
+    caregiver_visit_share_percent: int
+    earning_hold_hours: int
+    payout_cadence: str
+    payout_min_naira: int
+    finance_refund_limit_naira: int
 
-    def as_dict(self) -> Dict[str, int]:
+    def as_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 FIELDS = tuple(f.name for f in fields(PolicyValues))
 MAX_HOURS = 168          # a week
 MAX_MINUTES = 10_080     # a week
-HOUR_FIELDS = ("cancel_free_hours", "cancel_late_hours")
-PERCENT_FIELDS = ("cancel_fee_percent", "cancel_late_fee_percent", "caregiver_late_fee_share_percent")
+MAX_NAIRA = 100_000_000
+HOUR_FIELDS = ("cancel_free_hours", "cancel_late_hours", "earning_hold_hours")
+PERCENT_FIELDS = ("cancel_fee_percent", "cancel_late_fee_percent", "caregiver_late_fee_share_percent",
+                  "caregiver_visit_share_percent")
+NAIRA_FIELDS = ("payout_min_naira", "finance_refund_limit_naira")
+TEXT_FIELDS = ("payout_cadence",)
+MINUTE_FIELDS = ("dropout_redispatch_min_lead_minutes", "dropout_decision_lead_minutes",
+                 "onmyway_compensation_window_minutes")
 
 
 def validate(values: Dict[str, Any]) -> None:
     for name in FIELDS:
         value = values[name]
+        if name in TEXT_FIELDS:
+            if value not in PAYOUT_CADENCES:
+                raise PolicyInvalid(f"{name} must be one of: {', '.join(PAYOUT_CADENCES)}")
+            continue
         if isinstance(value, bool) or not isinstance(value, int):
             raise PolicyInvalid(f"{name} must be a whole number")
         if value < 0:
@@ -63,7 +79,9 @@ def validate(values: Dict[str, Any]) -> None:
             raise PolicyInvalid(f"{name} must be between 0 and 100")
         if name in HOUR_FIELDS and value > MAX_HOURS:
             raise PolicyInvalid(f"{name} cannot be more than {MAX_HOURS} hours")
-        if name not in HOUR_FIELDS and name not in PERCENT_FIELDS and value > MAX_MINUTES:
+        if name in NAIRA_FIELDS and value > MAX_NAIRA:
+            raise PolicyInvalid(f"{name} cannot be more than {MAX_NAIRA} naira")
+        if name in MINUTE_FIELDS and value > MAX_MINUTES:
             raise PolicyInvalid(f"{name} cannot be more than {MAX_MINUTES} minutes")
     if values["cancel_late_hours"] >= values["cancel_free_hours"]:
         raise PolicyInvalid("The late-cancellation window (cancel_late_hours) must be shorter than the free-cancellation "
@@ -78,7 +96,7 @@ def validate(values: Dict[str, Any]) -> None:
 def _values(row: Optional[BookingPolicy]) -> PolicyValues:
     if row is None:
         return PolicyValues(**POLICY_DEFAULTS)
-    return PolicyValues(**{name: int(getattr(row, name)) for name in FIELDS})
+    return PolicyValues(**{name: (str if name in TEXT_FIELDS else int)(getattr(row, name)) for name in FIELDS})
 
 
 def current(db: Session) -> PolicyValues:
@@ -91,11 +109,17 @@ def cancel_snapshot(policy: PolicyValues) -> Dict[str, int]:
             "fee_percent": policy.cancel_fee_percent, "late_fee_percent": policy.cancel_late_fee_percent}
 
 
+def earnings_snapshot(policy: PolicyValues) -> Dict[str, int]:
+    """What a caregiver earns on a booking, copied onto it when it is created."""
+    return {"visit_share_percent": policy.caregiver_visit_share_percent, "hold_hours": policy.earning_hold_hours,
+            "late_fee_share_percent": policy.caregiver_late_fee_share_percent}
+
+
 def get_row(db: Session) -> Optional[BookingPolicy]:
     return db.get(BookingPolicy, 1)
 
 
-def update(db: Session, *, admin_id: UUID, changes: Dict[str, int], reason: str,
+def update(db: Session, *, admin_id: UUID, changes: Dict[str, Any], reason: str,
            request: Optional[Request] = None) -> BookingPolicy:
     """Apply ``changes`` (field -> new value) to the policy, validated as a whole. Commits (with the audit row)."""
     row = db.query(BookingPolicy).filter(BookingPolicy.id == 1).with_for_update().first()

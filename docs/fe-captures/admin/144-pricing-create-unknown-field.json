@@ -14,7 +14,7 @@
       "surge_multiplier": 1.0,
       "discount": 0,
       "reason": "Opening price list",
-      "id": "3aef457e-34cd-4a24-bcb3-f91aa3d2f155"
+      "id": "580f3ec9-3f77-4bc6-9bfb-f02373dc0ee8"
     }
   },
   "response": {
@@ -31,7 +31,7 @@
             "id"
           ],
           "msg": "Extra inputs are not permitted",
-          "input": "3aef457e-34cd-4a24-bcb3-f91aa3d2f155"
+          "input": "580f3ec9-3f77-4bc6-9bfb-f02373dc0ee8"
         }
       ]
     }

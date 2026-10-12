@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/bookings/8d27d2d6-3ab0-4fc5-a9c5-6d4fbe0fa88b/no-show",
+    "path": "/api/v1/admin/bookings/bcfecce6-4fca-4779-bf5f-4ba1f1e66d36/no-show",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Caregiver not reachable"
@@ -13,16 +13,17 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "8d27d2d6-3ab0-4fc5-a9c5-6d4fbe0fa88b",
-      "booking_code": "5F02D072",
+      "id": "bcfecce6-4fca-4779-bf5f-4ba1f1e66d36",
+      "booking_code": "550BDFF3",
       "status": "accepted",
       "payment_status": "paid",
       "dispatch_state": "matched",
-      "caregiver_id": "ff505a54-e994-4ca8-95fe-24b171529f13",
+      "caregiver_id": "d9d06786-abc3-422d-93d1-31074b0359cb",
       "needs_address_check": false,
       "refund_required": false,
       "refund_required_reason": null,
-      "no_show_flagged_at": "2026-10-06T20:16:05.907604",
+      "refund_amount_kobo": null,
+      "no_show_flagged_at": "2026-10-07T20:38:05.896930",
       "notified_caregivers": 0
     }
   }

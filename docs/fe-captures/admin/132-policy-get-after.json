@@ -1,13 +1,9 @@
 {
   "request": {
-    "method": "PATCH",
+    "method": "GET",
     "path": "/api/v1/admin/booking-policy",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
-    "body": {
-      "reason": "Raise the late fee while we measure no-shows",
-      "cancel_late_fee_percent": 60,
-      "dropout_decision_lead_minutes": 45
-    }
+    "body": null
   },
   "response": {
     "status_code": 200,
@@ -23,9 +19,13 @@
       "dropout_decision_lead_minutes": 45,
       "onmyway_compensation_window_minutes": 120,
       "caregiver_late_fee_share_percent": 80,
-      "updated_at": "2026-10-07T10:59:03.679353",
-      "updated_by": "ed75f068-d405-423b-9c2f-e9de5b9abb05"
+      "caregiver_visit_share_percent": 75,
+      "earning_hold_hours": 48,
+      "payout_cadence": "biweekly",
+      "payout_min_naira": 5000,
+      "finance_refund_limit_naira": 50000,
+      "updated_at": "2026-10-07T20:39:03.215386",
+      "updated_by": "c499ba9f-c4de-4e44-acab-bd94cd0e4ba5"
     }
-  },
-  "note": "Send only what changes. The merged policy is validated as a whole. Bookings already quoted keep their terms."
+  }
 }

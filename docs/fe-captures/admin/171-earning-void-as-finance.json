@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/earnings/a0946e7f-6f17-4beb-b16c-9b0b1b87f2fd/void",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Finance may hold but not void"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: ledger.adjust"
+    }
+  },
+  "note": "Voiding writes an earning off, so it needs ledger.adjust (Super Admin only)."
+}
