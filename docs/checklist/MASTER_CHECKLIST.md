@@ -2,16 +2,18 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
-**Update (2026-10-12, A3 slice 2):** caregiver payouts are built on `feat/a3-payouts` (migration `0012`, not pushed, with the money reviews' double-payment fixes folded in and the dispute handling replaced by one invariant, 2026-10-12): weekly, admin-approved Paystack Transfer batches replace self-withdrawal. Verified by tests and live captures against a **fake** Paystack; a live Paystack run, and Paystack OTP disabled for API transfers, are still open. Refunds v2 and ledger adjustments are next.
+**Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
-**Update (2026-10-07, A3 slice 1):** caregiver earnings are credited on completion, held, and released by a worker job (migration `0011`, on `feat/a3-earnings`, not yet merged). Payouts, refunds v2 and ledger adjustments are next.
+**Update (2026-10-12, A3 slice 2):** caregiver payouts are MERGED (Theoakshealthcare/backend#14, b88bdf0, migration `0012`, with the money reviews' double-payment fixes folded in and the dispute handling replaced by one invariant, 2026-10-12): weekly, admin-approved Paystack Transfer batches replace self-withdrawal. Verified by tests and live captures against a **fake** Paystack; a live Paystack run, and Paystack OTP disabled for API transfers, are still open. Refunds v2 and ledger adjustments are next.
+
+**Update (2026-10-07, A3 slice 1):** caregiver earnings are credited on completion, held, and released by a worker job (migration `0011`, merged as innocent98/backend#34, ba61e65). Payouts, refunds v2 and ledger adjustments are next.
 
 **Update (2026-10-07):** Backend PRs #1–#32 and caregiver monorepo PRs #1–#11 are merged. Done since the last roll-up: admin A0 (#21) and A1 console (monorepo #6); tech debt (#23); WhatsApp W1–W3 (#22, #24, #27), default multipliers and geocoding (#28), drop-out re-dispatch with two-tier fees and the booking policy (#30), caregiver cancel window (#32); A2 bookings ops API (#26, backend only); account deletion as anonymisation (#29); pricing settings audit (#31); caregiver app account, wallet, notifications and directions screens (monorepo #7–#11). Migrations `0001`–`0010` are on `main`. Still open: A2 console screens, A3–A5, W4–W5, the remaining caregiver app screens (section 8), and the owner and device items.
 
 **Snapshot (2026-10-12):** 
 - **Items:** 175 done (`[x]`), 135 open (`[ ]`), counted over every task line.
 - **Sections done:** 8 (Phase C, code complete, device run pending), 11 (tech debt), 12 (account deletion), 13 (pricing audit).
-- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 done in code; slice 2 awaits the money review and a live Paystack run), 10 (W1–W3b done).
+- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 merged on the backend; slice 2's console and app screens and a live Paystack run remain), 10 (W1–W3b done).
 - **Sections planned or not started:** 1 and 2 (open items are mostly the owner's secret rotation and the remaining hardening list), 3–5, plus A2 screens, A3–A5, W4 and W5.
 
 **Baseline:** the full review of all three repos on 2026-09-24 (it predates this file).
