@@ -608,30 +608,17 @@ def test_the_payslip_counts_released_earnings_only(db, client):
     assert "32,000.00" in client.get(url, headers=auth_headers(cg.user)).text
 
 
-# --- withdrawing ---------------------------------------------------------------------------------------------------
+# --- withdrawing (removed in slice 2: the balance is paid out on a schedule) -----------------------------------------
 
 
-def test_withdraw_refuses_money_that_is_still_pending(db, client):
-    cg, booking, tx = completed_earning(db, client)
-    make_caregiver_wallet(db, cg, balance_kobo=0)
-    r = client.post(f"{WALLET}/withdraw", json={"amount": 100_000}, headers=auth_headers(cg.user))
-    assert r.status_code == 400 and "Insufficient" in r.json()["detail"]
-    assert [t.type for t in txs(db, cg)] == ["earning"]  # no withdrawal row
-
-
-def test_withdraw_takes_only_from_the_available_part_and_works_after_release(db, client):
+def test_self_withdrawal_is_gone_and_moves_no_money(db, client):
     cg, booking, tx = completed_earning(db, client)
     db.add(CaregiverWallet(caregiver_id=cg.id, balance=500_000))
-    from app.db.models.caregiver import CaregiverBankAccount
-    db.add(CaregiverBankAccount(caregiver_id=cg.id, bank_name="Test Bank", account_number="0000000000", account_name="T"))
     db.commit()
-    h = auth_headers(cg.user)
-    assert client.post(f"{WALLET}/withdraw", json={"amount": 600_000}, headers=h).status_code == 400  # pending is not counted
-    assert client.post(f"{WALLET}/withdraw", json={"amount": 500_000}, headers=h).status_code == 200
-    assert balance(db, cg) == 0
-    earnings.release_due(db, now=tx.available_at)
-    assert client.post(f"{WALLET}/withdraw", json={"amount": 3_200_000}, headers=h).status_code == 200
-    assert balance(db, cg) == 0
+    r = client.post(f"{WALLET}/withdraw", json={"amount": 100_000}, headers=auth_headers(cg.user))
+    assert r.status_code == 410 and "no longer available" in r.json()["detail"]
+    assert balance(db, cg) == 500_000
+    assert [t.type for t in txs(db, cg)] == ["earning"]  # no withdrawal row
 
 
 # --- account erasure -----------------------------------------------------------------------------------------------
@@ -643,8 +630,8 @@ def test_a_caregiver_with_earnings_still_clearing_cannot_delete_their_account(db
     assert r.status_code == 409 and "still being cleared" in r.json()["detail"]
     db.expire_all()
     assert cg.user.is_active is True
-    earnings.release_due(db, now=tx.available_at)  # released but not withdrawn: the balance blocks it instead
-    assert "withdraw" in client.delete("/api/v1/auth/profile", headers=auth_headers(cg.user)).json()["detail"].lower()
+    earnings.release_due(db, now=tx.available_at)  # released but not paid out: the balance blocks it instead
+    assert "payout" in client.delete("/api/v1/auth/profile", headers=auth_headers(cg.user)).json()["detail"].lower()
 
 
 # --- money-review fixes: flagged late-cancel, wallet race, release-hold permission, audit ------------------------------

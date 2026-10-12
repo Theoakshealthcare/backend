@@ -188,12 +188,16 @@ def balances(db: Session, caregiver_id: UUID, wallet: Optional[CaregiverWallet] 
 # --- release (the worker job) --------------------------------------------------------------------------------------
 
 
-def _locked_wallet(db: Session, caregiver_id: UUID) -> CaregiverWallet:
-    """The caregiver's wallet row, created if missing, locked FOR UPDATE until the transaction ends."""
+def locked_wallet(db: Session, caregiver_id: UUID) -> CaregiverWallet:
+    """The caregiver's wallet row, created if missing, locked FOR UPDATE until the transaction ends. Never ``.refresh()`` it
+    afterwards (that would be a fresh, non-locking SELECT)."""
     db.execute(pg_insert(CaregiverWallet).values(caregiver_id=caregiver_id, balance=0).on_conflict_do_nothing(
         index_elements=["caregiver_id"]))
     return (db.query(CaregiverWallet).filter(CaregiverWallet.caregiver_id == caregiver_id)
             .with_for_update().populate_existing().one())
+
+
+_locked_wallet = locked_wallet
 
 
 def release_due(db: Session, now: Optional[datetime] = None, limit: int = RELEASE_BATCH) -> int:

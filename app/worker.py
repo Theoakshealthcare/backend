@@ -23,6 +23,7 @@ from app.services.booking_expiry import expire_unpaid_bookings
 from app.services.dispatch import dispatch_tick
 from app.services.dropout import tick as dropout_tick
 from app.services.earnings import release_due as release_due_earnings
+from app.services.payouts import create_scheduled_batch, dispatch_due as dispatch_payouts, reconcile as reconcile_payouts
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,31 @@ async def earnings_release_job(ctx: dict) -> int:
     if released:
         logger.info("earnings_release: released %d earning(s)", released)
     return released
+
+
+async def payout_batch_job(ctx: dict) -> int:
+    """On a payout day (per the booking policy) make the batch of caregiver payouts and reserve the money. An admin must
+    approve the batch before anything is sent."""
+    batch = await asyncio.to_thread(_run_with_session, create_scheduled_batch)
+    if batch is not None:
+        logger.info("payout_batch: made batch %s", batch.period_key)
+    return 0 if batch is None else 1
+
+
+async def payout_dispatch_job(ctx: dict) -> int:
+    """Send approved payouts to Paystack (one transfer each, with the payout's own reference)."""
+    sent = await asyncio.to_thread(_run_with_session, dispatch_payouts)
+    if sent:
+        logger.info("payout_dispatch: sent %d transfer(s)", sent)
+    return sent
+
+
+async def payout_reconcile_job(ctx: dict) -> int:
+    """Ask Paystack about transfers that have had no webhook for a while and settle them."""
+    settled = await asyncio.to_thread(_run_with_session, reconcile_payouts)
+    if settled:
+        logger.info("payout_reconcile: settled %d payout(s)", settled)
+    return settled
 
 
 async def whatsapp_events_job(ctx: dict) -> dict:
@@ -113,7 +139,7 @@ def json_deserializer(data: bytes) -> Any:
 
 class WorkerSettings:
     functions = [expire_unpaid_bookings_job, dispatch_tick_job, dropout_tick_job, earnings_release_job,
-                 whatsapp_events_job,
+                 payout_batch_job, payout_dispatch_job, payout_reconcile_job, whatsapp_events_job,
                  func(process_whatsapp_inbound_job, keep_result=0)]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
@@ -124,6 +150,9 @@ class WorkerSettings:
         # (dispatch_tick locks every dispatching booking) would hide the same booking from it every minute.
         cron(dropout_tick_job, second=20),
         cron(earnings_release_job, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, second=40),  # every 5 minutes
+        cron(payout_batch_job, hour=6, minute=0, second=10),  # 06:00:10 UTC every day; it acts only on a payout day
+        cron(payout_dispatch_job, second=50),
+        cron(payout_reconcile_job, minute={7, 22, 37, 52}, second=30),
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)

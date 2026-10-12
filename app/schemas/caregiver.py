@@ -116,22 +116,28 @@ class VerificationResultRequest(BaseModel):
 
 
 class CaregiverWalletSummary(BaseModel):
-    balance: int  # kobo; what can be withdrawn now. Same number as available_balance (kept for older app versions)
+    balance: int  # kobo; the available balance (paid out on the next payout day). Same number as available_balance
     total_earned: int  # kobo; earnings already released to the balance (pending ones are in pending_balance)
-    total_withdrawn: int  # kobo
+    total_withdrawn: int  # kobo; paid out to the bank account (scheduled payouts, and older self-withdrawals)
     currency: str = "NGN"
-    available_balance: int  # kobo; withdrawable
+    available_balance: int  # kobo; cleared, and paid out on the next payout day if it reaches payout_min_kobo
     pending_balance: int  # kobo; earned but still inside the hold period; becomes available at next_available_at
     held_balance: int  # kobo; earned but on hold by support (for example after a no-show flag)
     total_pending: int  # kobo; pending_balance + held_balance
     next_available_at: Optional[datetime] = None  # when the earliest pending earning becomes available
+    # Payouts (A3 slice 2). Caregivers do not withdraw: Oakly pays the available balance to the bank account on a schedule.
+    payout_cadence: str = "weekly"  # weekly | biweekly | monthly
+    payout_min_kobo: int = 0  # a balance below this waits for the next payout day
+    next_payout_on: Optional[date] = None  # the next payout day (UTC date)
+    payout_in_progress_kobo: int = 0  # taken out of the balance for a payout that is awaiting approval or on its way
+    payouts_blocked_until: Optional[datetime] = None  # set for 24 hours after the bank account is changed
 
 
 class CaregiverTransactionOut(BaseModel):
     id: str
-    type: Literal['earning', 'late_cancel_compensation', 'withdrawal']
+    type: Literal['earning', 'late_cancel_compensation', 'withdrawal', 'payout']
     amount: int  # in kobo
-    status: str  # earnings: pending_clearance | held | successful | voided; withdrawals: pending | successful | failed
+    status: str  # earnings: pending_clearance | held | successful | voided; payouts: pending_approval | pending | successful | failed | cancelled
     booking_id: Optional[str] = None
     available_at: Optional[datetime] = None  # earnings: when it becomes withdrawable (a UTC time)
     released_at: Optional[datetime] = None
@@ -144,23 +150,33 @@ class CaregiverTransactionOut(BaseModel):
     updated_at: datetime
 
 
+class BankOut(BaseModel):
+    name: str
+    code: str
+
+
+class BankAccountResolveRequest(BaseModel):
+    account_number: str = Field(min_length=1, max_length=20)
+    bank_code: str = Field(min_length=1, max_length=20)
+
+
+class BankAccountResolveOut(BaseModel):
+    account_name: str  # the name the bank holds for the account (Paystack)
+    account_number: str
+    bank_code: str
+    bank_name: str
+
+
 class CaregiverBankAccountOut(BaseModel):
     bank_name: str
+    bank_code: Optional[str] = None  # null on an account saved before verified payouts: save it again to be paid
     account_number: str
     account_name: str
+    verified: bool  # true once the name was resolved by the bank and the account registered for payouts
+    payouts_blocked_until: Optional[datetime] = None  # a changed account is not paid for 24 hours
     created_at: datetime
     updated_at: datetime
 
 class CaregiverBankAccountUpdate(BaseModel):
-    bank_name: str
-    account_number: str
-    account_name: str
-
-class CaregiverWithdrawalRequest(BaseModel):
-    amount: int = Field(gt=0)  # in kobo
-    narration: Optional[str] = None
-
-class CaregiverWithdrawalResponse(BaseModel):
-    transaction_id: str
-    status: str
-    message: str
+    bank_code: str = Field(min_length=1, max_length=20)  # from GET /caregiver/banks
+    account_number: str = Field(min_length=1, max_length=20)

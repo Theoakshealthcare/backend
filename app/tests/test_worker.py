@@ -15,16 +15,24 @@ def test_worker_settings_import_and_register_the_cron_jobs():
 
     names = {c.coroutine.__name__ for c in worker.WorkerSettings.cron_jobs}
     assert names == {"expire_unpaid_bookings_job", "dispatch_tick_job", "whatsapp_events_job", "dropout_tick_job",
-                     "earnings_release_job"}
+                     "earnings_release_job", "payout_batch_job", "payout_dispatch_job", "payout_reconcile_job"}
     assert worker.WorkerSettings.redis_settings.host
     for cron_job in worker.WorkerSettings.cron_jobs:
         if cron_job.coroutine.__name__ == "earnings_release_job":
             assert cron_job.minute == set(range(0, 60, 5))  # every five minutes; a hold is hours long
             assert cron_job.second not in (0, 15, 30, 45)
             continue
+        if cron_job.coroutine.__name__ == "payout_batch_job":
+            assert (cron_job.hour, cron_job.minute) == (6, 0)  # once a day; it acts only on a payout day
+            continue
+        if cron_job.coroutine.__name__ == "payout_reconcile_job":
+            assert cron_job.minute == {7, 22, 37, 52}  # a quarter-hourly look at transfers with no webhook
+            continue
         assert cron_job.minute is None
         if cron_job.coroutine.__name__ == "whatsapp_events_job":
             assert cron_job.second == {0, 15, 30, 45}  # booking messages are time-sensitive
+        elif cron_job.coroutine.__name__ == "payout_dispatch_job":
+            assert cron_job.second == 50  # every minute; sends approved payouts (no booking locks, so any second)
         elif cron_job.coroutine.__name__ == "dropout_tick_job":
             assert cron_job.second not in (0, 15, 30, 45)  # never in the same second as a job that locks bookings
         else:

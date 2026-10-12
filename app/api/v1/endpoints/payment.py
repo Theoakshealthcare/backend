@@ -10,12 +10,16 @@ from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.prescription import Prescription
 from app.db.session import SessionLocal
 from app.services.booking_payment import settle_booking_payment
+from app.services import payouts
 from app.services.patient_wallet import PatientWalletService
 from app.services.paystack import PaystackService
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+
+TRANSFER_EVENTS = {"transfer_success": "success", "transfer_failed": "failed", "transfer_reversed": "reversed"}
 
 
 def get_paystack_service() -> PaystackService:
@@ -123,6 +127,15 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
 
         elif event == "refund_successful":
             logger.info(f"Refund successful for reference: {reference}")
+
+        elif event in TRANSFER_EVENTS:
+            # A caregiver payout settled by Paystack. Idempotent: a retried webhook changes nothing. Paystack sends these
+            # for every transfer on the account, so an unknown reference is normal and ignored.
+            outcome = TRANSFER_EVENTS[event]
+            result = payouts.apply_transfer_event(
+                db, reference, outcome, amount_kobo=_paid_kobo(event_data), transfer_code=event_data.get("transfer_code"),
+                reason=None if outcome == "success" else f"Paystack reported the transfer as {outcome}")
+            logger.info(f"Payout transfer {outcome}: {reference} -> {result}")
     finally:
         db.close()
 
@@ -132,7 +145,7 @@ async def paystack_webhook(
     request: Request,
     paystack_service: PaystackService = Depends(get_paystack_service),
 ):
-    """Paystack webhook for bookings, prescriptions, wallet deposits and refunds."""
+    """Paystack webhook for bookings, prescriptions, wallet deposits, refunds and caregiver payout transfers."""
 
     # Signature is verified over the raw body, before anything is parsed.
     body = await request.body()

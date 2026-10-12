@@ -31,6 +31,7 @@ from app.db.models.caregiver import (
     CaregiverWallet,
 )
 from app.db.models.consent import Consent
+from app.db.models.payout import CaregiverBankEvent, Payout
 from app.db.models.patient import (
     Patient, PatientFamilyMember, PatientRefundRequest, PatientTransaction, PatientWallet,
 )
@@ -170,13 +171,25 @@ class AccountErasureService:
         self.db.query(Caregiver).filter(Caregiver.id == caregiver.id).populate_existing().with_for_update().one()
         if self._active_caregiver_bookings(caregiver, lock=True) is not None:
             raise blocked
+        # Settlement takes the payout and its ledger row before the wallet; take them in that order here too, or an erasure
+        # and a late Paystack event would wait on each other.
+        self.db.query(Payout.id).filter(Payout.caregiver_id == caregiver.id).order_by(Payout.id).with_for_update().all()
+        self.db.query(CaregiverTransaction.id).filter(
+            CaregiverTransaction.caregiver_id == caregiver.id, CaregiverTransaction.type == "payout"
+        ).order_by(CaregiverTransaction.id).with_for_update().all()
         wallet = (
             self.db.query(CaregiverWallet).filter(CaregiverWallet.caregiver_id == caregiver.id)
             .populate_existing().with_for_update().first()
         )
+        if wallet is not None and wallet.payouts_frozen_at is not None:
+            raise ErasureBlocked(
+                "Your payouts are on hold while we check a transfer with our payment provider. Once that is sorted out "
+                "and any payout has finished, you can delete your account."
+            )
         if wallet is not None and (wallet.balance or 0) > 0:
             raise ErasureBlocked(
-                "Your wallet still has a balance. Withdraw it to your bank account, then delete your account."
+                "Your wallet still has a balance. It is paid to your bank account on the next payout day; once it has "
+                "been paid out, you can delete your account."
             )
         unpaid_earning = (
             self.db.query(CaregiverTransaction.id)
@@ -187,18 +200,19 @@ class AccountErasureService:
         )
         if unpaid_earning is not None:
             raise ErasureBlocked(
-                "You have earnings that are still being cleared. Once they are available, withdraw them to your bank "
-                "account, then delete your account."
+                "You have earnings that are still being cleared. Once they have cleared and been paid out to your bank "
+                "account, you can delete your account."
             )
         pending_payout = (
             self.db.query(CaregiverTransaction.id)
             .filter(CaregiverTransaction.caregiver_id == caregiver.id,
-                    CaregiverTransaction.type == "withdrawal", CaregiverTransaction.status == "pending")
+                    CaregiverTransaction.type.in_(("withdrawal", "payout")),
+                    CaregiverTransaction.status.in_(("pending", "pending_approval")))
             .first()
         )
         if pending_payout is not None:
             raise ErasureBlocked(
-                "You have a withdrawal that is still being paid out. Wait for the payout to finish, "
+                "You have a payout that is still being paid out. Wait for the payout to finish, "
                 "then delete your account."
             )
 
@@ -300,6 +314,12 @@ class AccountErasureService:
             if tx.account_number:
                 tx.account_number = "*" * 6 + tx.account_number[-4:]
             tx.account_name = None
+        # The same for payouts and the bank-change history: the destination is masked, the name and Paystack recipient go.
+        for payout in self.db.query(Payout).filter(Payout.caregiver_id == cg.id):
+            payout.account_number = "*" * 6 + payout.account_number[-4:]
+            payout.account_name, payout.recipient_code = ERASED_NAME, "erased"
+        self.db.query(CaregiverBankEvent).filter(CaregiverBankEvent.caregiver_id == cg.id).update(
+            {"before": None, "after": None, "ip": None, "user_agent": None}, synchronize_session=False)
 
     def _wipe_patient(self, patient: Patient, email: str) -> None:
         self._wipe_finished_bookings(patient)
