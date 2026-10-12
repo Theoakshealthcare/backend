@@ -17,8 +17,8 @@ POLICY_DEFAULTS = {
     "caregiver_late_fee_share_percent": 80,  # the caregiver's share of a kept late-cancellation fee
     "caregiver_visit_share_percent": 80,     # the caregiver's share of the booking's service fee (not the platform fee)
     "earning_hold_hours": 24,                # an earning is withdrawable this long after the visit is completed
-    "payout_cadence": "weekly",              # slice 2 (payouts): not read yet
-    "payout_min_naira": 5000,                # slice 2: the smallest balance a scheduled payout will pay out
+    "payout_cadence": "weekly",              # when scheduled caregiver payouts run (app/services/payouts.py)
+    "payout_min_naira": 5000,                # the smallest balance a scheduled payout will pay out
     "finance_refund_limit_naira": 50000,     # slice 3: the largest refund Finance may approve alone
 }
 PAYOUT_CADENCES = ("weekly", "biweekly", "monthly")

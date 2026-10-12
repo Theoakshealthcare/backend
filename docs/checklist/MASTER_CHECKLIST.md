@@ -2,14 +2,16 @@
 
 This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiver` (Expo). The backend is the hub, so the master checklist lives here.
 
+**Update (2026-10-12, A3 slice 2):** caregiver payouts are built on `feat/a3-payouts` (migration `0012`, not pushed, with the money reviews' double-payment fixes folded in and the dispute handling replaced by one invariant, 2026-10-12): weekly, admin-approved Paystack Transfer batches replace self-withdrawal. Verified by tests and live captures against a **fake** Paystack; a live Paystack run, and Paystack OTP disabled for API transfers, are still open. Refunds v2 and ledger adjustments are next.
+
 **Update (2026-10-07, A3 slice 1):** caregiver earnings are credited on completion, held, and released by a worker job (migration `0011`, on `feat/a3-earnings`, not yet merged). Payouts, refunds v2 and ledger adjustments are next.
 
 **Update (2026-10-07):** Backend PRs #1–#32 and caregiver monorepo PRs #1–#11 are merged. Done since the last roll-up: admin A0 (#21) and A1 console (monorepo #6); tech debt (#23); WhatsApp W1–W3 (#22, #24, #27), default multipliers and geocoding (#28), drop-out re-dispatch with two-tier fees and the booking policy (#30), caregiver cancel window (#32); A2 bookings ops API (#26, backend only); account deletion as anonymisation (#29); pricing settings audit (#31); caregiver app account, wallet, notifications and directions screens (monorepo #7–#11). Migrations `0001`–`0010` are on `main`. Still open: A2 console screens, A3–A5, W4–W5, the remaining caregiver app screens (section 8), and the owner and device items.
 
-**Snapshot (2026-10-07):** 
-- **Items:** 168 done (`[x]`), 124 open (`[ ]`), counted over every task line.
+**Snapshot (2026-10-12):** 
+- **Items:** 175 done (`[x]`), 135 open (`[ ]`), counted over every task line.
 - **Sections done:** 8 (Phase C, code complete, device run pending), 11 (tech debt), 12 (account deletion), 13 (pricing audit).
-- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API and A3 slice 1 done), 10 (W1–W3b done).
+- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 done in code; slice 2 awaits the money review and a live Paystack run), 10 (W1–W3b done).
 - **Sections planned or not started:** 1 and 2 (open items are mostly the owner's secret rotation and the remaining hardening list), 3–5, plus A2 screens, A3–A5, W4 and W5.
 
 **Baseline:** the full review of all three repos on 2026-09-24 (it predates this file).
@@ -148,7 +150,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **Bookings:** list and detail, unmatched queue, assign/reassign, admin cancel, status correction (AD-FR-19–25). API merged 2026-10-06 (A2, #26); console screens not built
 - [ ] **Payments:** payment list, webhook exceptions, daily reconciliation (AD-FR-28–31)
 - [ ] **Refunds v2:** exactly one destination per refund, approval limits, refund webhooks, notifications (AD-FR-32–36)
-- [ ] **Caregiver pay:** earnings credited on completion and ledger done (A3 slice 1); Paystack Transfer payout batches, validated withdrawals and ledger adjustments (AD-FR-39–42) open
+- [ ] **Caregiver pay:** earnings credited on completion and ledger done (A3 slice 1); scheduled Paystack Transfer payout batches with admin approval done in code, tested against a fake Paystack (A3 slice 2, 2026-10-12, not yet run against live Paystack); ledger adjustments (AD-FR-42) open
 - [ ] **People:** search, masked view, suspend, consent records (AD-FR-45–48)
 - [ ] **Pricing:** (APIs `/booking-settings` and `/admin/booking-policy` exist; console screens are A4) versioned price books with preview and publish; service areas; Nigerian form options (AD-FR-51–56)
 - [ ] **Support inbox:** WhatsApp handovers, 24-hour window enforcement, urgent alerts (AD-FR-59–63)
@@ -231,15 +233,38 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] 8. FE guide section 12 from live captures 079 to 118 (`capture_admin_flow.py --section bookings`), `--check` clean
   - [x] 9. Opus review of the lock, permission and clinical paths: clean, 2 findings fixed with tests
   - [ ] 10. **A2 console screens:** list, detail with timeline, unmatched queue, action dialogs (backend done)
-- [ ] **A3** Money. Slice 1 (caregiver earnings, API only) done 2026-10-07, [SOP](../sop/2026-10-07-caregiver-earnings.md), migration `0011_caregiver_earnings`
+- [ ] **A3** Money. Slice 1 (caregiver earnings, API only) done 2026-10-07, [SOP](../sop/2026-10-07-caregiver-earnings.md), migration `0011_caregiver_earnings`. Slice 2 (caregiver payouts, API only) built 2026-10-12, [SOP](../sop/2026-10-12-caregiver-payouts.md), migration `0012_caregiver_payouts`, awaiting money review
   - [x] Slice 1: earnings credited on completion (80% of the service fee, snapshotted on the booking, held 24 hours, admin-editable in `booking_policies`)
   - [x] Slice 1: caregiver ledger rows (`caregiver_transactions`: pending clearance, held, voided, released), unique per booking and type
-  - [x] Slice 1: `GET /caregiver/wallet` adds `available_balance`, `pending_balance`, `held_balance`; withdraw takes available money only
+  - [x] Slice 1: `GET /caregiver/wallet` adds `available_balance`, `pending_balance`, `held_balance`
   - [x] Slice 1: ARQ `earnings_release_job` every five minutes (SKIP LOCKED, idempotent)
   - [x] Slice 1: admin `GET /admin/earnings`, hold, release hold, void (audited, reason required); the A2 no-show flag holds that booking's earning
   - [x] 80% caregiver share of qualifying late-cancel fees (`late_cancel_compensation`, same hold)
   - [x] Slice 1: FE guides (caregiver section 10, admin section 12.10) from live captures
-  - [ ] Slice 2: scheduled Paystack Transfer payouts by `payout_cadence` / `payout_min_naira` (stored, not read yet); remove caregiver self-withdraw
+  - [x] Slice 2: self-withdrawal removed: `POST /caregiver/wallet/withdraw` answers `410` with a message (the app is dropping the button)
+  - [x] Slice 2: bank details: `GET /caregiver/banks` (Paystack list, cached a day), `POST /caregiver/bank-account/resolve` (rate limited), `PUT /caregiver/bank-account` stores the resolved name and a Paystack transfer recipient; a changed account blocks payouts for 24 hours and writes `caregiver_bank_events`
+  - [x] Slice 2: payout batch: daily ARQ job acts on a payout day per `payout_cadence`, reserves each eligible caregiver's whole available balance (>= `payout_min_naira`) as a `payout` debit under the wallet lock; erased, suspended, cooling-down and unverified caregivers excluded; one live payout per caregiver (partial unique index); one batch per payout date
+  - [x] Slice 2: admin `/admin/payouts`: list batches and payouts (`payments.read`); approve a batch, cancel a payout, retry a failed or reversed one (`ledger.adjust`, reason required, audited); approval re-checks each caregiver
+  - [x] Slice 2: ARQ send job posts one Paystack `POST /transfer` per approved payout with a per-attempt reference; `transfer.success` / `transfer.failed` / `transfer.reversed` webhooks (signature verified, idempotent) and a reconcile job settle; failed and reversed payouts return the money
+  - [x] Slice 2: money tests: reservation invariant, concurrent batch runs, concurrent webhooks, two send workers, approve vs cancel, retry rules, erasure, RBAC matrix, migration round trip
+  - [x] Slice 2: FE guides (caregiver section 10, admin section 12.11) from live captures against a fake Paystack
+  - [x] Slice 2 hardening (money review, 2026-10-12): a success after the money was returned takes it back and sets `needs_attention` (shortfall recorded, retry refused); the third review replaced the per-case patches with the freeze invariant (next items)
+  - [x] Slice 2 invariant (third money review, 2026-10-12): once a caregiver's payouts are disputed, automatic code only lowers what they can be paid; money returns only through an admin action. `caregiver_wallets.payouts_frozen_at` / `payouts_frozen_reason` (migration `0012`, edited in place) freeze the caregiver on any contradiction (success after failed/reversed/cancelled, success on a non-current attempt, amount mismatch, "no record", reversal after success); `needs_attention` is no longer in the one-live-payout index
+  - [x] Slice 2 invariant: batch and send job skip a frozen caregiver; retry refused; every event on a frozen caregiver's payouts records the outcome and credits nothing; take-back cancels an unsent newer payout (its reservation pays) and debits at most the balance, the rest is `shortfall_kobo`; the newer payout is re-queried after the wallet lock (batch race)
+  - [x] Slice 2 invariant: `resolve` as `failed` nets the reservation against the shortfall (`returned_kobo`, `netted_kobo`); `POST /admin/payouts/caregivers/{id}/unfreeze` (`ledger.adjust`, audited, `write_off_shortfall`, refused while a payout needs attention or processes); RBAC matrix updated; erasure takes payout locks before the wallet and is refused while frozen
+  - [x] Slice 2 invariant: invariant helper in every dispute test and a seeded random sequence test (100 sequences of up to 14 steps; paid less recorded shortfall plus available plus reserved never exceeds earned, what can be paid never rises, a frozen balance is never credited)
+  - [x] Slice 2 hardening: `payout_attempts` table; events matched by attempt reference; retry asks Paystack about the current attempt first and keeps failure history on the attempt rows
+  - [x] Slice 2 hardening: reconcile "no record at Paystack after 30 minutes" keeps the money reserved and sets `needs_attention` (no longer returns it)
+  - [x] Slice 2 hardening: the send job re-checks the caregiver (approved or active, account open, not erased) and cancels as the system, returning the money
+  - [x] Slice 2 hardening: `POST /admin/payouts/{id}/resolve` (paid or failed, Paystack asked first, `force` only for non-final answers) and `POST /admin/payouts/batches/{id}/cancel`, both `ledger.adjust` and audited; RBAC matrix updated
+  - [x] Slice 2 hardening: a first bank account saved while the wallet holds money starts the 24 hour cool-down; worker cron comment fixed (06:00:10 UTC)
+  - [x] Slice 2 hardening: admin and caregiver FE guides re-captured live (admin captures 183 to 270)
+  - [x] Slice 2 fourth money review (2026-10-12): `resolve` locks all attempts under the lock and refuses (`409`) when a late webhook paid another attempt (or changed the verified one) while Paystack was being asked; `retry` reads eligibility and the freeze after the wallet lock; an amount mismatch flags the payout `needs_attention` whatever its status; a failure or reversal after an admin-forced `paid` (`payout_attempts.forced`) needs attention, freezes and credits nothing; unfreeze debits the shortfall from earnings that built up while frozen and refuses a leftover unless written off; resolve is money-safe for a payout flagged after its money returned
+  - [x] Slice 2 fourth review: property test reads paid from the fake Paystack and asserts the overpayment is on record (`paid + available + reserved <= earned + shortfall + written off`), with unfreeze both ways; admin FE guide re-captured live (258 and 259 changed, numbering unchanged)
+  - [x] Slice 2 invariant: admin FE guide re-captured live (payouts captures 183 to 301: freeze fields, resolve netting, unfreeze, the sent-newer-payout case); caregiver wallet response unchanged, so its captures are as they were (prose note only)
+  - [ ] Slice 2: **run one real payout against a live Paystack test account** (transfer, webhook, balance, bank list, name lookup) before any real money
+  - [ ] Slice 2: **disable OTP for API transfers in the Paystack dashboard** (a transfer in the `otp` state stays `processing` until an admin resolves it with `POST /admin/payouts/{id}/resolve`)
+  - [ ] Slice 2: console screens for batches and payouts (A3 console), and the caregiver app's payout/bank-account screens
   - [ ] Refunds v2 queue (`refund_required`), payments and webhook exceptions
   - [ ] Gap: on the app channel a caregiver cancel sets the booking to cancelled with no refund flag, so the patient is not queued for a refund
   - [ ] Bank list and account-name resolve endpoints
@@ -326,6 +351,27 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [x] (A3 payouts) Manual resolve for a transfer left in `otp` or one the reconcile job cannot settle: done as `POST /admin/payouts/{id}/resolve` (Paystack checked first)
+- [ ] (A3 payouts) Erasure with a balance between 0 and 5,000.00 NGN, and reversals after erasure: need a one-off payout or manual handling
+- [ ] (A3 payouts) Batch creation holds every eligible wallet lock until a single commit; consider per-caregiver commits as volume grows
+- [ ] (A3 payouts) Alert on old `pending_approval` batches (and on any `needs_attention` payout)
+- [ ] (A3 payouts) A `shortfall_kobo` is recovered only at unfreeze (debited from the earnings that built up while frozen, the rest written off); no automatic recovery otherwise
+- [ ] (A3 payouts) Earnings keep accruing while a caregiver is frozen: intended (only payouts are held), but decide whether the caregiver app should say so
+- [ ] (A3 payouts) Narrow `_locate` re-query deadlock: a batch holding the wallet while waiting for a payout row an event holds, and that event waiting for the wallet; Postgres aborts one side and Paystack retries. Fix by taking the wallet lock first in `_locate`
+- [ ] (A3 payouts) `resolve` as `paid` for a payout whose money had been returned takes it back from the balance only (it does not also cancel a newer unsent payout's reservation)
+- [ ] (A3 payouts) The caregiver wallet response does not show the freeze; decide whether the app should say "payout being checked" (needs the caregiver guide re-captured)
+- [ ] (A3 payouts) A frozen caregiver's unsent `processing` payout is never sent by the job; an admin settles it with `resolve` (needs `force`). Consider a cancel route for it
+- [ ] (A3 payouts) Alert on any frozen caregiver (`caregiver_wallets.payouts_frozen_at` not null)
+- [ ] (A3 payouts) No admin route to make a batch by hand if the daily job missed a payout day (a developer can run `create_batch`); add one under `ledger.adjust`
+- [ ] (A3 payouts) A caregiver whose balance stays below `payout_min_naira` can never be paid or delete their account; add an admin sweep or a ledger adjustment (AD-FR-42)
+- [ ] (A3 payouts) The account-name lookup limiter and the bank-list cache are per process; move them to Redis if the API scales out
+- [ ] (A3 payouts) Compare the resolved account name with the caregiver's profile name (flag a mismatch for review)
+- [ ] (A3 payouts) Finance cannot approve payouts today (`ledger.adjust` is Super Admin only); decide whether Finance should get `payouts.execute` for approval
+- [ ] (A3 payouts) Webhook and job settlements write no `admin_audit_log` row (the payout row is their record); add a system audit actor if auditors need one
+- [ ] (A3 payouts) The transfer webhook has no recipient check (the signature makes it low risk); compare the event's recipient with `recipient_code`
+- [ ] (A3 payouts) `resolve(failed, force)` does not re-check `initiated_at`; consider refusing it for a sent payout whose Paystack answer is not final
+- [ ] (A3 payouts) The first bank-account cool-down ignores earnings still clearing (it reads the wallet balance only)
+- [x] (A3 payouts) Late success while a newer payout is live, reversal over-credit after a shortfall, amount mismatch, 408/409 on transfer: fixed in the second money review; the first three were then replaced by the freeze invariant in the third review (SOP "The invariant")
 - [ ] (A3) Refunds v2 (slice 3): void/adjust the `late_cancel_compensation` earning when a late-cancel fee is later waived/refunded
 - [ ] (A3) Product: consider waiving the late-cancel fee for a no-show-flagged booking
 - [ ] (Pricing) `/prescription/settings` routes still edit in place with no audit row; give them the same versioning and audit

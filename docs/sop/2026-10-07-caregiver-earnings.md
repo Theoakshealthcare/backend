@@ -14,7 +14,7 @@
 - ARQ `earnings_release_job` (every five minutes) moves due pending rows to `successful` and adds them to `caregiver_wallets.balance`, which is now strictly the **available** balance.
 - `GET /caregiver/wallet` adds `available_balance`, `pending_balance`, `held_balance`, `total_pending`, `next_available_at`; transactions show `status`, `available_at`, `released_at`, `booking_id`.
 - Admin `GET /admin/earnings`, `POST .../hold`, `.../release-hold`, `.../void` (reason required, audited). The A2 no-show flag holds the booking's pending earning.
-- Settings in `booking_policies`, editable through the audited `GET`/`PATCH /admin/booking-policy` with bounds: `caregiver_visit_share_percent` 80 (0 to 100), `earning_hold_hours` 24 (0 to 168), and seeded but **not read yet**: `payout_cadence` weekly (`weekly|biweekly|monthly`), `payout_min_naira` 5000, `finance_refund_limit_naira` 50000 (0 to 100,000,000).
+- Settings in `booking_policies`, editable through the audited `GET`/`PATCH /admin/booking-policy` with bounds: `caregiver_visit_share_percent` 80 (0 to 100), `earning_hold_hours` 24 (0 to 168), and seeded, **read by slice 2 (payouts)**: `payout_cadence` weekly (`weekly|biweekly|monthly`), `payout_min_naira` 5000, `finance_refund_limit_naira` 50000 (0 to 100,000,000).
 
 ## Why
 Caregivers were never credited: completing a visit moved no money, so `total_earned` was always 0 (AD-FR-38). The owner wanted the share and a dispute window to be admin-editable, and a caregiver never to be promised one thing and paid another.
@@ -36,7 +36,7 @@ Caregivers were never credited: completing a visit moved no money, so `total_ear
 ## What's involved
 - `app/services/earnings.py` (credit, balances, `release_due`, hold, release-hold, void, no-show hold); `app/api/v1/endpoints/admin_earnings.py`, `app/schemas/admin_earning.py`.
 - Hooks: `BookingService` complete action (`app/services/booking.py`), admin `correct-status` to completed and the no-show flag (`app/services/admin_bookings.py`), `cancel_by_booker` (`app/services/booking_cancellation.py`).
-- `app/db/models/caregiver.py` (transaction columns, `uq_caregiver_transactions_booking_type`, type and status checks, release index), `booking_policy.py`, `booking.py`; `app/services/booking_policy.py` and schema (validation); `app/api/v1/endpoints/caregiver.py` (wallet, transactions, payslip counts released earnings; `/wallet/withdraw` unchanged and available-only by construction); `app/services/account_erasure.py` (refused while an earning is pending or held); `app/worker.py` (cron).
+- `app/db/models/caregiver.py` (transaction columns, `uq_caregiver_transactions_booking_type`, type and status checks, release index), `booking_policy.py`, `booking.py`; `app/services/booking_policy.py` and schema (validation); `app/api/v1/endpoints/caregiver.py` (wallet, transactions, payslip counts released earnings; `/wallet/withdraw` was unchanged and available-only by construction in this slice; **removed in slice 2**, see [caregiver payouts](2026-10-12-caregiver-payouts.md)); `app/services/account_erasure.py` (refused while an earning is pending or held); `app/worker.py` (cron).
 - Migration `0011`: adds the columns and checks, seeds the defaults through the existing row, unique constraint, partial index. Downgrade deletes earning and compensation rows (a balance already released stays in the wallet) and drops everything it added.
 
 ## Verification
@@ -57,7 +57,7 @@ Caregivers were never credited: completing a visit moved no money, so `total_ear
 - Tests: six added to `app/tests/test_caregiver_earnings.py` (flagged late cancel, audit rows, wallet insert race forced with a rival insert, release-hold permission both ways, ordinary hold unaffected).
 
 ## Follow-ups
-- **Slice 2:** scheduled Paystack payouts using `payout_cadence` and `payout_min_naira`; **self-withdraw (`POST /caregiver/wallet/withdraw`) is slated for removal then**, so no new work should depend on it.
+- **Slice 2: done (2026-10-12)**, see [caregiver payouts](2026-10-12-caregiver-payouts.md): scheduled Paystack payouts using `payout_cadence` and `payout_min_naira`; `POST /caregiver/wallet/withdraw` now answers 410.
 - Slice 3: refunds queue using `finance_refund_limit_naira`; ledger adjustments (AD-FR-42) to correct a released earning.
 - An earning for a booking cancelled after completion, or a refund of a completed visit, does not claw back yet.
 - Console screens for earnings.
