@@ -351,6 +351,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [x] (Admin auth tests) Per-IP limiter tests flaked when a burst crossed a minute boundary: fixed 2026-10-12 with the shared `pinned_ip_window` fixture on all seven 429 tests ([SOP](../sop/2026-10-06-admin-auth.md#test-fix-per-ip-limit-flake-at-a-minute-boundary-2026-10-12))
 - [x] (A3 payouts) Manual resolve for a transfer left in `otp` or one the reconcile job cannot settle: done as `POST /admin/payouts/{id}/resolve` (Paystack checked first)
 - [ ] (A3 payouts) Erasure with a balance between 0 and 5,000.00 NGN, and reversals after erasure: need a one-off payout or manual handling
 - [ ] (A3 payouts) Batch creation holds every eligible wallet lock until a single commit; consider per-caregiver commits as volume grows

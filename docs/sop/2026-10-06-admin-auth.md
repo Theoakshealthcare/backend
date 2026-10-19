@@ -136,3 +136,23 @@ Seven findings, fixed with the tests written first. Migration `0003_admin_identi
 ### Follow-ups
 - An attacker who knows an admin's password can still lock that admin out by sending wrong codes (up to 24 h per lock). Reset MFA by another Super Admin is the recovery; consider alerting on `admin.locked`.
 - A password-spraying attacker with many IPs is limited per (email, IP) only. Consider a per-email global ceiling if that shows up in logs.
+
+## Test fix: per-IP limit flake at a minute boundary (2026-10-12)
+
+| | |
+|---|---|
+| **Branch** | `test/admin-auth-pin-rate-limit-window` |
+| **Scope** | Tests only; the production limiter is unchanged |
+
+- **Symptom:** `test_spoofed_xff_from_an_untrusted_peer_does_not_dodge_the_limit` failed once in CI with `[401, 401, 401, 401, 401] == [401, 401, 401, 429, 429]`.
+- **Root cause:** `AdminAuthService.rate_limit` (`app/services/admin_auth.py`) uses a fixed window aligned to the epoch (`ADMIN_AUTH_IP_WINDOW_SECONDS` = 60). A burst that crosses a minute boundary starts a new window, the counter resets, and the expected `429`s never come. This is the designed behaviour of a fixed window, so the tests were wrong, not the limiter.
+- **Fix:** a shared `pinned_ip_window` fixture (`app/tests/admin_helpers.py`, registered in `conftest.py` like `admin_clock`) sets the window to 10^9 seconds (the current window runs 2001 to 2033), so a burst cannot cross it. Applied to all seven tests that expect a `429` from this limiter:
+
+  | File | Tests |
+  |---|---|
+  | `test_admin_auth_review.py` | spoofed XFF; noisy client behind a trusted proxy; refresh not limited by login traffic; refresh limited per token |
+  | `test_admin_auth.py` | `test_per_ip_rate_limit`; `test_rate_limit_covers_login_and_verify_but_not_refresh`; `test_rate_limit_window_rolls_over` |
+
+- **Retry-After checks:** "refresh limited per token" only asserts `>= 1`, which still holds. `test_per_ip_rate_limit` used to assert `<= window + 1`, which would be vacuous with the pinned window, so it now asserts the exact value (time left in the window + 1, within 2 s). That is a tighter check than before. The rollover test shifts `window_start` back an hour, which still lands in a different window row, so it keeps working.
+- **Rejected:** freezing `datetime.utcnow` in `app.services.admin_auth`. It works, but patches a module global that other code in the service also reads; one setting is smaller.
+- **Verification:** a throwaway test forced `utcnow` across a minute mid-burst. Without the fixture the spoofed-XFF test failed exactly as in CI; with it, the test passed. Then the two admin-auth test files and the full CI step set passed locally.
