@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/7bcbd73a-5a8b-4b21-9fdd-64b6da4706fd/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "paid",
+      "reason": "Again"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "A payout that is success cannot be resolved here; only a processing payout or one that needs attention can be"
+    }
+  }
+}

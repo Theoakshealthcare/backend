@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/payouts/batches/3a00919d-2ee8-47e9-819c-43651d28e1ea",
+    "path": "/api/v1/admin/payouts/batches/ff59be75-acc3-48f8-a740-aa0e825ab3f1",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

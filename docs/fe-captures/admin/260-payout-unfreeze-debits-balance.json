@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/caregivers/63f4b91b-db58-4589-ab8e-8d9acc679e17/unfreeze",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Earnings kept accruing while frozen; the shortfall is taken from them"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "caregiver_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
+      "payouts_frozen_at": null,
+      "debited_from_balance_kobo": 800000,
+      "written_off_shortfall_kobo": 0,
+      "outstanding_shortfall_kobo": 0
+    }
+  },
+  "note": "SIMULATION, done in the database just before this call: 11,000.00 NGN of earnings reach the caregiver's available balance while they are frozen (as completed bookings would). Unfreezing first DEBITS the 8,000.00 NGN shortfall from that balance (debited_from_balance_kobo), 3,000.00 NGN is left, nothing is left owed, so no write-off is needed."
+}

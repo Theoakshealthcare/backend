@@ -524,9 +524,9 @@ def test_a_batch_that_was_approved_or_cancelled_cannot_be_cancelled(db, fake_pay
 def test_cancelling_a_batch_through_the_api(db, client, fake_paystack):
     cg = payable(db, 1_000_000, fake=fake_paystack)
     batch = make_batch(db)
-    boss, finance = make_admin(db, BOSS, password=None), make_admin(db, ["finance"], password=None)
+    boss, support = make_admin(db, BOSS, password=None), make_admin(db, ["support"], password=None)
     url = f"{ADMIN}/batches/{batch.id}/cancel"
-    assert client.post(url, json={"reason": "x"}, headers=auth_headers(finance)).status_code == 403
+    assert client.post(url, json={"reason": "x"}, headers=auth_headers(support)).status_code == 403  # Finance may cancel (payouts.execute)
     assert client.post(url, json={}, headers=auth_headers(boss)).status_code == 422
     r = client.post(url, json={"reason": "Wrong week"}, headers=auth_headers(boss))
     assert r.status_code == 200 and r.json()["status"] == "cancelled" and r.json()["counts"] == {"cancelled": 1}

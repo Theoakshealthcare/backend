@@ -1,0 +1,162 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=payout&limit=4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "ca6764c9-761a-4d41-806e-ad03c327db1b",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.resolve",
+          "entity_type": "payout",
+          "entity_id": "ded559d1-47f5-4137-ba63-6799c94b966f",
+          "before": {
+            "status": "needs_attention",
+            "amount_kobo": 800000,
+            "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+            "reference": "po-ded559d147f54137ba636799c94b966f-1",
+            "attempts": 1,
+            "shortfall_kobo": 500000,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "success",
+            "amount_kobo": 800000,
+            "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+            "reference": "po-ded559d147f54137ba636799c94b966f-1",
+            "attempts": 1,
+            "shortfall_kobo": 500000,
+            "returned_kobo": 0,
+            "netted_kobo": 0,
+            "outcome": "paid",
+            "forced": false,
+            "paystack_said": "Paystack reports this transfer as successful"
+          },
+          "reason": "Paystack shows the transfer as successful",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:30.240002"
+        },
+        {
+          "id": "0132afc5-4c45-4538-9cc2-fd738a5433d2",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.resolve",
+          "entity_type": "payout",
+          "entity_id": "177df64f-4f83-4714-a19f-99676ac40610",
+          "before": {
+            "status": "needs_attention",
+            "amount_kobo": 900000,
+            "caregiver_id": "3bb04460-4c40-44ce-bc69-b1ff2e130d7b",
+            "reference": "po-177df64f4f834714a19f99676ac40610-1",
+            "attempts": 1,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "failed",
+            "amount_kobo": 900000,
+            "caregiver_id": "3bb04460-4c40-44ce-bc69-b1ff2e130d7b",
+            "reference": "po-177df64f4f834714a19f99676ac40610-1",
+            "attempts": 1,
+            "shortfall_kobo": 0,
+            "returned_kobo": 900000,
+            "netted_kobo": 0,
+            "outcome": "failed",
+            "forced": true,
+            "paystack_said": "Paystack has no record of this transfer"
+          },
+          "reason": "Checked the Paystack dashboard and support: no transfer exists for this reference",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:30.101053"
+        },
+        {
+          "id": "ee40bb0a-29b2-4676-b4ee-154e742b8aec",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.resolve",
+          "entity_type": "payout",
+          "entity_id": "5c7eabab-f793-4478-bf7e-41e4e86e531b",
+          "before": {
+            "status": "needs_attention",
+            "amount_kobo": 1100000,
+            "caregiver_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
+            "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
+            "attempts": 1,
+            "shortfall_kobo": 800000,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "success",
+            "amount_kobo": 1100000,
+            "caregiver_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
+            "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
+            "attempts": 1,
+            "shortfall_kobo": 800000,
+            "returned_kobo": 0,
+            "netted_kobo": 0,
+            "outcome": "paid",
+            "forced": false,
+            "paystack_said": "Paystack reports this transfer as successful"
+          },
+          "reason": "Paystack shows the transfer as successful; 8,000.00 NGN shortfall to be recovered by a ledger adjustment",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:27.367284"
+        },
+        {
+          "id": "6aa44961-8be5-4f7a-b0dd-7fa2c5c433f0",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.resolve",
+          "entity_type": "payout",
+          "entity_id": "7bcbd73a-5a8b-4b21-9fdd-64b6da4706fd",
+          "before": {
+            "status": "processing",
+            "amount_kobo": 1500000,
+            "caregiver_id": "6c8e3f1a-4456-42e6-859c-be91671eb633",
+            "reference": "po-7bcbd73a5a8b4b219fdd64b6da4706fd-1",
+            "attempts": 1,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "success",
+            "amount_kobo": 1500000,
+            "caregiver_id": "6c8e3f1a-4456-42e6-859c-be91671eb633",
+            "reference": "po-7bcbd73a5a8b4b219fdd64b6da4706fd-1",
+            "attempts": 1,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0,
+            "outcome": "paid",
+            "forced": false,
+            "paystack_said": "Paystack reports this transfer as successful"
+          },
+          "reason": "OTP entered in the Paystack dashboard; Paystack shows the transfer as successful",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:27.215333"
+        }
+      ],
+      "total": 8,
+      "limit": 4,
+      "offset": 0
+    }
+  },
+  "note": "payout.resolve entries carry the outcome, whether it was forced, and what Paystack said."
+}

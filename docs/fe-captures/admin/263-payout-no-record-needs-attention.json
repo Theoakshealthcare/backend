@@ -1,0 +1,58 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts?caregiver_id=3bb04460-4c40-44ce-bc69-b1ff2e130d7b",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "177df64f-4f83-4714-a19f-99676ac40610",
+          "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+          "batch_period": "2026-11-02",
+          "caregiver_id": "3bb04460-4c40-44ce-bc69-b1ff2e130d7b",
+          "caregiver_name": "Placeholder Silent Transfer",
+          "amount_kobo": 900000,
+          "status": "needs_attention",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0023",
+          "account_name": "PLACEHOLDER SILENT TRANSFER",
+          "reference": "po-177df64f4f834714a19f99676ac40610-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-177df64f4f834714a19f99676ac40610-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-19T13:29:23.408070"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": "2026-10-19T13:29:29.645050",
+          "caregiver_payouts_frozen_reason": "Payout 177df64f-4f83-4714-a19f-99676ac40610: Paystack has no record; check before releasing",
+          "failure_reason": "Paystack has no record; check before releasing",
+          "initiated_at": "2026-10-19T12:58:27.417889",
+          "completed_at": null,
+          "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "approved_at": "2026-10-19T13:29:24.009748",
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-19T13:29:23.403257"
+        }
+      ],
+      "total": 1
+    }
+  },
+  "note": "failure_reason says Paystack has no record. The money is still reserved (the caregiver's available balance is 0)."
+}

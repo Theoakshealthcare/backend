@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/7bcbd73a-5a8b-4b21-9fdd-64b6da4706fd/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "failed",
+      "reason": "It has been stuck for an hour"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Paystack is waiting for an OTP to release this transfer, so there is no proof for either answer. Resolve it only with force and a reason that says how you checked"
+    }
+  },
+  "note": "Paystack still says the transfer is waiting for an OTP, which is not a final answer: nothing changes unless the admin sends force: true."
+}

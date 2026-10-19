@@ -9,8 +9,8 @@
     "status_code": null,
     "headers": {},
     "body": {
-      "period_key": "2026-10-19",
-      "payouts_made": 3
+      "period_key": "2026-10-26",
+      "payouts_made": 6
     }
   },
   "note": "SIMULATION of the schedule: in production the ARQ cron runs daily and makes a batch only on a payout day (Mondays when the policy says weekly). Here the same function was run for a payout date a week ahead. Three of the five caregivers get a payout: one is below the minimum, one changed bank account 12 hours ago."

@@ -69,12 +69,12 @@ ADMIN_ONLY = {
     ("GET", f"{API}/admin/payouts"): "payments.read",
     ("GET", f"{API}/admin/payouts/batches"): "payments.read",
     ("GET", f"{API}/admin/payouts/batches/{{batch_id}}"): "payments.read",
-    ("POST", f"{API}/admin/payouts/batches/{{batch_id}}/approve"): "ledger.adjust",
-    ("POST", f"{API}/admin/payouts/{{payout_id}}/cancel"): "ledger.adjust",
+    ("POST", f"{API}/admin/payouts/batches/{{batch_id}}/approve"): "payouts.execute",
+    ("POST", f"{API}/admin/payouts/{{payout_id}}/cancel"): "payouts.execute",
     ("POST", f"{API}/admin/payouts/{{payout_id}}/retry"): "ledger.adjust",
     ("POST", f"{API}/admin/payouts/{{payout_id}}/resolve"): "ledger.adjust",
     ("POST", f"{API}/admin/payouts/caregivers/{{caregiver_id}}/unfreeze"): "ledger.adjust",
-    ("POST", f"{API}/admin/payouts/batches/{{batch_id}}/cancel"): "ledger.adjust",
+    ("POST", f"{API}/admin/payouts/batches/{{batch_id}}/cancel"): "payouts.execute",
 }
 # Shared with app users: a patient/caregiver token works as before, an admin token needs the permission.
 SHARED = {

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/ded559d1-47f5-4137-ba63-6799c94b966f/retry",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Send again"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Paystack says this transfer is still pending (pending), so it cannot be retried. Wait for Paystack's answer."
+    }
+  },
+  "note": "Retry first asks Paystack about the CURRENT attempt and goes ahead only on a definite failed or reversed answer."
+}

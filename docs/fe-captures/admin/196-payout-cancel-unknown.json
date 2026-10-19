@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/payouts/967f33c6-9264-4bf8-9318-063b1b136fa8/cancel",
+    "path": "/api/v1/admin/payouts/9d5a69da-a171-4878-9e87-a07702151dc9/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Nobody"

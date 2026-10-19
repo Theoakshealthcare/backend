@@ -649,29 +649,29 @@ def payouts_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str, paystack_p
         return items[0]
 
     paid_p, failing_p, cancelled_p = payout_of(paid), payout_of(failing), payout_of(cancelled)
-    rec.call("payout-cancel-as-finance", "POST", f"{P}/{cancelled_p['id']}/cancel", token=fin, expect=403,
-             json_body={"reason": "Finance may look but not cancel"},
-             note="Cancelling moves money, so it needs ledger.adjust (Super Admin only), like approving.")
+    rec.call("payout-cancel-as-operations", "POST", f"{P}/{cancelled_p['id']}/cancel", token=ops, expect=403,
+             json_body={"reason": "Operations may not cancel"},
+             note="Cancelling moves money, so it needs payouts.execute (Finance and Super Admin), like approving.")
     rec.call("payout-cancel-no-reason", "POST", f"{P}/{cancelled_p['id']}/cancel", token=boss, expect=422, json_body={})
     rec.call("payout-cancel-unknown", "POST", f"{P}/{uuid.uuid4()}/cancel", token=boss, expect=404, json_body={"reason": "Nobody"})
-    rec.call("payout-cancel", "POST", f"{P}/{cancelled_p['id']}/cancel", token=boss,
+    rec.call("payout-cancel", "POST", f"{P}/{cancelled_p['id']}/cancel", token=fin,
              json_body={"reason": "Caregiver asked us to hold this payout"},
-             note="The reserved 8,000.00 NGN goes back to the caregiver's available balance.")
+             note="Done by a Finance admin (payouts.execute). The reserved 8,000.00 NGN goes back to the caregiver's available balance.")
     rec.call("payout-cancel-again", "POST", f"{P}/{cancelled_p['id']}/cancel", token=boss, expect=409,
              json_body={"reason": "Again"})
     rec.call("payout-retry-pending", "POST", f"{P}/{paid_p['id']}/retry", token=boss, expect=409,
              json_body={"reason": "Not failed"})
 
-    rec.call("payout-batch-approve-as-finance", "POST", f"{P}/batches/{batch_id}/approve", token=fin, expect=403,
-             json_body={"reason": "Finance may not approve"})
+    rec.call("payout-batch-approve-as-operations", "POST", f"{P}/batches/{batch_id}/approve", token=ops, expect=403,
+             json_body={"reason": "Operations may not approve"})
     rec.call("payout-batch-approve-no-reason", "POST", f"{P}/batches/{batch_id}/approve", token=boss, expect=422, json_body={})
     rec.call("payout-batch-approve-blank-reason", "POST", f"{P}/batches/{batch_id}/approve", token=boss, expect=422,
              json_body={"reason": "   "})
     rec.call("payout-batch-approve-unknown", "POST", f"{P}/batches/{uuid.uuid4()}/approve", token=boss, expect=404,
              json_body={"reason": "Nobody"})
-    rec.call("payout-batch-approve", "POST", f"{P}/batches/{batch_id}/approve", token=boss,
+    rec.call("payout-batch-approve", "POST", f"{P}/batches/{batch_id}/approve", token=fin,
              json_body={"reason": "Placeholder: totals checked against the ledger"},
-             note="Approving sends nothing by itself: payouts become 'processing' and the send job (every minute) pays them.")
+             note="Done by a Finance admin (payouts.execute). Approving sends nothing by itself: payouts become 'processing' and the send job (every minute) pays them.")
     rec.call("payout-batch-approve-again", "POST", f"{P}/batches/{batch_id}/approve", token=boss, expect=409,
              json_body={"reason": "Again"})
     rec.call("payout-cancel-after-approval", "POST", f"{P}/{paid_p['id']}/cancel", token=boss, expect=409,
@@ -697,6 +697,9 @@ def payouts_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str, paystack_p
                      "placeholder key.")
     rec.call("payouts-list-after-success", "GET", P, token=fin, params={"caregiver_id": paid})
 
+    rec.call("payout-retry-as-finance", "POST", f"{P}/{failing_p['id']}/retry", token=fin, expect=403,
+             json_body={"reason": "Finance may not retry"},
+             note="Retry is Super Admin only (ledger.adjust): Finance can approve and cancel but not retry, resolve or unfreeze.")
     rec.call("payout-retry-as-operations", "POST", f"{P}/{failing_p['id']}/retry", token=ops, expect=403,
              json_body={"reason": "Not allowed"})
     rec.call("payout-retry-no-reason", "POST", f"{P}/{failing_p['id']}/retry", token=boss, expect=422, json_body={})
@@ -979,13 +982,13 @@ def payouts_attention(rec, db, env, ctx, fake, caregiver, payout_of, P, boss, fi
                 "Transfer, whose money came back when its payout was resolved as failed."})
     batch3 = rec.http.get(f"{P}/batches", headers={"Authorization": f"Bearer {fin}"}).json()["items"][0]["id"]
     BC = f"{P}/batches/{batch3}/cancel"
-    rec.call("payout-batch-cancel-as-finance", "POST", BC, token=fin, expect=403, json_body={"reason": "Finance may not cancel"})
+    rec.call("payout-batch-cancel-as-operations", "POST", BC, token=ops, expect=403, json_body={"reason": "Operations may not cancel"})
     rec.call("payout-batch-cancel-no-reason", "POST", BC, token=boss, expect=422, json_body={})
     rec.call("payout-batch-cancel-unknown", "POST", f"{P}/batches/{uuid.uuid4()}/cancel", token=boss, expect=404,
              json_body={"reason": "Nobody"})
-    rec.call("payout-batch-cancel", "POST", BC, token=boss,
+    rec.call("payout-batch-cancel", "POST", BC, token=fin,
              json_body={"reason": "Placeholder: the totals do not match Finance's report"},
-             note="Every payout still waiting is cancelled and its money returned in one transaction.")
+             note="Done by a Finance admin (payouts.execute). Every payout still waiting is cancelled and its money returned in one transaction.")
     rec.call("payout-batch-cancel-again", "POST", BC, token=boss, expect=409, json_body={"reason": "Again"})
     rec.call("payout-batch-cancel-approved", "POST", f"{P}/batches/{batch2}/cancel", token=boss, expect=409,
              json_body={"reason": "Too late"})

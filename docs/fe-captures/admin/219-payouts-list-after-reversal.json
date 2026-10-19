@@ -1,0 +1,65 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts?caregiver_id=1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+          "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+          "batch_period": "2026-10-26",
+          "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+          "caregiver_name": "Placeholder Failing",
+          "amount_kobo": 3000000,
+          "status": "needs_attention",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0012",
+          "account_name": "PLACEHOLDER FAILING",
+          "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
+          "transfer_code": "TRF_53494aa0c319",
+          "attempts": 2,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-d78d323495ec4a0c924183d4adf920d4-1",
+              "status": "refused",
+              "failure_reason": "Paystack refused the transfer: Your balance is not enough to fulfil this request",
+              "created_at": "2026-10-19T13:29:07.830090"
+            },
+            {
+              "attempt": 2,
+              "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
+              "status": "reversed",
+              "failure_reason": "Paystack reported the transfer as reversed",
+              "created_at": "2026-10-19T13:29:11.934373"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": "2026-10-19T13:29:14.370730",
+          "caregiver_payouts_frozen_reason": "Payout d78d3234-95ec-4a0c-9241-83d4adf920d4: Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
+          "failure_reason": "Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
+          "initiated_at": "2026-10-19T13:29:14.078581",
+          "completed_at": "2026-10-19T13:29:14.358872",
+          "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "approved_at": "2026-10-19T13:29:11.913016",
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-19T13:29:07.822496"
+        }
+      ],
+      "total": 1
+    }
+  },
+  "note": "needs_attention, and caregiver_payouts_frozen_at / caregiver_payouts_frozen_reason say why the caregiver is frozen. The 30,000.00 NGN is NOT back in the caregiver's available balance."
+}

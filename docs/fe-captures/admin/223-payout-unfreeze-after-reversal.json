@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/caregivers/1ea14f8e-28ac-4c89-bfd4-15c81e8487f5/unfreeze",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Reversal confirmed with Paystack and the money returned; nothing else is open"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+      "payouts_frozen_at": null,
+      "debited_from_balance_kobo": 0,
+      "written_off_shortfall_kobo": 0,
+      "outstanding_shortfall_kobo": 0
+    }
+  },
+  "note": "Nothing of this caregiver's is still needs_attention or processing, so the freeze can be lifted."
+}
