@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "FAKE",
+    "path": "the transfer's status on the fake Paystack: otp -> success",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "reference": "po-7bcbd73a5a8b4b219fdd64b6da4706fd-1",
+      "status": "success"
+    }
+  },
+  "note": "SIMULATION: someone enters the OTP in the Paystack dashboard and the transfer goes through. No webhook is sent, as in the case where Paystack's webhook never arrives."
+}

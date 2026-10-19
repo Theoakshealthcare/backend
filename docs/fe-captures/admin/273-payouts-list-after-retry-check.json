@@ -1,0 +1,96 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts?caregiver_id=5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "ded559d1-47f5-4137-ba63-6799c94b966f",
+          "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+          "batch_period": "2026-11-02",
+          "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+          "caregiver_name": "Placeholder Cancelled",
+          "amount_kobo": 800000,
+          "status": "needs_attention",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0013",
+          "account_name": "PLACEHOLDER CANCELLED",
+          "reference": "po-ded559d147f54137ba636799c94b966f-1",
+          "transfer_code": "TRF_78d68e56691a",
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-ded559d147f54137ba636799c94b966f-1",
+              "status": "success",
+              "failure_reason": "Paystack reported the transfer as failed",
+              "created_at": "2026-10-19T13:29:23.421781"
+            }
+          ],
+          "shortfall_kobo": 500000,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": "2026-10-19T13:29:30.189672",
+          "caregiver_payouts_frozen_reason": "Payout ded559d1-47f5-4137-ba63-6799c94b966f: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 500000 kobo could not be recovered (shortfall).",
+          "failure_reason": "Paystack reported the transfer as failed Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 500000 kobo could not be recovered (shortfall).",
+          "initiated_at": "2026-10-19T13:29:26.701740",
+          "completed_at": "2026-10-19T13:29:30.154083",
+          "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "approved_at": "2026-10-19T13:29:24.009748",
+          "cancelled_by": null,
+          "cancelled_at": null,
+          "cancel_reason": null,
+          "created_at": "2026-10-19T13:29:23.420328"
+        },
+        {
+          "id": "b49ceee7-a2cf-44eb-8216-2f877602bd77",
+          "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+          "batch_period": "2026-10-26",
+          "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+          "caregiver_name": "Placeholder Cancelled",
+          "amount_kobo": 800000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0013",
+          "account_name": "PLACEHOLDER CANCELLED",
+          "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-19T13:29:07.845527"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": "2026-10-19T13:29:30.189672",
+          "caregiver_payouts_frozen_reason": "Payout ded559d1-47f5-4137-ba63-6799c94b966f: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 500000 kobo could not be recovered (shortfall).",
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "782b30c4-afec-4093-b436-94b567e953b1",
+          "cancelled_at": "2026-10-19T13:29:08.513278",
+          "cancel_reason": "Caregiver asked us to hold this payout",
+          "created_at": "2026-10-19T13:29:07.844168"
+        }
+      ],
+      "total": 2
+    }
+  },
+  "note": "shortfall_kobo is 500000: 3,000.00 NGN was taken back and 5,000.00 NGN is what the balance could not cover."
+}

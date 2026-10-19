@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/payouts/batches/240f7286-ecd6-4511-ab8a-32a5b75c967e/approve",
+    "path": "/api/v1/admin/payouts/batches/ecd85e88-3c30-4858-8046-69b2ed56fe3a/approve",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {}
   },

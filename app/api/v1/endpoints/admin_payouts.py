@@ -1,5 +1,6 @@
-"""Admin: caregiver payouts (A3 slice 2). Money leaves Oakly through these routes, so approving needs ``ledger.adjust``
-(Super Admin only), and so do cancelling, retrying, resolving and unfreezing a caregiver; reading needs ``payments.read``. Every change needs a reason and writes
+"""Admin: caregiver payouts (A3 slice 2). Money leaves Oakly through these routes. Approving a batch and cancelling a batch or a payout need
+``payouts.execute`` (Finance and Super Admin); retrying, resolving (including ``force``) and unfreezing a caregiver need
+``ledger.adjust`` (Super Admin only); reading needs ``payments.read``. Every change needs a reason and writes
 an ``admin_audit_log`` row. Batches are created by the scheduled job, never by a route."""
 
 from typing import Dict, List, Optional
@@ -121,7 +122,7 @@ def get_batch(batch_id: UUID, db: Session = Depends(get_db), _admin: AdminUser =
 
 @router.post("/batches/{batch_id}/approve", response_model=BatchDetail)
 def approve_batch(batch_id: UUID, body: PayoutReasonIn, request: Request, db: Session = Depends(get_db),
-                  admin: AdminUser = Depends(require_permission("ledger.adjust"))):
+                  admin: AdminUser = Depends(require_permission("payouts.execute"))):
     """Approve every payout still waiting in the batch. The send job then pays them through Paystack."""
     try:
         payouts.approve_batch(db, batch_id, admin_id=admin.id, reason=body.reason, request=request)
@@ -134,7 +135,7 @@ def approve_batch(batch_id: UUID, body: PayoutReasonIn, request: Request, db: Se
 
 @router.post("/batches/{batch_id}/cancel", response_model=BatchDetail)
 def cancel_batch(batch_id: UUID, body: PayoutReasonIn, request: Request, db: Session = Depends(get_db),
-                 admin: AdminUser = Depends(require_permission("ledger.adjust"))):
+                 admin: AdminUser = Depends(require_permission("payouts.execute"))):
     """Cancel a batch that has not been approved: every payout in it is cancelled and its money returned."""
     _guard(payouts.cancel_batch, db, batch_id, admin_id=admin.id, reason=body.reason, request=request,
            not_found="Payout batch not found")
@@ -162,7 +163,7 @@ def list_payouts(
 
 @router.post("/{payout_id}/cancel", response_model=PayoutOut)
 def cancel_payout(payout_id: UUID, body: PayoutReasonIn, request: Request, db: Session = Depends(get_db),
-                  admin: AdminUser = Depends(require_permission("ledger.adjust"))):
+                  admin: AdminUser = Depends(require_permission("payouts.execute"))):
     """Cancel a payout that has not been approved; the reserved money goes back to the caregiver's available balance."""
     _guard(payouts.cancel_payout, db, payout_id, admin_id=admin.id, reason=body.reason, request=request)
     return _one_payout(db, payout_id)

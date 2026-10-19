@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/caregivers/63f4b91b-db58-4589-ab8e-8d9acc679e17/unfreeze",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Payout confirmed paid; the 8,000.00 NGN shortfall is to be recovered by a ledger adjustment"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "This caregiver still owes 800000 kobo that Paystack paid beyond their earnings, even after 0 kobo is taken from their available balance. Unfreeze with write_off_shortfall to write it off, or leave them frozen"
+    }
+  },
+  "note": "write_off_shortfall is false (the default) and the available balance is 0, so there is nothing to debit the 8,000.00 NGN shortfall from: the unfreeze is refused and nothing changes."
+}

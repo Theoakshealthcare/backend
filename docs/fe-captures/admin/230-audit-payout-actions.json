@@ -1,0 +1,153 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=payout&limit=6",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "c49cf100-935f-4030-b8d7-522e9b717c5f",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.retry",
+          "entity_type": "payout",
+          "entity_id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+          "before": {
+            "status": "failed",
+            "amount_kobo": 3000000,
+            "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+            "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
+            "attempts": 2,
+            "shortfall_kobo": 0,
+            "returned_kobo": 3000000,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "processing",
+            "amount_kobo": 3000000,
+            "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+            "reference": "po-d78d323495ec4a0c924183d4adf920d4-3",
+            "attempts": 3,
+            "shortfall_kobo": 0,
+            "returned_kobo": 3000000,
+            "netted_kobo": 0
+          },
+          "reason": "Reversal was a bank hiccup; send again",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:14.472789"
+        },
+        {
+          "id": "c28dc17a-7386-47a4-8124-afe615b309ad",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.resolve",
+          "entity_type": "payout",
+          "entity_id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+          "before": {
+            "status": "needs_attention",
+            "amount_kobo": 3000000,
+            "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+            "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
+            "attempts": 2,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "failed",
+            "amount_kobo": 3000000,
+            "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+            "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
+            "attempts": 2,
+            "shortfall_kobo": 0,
+            "returned_kobo": 3000000,
+            "netted_kobo": 0,
+            "outcome": "failed",
+            "forced": false,
+            "paystack_said": "Paystack reports this transfer as reversed"
+          },
+          "reason": "Paystack shows the transfer as reversed and the money back in our balance",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:14.427693"
+        },
+        {
+          "id": "25686084-0fd9-4975-af1b-05188d2fa2d7",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.retry",
+          "entity_type": "payout",
+          "entity_id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+          "before": {
+            "status": "failed",
+            "amount_kobo": 3000000,
+            "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+            "reference": "po-d78d323495ec4a0c924183d4adf920d4-1",
+            "attempts": 1,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "processing",
+            "amount_kobo": 3000000,
+            "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+            "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
+            "attempts": 2,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "reason": "Paystack balance topped up",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:11.935120"
+        },
+        {
+          "id": "182af78a-d3b7-4070-89ca-1cb419b0296c",
+          "admin_user_id": "782b30c4-afec-4093-b436-94b567e953b1",
+          "admin_email": "fin-d704c6pay@example.com",
+          "action": "payout.cancel",
+          "entity_type": "payout",
+          "entity_id": "b49ceee7-a2cf-44eb-8216-2f877602bd77",
+          "before": {
+            "status": "pending_approval",
+            "amount_kobo": 800000,
+            "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+            "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
+            "attempts": 1,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "after": {
+            "status": "cancelled",
+            "amount_kobo": 800000,
+            "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+            "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
+            "attempts": 1,
+            "shortfall_kobo": 0,
+            "returned_kobo": 0,
+            "netted_kobo": 0
+          },
+          "reason": "Caregiver asked us to hold this payout",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:08.528432"
+        }
+      ],
+      "total": 4,
+      "limit": 6,
+      "offset": 0
+    }
+  },
+  "note": "One entry per cancel and retry, newest first."
+}

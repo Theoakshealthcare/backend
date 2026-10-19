@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/payouts/05e5c555-de52-4080-8071-575e11acb302/cancel",
+    "path": "/api/v1/admin/payouts/1ca00fde-0db3-4909-8256-65ebd86c2d6b/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Too late"

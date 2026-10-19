@@ -485,7 +485,8 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
 | `GET /admin/bookings...`, `POST /admin/bookings/{id}/...` | see section 12.1 |
 | `GET /admin/earnings`, `POST /admin/earnings/{id}/hold`, `.../release-hold`, `.../void` | see section 12.10 |
 | `GET /admin/payouts`, `GET /admin/payouts/batches`, `GET /admin/payouts/batches/{id}` | `payments.read` (section 12.11) |
-| `POST /admin/payouts/batches/{id}/approve`, `POST /admin/payouts/batches/{id}/cancel`, `POST /admin/payouts/{id}/cancel`, `POST /admin/payouts/{id}/retry`, `POST /admin/payouts/{id}/resolve`, `POST /admin/payouts/caregivers/{id}/unfreeze` | `ledger.adjust` (Super Admin only; section 12.11) |
+| `POST /admin/payouts/batches/{id}/approve`, `POST /admin/payouts/batches/{id}/cancel`, `POST /admin/payouts/{id}/cancel` | `payouts.execute` (Finance, Super Admin; section 12.11) |
+| `POST /admin/payouts/{id}/retry`, `POST /admin/payouts/{id}/resolve`, `POST /admin/payouts/caregivers/{id}/unfreeze` | `ledger.adjust` (Super Admin only; section 12.11) |
 
 **Routes shared with the apps.** These six existing routes serve patients and caregivers as before, and **also accept an admin token** that holds the permission. For an admin they skip the "is this your own booking/record" check:
 
@@ -2301,14 +2302,14 @@ Money flow of a payout: `pending_approval` -> (admin approves the batch) `proces
 | `GET /admin/payouts/batches` | `payments.read` (Finance, Super Admin) | filter `status` (`pending_approval`, `approved`, `cancelled`); `limit` (1 to 200), `offset`; newest first. Each batch carries `payout_count`, `total_kobo` (cancelled payouts excluded) and `counts` (a map status -> number) |
 | `GET /admin/payouts/batches/{id}` | `payments.read` | the batch plus its `payouts` |
 | `GET /admin/payouts` | `payments.read` | filters `batch_id`, `caregiver_id`, `status` (`pending_approval`, `processing`, `success`, `failed`, `reversed`, `cancelled`, `needs_attention`); `limit`, `offset`; newest first |
-| `POST /admin/payouts/batches/{id}/approve` | `ledger.adjust` (**Super Admin only**) | body `{"reason": "..."}`, reason required; returns the batch with its payouts |
-| `POST /admin/payouts/{id}/cancel` | `ledger.adjust` | same body; only a payout that has **not been approved** |
-| `POST /admin/payouts/batches/{id}/cancel` | `ledger.adjust` | same body; only a batch that has **not been approved**: every payout waiting in it is cancelled and its money returned; returns the batch with its payouts |
-| `POST /admin/payouts/{id}/retry` | `ledger.adjust` | same body; only a `failed` or `reversed` payout, and only once Paystack has confirmed the failure (it is asked first) |
-| `POST /admin/payouts/{id}/resolve` | `ledger.adjust` | body `{"outcome": "paid" or "failed", "reason": "...", "force": false}`; only a `processing` or `needs_attention` payout; Paystack is asked first; `failed` returns the reserved money **net of the caregiver's shortfall** |
-| `POST /admin/payouts/caregivers/{caregiver_id}/unfreeze` | `ledger.adjust` | body `{"reason": "...", "write_off_shortfall": false}`; lets a frozen caregiver be paid again; refused while any of their payouts is `needs_attention` or `processing`; **debits any outstanding shortfall from the caregiver's available balance first**, and a shortfall the balance cannot cover is refused (`409`) unless `write_off_shortfall` is `true`; returns `{caregiver_id, payouts_frozen_at: null, debited_from_balance_kobo, written_off_shortfall_kobo, outstanding_shortfall_kobo}` |
+| `POST /admin/payouts/batches/{id}/approve` | `payouts.execute` (Finance, Super Admin) | body `{"reason": "..."}`, reason required; returns the batch with its payouts |
+| `POST /admin/payouts/{id}/cancel` | `payouts.execute` (Finance, Super Admin) | same body; only a payout that has **not been approved** |
+| `POST /admin/payouts/batches/{id}/cancel` | `payouts.execute` (Finance, Super Admin) | same body; only a batch that has **not been approved**: every payout waiting in it is cancelled and its money returned; returns the batch with its payouts |
+| `POST /admin/payouts/{id}/retry` | `ledger.adjust` (**Super Admin only**) | same body; only a `failed` or `reversed` payout, and only once Paystack has confirmed the failure (it is asked first) |
+| `POST /admin/payouts/{id}/resolve` | `ledger.adjust` (**Super Admin only**) | body `{"outcome": "paid" or "failed", "reason": "...", "force": false}`; only a `processing` or `needs_attention` payout; Paystack is asked first; `failed` returns the reserved money **net of the caregiver's shortfall** |
+| `POST /admin/payouts/caregivers/{caregiver_id}/unfreeze` | `ledger.adjust` (**Super Admin only**) | body `{"reason": "...", "write_off_shortfall": false}`; lets a frozen caregiver be paid again; refused while any of their payouts is `needs_attention` or `processing`; **debits any outstanding shortfall from the caregiver's available balance first**, and a shortfall the balance cannot cover is refused (`409`) unless `write_off_shortfall` is `true`; returns `{caregiver_id, payouts_frozen_at: null, debited_from_balance_kobo, written_off_shortfall_kobo, outstanding_shortfall_kobo}` |
 
-**Finance can read but not approve, cancel, retry, resolve or unfreeze.** Moving money out needs `ledger.adjust`, which only the Super Admin holds today. Hide the buttons for everyone else; a missing permission is `403` `Access denied. Missing permission: ledger.adjust`.
+**Finance can approve and cancel, but not retry, resolve or unfreeze.** Approving a batch and cancelling a batch or a payout need `payouts.execute`, which Finance and the Super Admin hold; retry, resolve (with or without `force`) and unfreeze need `ledger.adjust`, which only the Super Admin holds. Show Approve and Cancel to anyone whose `permissions` (from `GET /admin/me`) include `payouts.execute`, and Retry, Resolve and Unfreeze only to those with `ledger.adjust`; a missing permission is `403` `Access denied. Missing permission: payouts.execute` or `Access denied. Missing permission: ledger.adjust` (captures `194`, `211`). The admin who acted is recorded on the payout (`approved_by`, `cancelled_by`) and in the audit log.
 
 **There is no "create batch" route.** The scheduled job makes batches. If it was down on a payout day nothing is created until the next payout day; a developer can run it by hand (`app.services.payouts.create_batch`). **[seeded]** The caregivers, their available balances and their verified bank accounts are inserted directly (a caregiver does this with `PUT /caregiver/bank-account`, see the caregiver guide). **[simulated schedule]** The batch, send and reconcile steps are the **real functions** run inside the worker container, standing in for the ARQ cron; the batch is for a date a week ahead because the caregiver capture run used today's. **[fake Paystack]** Every Paystack answer and webhook in these captures comes from a **local fake** shaped after Paystack's documented replies; the webhooks are correctly signed with the stack's placeholder key. **A live Paystack account has not been exercised.**
 
@@ -2347,8 +2348,8 @@ The batch step (`payouts_made` is 3 of 5):
 <!-- capture: 184-worker-payout-batch-job.json response.body -->
 ```json
 {
-  "period_key": "2026-10-19",
-  "payouts_made": 3
+  "period_key": "2026-10-26",
+  "payouts_made": 6
 }
 ```
 
@@ -2363,19 +2364,19 @@ The batch list. `counts` is a map, so a status with no payouts is **absent**, no
 {
   "items": [
     {
-      "id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-      "period_key": "2026-10-19",
+      "id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+      "period_key": "2026-10-26",
       "cadence": "weekly",
       "min_payout_kobo": 500000,
       "status": "pending_approval",
       "approved_by": null,
       "approved_at": null,
       "approval_reason": null,
-      "created_at": "2026-10-12T16:52:06.569281",
-      "payout_count": 3,
-      "total_kobo": 5000000,
+      "created_at": "2026-10-19T13:29:07.792983",
+      "payout_count": 6,
+      "total_kobo": 10000000,
       "counts": {
-        "pending_approval": 3
+        "pending_approval": 6
       }
     }
   ],
@@ -2390,80 +2391,42 @@ The batch detail with its payouts (before approval). `account_number` is **maske
 <!-- capture: 187-payout-batch-detail.json response.body -->
 ```json
 {
-  "id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-  "period_key": "2026-10-19",
+  "id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+  "period_key": "2026-10-26",
   "cadence": "weekly",
   "min_payout_kobo": 500000,
   "status": "pending_approval",
   "approved_by": null,
   "approved_at": null,
   "approval_reason": null,
-  "created_at": "2026-10-12T16:52:06.569281",
-  "payout_count": 3,
-  "total_kobo": 5000000,
+  "created_at": "2026-10-19T13:29:07.792983",
+  "payout_count": 6,
+  "total_kobo": 10000000,
   "counts": {
-    "pending_approval": 3
+    "pending_approval": 6
   },
   "payouts": [
     {
-      "id": "05e5c555-de52-4080-8071-575e11acb302",
-      "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-      "batch_period": "2026-10-19",
-      "caregiver_id": "3302d88e-e1e4-482d-90d5-c636d2afb9c4",
-      "caregiver_name": "Placeholder Paid",
-      "amount_kobo": 1200000,
-      "status": "pending_approval",
-      "bank_name": "Placeholder Bank",
-      "account_number": "******0011",
-      "account_name": "PLACEHOLDER PAID",
-      "reference": "po-05e5c555de5240808071575e11acb302-1",
-      "transfer_code": null,
-      "attempts": 1,
-      "attempt_history": [
-        {
-          "attempt": 1,
-          "reference": "po-05e5c555de5240808071575e11acb302-1",
-          "status": "pending",
-          "failure_reason": null,
-          "created_at": "2026-10-12T16:52:06.582997"
-        }
-      ],
-      "shortfall_kobo": 0,
-      "returned_kobo": 0,
-      "netted_kobo": 0,
-      "caregiver_payouts_frozen_at": null,
-      "caregiver_payouts_frozen_reason": null,
-      "failure_reason": null,
-      "initiated_at": null,
-      "completed_at": null,
-      "approved_by": null,
-      "approved_at": null,
-      "cancelled_by": null,
-      "cancelled_at": null,
-      "cancel_reason": null,
-      "created_at": "2026-10-12T16:52:06.580618"
-    },
-    {
-      "id": "93d04961-704d-4177-abfa-39f35a0b7b76",
-      "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-      "batch_period": "2026-10-19",
-      "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
+      "id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+      "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+      "batch_period": "2026-10-26",
+      "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
       "caregiver_name": "Placeholder Failing",
       "amount_kobo": 3000000,
       "status": "pending_approval",
       "bank_name": "Placeholder Bank",
       "account_number": "******0012",
       "account_name": "PLACEHOLDER FAILING",
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-1",
       "transfer_code": null,
       "attempts": 1,
       "attempt_history": [
         {
           "attempt": 1,
-          "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
+          "reference": "po-d78d323495ec4a0c924183d4adf920d4-1",
           "status": "pending",
           "failure_reason": null,
-          "created_at": "2026-10-12T16:52:06.591410"
+          "created_at": "2026-10-19T13:29:07.830090"
         }
       ],
       "shortfall_kobo": 0,
@@ -2479,29 +2442,29 @@ The batch detail with its payouts (before approval). `account_number` is **maske
       "cancelled_by": null,
       "cancelled_at": null,
       "cancel_reason": null,
-      "created_at": "2026-10-12T16:52:06.590658"
+      "created_at": "2026-10-19T13:29:07.822496"
     },
     {
-      "id": "3f98faae-3f42-479f-8cab-0e34f2a4d8dc",
-      "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-      "batch_period": "2026-10-19",
-      "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
+      "id": "b49ceee7-a2cf-44eb-8216-2f877602bd77",
+      "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+      "batch_period": "2026-10-26",
+      "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
       "caregiver_name": "Placeholder Cancelled",
       "amount_kobo": 800000,
       "status": "pending_approval",
       "bank_name": "Placeholder Bank",
       "account_number": "******0013",
       "account_name": "PLACEHOLDER CANCELLED",
-      "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
+      "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
       "transfer_code": null,
       "attempts": 1,
       "attempt_history": [
         {
           "attempt": 1,
-          "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
+          "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
           "status": "pending",
           "failure_reason": null,
-          "created_at": "2026-10-12T16:52:06.595653"
+          "created_at": "2026-10-19T13:29:07.845527"
         }
       ],
       "shortfall_kobo": 0,
@@ -2517,7 +2480,159 @@ The batch detail with its payouts (before approval). `account_number` is **maske
       "cancelled_by": null,
       "cancelled_at": null,
       "cancel_reason": null,
-      "created_at": "2026-10-12T16:52:06.595035"
+      "created_at": "2026-10-19T13:29:07.844168"
+    },
+    {
+      "id": "87e77b91-5f35-4ea9-b8ea-5b7919230d4b",
+      "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+      "batch_period": "2026-10-26",
+      "caregiver_id": "63307397-54eb-4fef-96fe-64086aead8d9",
+      "caregiver_name": "Placeholder Cancelled",
+      "amount_kobo": 800000,
+      "status": "pending_approval",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0013",
+      "account_name": "PLACEHOLDER CANCELLED",
+      "reference": "po-87e77b915f354ea9b8ea5b7919230d4b-1",
+      "transfer_code": null,
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-87e77b915f354ea9b8ea5b7919230d4b-1",
+          "status": "pending",
+          "failure_reason": null,
+          "created_at": "2026-10-19T13:29:07.857097"
+        }
+      ],
+      "shortfall_kobo": 0,
+      "returned_kobo": 0,
+      "netted_kobo": 0,
+      "caregiver_payouts_frozen_at": null,
+      "caregiver_payouts_frozen_reason": null,
+      "failure_reason": null,
+      "initiated_at": null,
+      "completed_at": null,
+      "approved_by": null,
+      "approved_at": null,
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-19T13:29:07.854789"
+    },
+    {
+      "id": "095b3872-1a06-47e7-b604-78c9ba893f04",
+      "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+      "batch_period": "2026-10-26",
+      "caregiver_id": "7bc6c2b0-da51-4c84-908d-22808c19abe8",
+      "caregiver_name": "Placeholder Failing",
+      "amount_kobo": 3000000,
+      "status": "pending_approval",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0012",
+      "account_name": "PLACEHOLDER FAILING",
+      "reference": "po-095b38721a0647e7b60478c9ba893f04-1",
+      "transfer_code": null,
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-095b38721a0647e7b60478c9ba893f04-1",
+          "status": "pending",
+          "failure_reason": null,
+          "created_at": "2026-10-19T13:29:07.866533"
+        }
+      ],
+      "shortfall_kobo": 0,
+      "returned_kobo": 0,
+      "netted_kobo": 0,
+      "caregiver_payouts_frozen_at": null,
+      "caregiver_payouts_frozen_reason": null,
+      "failure_reason": null,
+      "initiated_at": null,
+      "completed_at": null,
+      "approved_by": null,
+      "approved_at": null,
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-19T13:29:07.865568"
+    },
+    {
+      "id": "f11dc9d6-778b-4433-8e31-b51251bb86cd",
+      "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+      "batch_period": "2026-10-26",
+      "caregiver_id": "a64b9bdc-eb3b-41ba-b0c1-0258743623c0",
+      "caregiver_name": "Placeholder Paid",
+      "amount_kobo": 1200000,
+      "status": "pending_approval",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0011",
+      "account_name": "PLACEHOLDER PAID",
+      "reference": "po-f11dc9d6778b44338e31b51251bb86cd-1",
+      "transfer_code": null,
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-f11dc9d6778b44338e31b51251bb86cd-1",
+          "status": "pending",
+          "failure_reason": null,
+          "created_at": "2026-10-19T13:29:07.876729"
+        }
+      ],
+      "shortfall_kobo": 0,
+      "returned_kobo": 0,
+      "netted_kobo": 0,
+      "caregiver_payouts_frozen_at": null,
+      "caregiver_payouts_frozen_reason": null,
+      "failure_reason": null,
+      "initiated_at": null,
+      "completed_at": null,
+      "approved_by": null,
+      "approved_at": null,
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-19T13:29:07.875618"
+    },
+    {
+      "id": "1ca00fde-0db3-4909-8256-65ebd86c2d6b",
+      "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+      "batch_period": "2026-10-26",
+      "caregiver_id": "d83d80b4-55bd-4083-bd48-db16338690dc",
+      "caregiver_name": "Placeholder Paid",
+      "amount_kobo": 1200000,
+      "status": "pending_approval",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0011",
+      "account_name": "PLACEHOLDER PAID",
+      "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1",
+      "transfer_code": null,
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1",
+          "status": "pending",
+          "failure_reason": null,
+          "created_at": "2026-10-19T13:29:07.883855"
+        }
+      ],
+      "shortfall_kobo": 0,
+      "returned_kobo": 0,
+      "netted_kobo": 0,
+      "caregiver_payouts_frozen_at": null,
+      "caregiver_payouts_frozen_reason": null,
+      "failure_reason": null,
+      "initiated_at": null,
+      "completed_at": null,
+      "approved_by": null,
+      "approved_at": null,
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-19T13:29:07.882962"
     }
   ]
 }
@@ -2538,26 +2653,26 @@ Cancelling returns the reserved money to the caregiver's available balance (8,00
 <!-- capture: 197-payout-cancel.json response.body -->
 ```json
 {
-  "id": "3f98faae-3f42-479f-8cab-0e34f2a4d8dc",
-  "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-  "batch_period": "2026-10-19",
-  "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
+  "id": "b49ceee7-a2cf-44eb-8216-2f877602bd77",
+  "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+  "batch_period": "2026-10-26",
+  "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
   "caregiver_name": "Placeholder Cancelled",
   "amount_kobo": 800000,
   "status": "cancelled",
   "bank_name": "Placeholder Bank",
   "account_number": "******0013",
   "account_name": "PLACEHOLDER CANCELLED",
-  "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
+  "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
   "transfer_code": null,
   "attempts": 1,
   "attempt_history": [
     {
       "attempt": 1,
-      "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
+      "reference": "po-b49ceee7a2cf44eb82162f877602bd77-1",
       "status": "pending",
       "failure_reason": null,
-      "created_at": "2026-10-12T16:52:06.595653"
+      "created_at": "2026-10-19T13:29:07.845527"
     }
   ],
   "shortfall_kobo": 0,
@@ -2570,10 +2685,10 @@ Cancelling returns the reserved money to the caregiver's available balance (8,00
   "completed_at": null,
   "approved_by": null,
   "approved_at": null,
-  "cancelled_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-  "cancelled_at": "2026-10-12T16:52:06.985971",
+  "cancelled_by": "782b30c4-afec-4093-b436-94b567e953b1",
+  "cancelled_at": "2026-10-19T13:29:08.513278",
   "cancel_reason": "Caregiver asked us to hold this payout",
-  "created_at": "2026-10-12T16:52:06.595035"
+  "created_at": "2026-10-19T13:29:07.844168"
 }
 ```
 
@@ -2581,7 +2696,7 @@ _capture `197-payout-cancel.json`_
 
 | Status | `detail` | When |
 |---|---|---|
-| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `194`)_ |
+| 403 | `Access denied. Missing permission: payouts.execute` | Operations, or any role without it _(capture `194`)_ |
 | 422 | the validation list | no `reason`, or a blank one _(capture `195`)_ |
 | 404 | `Payout not found` | unknown id _(capture `196`)_ |
 | 409 | `This payout is already cancelled` | again _(capture `198`)_ |
@@ -2589,47 +2704,47 @@ _capture `197-payout-cancel.json`_
 
 ### Cancel a whole batch (before approval)
 
-`POST /admin/payouts/batches/{id}/cancel` with `{"reason": "..."}`, `ledger.adjust`. Every payout still waiting in a batch that has not been approved is cancelled in one transaction and each caregiver's reserved money returns to their available balance (the next batch can pay it). Use it when the totals are wrong; **after approval it is refused** and only Paystack's answers can end a payout. The batch becomes `cancelled`; the response is the batch with its payouts, now `cancelled` with `cancelled_by` set to the admin.
+`POST /admin/payouts/batches/{id}/cancel` with `{"reason": "..."}`, `payouts.execute`. Every payout still waiting in a batch that has not been approved is cancelled in one transaction and each caregiver's reserved money returns to their available balance (the next batch can pay it). Use it when the totals are wrong; **after approval it is refused** and only Paystack's answers can end a payout. The batch becomes `cancelled`; the response is the batch with its payouts, now `cancelled` with `cancelled_by` set to the admin.
 
 Request body, then the response `200` (trimmed to the batch fields; `payouts` carries the cancelled payout objects):
 
-<!-- capture: 279-payout-batch-cancel.json request.body -->
+<!-- capture: 280-payout-batch-cancel.json request.body -->
 ```json
 {
   "reason": "Placeholder: the totals do not match Finance's report"
 }
 ```
 
-<!-- capture: 279-payout-batch-cancel.json response.body keys=id,period_key,status,approved_by,approval_reason,payout_count,total_kobo,counts -->
+<!-- capture: 280-payout-batch-cancel.json response.body keys=id,period_key,status,approved_by,approval_reason,payout_count,total_kobo,counts -->
 ```json
 {
-  "id": "a27984e3-3078-420f-a3e5-63a778ba78b1",
-  "period_key": "2026-11-02",
+  "id": "b0320517-068c-429f-8afb-16295b8ab814",
+  "period_key": "2026-11-09",
   "status": "cancelled",
   "approved_by": null,
   "approval_reason": null,
-  "payout_count": 2,
+  "payout_count": 5,
   "total_kobo": 0,
   "counts": {
-    "cancelled": 2
+    "cancelled": 5
   }
 }
 ```
 
-_capture `279-payout-batch-cancel.json`_
+_capture `280-payout-batch-cancel.json`_
 
 | Status | `detail` | When |
 |---|---|---|
-| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `276`)_ |
-| 422 | the validation list | no or blank `reason` _(capture `277`)_ |
-| 404 | `Payout batch not found` | unknown id _(capture `278`)_ |
-| 409 | `This batch is already cancelled` | again _(capture `280`)_ |
-| 409 | `This batch is already approved` | after approval _(capture `281`)_ |
+| 403 | `Access denied. Missing permission: payouts.execute` | Operations, or any role without it _(capture `277`)_ |
+| 422 | the validation list | no or blank `reason` _(capture `278`)_ |
+| 404 | `Payout batch not found` | unknown id _(capture `279`)_ |
+| 409 | `This batch is already cancelled` | again _(capture `281`)_ |
+| 409 | `This batch is already approved` | after approval _(capture `282`)_ |
 | 409 | `This batch has no payouts waiting for approval` | **[not live]** (asserted in `test_payout_hardening.py`) |
 
 ### Approve a batch
 
-Approval needs a reason and `ledger.adjust`. It moves every payout still waiting to `processing`; **it sends nothing itself**: the send job (every minute) posts one Paystack transfer per payout, each with that payout's own reference, so a repeat can never pay twice. **Before moving a payout, approval checks the caregiver again**: one who was suspended or erased, or who changed bank account since the batch was made, is **cancelled instead and the money returned** (`cancelled_by` is `null`, `cancel_reason` starts "Not paid when the batch was approved: ..."); the batch response shows it. **[not live]** This check was not captured; it is asserted in `test_payouts.py`.
+Approval needs a reason and `payouts.execute` (Finance or Super Admin). It moves every payout still waiting to `processing`; **it sends nothing itself**: the send job (every minute) posts one Paystack transfer per payout, each with that payout's own reference, so a repeat can never pay twice. **Before moving a payout, approval checks the caregiver again**: one who was suspended or erased, or who changed bank account since the batch was made, is **cancelled instead and the money returned** (`cancelled_by` is `null`, `cancel_reason` starts "Not paid when the batch was approved: ..."); the batch response shows it. **[not live]** This check was not captured; it is asserted in `test_payouts.py`.
 
 Request body:
 
@@ -2645,17 +2760,17 @@ Response `200` (trimmed here to the batch fields; the real response also carries
 <!-- capture: 204-payout-batch-approve.json response.body keys=id,period_key,status,approved_by,approved_at,approval_reason,payout_count,total_kobo,counts -->
 ```json
 {
-  "id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-  "period_key": "2026-10-19",
+  "id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+  "period_key": "2026-10-26",
   "status": "approved",
-  "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-  "approved_at": "2026-10-12T16:52:07.054767",
+  "approved_by": "782b30c4-afec-4093-b436-94b567e953b1",
+  "approved_at": "2026-10-19T13:29:08.595981",
   "approval_reason": "Placeholder: totals checked against the ledger",
-  "payout_count": 3,
-  "total_kobo": 4200000,
+  "payout_count": 6,
+  "total_kobo": 9200000,
   "counts": {
     "cancelled": 1,
-    "processing": 2
+    "processing": 5
   }
 }
 ```
@@ -2664,7 +2779,7 @@ _capture `204-payout-batch-approve.json`_
 
 | Status | `detail` | When |
 |---|---|---|
-| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `200`)_ |
+| 403 | `Access denied. Missing permission: payouts.execute` | Operations, or any role without it _(capture `200`)_ |
 | 422 | the validation list | no or blank `reason` _(captures `201`, `202`)_ |
 | 404 | `Payout batch not found` | unknown id _(capture `203`)_ |
 | 409 | `This batch is already approved` (or `cancelled`) | approving again _(capture `205`)_ |
@@ -2677,15 +2792,27 @@ The send step (the real function, in the worker container). The fake's balance w
 <!-- capture: 207-worker-payout-dispatch-job.json response.body -->
 ```json
 {
-  "transfers_sent": 2,
+  "transfers_sent": 5,
   "transfer_requests_seen_by_the_fake": [
     {
+      "amount": 3000000,
+      "reference": "po-095b38721a0647e7b60478c9ba893f04-1"
+    },
+    {
       "amount": 1200000,
-      "reference": "po-05e5c555de5240808071575e11acb302-1"
+      "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1"
+    },
+    {
+      "amount": 800000,
+      "reference": "po-87e77b915f354ea9b8ea5b7919230d4b-1"
     },
     {
       "amount": 3000000,
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-1"
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-1"
+    },
+    {
+      "amount": 1200000,
+      "reference": "po-f11dc9d6778b44338e31b51251bb86cd-1"
     }
   ]
 }
@@ -2697,102 +2824,26 @@ After the send: the accepted payout is `processing` with a `transfer_code`; the 
 ```json
 [
   {
-    "id": "3f98faae-3f42-479f-8cab-0e34f2a4d8dc",
-    "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-    "batch_period": "2026-10-19",
-    "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
-    "caregiver_name": "Placeholder Cancelled",
-    "amount_kobo": 800000,
-    "status": "cancelled",
-    "bank_name": "Placeholder Bank",
-    "account_number": "******0013",
-    "account_name": "PLACEHOLDER CANCELLED",
-    "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
-    "transfer_code": null,
-    "attempts": 1,
-    "attempt_history": [
-      {
-        "attempt": 1,
-        "reference": "po-3f98faae3f42479f8cab0e34f2a4d8dc-1",
-        "status": "pending",
-        "failure_reason": null,
-        "created_at": "2026-10-12T16:52:06.595653"
-      }
-    ],
-    "shortfall_kobo": 0,
-    "returned_kobo": 0,
-    "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": null,
-    "caregiver_payouts_frozen_reason": null,
-    "failure_reason": null,
-    "initiated_at": null,
-    "completed_at": null,
-    "approved_by": null,
-    "approved_at": null,
-    "cancelled_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "cancelled_at": "2026-10-12T16:52:06.985971",
-    "cancel_reason": "Caregiver asked us to hold this payout",
-    "created_at": "2026-10-12T16:52:06.595035"
-  },
-  {
-    "id": "93d04961-704d-4177-abfa-39f35a0b7b76",
-    "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-    "batch_period": "2026-10-19",
-    "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
-    "caregiver_name": "Placeholder Failing",
-    "amount_kobo": 3000000,
-    "status": "failed",
-    "bank_name": "Placeholder Bank",
-    "account_number": "******0012",
-    "account_name": "PLACEHOLDER FAILING",
-    "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
-    "transfer_code": null,
-    "attempts": 1,
-    "attempt_history": [
-      {
-        "attempt": 1,
-        "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
-        "status": "refused",
-        "failure_reason": "Paystack refused the transfer: Your balance is not enough to fulfil this request",
-        "created_at": "2026-10-12T16:52:06.591410"
-      }
-    ],
-    "shortfall_kobo": 0,
-    "returned_kobo": 0,
-    "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": null,
-    "caregiver_payouts_frozen_reason": null,
-    "failure_reason": "Paystack refused the transfer: Your balance is not enough to fulfil this request",
-    "initiated_at": "2026-10-12T16:52:08.926910",
-    "completed_at": "2026-10-12T16:52:08.930070",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:07.054767",
-    "cancelled_by": null,
-    "cancelled_at": null,
-    "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:06.590658"
-  },
-  {
-    "id": "05e5c555-de52-4080-8071-575e11acb302",
-    "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-    "batch_period": "2026-10-19",
-    "caregiver_id": "3302d88e-e1e4-482d-90d5-c636d2afb9c4",
+    "id": "1ca00fde-0db3-4909-8256-65ebd86c2d6b",
+    "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+    "batch_period": "2026-10-26",
+    "caregiver_id": "d83d80b4-55bd-4083-bd48-db16338690dc",
     "caregiver_name": "Placeholder Paid",
     "amount_kobo": 1200000,
     "status": "processing",
     "bank_name": "Placeholder Bank",
     "account_number": "******0011",
     "account_name": "PLACEHOLDER PAID",
-    "reference": "po-05e5c555de5240808071575e11acb302-1",
-    "transfer_code": "TRF_3f06ba051282",
+    "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1",
+    "transfer_code": "TRF_1053533f080b",
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-05e5c555de5240808071575e11acb302-1",
+        "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1",
         "status": "pending",
         "failure_reason": null,
-        "created_at": "2026-10-12T16:52:06.582997"
+        "created_at": "2026-10-19T13:29:07.883855"
       }
     ],
     "shortfall_kobo": 0,
@@ -2801,14 +2852,90 @@ After the send: the accepted payout is `processing` with a `transfer_code`; the 
     "caregiver_payouts_frozen_at": null,
     "caregiver_payouts_frozen_reason": null,
     "failure_reason": null,
-    "initiated_at": "2026-10-12T16:52:08.911157",
+    "initiated_at": "2026-10-19T13:29:11.459737",
     "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:07.054767",
+    "approved_by": "782b30c4-afec-4093-b436-94b567e953b1",
+    "approved_at": "2026-10-19T13:29:08.595981",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:06.580618"
+    "created_at": "2026-10-19T13:29:07.882962"
+  },
+  {
+    "id": "f11dc9d6-778b-4433-8e31-b51251bb86cd",
+    "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+    "batch_period": "2026-10-26",
+    "caregiver_id": "a64b9bdc-eb3b-41ba-b0c1-0258743623c0",
+    "caregiver_name": "Placeholder Paid",
+    "amount_kobo": 1200000,
+    "status": "failed",
+    "bank_name": "Placeholder Bank",
+    "account_number": "******0011",
+    "account_name": "PLACEHOLDER PAID",
+    "reference": "po-f11dc9d6778b44338e31b51251bb86cd-1",
+    "transfer_code": null,
+    "attempts": 1,
+    "attempt_history": [
+      {
+        "attempt": 1,
+        "reference": "po-f11dc9d6778b44338e31b51251bb86cd-1",
+        "status": "refused",
+        "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+        "created_at": "2026-10-19T13:29:07.876729"
+      }
+    ],
+    "shortfall_kobo": 0,
+    "returned_kobo": 0,
+    "netted_kobo": 0,
+    "caregiver_payouts_frozen_at": null,
+    "caregiver_payouts_frozen_reason": null,
+    "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+    "initiated_at": "2026-10-19T13:29:11.505852",
+    "completed_at": "2026-10-19T13:29:11.510194",
+    "approved_by": "782b30c4-afec-4093-b436-94b567e953b1",
+    "approved_at": "2026-10-19T13:29:08.595981",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancel_reason": null,
+    "created_at": "2026-10-19T13:29:07.875618"
+  },
+  {
+    "id": "095b3872-1a06-47e7-b604-78c9ba893f04",
+    "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+    "batch_period": "2026-10-26",
+    "caregiver_id": "7bc6c2b0-da51-4c84-908d-22808c19abe8",
+    "caregiver_name": "Placeholder Failing",
+    "amount_kobo": 3000000,
+    "status": "failed",
+    "bank_name": "Placeholder Bank",
+    "account_number": "******0012",
+    "account_name": "PLACEHOLDER FAILING",
+    "reference": "po-095b38721a0647e7b60478c9ba893f04-1",
+    "transfer_code": null,
+    "attempts": 1,
+    "attempt_history": [
+      {
+        "attempt": 1,
+        "reference": "po-095b38721a0647e7b60478c9ba893f04-1",
+        "status": "refused",
+        "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+        "created_at": "2026-10-19T13:29:07.866533"
+      }
+    ],
+    "shortfall_kobo": 0,
+    "returned_kobo": 0,
+    "netted_kobo": 0,
+    "caregiver_payouts_frozen_at": null,
+    "caregiver_payouts_frozen_reason": null,
+    "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+    "initiated_at": "2026-10-19T13:29:11.411576",
+    "completed_at": "2026-10-19T13:29:11.434780",
+    "approved_by": "782b30c4-afec-4093-b436-94b567e953b1",
+    "approved_at": "2026-10-19T13:29:08.595981",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancel_reason": null,
+    "created_at": "2026-10-19T13:29:07.865568"
   }
 ]
 ```
@@ -2817,182 +2944,30 @@ _capture `208-payouts-list-after-send.json`_
 
 **The send job checks the caregiver again before it sends.** Approval can be hours before the send job runs. When the job claims a payout it requires the caregiver to be still `approved` or `active`, with an open account, and not erased. Otherwise **it sends nothing**: it cancels the payout as the system (`cancelled_by` is `null`), returns the money and records why in `cancel_reason` ("Cancelled before sending: ..."). `db-simulated-suspended-after-approval` suspended one caregiver after the batch was approved (**[db-simulated]**: the database edit stands in for the suspension route); the dispatch capture shows four transfers sent for five approved payouts, and the list shows the cancelled one:
 
-<!-- capture: 235-payouts-list-attention-after-send.json response.body path=items first=5 -->
+<!-- capture: 236-payouts-list-attention-after-send.json response.body path=items first=5 -->
 ```json
 [
   {
-    "id": "b10cabbd-4b38-450f-8bdd-4ed37ebfbb94",
-    "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-    "batch_period": "2026-10-26",
-    "caregiver_id": "f33a040b-ed24-4418-b312-80e690394377",
-    "caregiver_name": "Placeholder Late Success",
-    "amount_kobo": 1100000,
-    "status": "processing",
-    "bank_name": "Placeholder Bank",
-    "account_number": "******0022",
-    "account_name": "PLACEHOLDER LATE SUCCESS",
-    "reference": "po-b10cabbd4b38450f8bdd4ed37ebfbb94-1",
-    "transfer_code": "TRF_52498da4299c",
-    "attempts": 1,
-    "attempt_history": [
-      {
-        "attempt": 1,
-        "reference": "po-b10cabbd4b38450f8bdd4ed37ebfbb94-1",
-        "status": "pending",
-        "failure_reason": null,
-        "created_at": "2026-10-12T16:52:17.715520"
-      }
-    ],
-    "shortfall_kobo": 0,
-    "returned_kobo": 0,
-    "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": null,
-    "caregiver_payouts_frozen_reason": null,
-    "failure_reason": null,
-    "initiated_at": "2026-10-12T16:52:19.663229",
-    "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:17.940800",
-    "cancelled_by": null,
-    "cancelled_at": null,
-    "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:17.714865"
-  },
-  {
-    "id": "8c1cdb58-4275-4e6f-a310-3c6659f2204e",
-    "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-    "batch_period": "2026-10-26",
-    "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
-    "caregiver_name": "Placeholder Cancelled",
-    "amount_kobo": 800000,
-    "status": "processing",
-    "bank_name": "Placeholder Bank",
-    "account_number": "******0013",
-    "account_name": "PLACEHOLDER CANCELLED",
-    "reference": "po-8c1cdb5842754e6fa3103c6659f2204e-1",
-    "transfer_code": "TRF_e92c2d612949",
-    "attempts": 1,
-    "attempt_history": [
-      {
-        "attempt": 1,
-        "reference": "po-8c1cdb5842754e6fa3103c6659f2204e-1",
-        "status": "pending",
-        "failure_reason": null,
-        "created_at": "2026-10-12T16:52:17.711388"
-      }
-    ],
-    "shortfall_kobo": 0,
-    "returned_kobo": 0,
-    "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": null,
-    "caregiver_payouts_frozen_reason": null,
-    "failure_reason": null,
-    "initiated_at": "2026-10-12T16:52:19.647044",
-    "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:17.940800",
-    "cancelled_by": null,
-    "cancelled_at": null,
-    "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:17.710752"
-  },
-  {
-    "id": "cb440ea3-64c2-477c-8fb9-b789f993c434",
-    "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-    "batch_period": "2026-10-26",
-    "caregiver_id": "77897624-ee68-4c1f-9b43-1535ec6f26b7",
-    "caregiver_name": "Placeholder Stuck At Otp",
-    "amount_kobo": 1500000,
-    "status": "processing",
-    "bank_name": "Placeholder Bank",
-    "account_number": "******0021",
-    "account_name": "PLACEHOLDER STUCK AT OTP",
-    "reference": "po-cb440ea364c2477c8fb9b789f993c434-1",
-    "transfer_code": "TRF_76abe567e61f",
-    "attempts": 1,
-    "attempt_history": [
-      {
-        "attempt": 1,
-        "reference": "po-cb440ea364c2477c8fb9b789f993c434-1",
-        "status": "pending",
-        "failure_reason": null,
-        "created_at": "2026-10-12T16:52:17.705163"
-      }
-    ],
-    "shortfall_kobo": 0,
-    "returned_kobo": 0,
-    "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": null,
-    "caregiver_payouts_frozen_reason": null,
-    "failure_reason": "Paystack is waiting for an OTP to release this transfer. Turn off OTP for transfers made through the API in the Paystack dashboard, then resolve this payout with Paystack.",
-    "initiated_at": "2026-10-12T16:52:19.669063",
-    "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:17.940800",
-    "cancelled_by": null,
-    "cancelled_at": null,
-    "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:17.704505"
-  },
-  {
-    "id": "93760187-8910-4a6a-9f24-5688aa76f0e5",
-    "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-    "batch_period": "2026-10-26",
-    "caregiver_id": "60e3bacd-5c07-451a-af6e-d65e5567f270",
-    "caregiver_name": "Placeholder Silent Transfer",
-    "amount_kobo": 900000,
-    "status": "processing",
-    "bank_name": "Placeholder Bank",
-    "account_number": "******0023",
-    "account_name": "PLACEHOLDER SILENT TRANSFER",
-    "reference": "po-9376018789104a6a9f245688aa76f0e5-1",
-    "transfer_code": null,
-    "attempts": 1,
-    "attempt_history": [
-      {
-        "attempt": 1,
-        "reference": "po-9376018789104a6a9f245688aa76f0e5-1",
-        "status": "pending",
-        "failure_reason": null,
-        "created_at": "2026-10-12T16:52:17.700670"
-      }
-    ],
-    "shortfall_kobo": 0,
-    "returned_kobo": 0,
-    "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": null,
-    "caregiver_payouts_frozen_reason": null,
-    "failure_reason": null,
-    "initiated_at": "2026-10-12T16:52:19.658584",
-    "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:17.940800",
-    "cancelled_by": null,
-    "cancelled_at": null,
-    "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:17.699753"
-  },
-  {
-    "id": "d4a6fd47-d021-469f-bd15-d18a63a7332a",
-    "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-    "batch_period": "2026-10-26",
-    "caregiver_id": "31cc9882-35d5-4d09-8a93-c340dbf5493e",
+    "id": "9a3248ae-3bd3-4603-925a-d6c9abc94be9",
+    "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+    "batch_period": "2026-11-02",
+    "caregiver_id": "d5814a3e-54dc-4226-8937-2f9bc921d457",
     "caregiver_name": "Placeholder Suspended Later",
     "amount_kobo": 700000,
     "status": "cancelled",
     "bank_name": "Placeholder Bank",
     "account_number": "******0025",
     "account_name": "PLACEHOLDER SUSPENDED LATER",
-    "reference": "po-d4a6fd47d021469fbd15d18a63a7332a-1",
+    "reference": "po-9a3248ae3bd34603925ad6c9abc94be9-1",
     "transfer_code": null,
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-d4a6fd47d021469fbd15d18a63a7332a-1",
+        "reference": "po-9a3248ae3bd34603925ad6c9abc94be9-1",
         "status": "pending",
         "failure_reason": null,
-        "created_at": "2026-10-12T16:52:17.695389"
+        "created_at": "2026-10-19T13:29:23.494254"
       }
     ],
     "shortfall_kobo": 0,
@@ -3003,17 +2978,169 @@ _capture `208-payouts-list-after-send.json`_
     "failure_reason": null,
     "initiated_at": null,
     "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:17.940800",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:24.009748",
     "cancelled_by": null,
-    "cancelled_at": "2026-10-12T16:52:19.676674",
+    "cancelled_at": "2026-10-19T13:29:26.693875",
     "cancel_reason": "Cancelled before sending: the caregiver's profile is suspended, not approved",
-    "created_at": "2026-10-12T16:52:17.693348"
+    "created_at": "2026-10-19T13:29:23.491793"
+  },
+  {
+    "id": "960a0b4a-5e21-4079-9da4-936a8c61f05e",
+    "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+    "batch_period": "2026-11-02",
+    "caregiver_id": "a64b9bdc-eb3b-41ba-b0c1-0258743623c0",
+    "caregiver_name": "Placeholder Paid",
+    "amount_kobo": 1200000,
+    "status": "failed",
+    "bank_name": "Placeholder Bank",
+    "account_number": "******0011",
+    "account_name": "PLACEHOLDER PAID",
+    "reference": "po-960a0b4a5e2140799da4936a8c61f05e-1",
+    "transfer_code": null,
+    "attempts": 1,
+    "attempt_history": [
+      {
+        "attempt": 1,
+        "reference": "po-960a0b4a5e2140799da4936a8c61f05e-1",
+        "status": "refused",
+        "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+        "created_at": "2026-10-19T13:29:23.484146"
+      }
+    ],
+    "shortfall_kobo": 0,
+    "returned_kobo": 0,
+    "netted_kobo": 0,
+    "caregiver_payouts_frozen_at": null,
+    "caregiver_payouts_frozen_reason": null,
+    "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+    "initiated_at": "2026-10-19T13:29:26.679216",
+    "completed_at": "2026-10-19T13:29:26.683628",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:24.009748",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancel_reason": null,
+    "created_at": "2026-10-19T13:29:23.481890"
+  },
+  {
+    "id": "05c42a05-b396-4907-b946-aa0ab89398cd",
+    "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+    "batch_period": "2026-11-02",
+    "caregiver_id": "7bc6c2b0-da51-4c84-908d-22808c19abe8",
+    "caregiver_name": "Placeholder Failing",
+    "amount_kobo": 3000000,
+    "status": "failed",
+    "bank_name": "Placeholder Bank",
+    "account_number": "******0012",
+    "account_name": "PLACEHOLDER FAILING",
+    "reference": "po-05c42a05b3964907b946aa0ab89398cd-1",
+    "transfer_code": null,
+    "attempts": 1,
+    "attempt_history": [
+      {
+        "attempt": 1,
+        "reference": "po-05c42a05b3964907b946aa0ab89398cd-1",
+        "status": "refused",
+        "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+        "created_at": "2026-10-19T13:29:23.469293"
+      }
+    ],
+    "shortfall_kobo": 0,
+    "returned_kobo": 0,
+    "netted_kobo": 0,
+    "caregiver_payouts_frozen_at": null,
+    "caregiver_payouts_frozen_reason": null,
+    "failure_reason": "Paystack refused the transfer: Recipient specified is invalid",
+    "initiated_at": "2026-10-19T13:29:26.597239",
+    "completed_at": "2026-10-19T13:29:26.608012",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:24.009748",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancel_reason": null,
+    "created_at": "2026-10-19T13:29:23.467597"
+  },
+  {
+    "id": "7bcbd73a-5a8b-4b21-9fdd-64b6da4706fd",
+    "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+    "batch_period": "2026-11-02",
+    "caregiver_id": "6c8e3f1a-4456-42e6-859c-be91671eb633",
+    "caregiver_name": "Placeholder Stuck At Otp",
+    "amount_kobo": 1500000,
+    "status": "processing",
+    "bank_name": "Placeholder Bank",
+    "account_number": "******0021",
+    "account_name": "PLACEHOLDER STUCK AT OTP",
+    "reference": "po-7bcbd73a5a8b4b219fdd64b6da4706fd-1",
+    "transfer_code": "TRF_b037aafcb64c",
+    "attempts": 1,
+    "attempt_history": [
+      {
+        "attempt": 1,
+        "reference": "po-7bcbd73a5a8b4b219fdd64b6da4706fd-1",
+        "status": "pending",
+        "failure_reason": null,
+        "created_at": "2026-10-19T13:29:23.457396"
+      }
+    ],
+    "shortfall_kobo": 0,
+    "returned_kobo": 0,
+    "netted_kobo": 0,
+    "caregiver_payouts_frozen_at": null,
+    "caregiver_payouts_frozen_reason": null,
+    "failure_reason": "Paystack is waiting for an OTP to release this transfer. Turn off OTP for transfers made through the API in the Paystack dashboard, then resolve this payout with Paystack.",
+    "initiated_at": "2026-10-19T13:29:26.666488",
+    "completed_at": null,
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:24.009748",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancel_reason": null,
+    "created_at": "2026-10-19T13:29:23.455152"
+  },
+  {
+    "id": "5c7eabab-f793-4478-bf7e-41e4e86e531b",
+    "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+    "batch_period": "2026-11-02",
+    "caregiver_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
+    "caregiver_name": "Placeholder Late Success",
+    "amount_kobo": 1100000,
+    "status": "processing",
+    "bank_name": "Placeholder Bank",
+    "account_number": "******0022",
+    "account_name": "PLACEHOLDER LATE SUCCESS",
+    "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
+    "transfer_code": "TRF_f4621c6410e6",
+    "attempts": 1,
+    "attempt_history": [
+      {
+        "attempt": 1,
+        "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
+        "status": "pending",
+        "failure_reason": null,
+        "created_at": "2026-10-19T13:29:23.445167"
+      }
+    ],
+    "shortfall_kobo": 0,
+    "returned_kobo": 0,
+    "netted_kobo": 0,
+    "caregiver_payouts_frozen_at": null,
+    "caregiver_payouts_frozen_reason": null,
+    "failure_reason": null,
+    "initiated_at": "2026-10-19T13:29:26.654222",
+    "completed_at": null,
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:24.009748",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancel_reason": null,
+    "created_at": "2026-10-19T13:29:23.443427"
   }
 ]
 ```
 
-_capture `235-payouts-list-attention-after-send.json` (the cancelled payout is the last item; the OTP and silent ones are explained below). The send job and its transfers: `234-worker-payout-dispatch-job-2.json`_
+_capture `236-payouts-list-attention-after-send.json` (the cancelled payout is the last item; the OTP and silent ones are explained below). The send job and its transfers: `235-worker-payout-dispatch-job-2.json`_
 
 What decides a payout (the rules the console must explain):
 
@@ -3023,16 +3150,16 @@ What decides a payout (the rules the console must explain):
 | `transfer.failed`, or the transfer is refused when sent | `failed` | **returned** to the caregiver's available balance |
 | `transfer.reversed` (Paystack paid, then took it back) | `reversed` | **returned** |
 | no answer (timeout, 5xx, 408, 409) when the transfer is sent | stays `processing` | stays reserved: the money may have gone |
-| `otp` (Paystack wants an OTP for API transfers) | stays `processing`, `failure_reason` says to turn OTP off (capture `235`) | stays reserved; an admin resolves it (below). **Paystack OTP for transfers must be disabled in the Paystack dashboard before going live** |
-| `transfer.success` for a payout that is already `failed`, `reversed` or `cancelled` (Paystack paid after Oakly gave the money back) | **`needs_attention`**, and **the caregiver is frozen** | the returned money is **taken back**: debited from the caregiver's available balance, as much as is there; what the balance could not cover is `shortfall_kobo`. The ledger row is `successful` (captures `247`, `248`) |
-| `transfer.reversed` for a payout that was already `success` (Paystack paid, then took it back) | **`needs_attention`**, caregiver frozen | **nothing is returned**: the ledger row goes back to `pending` (the money is in limbo) until an admin resolves the payout as `failed` (captures `217`, `218`) |
+| `otp` (Paystack wants an OTP for API transfers) | stays `processing`, `failure_reason` says to turn OTP off (capture `236`) | stays reserved; an admin resolves it (below). **Paystack OTP for transfers must be disabled in the Paystack dashboard before going live** |
+| `transfer.success` for a payout that is already `failed`, `reversed` or `cancelled` (Paystack paid after Oakly gave the money back) | **`needs_attention`**, and **the caregiver is frozen** | the returned money is **taken back**: debited from the caregiver's available balance, as much as is there; what the balance could not cover is `shortfall_kobo`. The ledger row is `successful` (captures `248`, `249`) |
+| `transfer.reversed` for a payout that was already `success` (Paystack paid, then took it back) | **`needs_attention`**, caregiver frozen | **nothing is returned**: the ledger row goes back to `pending` (the money is in limbo) until an admin resolves the payout as `failed` (captures `218`, `219`) |
 | `transfer.success` for an **earlier attempt** while a retry holds the reservation | **`needs_attention`**, caregiver frozen | stays reserved (one payment, one reservation); the retry is never sent. **[not live]** (asserted in `test_payout_hardening.py`) |
 | the same late success while the caregiver has a **newer payout that was not sent yet** | the old payout is **`needs_attention`**; the newer payout is **`cancelled`** by the system (`cancel_reason` starts "superseded: earlier payout confirmed paid by Paystack") | its reservation pays the take-back. **[not live]** (asserted in `test_payout_hardening.py`) |
 | the same, but the newer payout was **already sent** (it cannot be recalled) | **both payouts are `needs_attention`**, caregiver frozen | the old payout carries the whole amount as `shortfall_kobo` (the balance is empty); the newer one keeps its reservation. Captures `293`, `294` |
 | any `transfer.failed` or `transfer.reversed` for a payout of a **frozen** caregiver | the payout becomes (or stays) **`needs_attention`**; the attempt's status is recorded | **no money returns**: it stays reserved until an admin resolves it. Capture `295`, `296` |
 | any `transfer.success` for a payout of a frozen caregiver that is still `processing` or `needs_attention` with its money reserved | `success` | the reservation becomes the payment: the balance does not move |
 | `transfer.success` for the **wrong amount** | **`needs_attention`**, caregiver frozen; money stays reserved, never re-sent | **[not live]** (asserted in `test_payouts.py`) |
-| the reconcile job finds Paystack has **no record** 30 minutes after the send | **`needs_attention`**, caregiver frozen, `failure_reason` is "Paystack has no record; check before releasing" | **stays reserved, not returned** (captures `261`, `262`) |
+| the reconcile job finds Paystack has **no record** 30 minutes after the send | **`needs_attention`**, caregiver frozen, `failure_reason` is "Paystack has no record; check before releasing" | **stays reserved, not returned** (captures `262`, `263`) |
 
 The webhook is `POST /api/v1/payment/paystack/webhook` (the existing route; the signature is verified over the raw body before anything is read). It answers `200` for a transfer that is not ours too. **A webhook delivered twice changes nothing**, and a webhook for the wrong amount is not applied: the payout becomes `needs_attention` and the caregiver is frozen (**[not live]**, `test_payouts.py`). Success webhook, then the payout:
 
@@ -3049,11 +3176,11 @@ The webhook is `POST /api/v1/payment/paystack/webhook` (the existing route; the 
         "amount": 1200000,
         "currency": "NGN",
         "reason": "Oakly caregiver payout",
-        "reference": "po-05e5c555de5240808071575e11acb302-1",
+        "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1",
         "status": "success",
-        "transfer_code": "TRF_3f06ba051282",
+        "transfer_code": "TRF_1053533f080b",
         "recipient": {
-          "recipient_code": "RCP_9809a8b99db3"
+          "recipient_code": "RCP_ca95a4b24ed7"
         }
       }
     }
@@ -3073,26 +3200,26 @@ The webhook is `POST /api/v1/payment/paystack/webhook` (the existing route; the 
 ```json
 [
   {
-    "id": "05e5c555-de52-4080-8071-575e11acb302",
-    "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-    "batch_period": "2026-10-19",
-    "caregiver_id": "3302d88e-e1e4-482d-90d5-c636d2afb9c4",
+    "id": "1ca00fde-0db3-4909-8256-65ebd86c2d6b",
+    "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+    "batch_period": "2026-10-26",
+    "caregiver_id": "d83d80b4-55bd-4083-bd48-db16338690dc",
     "caregiver_name": "Placeholder Paid",
     "amount_kobo": 1200000,
     "status": "success",
     "bank_name": "Placeholder Bank",
     "account_number": "******0011",
     "account_name": "PLACEHOLDER PAID",
-    "reference": "po-05e5c555de5240808071575e11acb302-1",
-    "transfer_code": "TRF_3f06ba051282",
+    "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1",
+    "transfer_code": "TRF_1053533f080b",
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-05e5c555de5240808071575e11acb302-1",
+        "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1",
         "status": "success",
         "failure_reason": null,
-        "created_at": "2026-10-12T16:52:06.582997"
+        "created_at": "2026-10-19T13:29:07.883855"
       }
     ],
     "shortfall_kobo": 0,
@@ -3101,14 +3228,14 @@ The webhook is `POST /api/v1/payment/paystack/webhook` (the existing route; the 
     "caregiver_payouts_frozen_at": null,
     "caregiver_payouts_frozen_reason": null,
     "failure_reason": null,
-    "initiated_at": "2026-10-12T16:52:08.911157",
-    "completed_at": "2026-10-12T16:52:09.157808",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:07.054767",
+    "initiated_at": "2026-10-19T13:29:11.459737",
+    "completed_at": "2026-10-19T13:29:11.847354",
+    "approved_by": "782b30c4-afec-4093-b436-94b567e953b1",
+    "approved_at": "2026-10-19T13:29:08.595981",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:06.580618"
+    "created_at": "2026-10-19T13:29:07.882962"
   }
 ]
 ```
@@ -3117,7 +3244,7 @@ _capture `210-payouts-list-after-success.json`_
 
 **Webhooks can go missing.** The reconcile job (every 15 minutes) asks Paystack about transfers that have had no webhook for 15 minutes and settles them. A transfer that Paystack has **no record of** 30 minutes after it was sent is **not** treated as failed and its money is **not** returned: the transfer may exist and succeed later, and returning the money would pay it twice. The payout becomes `needs_attention` (see below). `db-simulated-missing-webhook` moved `initiated_at` back 20 minutes to stand in for the wait; here Paystack answers `success`, so the job settles it:
 
-<!-- capture: 225-worker-payout-reconcile-job.json response.body -->
+<!-- capture: 226-worker-payout-reconcile-job.json response.body -->
 ```json
 {
   "payouts_settled": 1
@@ -3130,43 +3257,43 @@ Retry **first asks Paystack about the current attempt** (`GET /transfer/verify/<
 
 Request body, then response `200` (the payout is `processing` again, `attempts` is 2, `transfer_code`, `initiated_at` and `failure_reason` are cleared; the first attempt, with its reason, is in `attempt_history`):
 
-<!-- capture: 214-payout-retry.json request.body -->
+<!-- capture: 215-payout-retry.json request.body -->
 ```json
 {
   "reason": "Paystack balance topped up"
 }
 ```
 
-<!-- capture: 214-payout-retry.json response.body -->
+<!-- capture: 215-payout-retry.json response.body -->
 ```json
 {
-  "id": "93d04961-704d-4177-abfa-39f35a0b7b76",
-  "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-  "batch_period": "2026-10-19",
-  "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
+  "id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+  "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+  "batch_period": "2026-10-26",
+  "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
   "caregiver_name": "Placeholder Failing",
   "amount_kobo": 3000000,
   "status": "processing",
   "bank_name": "Placeholder Bank",
   "account_number": "******0012",
   "account_name": "PLACEHOLDER FAILING",
-  "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
+  "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
   "transfer_code": null,
   "attempts": 2,
   "attempt_history": [
     {
       "attempt": 1,
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-1",
       "status": "refused",
       "failure_reason": "Paystack refused the transfer: Your balance is not enough to fulfil this request",
-      "created_at": "2026-10-12T16:52:06.591410"
+      "created_at": "2026-10-19T13:29:07.830090"
     },
     {
       "attempt": 2,
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
       "status": "pending",
       "failure_reason": null,
-      "created_at": "2026-10-12T16:52:09.217060"
+      "created_at": "2026-10-19T13:29:11.934373"
     }
   ],
   "shortfall_kobo": 0,
@@ -3177,27 +3304,27 @@ Request body, then response `200` (the payout is `processing` again, `attempts` 
   "failure_reason": null,
   "initiated_at": null,
   "completed_at": null,
-  "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-  "approved_at": "2026-10-12T16:52:09.201347",
+  "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+  "approved_at": "2026-10-19T13:29:11.913016",
   "cancelled_by": null,
   "cancelled_at": null,
   "cancel_reason": null,
-  "created_at": "2026-10-12T16:52:06.590658"
+  "created_at": "2026-10-19T13:29:07.822496"
 }
 ```
 
-_capture `214-payout-retry.json`_
+_capture `215-payout-retry.json`_
 
 | Status | `detail` | When |
 |---|---|---|
-| 403 | `Access denied. Missing permission: ledger.adjust` | Operations _(capture `211`)_ |
-| 422 | the validation list | no `reason` _(capture `212`)_ |
-| 409 | `Only a failed or reversed payout can be retried` | a payout that is waiting, processing, paid, cancelled or `needs_attention` _(captures `199`, `213`, `215`, `220`, `250`)_ |
+| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `211`)_, Operations _(capture `212`)_ |
+| 422 | the validation list | no `reason` _(capture `213`)_ |
+| 409 | `Only a failed or reversed payout can be retried` | a payout that is waiting, processing, paid, cancelled or `needs_attention` _(captures `199`, `214`, `216`, `221`, `251`)_ |
 | 409 | `This payout cannot be retried: <why>` | suspended, bank account changed, or `the caregiver's payouts are frozen until an admin has looked at a payout Paystack contradicted` **[not live]** (asserted in `test_payout_hardening.py`) |
 | 409 | `The caregiver's available balance is lower than this payout, so it cannot be sent again` | **[not live]** |
 | 409 | `This caregiver already has a payout in progress` | **[not live]** |
-| 409 | `Paystack says this transfer is still pending (pending), so it cannot be retried. Wait for Paystack's answer.` | Paystack's own record still says pending _(capture `269`)_ |
-| 409 | `Paystack reports this transfer as successful, so it was not sent again. The payout now needs attention: check it before doing anything else` | Paystack says it was paid; **the payout is now `needs_attention`** _(capture `271`, list `272`)_ |
+| 409 | `Paystack says this transfer is still pending (pending), so it cannot be retried. Wait for Paystack's answer.` | Paystack's own record still says pending _(capture `270`)_ |
+| 409 | `Paystack reports this transfer as successful, so it was not sent again. The payout now needs attention: check it before doing anything else` | Paystack says it was paid; **the payout is now `needs_attention`** _(capture `272`, list `272`)_ |
 | 409 | `Paystack is waiting for an OTP to release this transfer, so it cannot be retried. Resolve the payout instead.` | **[not live]** (asserted in `test_payout_hardening.py`) |
 | 409 | `Paystack has no record of this transfer, so it cannot be retried. Resolve the payout instead.` | **[not live]** (same) |
 | 409 | `We cannot reach Paystack right now to check this transfer, so it cannot be retried. Try again in a moment.` | **[not live]** (same) |
@@ -3205,7 +3332,7 @@ _capture `214-payout-retry.json`_
 
 **A payout Paystack paid and then reversed is NOT `reversed`.** The two answers disagree, so Oakly freezes the caregiver, sets the payout to `needs_attention`, and **does not return the money** (the ledger row goes back to `pending` and the 30,000.00 NGN stays out of the caregiver's available balance). Only an admin can release it: resolve the payout as `failed` (below), which returns it. The `reversed` status itself is reached only by a `transfer.reversed` for a transfer that was never reported as paid (**[not live]**, `test_payouts.py`). The reversal webhook, then the same event delivered again (which changes nothing):
 
-<!-- capture: 217-paystack-transfer-reversed-webhook.json observed -->
+<!-- capture: 218-paystack-transfer-reversed-webhook.json observed -->
 ```json
 {
   "request": {
@@ -3218,11 +3345,11 @@ _capture `214-payout-retry.json`_
         "amount": 3000000,
         "currency": "NGN",
         "reason": "Oakly caregiver payout",
-        "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
+        "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
         "status": "reversed",
-        "transfer_code": "TRF_abc16b0f3238",
+        "transfer_code": "TRF_53494aa0c319",
         "recipient": {
-          "recipient_code": "RCP_5a8680f0417f"
+          "recipient_code": "RCP_4d9510362c24"
         }
       }
     }
@@ -3238,67 +3365,67 @@ _capture `214-payout-retry.json`_
 }
 ```
 
-<!-- capture: 218-payouts-list-after-reversal.json response.body path=items first=1 -->
+<!-- capture: 219-payouts-list-after-reversal.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "93d04961-704d-4177-abfa-39f35a0b7b76",
-    "batch_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-    "batch_period": "2026-10-19",
-    "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
+    "id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+    "batch_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+    "batch_period": "2026-10-26",
+    "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
     "caregiver_name": "Placeholder Failing",
     "amount_kobo": 3000000,
     "status": "needs_attention",
     "bank_name": "Placeholder Bank",
     "account_number": "******0012",
     "account_name": "PLACEHOLDER FAILING",
-    "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
-    "transfer_code": "TRF_abc16b0f3238",
+    "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
+    "transfer_code": "TRF_53494aa0c319",
     "attempts": 2,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-93d04961704d4177abfa39f35a0b7b76-1",
+        "reference": "po-d78d323495ec4a0c924183d4adf920d4-1",
         "status": "refused",
         "failure_reason": "Paystack refused the transfer: Your balance is not enough to fulfil this request",
-        "created_at": "2026-10-12T16:52:06.591410"
+        "created_at": "2026-10-19T13:29:07.830090"
       },
       {
         "attempt": 2,
-        "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
+        "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
         "status": "reversed",
         "failure_reason": "Paystack reported the transfer as reversed",
-        "created_at": "2026-10-12T16:52:09.217060"
+        "created_at": "2026-10-19T13:29:11.934373"
       }
     ],
     "shortfall_kobo": 0,
     "returned_kobo": 0,
     "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": "2026-10-12T16:52:11.148460",
-    "caregiver_payouts_frozen_reason": "Payout 93d04961-704d-4177-abfa-39f35a0b7b76: Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
+    "caregiver_payouts_frozen_at": "2026-10-19T13:29:14.370730",
+    "caregiver_payouts_frozen_reason": "Payout d78d3234-95ec-4a0c-9241-83d4adf920d4: Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
     "failure_reason": "Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
-    "initiated_at": "2026-10-12T16:52:10.891544",
-    "completed_at": "2026-10-12T16:52:11.138454",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:09.201347",
+    "initiated_at": "2026-10-19T13:29:14.078581",
+    "completed_at": "2026-10-19T13:29:14.358872",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:11.913016",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:06.590658"
+    "created_at": "2026-10-19T13:29:07.822496"
   }
 ]
 ```
 
-The payout after the reversal (capture `218`, above): `needs_attention`, with the freeze fields set on it. A retry is refused (capture `220`), and the admin resolves the payout as `failed` once Paystack confirms the reversal (capture `221`; `returned_kobo` is the whole 30,000.00 NGN and `netted_kobo` is `0`, because the caregiver has no shortfall):
+The payout after the reversal (capture `219`, above): `needs_attention`, with the freeze fields set on it. A retry is refused (capture `221`), and the admin resolves the payout as `failed` once Paystack confirms the reversal (capture `222`; `returned_kobo` is the whole 30,000.00 NGN and `netted_kobo` is `0`, because the caregiver has no shortfall):
 
-<!-- capture: 220-payout-retry-needs-attention-after-reversal.json response.body -->
+<!-- capture: 221-payout-retry-needs-attention-after-reversal.json response.body -->
 ```json
 {
   "detail": "Only a failed or reversed payout can be retried"
 }
 ```
 
-<!-- capture: 221-payout-resolve-reversed-as-failed.json request.body -->
+<!-- capture: 222-payout-resolve-reversed-as-failed.json request.body -->
 ```json
 {
   "outcome": "failed",
@@ -3306,7 +3433,7 @@ The payout after the reversal (capture `218`, above): `needs_attention`, with th
 }
 ```
 
-<!-- capture: 221-payout-resolve-reversed-as-failed.json response.body keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at,caregiver_payouts_frozen_reason,failure_reason -->
+<!-- capture: 222-payout-resolve-reversed-as-failed.json response.body keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at,caregiver_payouts_frozen_reason,failure_reason -->
 ```json
 {
   "status": "failed",
@@ -3314,31 +3441,32 @@ The payout after the reversal (capture `218`, above): `needs_attention`, with th
   "shortfall_kobo": 0,
   "returned_kobo": 3000000,
   "netted_kobo": 0,
-  "caregiver_payouts_frozen_at": "2026-10-12T16:52:11.148460",
-  "caregiver_payouts_frozen_reason": "Payout 93d04961-704d-4177-abfa-39f35a0b7b76: Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
+  "caregiver_payouts_frozen_at": "2026-10-19T13:29:14.370730",
+  "caregiver_payouts_frozen_reason": "Payout d78d3234-95ec-4a0c-9241-83d4adf920d4: Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
   "failure_reason": "Resolved as failed by an admin: Paystack shows the transfer as reversed and the money back in our balance"
 }
 ```
 
-With nothing left open the freeze is lifted (capture `222`, section "Unfreezing a caregiver" below), and the payout can be retried (third attempt, `payout-retry-reversed`, capture `223`; the first attempt had been **refused** by Paystack and the second reversed, and the retry's check of Paystack accepted both) and is settled by the reconcile job. The `attempt_history` in capture `218` above shows how its first attempt (refused by Paystack) and second (reversed) are kept, each with its reason. The final state of the batch:
+With nothing left open the freeze is lifted (capture `223`, section "Unfreezing a caregiver" below), and the payout can be retried (third attempt, `payout-retry-reversed`, capture `224`; the first attempt had been **refused** by Paystack and the second reversed, and the retry's check of Paystack accepted both) and is settled by the reconcile job. The `attempt_history` in capture `219` above shows how its first attempt (refused by Paystack) and second (reversed) are kept, each with its reason. The final state of the batch:
 
-<!-- capture: 227-payout-batches-list-final.json response.body path=items first=1 -->
+<!-- capture: 228-payout-batches-list-final.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
-    "period_key": "2026-10-19",
+    "id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+    "period_key": "2026-10-26",
     "cadence": "weekly",
     "min_payout_kobo": 500000,
     "status": "approved",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:07.054767",
+    "approved_by": "782b30c4-afec-4093-b436-94b567e953b1",
+    "approved_at": "2026-10-19T13:29:08.595981",
     "approval_reason": "Placeholder: totals checked against the ledger",
-    "created_at": "2026-10-12T16:52:06.569281",
-    "payout_count": 3,
-    "total_kobo": 4200000,
+    "created_at": "2026-10-19T13:29:07.792983",
+    "payout_count": 6,
+    "total_kobo": 9200000,
     "counts": {
       "cancelled": 1,
+      "failed": 3,
       "success": 2
     }
   }
@@ -3388,9 +3516,9 @@ Body: `{"outcome": "paid" | "failed", "reason": "...", "force": false}`. `reason
 
 **UX consequence: a payout you forced to `paid` can come back.** If you resolve with `force: true` while Paystack's answer is not final and Paystack later reports the transfer as `failed` or `reversed`, the payout becomes `needs_attention` again and the caregiver is frozen; nothing is credited. Show it as an alert on that payout, not as a silent status change.
 
-**Stuck at OTP.** Paystack accepted the transfer but is waiting for an OTP (the fake answers `otp`; `failure_reason` carries the message, capture `235`). While Paystack still says `otp`, neither outcome is allowed without `force`:
+**Stuck at OTP.** Paystack accepted the transfer but is waiting for an OTP (the fake answers `otp`; `failure_reason` carries the message, capture `236`). While Paystack still says `otp`, neither outcome is allowed without `force`:
 
-<!-- capture: 240-payout-resolve-answer-not-final.json request.body -->
+<!-- capture: 241-payout-resolve-answer-not-final.json request.body -->
 ```json
 {
   "outcome": "failed",
@@ -3400,7 +3528,7 @@ Body: `{"outcome": "paid" | "failed", "reason": "...", "force": false}`. `reason
 
 Response `409`:
 
-<!-- capture: 240-payout-resolve-answer-not-final.json response.body -->
+<!-- capture: 241-payout-resolve-answer-not-final.json response.body -->
 ```json
 {
   "detail": "Paystack is waiting for an OTP to release this transfer, so there is no proof for either answer. Resolve it only with force and a reason that says how you checked"
@@ -3409,7 +3537,7 @@ Response `409`:
 
 Someone then enters the OTP in the Paystack dashboard and the transfer succeeds (`fake-paystack-otp-entered`, **[simulated]**: no webhook is sent). Now resolving as `failed` is refused because Paystack contradicts it, and `paid` goes through:
 
-<!-- capture: 242-payout-resolve-contradicts-paystack.json response.body -->
+<!-- capture: 243-payout-resolve-contradicts-paystack.json response.body -->
 ```json
 {
   "detail": "Paystack reports this transfer as successful, so it cannot be resolved as failed"
@@ -3418,7 +3546,7 @@ Someone then enters the OTP in the Paystack dashboard and the transfer succeeds 
 
 Resolved as paid, response `200` (`status` is `success`):
 
-<!-- capture: 243-payout-resolve-paid.json request.body -->
+<!-- capture: 244-payout-resolve-paid.json request.body -->
 ```json
 {
   "outcome": "paid",
@@ -3426,29 +3554,29 @@ Resolved as paid, response `200` (`status` is `success`):
 }
 ```
 
-<!-- capture: 243-payout-resolve-paid.json response.body -->
+<!-- capture: 244-payout-resolve-paid.json response.body -->
 ```json
 {
-  "id": "cb440ea3-64c2-477c-8fb9-b789f993c434",
-  "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-  "batch_period": "2026-10-26",
-  "caregiver_id": "77897624-ee68-4c1f-9b43-1535ec6f26b7",
+  "id": "7bcbd73a-5a8b-4b21-9fdd-64b6da4706fd",
+  "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+  "batch_period": "2026-11-02",
+  "caregiver_id": "6c8e3f1a-4456-42e6-859c-be91671eb633",
   "caregiver_name": "Placeholder Stuck At Otp",
   "amount_kobo": 1500000,
   "status": "success",
   "bank_name": "Placeholder Bank",
   "account_number": "******0021",
   "account_name": "PLACEHOLDER STUCK AT OTP",
-  "reference": "po-cb440ea364c2477c8fb9b789f993c434-1",
-  "transfer_code": "TRF_76abe567e61f",
+  "reference": "po-7bcbd73a5a8b4b219fdd64b6da4706fd-1",
+  "transfer_code": "TRF_b037aafcb64c",
   "attempts": 1,
   "attempt_history": [
     {
       "attempt": 1,
-      "reference": "po-cb440ea364c2477c8fb9b789f993c434-1",
+      "reference": "po-7bcbd73a5a8b4b219fdd64b6da4706fd-1",
       "status": "success",
       "failure_reason": null,
-      "created_at": "2026-10-12T16:52:17.705163"
+      "created_at": "2026-10-19T13:29:23.457396"
     }
   ],
   "shortfall_kobo": 0,
@@ -3457,70 +3585,70 @@ Resolved as paid, response `200` (`status` is `success`):
   "caregiver_payouts_frozen_at": null,
   "caregiver_payouts_frozen_reason": null,
   "failure_reason": null,
-  "initiated_at": "2026-10-12T16:52:19.669063",
-  "completed_at": "2026-10-12T16:52:20.003487",
-  "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-  "approved_at": "2026-10-12T16:52:17.940800",
+  "initiated_at": "2026-10-19T13:29:26.666488",
+  "completed_at": "2026-10-19T13:29:27.206239",
+  "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+  "approved_at": "2026-10-19T13:29:24.009748",
   "cancelled_by": null,
   "cancelled_at": null,
   "cancel_reason": null,
-  "created_at": "2026-10-12T16:52:17.704505"
+  "created_at": "2026-10-19T13:29:23.455152"
 }
 ```
 
 _captures `240` to `244`_
 
-**Paid after the money was returned.** A `transfer.failed` webhook returns the money (the payout is plainly `failed`: nothing is contradicted yet); the caregiver's balance then falls to 3,000.00 NGN (**[db-simulated]**: `db-simulated-balance-changed`, standing in for a ledger adjustment); then the **same transfer is reported successful** (captures `245`, `247`, **[fake Paystack]** webhooks). Oakly takes back what is there (300000 kobo) and records the rest as a shortfall (800000 kobo). The payout is `needs_attention`, its ledger row `successful`, and the caregiver is frozen (`caregiver_payouts_frozen_at` and `caregiver_payouts_frozen_reason` on the payout):
+**Paid after the money was returned.** A `transfer.failed` webhook returns the money (the payout is plainly `failed`: nothing is contradicted yet); the caregiver's balance then falls to 3,000.00 NGN (**[db-simulated]**: `db-simulated-balance-changed`, standing in for a ledger adjustment); then the **same transfer is reported successful** (captures `246`, `248`, **[fake Paystack]** webhooks). Oakly takes back what is there (300000 kobo) and records the rest as a shortfall (800000 kobo). The payout is `needs_attention`, its ledger row `successful`, and the caregiver is frozen (`caregiver_payouts_frozen_at` and `caregiver_payouts_frozen_reason` on the payout):
 
-<!-- capture: 248-payouts-list-needs-attention.json response.body path=items first=1 -->
+<!-- capture: 249-payouts-list-needs-attention.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "b10cabbd-4b38-450f-8bdd-4ed37ebfbb94",
-    "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-    "batch_period": "2026-10-26",
-    "caregiver_id": "f33a040b-ed24-4418-b312-80e690394377",
+    "id": "5c7eabab-f793-4478-bf7e-41e4e86e531b",
+    "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+    "batch_period": "2026-11-02",
+    "caregiver_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
     "caregiver_name": "Placeholder Late Success",
     "amount_kobo": 1100000,
     "status": "needs_attention",
     "bank_name": "Placeholder Bank",
     "account_number": "******0022",
     "account_name": "PLACEHOLDER LATE SUCCESS",
-    "reference": "po-b10cabbd4b38450f8bdd4ed37ebfbb94-1",
-    "transfer_code": "TRF_52498da4299c",
+    "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
+    "transfer_code": "TRF_f4621c6410e6",
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-b10cabbd4b38450f8bdd4ed37ebfbb94-1",
+        "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
         "status": "success",
         "failure_reason": "Paystack reported the transfer as failed",
-        "created_at": "2026-10-12T16:52:17.715520"
+        "created_at": "2026-10-19T13:29:23.445167"
       }
     ],
     "shortfall_kobo": 800000,
     "returned_kobo": 0,
     "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": "2026-10-12T16:52:20.042261",
-    "caregiver_payouts_frozen_reason": "Payout b10cabbd-4b38-450f-8bdd-4ed37ebfbb94: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 800000 kobo could not be recovered (shortfall).",
+    "caregiver_payouts_frozen_at": "2026-10-19T13:29:27.255657",
+    "caregiver_payouts_frozen_reason": "Payout 5c7eabab-f793-4478-bf7e-41e4e86e531b: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 800000 kobo could not be recovered (shortfall).",
     "failure_reason": "Paystack reported the transfer as failed Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 800000 kobo could not be recovered (shortfall).",
-    "initiated_at": "2026-10-12T16:52:19.663229",
-    "completed_at": "2026-10-12T16:52:20.032944",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:17.940800",
+    "initiated_at": "2026-10-19T13:29:26.654222",
+    "completed_at": "2026-10-19T13:29:27.243300",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:24.009748",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:17.714865"
+    "created_at": "2026-10-19T13:29:23.443427"
   }
 ]
 ```
 
-_capture `248-payouts-list-needs-attention.json`. Note `attempt_history` (the one attempt is `success`), `shortfall_kobo`, and the `failure_reason` the console should show verbatim._
+_capture `249-payouts-list-needs-attention.json`. Note `attempt_history` (the one attempt is `success`), `shortfall_kobo`, and the `failure_reason` the console should show verbatim._
 
-`db-observed-wallet-after-late-success` (capture `249`) read the caregiver's balance straight from the database: `0`, so the next batch cannot pay the same money again. From here the caregiver is frozen: retry is refused (`250`, `Only a failed or reversed payout can be retried`), resolving as `failed` is refused even with `force` (`251`) and resolving as `paid` confirms it (`257`). **`shortfall_kobo` stays on the payout as the record of money Oakly paid out and could not recover**; recovering it is a separate ledger adjustment, nothing automatic. It is settled only by the admin, when unfreezing (below): debited from the caregiver's balance, and what the balance cannot cover is written off on purpose.
+`db-observed-wallet-after-late-success` (capture `250`) read the caregiver's balance straight from the database: `0`, so the next batch cannot pay the same money again. From here the caregiver is frozen: retry is refused (`250`, `Only a failed or reversed payout can be retried`), resolving as `failed` is refused even with `force` (`251`) and resolving as `paid` confirms it (`257`). **`shortfall_kobo` stays on the payout as the record of money Oakly paid out and could not recover**; recovering it is a separate ledger adjustment, nothing automatic. It is settled only by the admin, when unfreezing (below): debited from the caregiver's balance, and what the balance cannot cover is written off on purpose.
 
-<!-- capture: 251-payout-resolve-paid-twice-failed.json response.body -->
+<!-- capture: 252-payout-resolve-paid-twice-failed.json response.body -->
 ```json
 {
   "detail": "Paystack has already paid attempt 1 of this payout, so the money cannot be returned. Resolve it as paid"
@@ -3529,67 +3657,67 @@ _capture `248-payouts-list-needs-attention.json`. Note `attempt_history` (the on
 
 **No record at Paystack.** A transfer call that got a `502` may or may not have reached Paystack, so the payout stays `processing`. `db-simulated-silent-transfer` (**[db-simulated]**) moved `initiated_at` back 31 minutes; the reconcile job then asks Paystack, gets "not found", and **does not return the money**:
 
-<!-- capture: 261-worker-payout-reconcile-job-2.json response.body -->
+<!-- capture: 262-worker-payout-reconcile-job-2.json response.body -->
 ```json
 {
   "payouts_acted_on": 1
 }
 ```
 
-<!-- capture: 262-payout-no-record-needs-attention.json response.body path=items first=1 -->
+<!-- capture: 263-payout-no-record-needs-attention.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "93760187-8910-4a6a-9f24-5688aa76f0e5",
-    "batch_id": "5d70612a-2f12-40f5-bdc3-de0917aec57c",
-    "batch_period": "2026-10-26",
-    "caregiver_id": "60e3bacd-5c07-451a-af6e-d65e5567f270",
+    "id": "177df64f-4f83-4714-a19f-99676ac40610",
+    "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+    "batch_period": "2026-11-02",
+    "caregiver_id": "3bb04460-4c40-44ce-bc69-b1ff2e130d7b",
     "caregiver_name": "Placeholder Silent Transfer",
     "amount_kobo": 900000,
     "status": "needs_attention",
     "bank_name": "Placeholder Bank",
     "account_number": "******0023",
     "account_name": "PLACEHOLDER SILENT TRANSFER",
-    "reference": "po-9376018789104a6a9f245688aa76f0e5-1",
+    "reference": "po-177df64f4f834714a19f99676ac40610-1",
     "transfer_code": null,
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-9376018789104a6a9f245688aa76f0e5-1",
+        "reference": "po-177df64f4f834714a19f99676ac40610-1",
         "status": "pending",
         "failure_reason": null,
-        "created_at": "2026-10-12T16:52:17.700670"
+        "created_at": "2026-10-19T13:29:23.408070"
       }
     ],
     "shortfall_kobo": 0,
     "returned_kobo": 0,
     "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": "2026-10-12T16:52:21.757193",
-    "caregiver_payouts_frozen_reason": "Payout 93760187-8910-4a6a-9f24-5688aa76f0e5: Paystack has no record; check before releasing",
+    "caregiver_payouts_frozen_at": "2026-10-19T13:29:29.645050",
+    "caregiver_payouts_frozen_reason": "Payout 177df64f-4f83-4714-a19f-99676ac40610: Paystack has no record; check before releasing",
     "failure_reason": "Paystack has no record; check before releasing",
-    "initiated_at": "2026-10-12T16:21:20.154718",
+    "initiated_at": "2026-10-19T12:58:27.417889",
     "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:17.940800",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:24.009748",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:17.699753"
+    "created_at": "2026-10-19T13:29:23.403257"
   }
 ]
 ```
 
-Resolving as `failed` without `force` is refused (nothing proves the transfer will never exist); with `force` and a reason that says how it was checked, the reserved money returns (capture `265`, observed in the database: the 9,000.00 NGN is back):
+Resolving as `failed` without `force` is refused (nothing proves the transfer will never exist); with `force` and a reason that says how it was checked, the reserved money returns (capture `266`, observed in the database: the 9,000.00 NGN is back):
 
-<!-- capture: 263-payout-resolve-no-record-without-force.json response.body -->
+<!-- capture: 264-payout-resolve-no-record-without-force.json response.body -->
 ```json
 {
   "detail": "Paystack has no record of this transfer, so there is no proof for either answer. Resolve it only with force and a reason that says how you checked"
 }
 ```
 
-<!-- capture: 264-payout-resolve-no-record-forced.json request.body -->
+<!-- capture: 265-payout-resolve-no-record-forced.json request.body -->
 ```json
 {
   "outcome": "failed",
@@ -3598,111 +3726,111 @@ Resolving as `failed` without `force` is refused (nothing proves the transfer wi
 }
 ```
 
-If the transfer turns up and is paid after a forced `failed`, the late success is taken back as described above and the payout needs attention again. The "no record" flag froze the caregiver; once the payout is resolved the freeze is lifted with the unfreeze route (capture `266`). If it turns up while the payout is still `needs_attention` for "no record", the success settles it cleanly as `success` (**[not live]**, `test_payout_hardening.py`).
+If the transfer turns up and is paid after a forced `failed`, the late success is taken back as described above and the payout needs attention again. The "no record" flag froze the caregiver; once the payout is resolved the freeze is lifted with the unfreeze route (capture `267`). If it turns up while the payout is still `needs_attention` for "no record", the success settles it cleanly as `success` (**[not live]**, `test_payout_hardening.py`).
 
 Resolve errors:
 
 | Status | `detail` | When |
 |---|---|---|
-| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `236`)_ |
-| 422 | the validation list | no `reason`, or an `outcome` that is not `paid` or `failed` _(captures `237`, `238`)_ |
-| 404 | `Payout not found` | unknown id _(capture `239`)_ |
-| 409 | `Paystack is waiting for an OTP to release this transfer, so there is no proof for either answer. Resolve it only with force and a reason that says how you checked` | not final _(capture `240`)_; other unknowns read `Paystack has no record of this transfer, ...` _(capture `263`)_, `Paystack says this transfer is still pending (...)`, `We cannot reach Paystack right now ...` (**[not live]**) |
-| 409 | `Paystack reports this transfer as successful, so it cannot be resolved as failed` | contradicts, even with `force` _(capture `242`)_; the mirror image reads `... as failed, so it cannot be resolved as paid` (**[not live]**) |
-| 409 | `Paystack has already paid attempt 1 of this payout, so the money cannot be returned. Resolve it as paid` | `failed` for a payout with a paid attempt _(capture `251`)_ |
-| 409 | `A payout that is success cannot be resolved here; only a processing payout or one that needs attention can be` | any other status; `success` here is the payout's status _(capture `244`)_ |
+| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `237`)_ |
+| 422 | the validation list | no `reason`, or an `outcome` that is not `paid` or `failed` _(captures `238`, `239`)_ |
+| 404 | `Payout not found` | unknown id _(capture `240`)_ |
+| 409 | `Paystack is waiting for an OTP to release this transfer, so there is no proof for either answer. Resolve it only with force and a reason that says how you checked` | not final _(capture `241`)_; other unknowns read `Paystack has no record of this transfer, ...` _(capture `264`)_, `Paystack says this transfer is still pending (...)`, `We cannot reach Paystack right now ...` (**[not live]**) |
+| 409 | `Paystack reports this transfer as successful, so it cannot be resolved as failed` | contradicts, even with `force` _(capture `243`)_; the mirror image reads `... as failed, so it cannot be resolved as paid` (**[not live]**) |
+| 409 | `Paystack has already paid attempt 1 of this payout, so the money cannot be returned. Resolve it as paid` | `failed` for a payout with a paid attempt _(capture `252`)_ |
+| 409 | `A payout that is success cannot be resolved here; only a processing payout or one that needs attention can be` | any other status; `success` here is the payout's status _(capture `245`)_ |
 | 409 | `The money of this payout is no longer reserved, so it cannot be returned by resolving it. Fix the balance with a ledger adjustment` | **[not live]** |
 | 409 | `This payout changed while Paystack was being asked. Look at it again` | a webhook settled it in between **[not live]** |
 
 ### Netting: the shortfall is kept out of the money that would come back
 
-The case the freeze exists for. A caregiver's first payout fails (the money returns, capture `289`), the next batch reserves it again as a **second** payout and it is sent, and then Paystack reports the **first** transfer as successful after all (capture `293`). The second payout cannot be recalled, and the caregiver's balance is empty, so **both payouts become `needs_attention`, the caregiver is frozen, and the first payout carries the whole 10,000.00 NGN as `shortfall_kobo`** (capture `294`; **[db-simulated]** only to keep every other caregiver out of these two batches: capture `285`):
+The case the freeze exists for. A caregiver's first payout fails (the money returns, capture `290`), the next batch reserves it again as a **second** payout and it is sent, and then Paystack reports the **first** transfer as successful after all (capture `294`). The second payout cannot be recalled, and the caregiver's balance is empty, so **both payouts become `needs_attention`, the caregiver is frozen, and the first payout carries the whole 10,000.00 NGN as `shortfall_kobo`** (capture `295`; **[db-simulated]** only to keep every other caregiver out of these two batches: capture `286`):
 
-<!-- capture: 294-payouts-list-net-off-frozen.json response.body path=items first=2 keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at,caregiver_payouts_frozen_reason,failure_reason -->
+<!-- capture: 295-payouts-list-net-off-frozen.json response.body path=items first=2 keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at,caregiver_payouts_frozen_reason,failure_reason -->
 ```json
 [
   {
-    "id": "b32830a0-3b72-4a3c-a4b6-4e0aaed97f88",
-    "batch_id": "35131769-9992-451a-b5cb-e5711a330dff",
-    "batch_period": "2026-11-16",
-    "caregiver_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+    "id": "15fe42c7-20ed-420a-9269-01307516ea9b",
+    "batch_id": "1e48b2a6-a33c-415c-80f6-6545a5adf8ce",
+    "batch_period": "2026-11-23",
+    "caregiver_id": "e1806387-f470-4c99-a7ec-45f5a10806ad",
     "caregiver_name": "Placeholder Net Off",
     "amount_kobo": 1000000,
     "status": "needs_attention",
     "bank_name": "Placeholder Bank",
     "account_number": "******0031",
     "account_name": "PLACEHOLDER NET OFF",
-    "reference": "po-b32830a03b724a3ca4b64e0aaed97f88-1",
-    "transfer_code": "TRF_3aa31c3d503b",
+    "reference": "po-15fe42c720ed420a926901307516ea9b-1",
+    "transfer_code": "TRF_60994c665c37",
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-b32830a03b724a3ca4b64e0aaed97f88-1",
+        "reference": "po-15fe42c720ed420a926901307516ea9b-1",
         "status": "pending",
         "failure_reason": null,
-        "created_at": "2026-10-12T16:52:30.364905"
+        "created_at": "2026-10-19T13:29:48.571212"
       }
     ],
     "shortfall_kobo": 0,
     "returned_kobo": 0,
     "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": "2026-10-12T16:52:32.511577",
-    "caregiver_payouts_frozen_reason": "Payout b3f6d81c-7efb-47a3-a185-225fe53b13cb: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
-    "failure_reason": "Payout b3f6d81c-7efb-47a3-a185-225fe53b13cb was confirmed paid by Paystack after this one was sent. Check Paystack for both before resolving this payout.",
-    "initiated_at": "2026-10-12T16:52:32.312137",
+    "caregiver_payouts_frozen_at": "2026-10-19T13:29:54.602355",
+    "caregiver_payouts_frozen_reason": "Payout ab693793-b0aa-471a-904e-95a1f1fae4d9: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
+    "failure_reason": "Payout ab693793-b0aa-471a-904e-95a1f1fae4d9 was confirmed paid by Paystack after this one was sent. Check Paystack for both before resolving this payout.",
+    "initiated_at": "2026-10-19T13:29:50.366382",
     "completed_at": null,
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:30.589376",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:49.236130",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:30.362999"
+    "created_at": "2026-10-19T13:29:48.565705"
   },
   {
-    "id": "b3f6d81c-7efb-47a3-a185-225fe53b13cb",
-    "batch_id": "9cd7b121-359b-4433-a772-065b84ce0c42",
-    "batch_period": "2026-11-09",
-    "caregiver_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+    "id": "ab693793-b0aa-471a-904e-95a1f1fae4d9",
+    "batch_id": "3dbf08d4-a265-4129-aee8-4f0e12fee34d",
+    "batch_period": "2026-11-16",
+    "caregiver_id": "e1806387-f470-4c99-a7ec-45f5a10806ad",
     "caregiver_name": "Placeholder Net Off",
     "amount_kobo": 1000000,
     "status": "needs_attention",
     "bank_name": "Placeholder Bank",
     "account_number": "******0031",
     "account_name": "PLACEHOLDER NET OFF",
-    "reference": "po-b3f6d81c7efb47a3a185225fe53b13cb-1",
-    "transfer_code": "TRF_8462a5391fc0",
+    "reference": "po-ab693793b0aa471a904e95a1f1fae4d9-1",
+    "transfer_code": "TRF_e509ef13ddd3",
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-b3f6d81c7efb47a3a185225fe53b13cb-1",
+        "reference": "po-ab693793b0aa471a904e95a1f1fae4d9-1",
         "status": "success",
         "failure_reason": "Paystack reported the transfer as failed",
-        "created_at": "2026-10-12T16:52:26.646622"
+        "created_at": "2026-10-19T13:29:36.151053"
       }
     ],
     "shortfall_kobo": 1000000,
     "returned_kobo": 0,
     "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": "2026-10-12T16:52:32.511577",
-    "caregiver_payouts_frozen_reason": "Payout b3f6d81c-7efb-47a3-a185-225fe53b13cb: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
+    "caregiver_payouts_frozen_at": "2026-10-19T13:29:54.602355",
+    "caregiver_payouts_frozen_reason": "Payout ab693793-b0aa-471a-904e-95a1f1fae4d9: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
     "failure_reason": "Paystack reported the transfer as failed Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
-    "initiated_at": "2026-10-12T16:52:28.544269",
-    "completed_at": "2026-10-12T16:52:28.747591",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:26.865863",
+    "initiated_at": "2026-10-19T13:29:41.914735",
+    "completed_at": "2026-10-19T13:29:42.969146",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:36.614656",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:26.644676"
+    "created_at": "2026-10-19T13:29:36.146894"
   }
 ]
 ```
 
-Now Paystack reports the **second** transfer as failed (capture `295`). Because the caregiver is frozen, nothing is returned: the second payout stays `needs_attention` with its 10,000.00 NGN reserved (capture `296`). The admin resolves it as `failed` (capture `297`): the 10,000.00 NGN reservation is **kept against the 10,000.00 NGN shortfall**, so `returned_kobo` is `0`, `netted_kobo` is `1000000`, and the first payout's `shortfall_kobo` drops to `0` (capture `298`). Had the second payout been larger than the shortfall, only the difference would have come back.
+Now Paystack reports the **second** transfer as failed (capture `296`). Because the caregiver is frozen, nothing is returned: the second payout stays `needs_attention` with its 10,000.00 NGN reserved (capture `297`). The admin resolves it as `failed` (capture `298`): the 10,000.00 NGN reservation is **kept against the 10,000.00 NGN shortfall**, so `returned_kobo` is `0`, `netted_kobo` is `1000000`, and the first payout's `shortfall_kobo` drops to `0` (capture `299`). Had the second payout been larger than the shortfall, only the difference would have come back.
 
-<!-- capture: 297-payout-resolve-net-off.json request.body -->
+<!-- capture: 298-payout-resolve-net-off.json request.body -->
 ```json
 {
   "outcome": "failed",
@@ -3710,7 +3838,7 @@ Now Paystack reports the **second** transfer as failed (capture `295`). Because 
 }
 ```
 
-<!-- capture: 297-payout-resolve-net-off.json response.body keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at,failure_reason -->
+<!-- capture: 298-payout-resolve-net-off.json response.body keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at,failure_reason -->
 ```json
 {
   "status": "failed",
@@ -3718,94 +3846,94 @@ Now Paystack reports the **second** transfer as failed (capture `295`). Because 
   "shortfall_kobo": 0,
   "returned_kobo": 0,
   "netted_kobo": 1000000,
-  "caregiver_payouts_frozen_at": "2026-10-12T16:52:32.511577",
+  "caregiver_payouts_frozen_at": "2026-10-19T13:29:54.602355",
   "failure_reason": "Resolved as failed by an admin: Paystack shows the second transfer as failed"
 }
 ```
 
-<!-- capture: 298-payouts-list-net-off-resolved.json response.body path=items first=2 keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at -->
+<!-- capture: 299-payouts-list-net-off-resolved.json response.body path=items first=2 keys=status,amount_kobo,shortfall_kobo,returned_kobo,netted_kobo,caregiver_payouts_frozen_at -->
 ```json
 [
   {
-    "id": "b32830a0-3b72-4a3c-a4b6-4e0aaed97f88",
-    "batch_id": "35131769-9992-451a-b5cb-e5711a330dff",
-    "batch_period": "2026-11-16",
-    "caregiver_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+    "id": "15fe42c7-20ed-420a-9269-01307516ea9b",
+    "batch_id": "1e48b2a6-a33c-415c-80f6-6545a5adf8ce",
+    "batch_period": "2026-11-23",
+    "caregiver_id": "e1806387-f470-4c99-a7ec-45f5a10806ad",
     "caregiver_name": "Placeholder Net Off",
     "amount_kobo": 1000000,
     "status": "failed",
     "bank_name": "Placeholder Bank",
     "account_number": "******0031",
     "account_name": "PLACEHOLDER NET OFF",
-    "reference": "po-b32830a03b724a3ca4b64e0aaed97f88-1",
-    "transfer_code": "TRF_3aa31c3d503b",
+    "reference": "po-15fe42c720ed420a926901307516ea9b-1",
+    "transfer_code": "TRF_60994c665c37",
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-b32830a03b724a3ca4b64e0aaed97f88-1",
+        "reference": "po-15fe42c720ed420a926901307516ea9b-1",
         "status": "failed",
         "failure_reason": "Resolved as failed by an admin: Paystack shows the second transfer as failed",
-        "created_at": "2026-10-12T16:52:30.364905"
+        "created_at": "2026-10-19T13:29:48.571212"
       }
     ],
     "shortfall_kobo": 0,
     "returned_kobo": 0,
     "netted_kobo": 1000000,
-    "caregiver_payouts_frozen_at": "2026-10-12T16:52:32.511577",
-    "caregiver_payouts_frozen_reason": "Payout b3f6d81c-7efb-47a3-a185-225fe53b13cb: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
+    "caregiver_payouts_frozen_at": "2026-10-19T13:29:54.602355",
+    "caregiver_payouts_frozen_reason": "Payout ab693793-b0aa-471a-904e-95a1f1fae4d9: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
     "failure_reason": "Resolved as failed by an admin: Paystack shows the second transfer as failed",
-    "initiated_at": "2026-10-12T16:52:32.312137",
-    "completed_at": "2026-10-12T16:52:32.546114",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:30.589376",
+    "initiated_at": "2026-10-19T13:29:50.366382",
+    "completed_at": "2026-10-19T13:29:54.730616",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:49.236130",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:30.362999"
+    "created_at": "2026-10-19T13:29:48.565705"
   },
   {
-    "id": "b3f6d81c-7efb-47a3-a185-225fe53b13cb",
-    "batch_id": "9cd7b121-359b-4433-a772-065b84ce0c42",
-    "batch_period": "2026-11-09",
-    "caregiver_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+    "id": "ab693793-b0aa-471a-904e-95a1f1fae4d9",
+    "batch_id": "3dbf08d4-a265-4129-aee8-4f0e12fee34d",
+    "batch_period": "2026-11-16",
+    "caregiver_id": "e1806387-f470-4c99-a7ec-45f5a10806ad",
     "caregiver_name": "Placeholder Net Off",
     "amount_kobo": 1000000,
     "status": "needs_attention",
     "bank_name": "Placeholder Bank",
     "account_number": "******0031",
     "account_name": "PLACEHOLDER NET OFF",
-    "reference": "po-b3f6d81c7efb47a3a185225fe53b13cb-1",
-    "transfer_code": "TRF_8462a5391fc0",
+    "reference": "po-ab693793b0aa471a904e95a1f1fae4d9-1",
+    "transfer_code": "TRF_e509ef13ddd3",
     "attempts": 1,
     "attempt_history": [
       {
         "attempt": 1,
-        "reference": "po-b3f6d81c7efb47a3a185225fe53b13cb-1",
+        "reference": "po-ab693793b0aa471a904e95a1f1fae4d9-1",
         "status": "success",
         "failure_reason": "Paystack reported the transfer as failed",
-        "created_at": "2026-10-12T16:52:26.646622"
+        "created_at": "2026-10-19T13:29:36.151053"
       }
     ],
     "shortfall_kobo": 0,
     "returned_kobo": 0,
     "netted_kobo": 0,
-    "caregiver_payouts_frozen_at": "2026-10-12T16:52:32.511577",
-    "caregiver_payouts_frozen_reason": "Payout b3f6d81c-7efb-47a3-a185-225fe53b13cb: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
+    "caregiver_payouts_frozen_at": "2026-10-19T13:29:54.602355",
+    "caregiver_payouts_frozen_reason": "Payout ab693793-b0aa-471a-904e-95a1f1fae4d9: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
     "failure_reason": "Paystack reported the transfer as failed Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
-    "initiated_at": "2026-10-12T16:52:28.544269",
-    "completed_at": "2026-10-12T16:52:28.747591",
-    "approved_by": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "approved_at": "2026-10-12T16:52:26.865863",
+    "initiated_at": "2026-10-19T13:29:41.914735",
+    "completed_at": "2026-10-19T13:29:42.969146",
+    "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "approved_at": "2026-10-19T13:29:36.614656",
     "cancelled_by": null,
     "cancelled_at": null,
     "cancel_reason": null,
-    "created_at": "2026-10-12T16:52:26.644676"
+    "created_at": "2026-10-19T13:29:36.146894"
   }
 ]
 ```
 
-The first payout is then resolved as `paid` (capture `299`) and the caregiver unfrozen (capture `300`).
+The first payout is then resolved as `paid` (capture `300`) and the caregiver unfrozen (capture `301`).
 
 **Not live:** the case where the second payout is larger than the shortfall (`returned_kobo` above `0`) is asserted in `test_payout_hardening.py::test_resolve_returns_only_the_part_of_the_reservation_above_the_shortfall`.
 
@@ -3819,35 +3947,35 @@ Permission `ledger.adjust` (Super Admin only). Body `{"reason": "...", "write_of
 
 The response is `{caregiver_id, payouts_frozen_at: null, debited_from_balance_kobo, written_off_shortfall_kobo, outstanding_shortfall_kobo}`; `outstanding_shortfall_kobo` is always `0` on success. **UX: tell the admin before they confirm** that earnings that built up while the caregiver was frozen will be debited. The debit is written to the shortfall payout's ledger row (`status_reason`) and to the audit entry (`debited_from_balance_kobo` and `per_payout`).
 
-Refused while a payout still needs attention (capture `256`; the message lists the payout ids), then, after resolving it as paid (capture `257`), refused again because the balance is empty and an 8,000.00 NGN shortfall is left (capture `258`, the message states the amount and the flag to use):
+Refused while a payout still needs attention (capture `257`; the message lists the payout ids), then, after resolving it as paid (capture `258`), refused again because the balance is empty and an 8,000.00 NGN shortfall is left (capture `259`, the message states the amount and the flag to use):
 
-<!-- capture: 256-payout-unfreeze-refused-while-open.json response.body -->
+<!-- capture: 257-payout-unfreeze-refused-while-open.json response.body -->
 ```json
 {
-  "detail": "1 payout(s) of this caregiver still need attention or are processing (b10cabbd-4b38-450f-8bdd-4ed37ebfbb94). Resolve them first"
+  "detail": "1 payout(s) of this caregiver still need attention or are processing (5c7eabab-f793-4478-bf7e-41e4e86e531b). Resolve them first"
 }
 ```
 
-<!-- capture: 258-payout-unfreeze-refused-shortfall.json response.body -->
+<!-- capture: 259-payout-unfreeze-refused-shortfall.json response.body -->
 ```json
 {
   "detail": "This caregiver still owes 800000 kobo that Paystack paid beyond their earnings, even after 0 kobo is taken from their available balance. Unfreeze with write_off_shortfall to write it off, or leave them frozen"
 }
 ```
 
-Then 11,000.00 NGN of earnings reach the caregiver while they are frozen (**[db-simulated]**: the balance was set in the database just before the call, as completed bookings would). The same unfreeze, without a write-off, now debits the 8,000.00 NGN shortfall from the balance (3,000.00 NGN is left) and succeeds (capture `259`):
+Then 11,000.00 NGN of earnings reach the caregiver while they are frozen (**[db-simulated]**: the balance was set in the database just before the call, as completed bookings would). The same unfreeze, without a write-off, now debits the 8,000.00 NGN shortfall from the balance (3,000.00 NGN is left) and succeeds (capture `260`):
 
-<!-- capture: 259-payout-unfreeze-debits-balance.json request.body -->
+<!-- capture: 260-payout-unfreeze-debits-balance.json request.body -->
 ```json
 {
   "reason": "Earnings kept accruing while frozen; the shortfall is taken from them"
 }
 ```
 
-<!-- capture: 259-payout-unfreeze-debits-balance.json response.body -->
+<!-- capture: 260-payout-unfreeze-debits-balance.json response.body -->
 ```json
 {
-  "caregiver_id": "f33a040b-ed24-4418-b312-80e690394377",
+  "caregiver_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
   "payouts_frozen_at": null,
   "debited_from_balance_kobo": 800000,
   "written_off_shortfall_kobo": 0,
@@ -3855,9 +3983,9 @@ Then 11,000.00 NGN of earnings reach the caregiver while they are frozen (**[db-
 }
 ```
 
-The same call **with** `write_off_shortfall: true` for another caregiver whose balance is empty (capture `274`, a 5,000.00 NGN shortfall, nothing to debit):
+The same call **with** `write_off_shortfall: true` for another caregiver whose balance is empty (capture `275`, a 5,000.00 NGN shortfall, nothing to debit):
 
-<!-- capture: 274-payout-unfreeze-write-off.json request.body -->
+<!-- capture: 275-payout-unfreeze-write-off.json request.body -->
 ```json
 {
   "reason": "Caregiver agreed to a write-off of the 5,000.00 NGN shortfall",
@@ -3865,10 +3993,10 @@ The same call **with** `write_off_shortfall: true` for another caregiver whose b
 }
 ```
 
-<!-- capture: 274-payout-unfreeze-write-off.json response.body -->
+<!-- capture: 275-payout-unfreeze-write-off.json response.body -->
 ```json
 {
-  "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
+  "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
   "payouts_frozen_at": null,
   "debited_from_balance_kobo": 0,
   "written_off_shortfall_kobo": 500000,
@@ -3880,30 +4008,30 @@ Errors:
 
 | Status | `detail` | When |
 |---|---|---|
-| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `252`)_ |
-| 422 | the validation list | no `reason`, or a blank one, or an unknown field _(capture `253`)_ |
-| 404 | `Caregiver not found` | unknown id _(capture `254`)_ |
-| 409 | `This caregiver's payouts are not frozen` | already unfrozen, or never frozen _(capture `255`)_ |
-| 409 | `<n> payout(s) of this caregiver still need attention or are processing (<ids>). Resolve them first` | any payout `needs_attention` or `processing` _(capture `256`)_ |
-| 409 | `This caregiver still owes <n> kobo that Paystack paid beyond their earnings, even after <m> kobo is taken from their available balance. Unfreeze with write_off_shortfall to write it off, or leave them frozen` | a shortfall the balance cannot cover, without `write_off_shortfall` _(capture `258`)_ |
+| 403 | `Access denied. Missing permission: ledger.adjust` | Finance _(capture `253`)_ |
+| 422 | the validation list | no `reason`, or a blank one, or an unknown field _(capture `254`)_ |
+| 404 | `Caregiver not found` | unknown id _(capture `255`)_ |
+| 409 | `This caregiver's payouts are not frozen` | already unfrozen, or never frozen _(capture `256`)_ |
+| 409 | `<n> payout(s) of this caregiver still need attention or are processing (<ids>). Resolve them first` | any payout `needs_attention` or `processing` _(capture `257`)_ |
+| 409 | `This caregiver still owes <n> kobo that Paystack paid beyond their earnings, even after <m> kobo is taken from their available balance. Unfreeze with write_off_shortfall to write it off, or leave them frozen` | a shortfall the balance cannot cover, without `write_off_shortfall` _(capture `259`)_ |
 
-Other unfreezes: after a reversal (capture `222`), after a "no record" flag (capture `266`), after a netted resolve (capture `300`): each now carries `debited_from_balance_kobo: 0`.
+Other unfreezes: after a reversal (capture `223`), after a "no record" flag (capture `267`), after a netted resolve (capture `301`): each now carries `debited_from_balance_kobo: 0`.
 
 The audit entries (`payout.unfreeze`, entity `caregiver`, `entity_id` is the caregiver id; `before` has the freeze time and reason and the outstanding shortfall, `after` the amount debited from the balance (`debited_from_balance_kobo`), the amount written off, what stays recorded and `per_payout`, the split by payout):
 
-<!-- capture: 301-audit-payout-unfreeze.json response.body path=items first=1 -->
+<!-- capture: 302-audit-payout-unfreeze.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "127d47da-f62e-4266-ad0c-f8c3fc450c4a",
-    "admin_user_id": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "admin_email": "boss-b8f700pay@example.com",
+    "id": "e5bd6838-4fbb-4d94-8d6b-b1c2063b52dc",
+    "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "admin_email": "boss-d704c6pay@example.com",
     "action": "payout.unfreeze",
     "entity_type": "caregiver",
-    "entity_id": "9818f3f2-d37b-4ee0-8c22-d2b17a74cb5e",
+    "entity_id": "e1806387-f470-4c99-a7ec-45f5a10806ad",
     "before": {
-      "payouts_frozen_at": "2026-10-12T16:52:32.511577",
-      "payouts_frozen_reason": "Payout b3f6d81c-7efb-47a3-a185-225fe53b13cb: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
+      "payouts_frozen_at": "2026-10-19T13:29:54.602355",
+      "payouts_frozen_reason": "Payout ab693793-b0aa-471a-904e-95a1f1fae4d9: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
       "outstanding_shortfall_kobo": 0
     },
     "after": {
@@ -3914,9 +4042,9 @@ The audit entries (`payout.unfreeze`, entity `caregiver`, `entity_id` is the car
       "per_payout": {}
     },
     "reason": "Both transfers accounted for",
-    "ip": "172.20.0.1",
+    "ip": "172.19.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-12T16:52:32.591619"
+    "created_at": "2026-10-19T13:29:54.903607"
   }
 ]
 ```
@@ -3925,51 +4053,54 @@ The audit entries (`payout.unfreeze`, entity `caregiver`, `entity_id` is the car
 
 Every approval, cancel, retry, resolve and unfreeze writes an `admin_audit_log` row: `payout_batch.cancel` (entity `payout_batch`; `after` lists the cancelled payouts and `returned_total_kobo`), `payout.resolve` (entity `payout`; `after` carries the payout's status, `outcome`, `forced`, `paystack_said`, the sentence describing Paystack's answer, and `returned_kobo` / `netted_kobo`), `payout.unfreeze` (entity `caregiver`), `payout_batch.approve` (entity `payout_batch`; `after` lists the approved payouts, the total and any payouts cancelled at approval), `payout.cancel` and `payout.retry` (entity `payout`; `before`/`after` carry status, amount, reference and attempts). Webhook and job settlements have **no admin**, so they leave no audit row: the payout row itself (`status`, `completed_at`, `failure_reason`, `transfer_code`) is their record.
 
-<!-- capture: 228-audit-payouts.json response.body path=items first=1 -->
+<!-- capture: 229-audit-payouts.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "43e2a3e5-977f-4d58-afdb-87cf50a1d230",
-    "admin_user_id": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "admin_email": "boss-b8f700pay@example.com",
+    "id": "96545600-5e1e-48d4-81ea-7340160f8876",
+    "admin_user_id": "782b30c4-afec-4093-b436-94b567e953b1",
+    "admin_email": "fin-d704c6pay@example.com",
     "action": "payout_batch.approve",
     "entity_type": "payout_batch",
-    "entity_id": "240f7286-ecd6-4511-ab8a-32a5b75c967e",
+    "entity_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
     "before": {
       "status": "pending_approval"
     },
     "after": {
       "status": "approved",
       "approved_payouts": [
-        "05e5c555-de52-4080-8071-575e11acb302",
-        "93d04961-704d-4177-abfa-39f35a0b7b76"
+        "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+        "87e77b91-5f35-4ea9-b8ea-5b7919230d4b",
+        "095b3872-1a06-47e7-b604-78c9ba893f04",
+        "f11dc9d6-778b-4433-8e31-b51251bb86cd",
+        "1ca00fde-0db3-4909-8256-65ebd86c2d6b"
       ],
-      "approved_total_kobo": 4200000,
+      "approved_total_kobo": 9200000,
       "cancelled_at_approval": []
     },
     "reason": "Placeholder: totals checked against the ledger",
-    "ip": "172.20.0.1",
+    "ip": "172.19.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-12T16:52:07.069118"
+    "created_at": "2026-10-19T13:29:08.616162"
   }
 ]
 ```
 
-<!-- capture: 229-audit-payout-actions.json response.body path=items first=2 -->
+<!-- capture: 230-audit-payout-actions.json response.body path=items first=2 -->
 ```json
 [
   {
-    "id": "fd656715-500d-4b4f-b367-44c1c3887f62",
-    "admin_user_id": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "admin_email": "boss-b8f700pay@example.com",
+    "id": "c49cf100-935f-4030-b8d7-522e9b717c5f",
+    "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "admin_email": "boss-d704c6pay@example.com",
     "action": "payout.retry",
     "entity_type": "payout",
-    "entity_id": "93d04961-704d-4177-abfa-39f35a0b7b76",
+    "entity_id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
     "before": {
       "status": "failed",
       "amount_kobo": 3000000,
-      "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
+      "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
       "attempts": 2,
       "shortfall_kobo": 0,
       "returned_kobo": 3000000,
@@ -3978,30 +4109,30 @@ Every approval, cancel, retry, resolve and unfreeze writes an `admin_audit_log` 
     "after": {
       "status": "processing",
       "amount_kobo": 3000000,
-      "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-3",
+      "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-3",
       "attempts": 3,
       "shortfall_kobo": 0,
       "returned_kobo": 3000000,
       "netted_kobo": 0
     },
     "reason": "Reversal was a bank hiccup; send again",
-    "ip": "172.20.0.1",
+    "ip": "172.19.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-12T16:52:11.222460"
+    "created_at": "2026-10-19T13:29:14.472789"
   },
   {
-    "id": "024dcee2-4d2d-44dd-8503-c152f5da8f70",
-    "admin_user_id": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "admin_email": "boss-b8f700pay@example.com",
+    "id": "c28dc17a-7386-47a4-8124-afe615b309ad",
+    "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "admin_email": "boss-d704c6pay@example.com",
     "action": "payout.resolve",
     "entity_type": "payout",
-    "entity_id": "93d04961-704d-4177-abfa-39f35a0b7b76",
+    "entity_id": "d78d3234-95ec-4a0c-9241-83d4adf920d4",
     "before": {
       "status": "needs_attention",
       "amount_kobo": 3000000,
-      "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
+      "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
       "attempts": 2,
       "shortfall_kobo": 0,
       "returned_kobo": 0,
@@ -4010,8 +4141,8 @@ Every approval, cancel, retry, resolve and unfreeze writes an `admin_audit_log` 
     "after": {
       "status": "failed",
       "amount_kobo": 3000000,
-      "caregiver_id": "86f02657-cb3e-40b0-8870-a924cd8ff1d9",
-      "reference": "po-93d04961704d4177abfa39f35a0b7b76-2",
+      "caregiver_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+      "reference": "po-d78d323495ec4a0c924183d4adf920d4-2",
       "attempts": 2,
       "shortfall_kobo": 0,
       "returned_kobo": 3000000,
@@ -4021,59 +4152,62 @@ Every approval, cancel, retry, resolve and unfreeze writes an `admin_audit_log` 
       "paystack_said": "Paystack reports this transfer as reversed"
     },
     "reason": "Paystack shows the transfer as reversed and the money back in our balance",
-    "ip": "172.20.0.1",
+    "ip": "172.19.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-12T16:52:11.190642"
+    "created_at": "2026-10-19T13:29:14.427693"
   }
 ]
 ```
 
 The audit entries of the new actions (a batch cancellation, and a resolve with the forced flag):
 
-<!-- capture: 283-audit-payout-batch-cancel.json response.body path=items first=1 -->
+<!-- capture: 284-audit-payout-batch-cancel.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "c80eecfa-f95c-4f9d-a11a-4b49d36060e6",
-    "admin_user_id": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "admin_email": "boss-b8f700pay@example.com",
+    "id": "cb67b756-70b4-44bf-af9b-4b40ef56739c",
+    "admin_user_id": "782b30c4-afec-4093-b436-94b567e953b1",
+    "admin_email": "fin-d704c6pay@example.com",
     "action": "payout_batch.cancel",
     "entity_type": "payout_batch",
-    "entity_id": "a27984e3-3078-420f-a3e5-63a778ba78b1",
+    "entity_id": "b0320517-068c-429f-8afb-16295b8ab814",
     "before": {
       "status": "pending_approval"
     },
     "after": {
       "status": "cancelled",
       "cancelled_payouts": [
-        "8bd20819-4245-4f5f-b512-45e60bf8332b",
-        "6510f37b-c6a7-481f-86de-7729fbb96a2f"
+        "6a20177e-d2d7-4b4b-a76e-438033e9aa5b",
+        "09b4155c-6144-4a3c-b6b1-4b5a43c8bf23",
+        "ca0c0532-2c87-411f-a3c2-6a64afabed1f",
+        "1fd3801b-47ca-48b4-a312-26b5b2cf8c09",
+        "c1a70a7b-f78b-457d-8ae8-4ebad03591ac"
       ],
-      "returned_total_kobo": 1800000
+      "returned_total_kobo": 6800000
     },
     "reason": "Placeholder: the totals do not match Finance's report",
-    "ip": "172.20.0.1",
+    "ip": "172.19.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-12T16:52:24.240046"
+    "created_at": "2026-10-19T13:29:33.511541"
   }
 ]
 ```
 
-<!-- capture: 284-audit-payout-resolve.json response.body path=items first=1 -->
+<!-- capture: 285-audit-payout-resolve.json response.body path=items first=1 -->
 ```json
 [
   {
-    "id": "3fd6d1fe-3326-4145-99c8-0bd94c74f038",
-    "admin_user_id": "75d95d4a-5626-47ad-8144-7180352d6a48",
-    "admin_email": "boss-b8f700pay@example.com",
+    "id": "ca6764c9-761a-4d41-806e-ad03c327db1b",
+    "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+    "admin_email": "boss-d704c6pay@example.com",
     "action": "payout.resolve",
     "entity_type": "payout",
-    "entity_id": "8c1cdb58-4275-4e6f-a310-3c6659f2204e",
+    "entity_id": "ded559d1-47f5-4137-ba63-6799c94b966f",
     "before": {
       "status": "needs_attention",
       "amount_kobo": 800000,
-      "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
-      "reference": "po-8c1cdb5842754e6fa3103c6659f2204e-1",
+      "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+      "reference": "po-ded559d147f54137ba636799c94b966f-1",
       "attempts": 1,
       "shortfall_kobo": 500000,
       "returned_kobo": 0,
@@ -4082,8 +4216,8 @@ The audit entries of the new actions (a batch cancellation, and a resolve with t
     "after": {
       "status": "success",
       "amount_kobo": 800000,
-      "caregiver_id": "e951bd23-f92e-4e47-a449-a90f907e8ef3",
-      "reference": "po-8c1cdb5842754e6fa3103c6659f2204e-1",
+      "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+      "reference": "po-ded559d147f54137ba636799c94b966f-1",
       "attempts": 1,
       "shortfall_kobo": 500000,
       "returned_kobo": 0,
@@ -4093,9 +4227,9 @@ The audit entries of the new actions (a batch cancellation, and a resolve with t
       "paystack_said": "Paystack reports this transfer as successful"
     },
     "reason": "Paystack shows the transfer as successful",
-    "ip": "172.20.0.1",
+    "ip": "172.19.0.1",
     "user_agent": "python-httpx/0.28.1",
-    "created_at": "2026-10-12T16:52:22.062224"
+    "created_at": "2026-10-19T13:29:30.240002"
   }
 ]
 ```
@@ -4560,24 +4694,24 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | Earnings: credit amount, rounding, the snapshot ignoring a later policy edit, idempotency under concurrent completes, SKIP LOCKED with two workers, late-cancel compensation rules | Test only | `test_caregiver_earnings.py` (real threads, real row locks) |
 | Earnings: the cron schedule (every five minutes) | Test only | `test_caregiver_earnings.py::test_the_job_is_registered_in_the_worker`; not waited for live |
 | Payouts: seeding, the batch step (3 of 5 caregivers, minimum and cool-down respected), batch list and detail, filters, `404`, bad status `422`, Operations `403`, no token `401` | Verified live, **against a fake Paystack** | 183 to 193 (the batch step is the real function run in the worker container for a date a week ahead; the schedule itself was not waited for). **Every payout in these captures carries `attempt_history`, `shortfall_kobo`, `returned_kobo`, `netted_kobo` and the two `caregiver_payouts_frozen_*` fields** |
-| Payouts: cancel (Finance `403`, no reason `422`, unknown `404`, success, again `409`), retry of a waiting payout `409` | Verified live | 194 to 199 |
-| Payouts: approve (Finance `403`, no or blank reason `422`, unknown `404`, success, again `409`), cancel after approval `409` | Verified live | 200 to 206 |
+| Payouts: cancel (Operations `403`, no reason `422`, unknown `404`, success as Finance, again `409`), retry of a waiting payout `409` | Verified live | 194 to 199 |
+| Payouts: approve (Operations `403`, no or blank reason `422`, unknown `404`, success as Finance, again `409`), cancel after approval `409` | Verified live | 200 to 206 |
 | Payouts: the send step posts the transfers; Paystack refusing one (balance too low) fails it and returns the money | Verified live, **against a fake Paystack** | 207, 208 |
-| Payouts: signed `transfer.success` webhook; a webhook delivered twice changes nothing | Verified live, **against a fake Paystack** | 209, 210, 216, 219 |
-| Payouts: retry (Operations `403`, no reason `422`, a paid payout `409`, success with a new reference, again `409`) | Verified live | 211 to 215 |
-| Payouts: a `transfer.reversed` after a success: payout `needs_attention`, caregiver frozen, **no money returned**; retry refused `409`; resolve as failed returns the money (`returned_kobo`); unfreeze; then retry | Verified live, **against a fake Paystack** | 217 to 223 |
-| Payouts: the reconcile job settles a transfer whose webhook never came | Verified live, **against a fake Paystack** (**[db-simulated]** wait: 224) | 224, 225, 226, 227 |
-| Payouts: audit entries for approve, cancel and retry | Verified live | 228, 229 |
-| Payouts: the send job cancels a payout whose caregiver was suspended after approval and sends nothing for it | Verified live, **against a fake Paystack** (**[db-simulated]** suspension: 233) | 233 to 235 |
-| Payouts: resolve (Finance `403`, no reason `422`, bad outcome `422`, unknown `404`, Paystack still at OTP `409`, Paystack contradicts `409`, paid `200`, again `409`) | Verified live, **against a fake Paystack** (**[simulated]** OTP entered in the Paystack dashboard: 241) | 236 to 244 |
-| Payouts: a success after the money was returned: money taken back with a shortfall, payout `needs_attention`, caregiver frozen, retry refused, resolve as failed refused, resolve as paid | Verified live, **against a fake Paystack** (**[db-simulated]** balance change: 246) | 245 to 251, 257 |
-| Payouts: unfreeze (Finance `403`, no reason `422`, unknown caregiver `404`, not frozen `409`, refused while a payout needs attention `409`, refused with a shortfall the balance cannot cover `409`, success that debits the shortfall from earnings (**[db-simulated]** earnings added just before: stated in the note of 259), success with `write_off_shortfall`, after a reversal, after a no-record flag, after a netted resolve) | Verified live | 222, 252 to 256, 258, 259, 266, 274 (**[db-simulated]** balance change: 270), 300 |
+| Payouts: signed `transfer.success` webhook; a webhook delivered twice changes nothing | Verified live, **against a fake Paystack** | 209, 210, 217, 220 |
+| Payouts: retry (Finance `403`, Operations `403`, no reason `422`, a paid payout `409`, success with a new reference, again `409`) | Verified live | 211 to 216 |
+| Payouts: a `transfer.reversed` after a success: payout `needs_attention`, caregiver frozen, **no money returned**; retry refused `409`; resolve as failed returns the money (`returned_kobo`); unfreeze; then retry | Verified live, **against a fake Paystack** | 218 to 224 |
+| Payouts: the reconcile job settles a transfer whose webhook never came | Verified live, **against a fake Paystack** (**[db-simulated]** wait: 225) | 225, 226, 227, 228 |
+| Payouts: audit entries for approve, cancel and retry | Verified live | 229, 230 |
+| Payouts: the send job cancels a payout whose caregiver was suspended after approval and sends nothing for it | Verified live, **against a fake Paystack** (**[db-simulated]** suspension: 234) | 234 to 236 |
+| Payouts: resolve (Finance `403`, no reason `422`, bad outcome `422`, unknown `404`, Paystack still at OTP `409`, Paystack contradicts `409`, paid `200`, again `409`) | Verified live, **against a fake Paystack** (**[simulated]** OTP entered in the Paystack dashboard: 242) | 237 to 245 |
+| Payouts: a success after the money was returned: money taken back with a shortfall, payout `needs_attention`, caregiver frozen, retry refused, resolve as failed refused, resolve as paid | Verified live, **against a fake Paystack** (**[db-simulated]** balance change: 247) | 246 to 252, 258 |
+| Payouts: unfreeze (Finance `403`, no reason `422`, unknown caregiver `404`, not frozen `409`, refused while a payout needs attention `409`, refused with a shortfall the balance cannot cover `409`, success that debits the shortfall from earnings (**[db-simulated]** earnings added just before: stated in the note of 259), success with `write_off_shortfall`, after a reversal, after a no-record flag, after a netted resolve) | Verified live | 223, 253 to 257, 259, 260, 267, 275 (**[db-simulated]** balance change: 271), 301 |
 | Payouts: resolve refused (`409`) when a late webhook changes the attempts between Paystack's answer and the lock; a wrong-amount success flagging a payout in any status (and resolving it as `failed`, closed with no money moving, or as `paid`, taking the money back); a `failed` or `reversed` after an admin-forced `paid`; the unfreeze debit when several payouts hold the shortfall | **[not live]**, covered by tests | `test_payout_hardening.py` (the race is injected by committing the webhook on a second session inside the Paystack call) |
-| Payouts: no record at Paystack: `needs_attention`, caregiver frozen, money still reserved; resolve as failed refused without `force`, accepted with it and the money returned | Verified live, **against a fake Paystack** (**[db-simulated]** 31-minute wait: 260) | 260 to 265 |
-| Payouts: retry asks Paystack first: still pending `409`; reports paid `409` and the payout becomes `needs_attention` with a shortfall; a retry of a transfer Paystack refused is accepted | Verified live, **against a fake Paystack** | 267 to 274; 214, 223 |
-| Payouts: cancel a batch (Finance `403`, no reason `422`, unknown `404`, success, again `409`, approved batch `409`) | Verified live | 275 to 282 |
-| Payouts: audit entries for batch cancel and resolve | Verified live | 283, 284 |
-| Payouts: netting. A late success while the newer payout was already sent: both `needs_attention`, shortfall on the first; a failure for the newer payout returns nothing; resolve as failed keeps the reservation against the shortfall (`returned_kobo` 0, `netted_kobo` 1000000); resolve the first as paid; unfreeze; the audit entry | Verified live, **against a fake Paystack** (**[db-simulated]** every other caregiver put in the cool-down: 285) | 285 to 301 |
+| Payouts: no record at Paystack: `needs_attention`, caregiver frozen, money still reserved; resolve as failed refused without `force`, accepted with it and the money returned | Verified live, **against a fake Paystack** (**[db-simulated]** 31-minute wait: 261) | 261 to 266 |
+| Payouts: retry asks Paystack first: still pending `409`; reports paid `409` and the payout becomes `needs_attention` with a shortfall; a retry of a transfer Paystack refused is accepted | Verified live, **against a fake Paystack** | 268 to 275; 215, 224 |
+| Payouts: cancel a batch (Operations `403`, no reason `422`, unknown `404`, success as Finance, again `409`, approved batch `409`) | Verified live | 276 to 283 |
+| Payouts: audit entries for batch cancel and resolve | Verified live | 284, 285 |
+| Payouts: netting. A late success while the newer payout was already sent: both `needs_attention`, shortfall on the first; a failure for the newer payout returns nothing; resolve as failed keeps the reservation against the shortfall (`returned_kobo` 0, `netted_kobo` 1000000); resolve the first as paid; unfreeze; the audit entry | Verified live, **against a fake Paystack** (**[db-simulated]** every other caregiver put in the cool-down: 286) | 286 to 302 |
 | Payouts: a resolve that returns part of the reservation (`returned_kobo` above 0 with `netted_kobo` above 0); a success for an earlier attempt while a retry holds the reservation; a second success paying twice; a late success while the newer payout is not yet sent (it is cancelled); the wrong-amount success freezing; retry and approval for a frozen caregiver; the send job skipping a frozen caregiver; erasure refused while frozen; success arriving for a `needs_attention` payout of no record; retry refused when Paystack says OTP, no record or unreachable; resolve refused when the money is no longer reserved or the payout changed meanwhile; the send-time check for an inactive or erased account or a profile under review; concurrent late successes taking the money back once; a batch reserving a payout while a late success waits for the wallet; **random event sequences never pay more than was earned or raise what can be paid** | Test only | `test_payout_hardening.py` (real threads, real row locks; the sequence test is seeded) |
 | Payouts: approval cancels a payout whose caregiver was suspended or changed bank account; the other 409 texts; wrong-amount webhooks; bad signature; no-answer from Paystack; the not-found grace period; concurrent approve/cancel, concurrent webhooks and two send workers | Test only | `test_payouts.py` (real threads, real row locks) |
 | Payouts: every `/admin/payouts` route against every role | Test only | `test_admin_rbac.py` |

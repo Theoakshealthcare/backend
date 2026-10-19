@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/7bcbd73a-5a8b-4b21-9fdd-64b6da4706fd/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "failed",
+      "reason": "I think it failed",
+      "force": true
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Paystack reports this transfer as successful, so it cannot be resolved as failed"
+    }
+  },
+  "note": "Paystack now says the transfer succeeded. A definite answer that contradicts the outcome refuses it, even with force."
+}

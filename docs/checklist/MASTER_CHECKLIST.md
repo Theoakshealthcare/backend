@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-10-19):** Finance may approve and cancel payout batches and payouts (`payouts.execute`); retry, resolve, force and unfreeze stay Super Admin only ([SOP](../sop/2026-10-19-finance-approves-payouts.md)). The slice-2 screens are merged: admin payouts console and caregiver bank-account screen (Theoakshealthcare/oaklycare-caregiver-mobile #1–#3). The console's per-role action gating follows in its own PR.
+
 **Update (2026-10-12, A3 slice 2):** caregiver payouts are MERGED (Theoakshealthcare/backend#14, b88bdf0, migration `0012`, with the money reviews' double-payment fixes folded in and the dispute handling replaced by one invariant, 2026-10-12): weekly, admin-approved Paystack Transfer batches replace self-withdrawal. Verified by tests and live captures against a **fake** Paystack; a live Paystack run, and Paystack OTP disabled for API transfers, are still open. Refunds v2 and ledger adjustments are next.
 
 **Update (2026-10-07, A3 slice 1):** caregiver earnings are credited on completion, held, and released by a worker job (migration `0011`, merged as innocent98/backend#34, ba61e65). Payouts, refunds v2 and ledger adjustments are next.
@@ -13,7 +15,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 **Snapshot (2026-10-12):** 
 - **Items:** 175 done (`[x]`), 135 open (`[ ]`), counted over every task line.
 - **Sections done:** 8 (Phase C, code complete, device run pending), 11 (tech debt), 12 (account deletion), 13 (pricing audit).
-- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 merged on the backend; slice 2's console and app screens and a live Paystack run remain), 10 (W1–W3b done).
+- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 merged on the backend; slice 2's screens are merged; a live Paystack run remains), 10 (W1–W3b done).
 - **Sections planned or not started:** 1 and 2 (open items are mostly the owner's secret rotation and the remaining hardening list), 3–5, plus A2 screens, A3–A5, W4 and W5.
 
 **Baseline:** the full review of all three repos on 2026-09-24 (it predates this file).
@@ -246,7 +248,7 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] Slice 2: self-withdrawal removed: `POST /caregiver/wallet/withdraw` answers `410` with a message (the app is dropping the button)
   - [x] Slice 2: bank details: `GET /caregiver/banks` (Paystack list, cached a day), `POST /caregiver/bank-account/resolve` (rate limited), `PUT /caregiver/bank-account` stores the resolved name and a Paystack transfer recipient; a changed account blocks payouts for 24 hours and writes `caregiver_bank_events`
   - [x] Slice 2: payout batch: daily ARQ job acts on a payout day per `payout_cadence`, reserves each eligible caregiver's whole available balance (>= `payout_min_naira`) as a `payout` debit under the wallet lock; erased, suspended, cooling-down and unverified caregivers excluded; one live payout per caregiver (partial unique index); one batch per payout date
-  - [x] Slice 2: admin `/admin/payouts`: list batches and payouts (`payments.read`); approve a batch, cancel a payout, retry a failed or reversed one (`ledger.adjust`, reason required, audited); approval re-checks each caregiver
+  - [x] Slice 2: admin `/admin/payouts`: list batches and payouts (`payments.read`); approve a batch, cancel a batch or payout (`payouts.execute`, Finance and Super Admin since 2026-10-19), retry a failed or reversed one (`ledger.adjust`, reason required, audited); approval re-checks each caregiver
   - [x] Slice 2: ARQ send job posts one Paystack `POST /transfer` per approved payout with a per-attempt reference; `transfer.success` / `transfer.failed` / `transfer.reversed` webhooks (signature verified, idempotent) and a reconcile job settle; failed and reversed payouts return the money
   - [x] Slice 2: money tests: reservation invariant, concurrent batch runs, concurrent webhooks, two send workers, approve vs cancel, retry rules, erasure, RBAC matrix, migration round trip
   - [x] Slice 2: FE guides (caregiver section 10, admin section 12.11) from live captures against a fake Paystack
@@ -266,7 +268,9 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] Slice 2 invariant: admin FE guide re-captured live (payouts captures 183 to 301: freeze fields, resolve netting, unfreeze, the sent-newer-payout case); caregiver wallet response unchanged, so its captures are as they were (prose note only)
   - [ ] Slice 2: **run one real payout against a live Paystack test account** (transfer, webhook, balance, bank list, name lookup) before any real money
   - [ ] Slice 2: **disable OTP for API transfers in the Paystack dashboard** (a transfer in the `otp` state stays `processing` until an admin resolves it with `POST /admin/payouts/{id}/resolve`)
-  - [ ] Slice 2: console screens for batches and payouts (A3 console), and the caregiver app's payout/bank-account screens
+  - [x] Slice 2: console screens for batches and payouts and the caregiver app's bank-account screen. Merged 2026-10-19, Theoakshealthcare/oaklycare-caregiver-mobile #1–#3
+  - [x] Finance can approve and cancel payouts (2026-10-19, owner decision): approve batch, cancel batch, cancel payout on `payouts.execute` (already in Finance's role since `0003`, so no migration); retry, resolve, unfreeze stay `ledger.adjust`. Admin FE guide re-captured live (payouts captures 183 to 302). [SOP](../sop/2026-10-19-finance-approves-payouts.md)
+  - [ ] Console: gate Approve/Cancel on `payouts.execute` and Retry/Resolve/Unfreeze on `ledger.adjust` (follows this backend change)
   - [ ] Refunds v2 queue (`refund_required`), payments and webhook exceptions
   - [ ] Gap: on the app channel a caregiver cancel sets the booking to cancelled with no refund flag, so the patient is not queued for a refund
   - [ ] Bank list and account-name resolve endpoints

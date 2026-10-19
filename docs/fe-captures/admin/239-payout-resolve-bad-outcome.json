@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/7bcbd73a-5a8b-4b21-9fdd-64b6da4706fd/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "maybe",
+      "reason": "x"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "outcome"
+          ],
+          "msg": "Input should be 'paid' or 'failed'",
+          "input": "maybe",
+          "ctx": {
+            "expected": "'paid' or 'failed'"
+          }
+        }
+      ]
+    }
+  }
+}

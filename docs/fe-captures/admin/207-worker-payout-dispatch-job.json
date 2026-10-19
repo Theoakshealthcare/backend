@@ -9,15 +9,27 @@
     "status_code": null,
     "headers": {},
     "body": {
-      "transfers_sent": 2,
+      "transfers_sent": 5,
       "transfer_requests_seen_by_the_fake": [
         {
+          "amount": 3000000,
+          "reference": "po-095b38721a0647e7b60478c9ba893f04-1"
+        },
+        {
           "amount": 1200000,
-          "reference": "po-05e5c555de5240808071575e11acb302-1"
+          "reference": "po-1ca00fde0db34909825665ebd86c2d6b-1"
+        },
+        {
+          "amount": 800000,
+          "reference": "po-87e77b915f354ea9b8ea5b7919230d4b-1"
         },
         {
           "amount": 3000000,
-          "reference": "po-93d04961704d4177abfa39f35a0b7b76-1"
+          "reference": "po-d78d323495ec4a0c924183d4adf920d4-1"
+        },
+        {
+          "amount": 1200000,
+          "reference": "po-f11dc9d6778b44338e31b51251bb86cd-1"
         }
       ]
     }

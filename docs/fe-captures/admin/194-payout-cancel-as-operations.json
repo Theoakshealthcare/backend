@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/b49ceee7-a2cf-44eb-8216-2f877602bd77/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Operations may not cancel"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: payouts.execute"
+    }
+  },
+  "note": "Cancelling moves money, so it needs payouts.execute (Finance and Super Admin), like approving."
+}

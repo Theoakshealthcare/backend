@@ -688,8 +688,11 @@ def test_the_admin_api_end_to_end(db, client, fake_paystack):
     assert len(detail["payouts"]) == 2 and all(p["account_number"].startswith("******") for p in detail["payouts"])
     assert client.get(f"{ADMIN}?status=pending_approval&batch_id={batch.id}", headers=auth_headers(finance)).json()["total"] == 2
 
-    # Finance can look but not approve; approving needs ledger.adjust and a reason
-    assert client.post(f"{ADMIN}/batches/{batch.id}/approve", json={"reason": "ok"}, headers=auth_headers(finance)).status_code == 403
+    # approving needs payouts.execute (Finance, Super Admin) and a reason; a role with neither gets 403
+    nobody = make_admin(db, ["operations"], password=None)
+    r = client.post(f"{ADMIN}/batches/{batch.id}/approve", json={"reason": "ok"}, headers=auth_headers(nobody))
+    assert r.status_code == 403 and "payouts.execute" in r.json()["detail"]
+    assert client.post(f"{ADMIN}/batches/{batch.id}/approve", json={"reason": "  "}, headers=auth_headers(finance)).status_code == 422
     assert client.post(f"{ADMIN}/batches/{batch.id}/approve", json={"reason": "  "}, headers=auth_headers(boss)).status_code == 422
     assert client.post(f"{ADMIN}/batches/{batch.id}/approve", json={}, headers=auth_headers(boss)).status_code == 422
     r = client.post(f"{ADMIN}/batches/{batch.id}/approve", json={"reason": "Totals match Finance"}, headers=auth_headers(boss))
@@ -708,7 +711,8 @@ def test_cancel_and_retry_through_the_api(db, client, fake_paystack):
     boss = make_admin(db, ["super_admin"], password=None)
     finance = make_admin(db, ["finance"], password=None)
     p1, p2 = payouts_of(db, cg1)[0], payouts_of(db, cg2)[0]
-    assert client.post(f"{ADMIN}/{p1.id}/cancel", json={"reason": "x"}, headers=auth_headers(finance)).status_code == 403
+    nobody = make_admin(db, ["support"], password=None)
+    assert client.post(f"{ADMIN}/{p1.id}/cancel", json={"reason": "x"}, headers=auth_headers(nobody)).status_code == 403
     r = client.post(f"{ADMIN}/{p1.id}/cancel", json={"reason": "Caregiver asked us to hold it"}, headers=auth_headers(boss))
     assert r.status_code == 200 and r.json()["status"] == "cancelled" and r.json()["cancelled_by"] == str(boss.id)
     assert client.post(f"{ADMIN}/{p1.id}/cancel", json={"reason": "x"}, headers=auth_headers(boss)).status_code == 409
@@ -721,6 +725,42 @@ def test_cancel_and_retry_through_the_api(db, client, fake_paystack):
     assert client.post(f"{ADMIN}/{p2.id}/retry", json={"reason": "x"}, headers=auth_headers(boss)).status_code == 409
     assert client.post(f"{ADMIN}/00000000-0000-0000-0000-000000000000/cancel", json={"reason": "x"},
                        headers=auth_headers(boss)).status_code == 404
+
+
+def test_finance_approves_and_cancels_but_cannot_retry_resolve_or_unfreeze(db, client, fake_paystack):
+    cg1, cg2 = payable(db, 1_000_000, fake=fake_paystack), payable(db, 2_000_000, fake=fake_paystack)
+    batch = make_batch(db)
+    finance = make_admin(db, ["finance"], password=None)
+    p1, p2 = payouts_of(db, cg1)[0], payouts_of(db, cg2)[0]
+    fh = auth_headers(finance)
+
+    # cancel one payout, then approve the batch: both 200, both audited against the finance admin
+    r = client.post(f"{ADMIN}/{p1.id}/cancel", json={"reason": "Finance held it"}, headers=fh)
+    assert r.status_code == 200 and r.json()["cancelled_by"] == str(finance.id)
+    r = client.post(f"{ADMIN}/batches/{batch.id}/approve", json={"reason": "Finance approved"}, headers=fh)
+    assert r.status_code == 200 and r.json()["status"] == "approved"
+    for action in ("payout.cancel", "payout_batch.approve"):
+        assert db.query(AdminAuditLog).filter_by(action=action).one().admin_user_id == finance.id
+
+    # everything else stays Super Admin only
+    body = {"reason": "x"}
+    denied = [
+        client.post(f"{ADMIN}/{p2.id}/retry", json=body, headers=fh),
+        client.post(f"{ADMIN}/{p2.id}/resolve", json={**body, "outcome": "paid", "force": True}, headers=fh),
+        client.post(f"{ADMIN}/caregivers/{cg2.id}/unfreeze", json=body, headers=fh),
+    ]
+    assert [r.status_code for r in denied] == [403, 403, 403]
+    assert all("ledger.adjust" in r.json()["detail"] for r in denied)
+
+
+def test_finance_can_cancel_a_batch(db, client, fake_paystack):
+    cg = payable(db, 1_500_000, fake=fake_paystack)
+    batch = make_batch(db)
+    finance = make_admin(db, ["finance"], password=None)
+    r = client.post(f"{ADMIN}/batches/{batch.id}/cancel", json={"reason": "Finance cancelled"}, headers=auth_headers(finance))
+    assert r.status_code == 200 and r.json()["status"] == "cancelled"
+    assert wallet_balance(db, cg) == 1_500_000
+    assert db.query(AdminAuditLog).filter_by(action="payout_batch.cancel").one().admin_user_id == finance.id
 
 
 def test_the_admin_list_is_filterable_and_masks_account_numbers(db, client, fake_paystack):

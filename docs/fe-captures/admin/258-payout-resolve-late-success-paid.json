@@ -1,0 +1,56 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/5c7eabab-f793-4478-bf7e-41e4e86e531b/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "paid",
+      "reason": "Paystack shows the transfer as successful; 8,000.00 NGN shortfall to be recovered by a ledger adjustment"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "5c7eabab-f793-4478-bf7e-41e4e86e531b",
+      "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+      "batch_period": "2026-11-02",
+      "caregiver_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
+      "caregiver_name": "Placeholder Late Success",
+      "amount_kobo": 1100000,
+      "status": "success",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0022",
+      "account_name": "PLACEHOLDER LATE SUCCESS",
+      "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
+      "transfer_code": "TRF_f4621c6410e6",
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-5c7eababf7934478bf7e41e4e86e531b-1",
+          "status": "success",
+          "failure_reason": "Paystack reported the transfer as failed",
+          "created_at": "2026-10-19T13:29:23.445167"
+        }
+      ],
+      "shortfall_kobo": 800000,
+      "returned_kobo": 0,
+      "netted_kobo": 0,
+      "caregiver_payouts_frozen_at": "2026-10-19T13:29:27.255657",
+      "caregiver_payouts_frozen_reason": "Payout 5c7eabab-f793-4478-bf7e-41e4e86e531b: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 800000 kobo could not be recovered (shortfall).",
+      "failure_reason": null,
+      "initiated_at": "2026-10-19T13:29:26.654222",
+      "completed_at": "2026-10-19T13:29:27.358800",
+      "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+      "approved_at": "2026-10-19T13:29:24.009748",
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-19T13:29:23.443427"
+    }
+  },
+  "note": "Confirms the payout was paid. shortfall_kobo stays on the payout as the record of what was not recovered."
+}

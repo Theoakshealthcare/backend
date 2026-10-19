@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/payment/paystack/webhook",
+    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>",
+    "body": {
+      "event": "transfer.failed",
+      "data": {
+        "amount": 1000000,
+        "currency": "NGN",
+        "reason": "Oakly caregiver payout",
+        "reference": "po-15fe42c720ed420a926901307516ea9b-1",
+        "status": "failed",
+        "transfer_code": "TRF_60994c665c37",
+        "recipient": {
+          "recipient_code": "RCP_dd7052fca1ab"
+        }
+      }
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {},
+    "body": {
+      "status": "success",
+      "message": "Webhook processed successfully"
+    }
+  },
+  "note": "FAKE PAYSTACK: transfer.failed for the second payout. Frozen: the attempt is recorded, but its 10,000.00 NGN stays reserved and is NOT returned to the balance."
+}

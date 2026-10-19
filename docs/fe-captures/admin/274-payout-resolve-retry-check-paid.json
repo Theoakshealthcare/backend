@@ -1,0 +1,55 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/ded559d1-47f5-4137-ba63-6799c94b966f/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "paid",
+      "reason": "Paystack shows the transfer as successful"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "ded559d1-47f5-4137-ba63-6799c94b966f",
+      "batch_id": "451f6dcb-edc6-4e05-9c79-ffe45162c402",
+      "batch_period": "2026-11-02",
+      "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+      "caregiver_name": "Placeholder Cancelled",
+      "amount_kobo": 800000,
+      "status": "success",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0013",
+      "account_name": "PLACEHOLDER CANCELLED",
+      "reference": "po-ded559d147f54137ba636799c94b966f-1",
+      "transfer_code": "TRF_78d68e56691a",
+      "attempts": 1,
+      "attempt_history": [
+        {
+          "attempt": 1,
+          "reference": "po-ded559d147f54137ba636799c94b966f-1",
+          "status": "success",
+          "failure_reason": "Paystack reported the transfer as failed",
+          "created_at": "2026-10-19T13:29:23.421781"
+        }
+      ],
+      "shortfall_kobo": 500000,
+      "returned_kobo": 0,
+      "netted_kobo": 0,
+      "caregiver_payouts_frozen_at": "2026-10-19T13:29:30.189672",
+      "caregiver_payouts_frozen_reason": "Payout ded559d1-47f5-4137-ba63-6799c94b966f: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 500000 kobo could not be recovered (shortfall).",
+      "failure_reason": null,
+      "initiated_at": "2026-10-19T13:29:26.701740",
+      "completed_at": "2026-10-19T13:29:30.229691",
+      "approved_by": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+      "approved_at": "2026-10-19T13:29:24.009748",
+      "cancelled_by": null,
+      "cancelled_at": null,
+      "cancel_reason": null,
+      "created_at": "2026-10-19T13:29:23.420328"
+    }
+  }
+}

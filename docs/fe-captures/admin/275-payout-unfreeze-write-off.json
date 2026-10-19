@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/caregivers/5d4824cb-7fa1-48e8-bc68-b7ae067bef4a/unfreeze",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Caregiver agreed to a write-off of the 5,000.00 NGN shortfall",
+      "write_off_shortfall": true
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "caregiver_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+      "payouts_frozen_at": null,
+      "debited_from_balance_kobo": 0,
+      "written_off_shortfall_kobo": 500000,
+      "outstanding_shortfall_kobo": 0
+    }
+  },
+  "note": "write_off_shortfall: true. The 5,000.00 NGN shortfall is written off: written_off_shortfall_kobo reports it and the payout's shortfall_kobo goes to 0. The audit row records the amount."
+}

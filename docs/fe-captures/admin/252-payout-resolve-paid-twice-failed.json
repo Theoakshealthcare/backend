@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/5c7eabab-f793-4478-bf7e-41e4e86e531b/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "failed",
+      "reason": "Give the money back",
+      "force": true
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Paystack has already paid attempt 1 of this payout, so the money cannot be returned. Resolve it as paid"
+    }
+  },
+  "note": "The transfer was paid, so the money is never returned by resolving it as failed."
+}

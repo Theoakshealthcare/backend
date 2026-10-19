@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "payout_dispatch_job -> app.services.payouts.dispatch_due, run in the worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "transfers_sent": 0
+    }
+  },
+  "note": "FAKE PAYSTACK accepted the transfer (status pending)."
+}

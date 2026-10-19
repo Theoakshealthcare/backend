@@ -1,0 +1,225 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/batches/b0320517-068c-429f-8afb-16295b8ab814/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: the totals do not match Finance's report"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "b0320517-068c-429f-8afb-16295b8ab814",
+      "period_key": "2026-11-09",
+      "cadence": "weekly",
+      "min_payout_kobo": 500000,
+      "status": "cancelled",
+      "approved_by": null,
+      "approved_at": null,
+      "approval_reason": null,
+      "created_at": "2026-10-19T13:29:32.829131",
+      "payout_count": 5,
+      "total_kobo": 0,
+      "counts": {
+        "cancelled": 5
+      },
+      "payouts": [
+        {
+          "id": "6a20177e-d2d7-4b4b-a76e-438033e9aa5b",
+          "batch_id": "b0320517-068c-429f-8afb-16295b8ab814",
+          "batch_period": "2026-11-09",
+          "caregiver_id": "3bb04460-4c40-44ce-bc69-b1ff2e130d7b",
+          "caregiver_name": "Placeholder Silent Transfer",
+          "amount_kobo": 900000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0023",
+          "account_name": "PLACEHOLDER SILENT TRANSFER",
+          "reference": "po-6a20177ed2d74b4ba76e438033e9aa5b-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-6a20177ed2d74b4ba76e438033e9aa5b-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-19T13:29:32.855828"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "782b30c4-afec-4093-b436-94b567e953b1",
+          "cancelled_at": "2026-10-19T13:29:33.502332",
+          "cancel_reason": "Placeholder: the totals do not match Finance's report",
+          "created_at": "2026-10-19T13:29:32.851814"
+        },
+        {
+          "id": "09b4155c-6144-4a3c-b6b1-4b5a43c8bf23",
+          "batch_id": "b0320517-068c-429f-8afb-16295b8ab814",
+          "batch_period": "2026-11-09",
+          "caregiver_id": "63307397-54eb-4fef-96fe-64086aead8d9",
+          "caregiver_name": "Placeholder Cancelled",
+          "amount_kobo": 800000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0013",
+          "account_name": "PLACEHOLDER CANCELLED",
+          "reference": "po-09b4155c61444a3cb6b14b5a43c8bf23-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-09b4155c61444a3cb6b14b5a43c8bf23-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-19T13:29:32.870712"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "782b30c4-afec-4093-b436-94b567e953b1",
+          "cancelled_at": "2026-10-19T13:29:33.502332",
+          "cancel_reason": "Placeholder: the totals do not match Finance's report",
+          "created_at": "2026-10-19T13:29:32.868258"
+        },
+        {
+          "id": "ca0c0532-2c87-411f-a3c2-6a64afabed1f",
+          "batch_id": "b0320517-068c-429f-8afb-16295b8ab814",
+          "batch_period": "2026-11-09",
+          "caregiver_id": "7bc6c2b0-da51-4c84-908d-22808c19abe8",
+          "caregiver_name": "Placeholder Failing",
+          "amount_kobo": 3000000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0012",
+          "account_name": "PLACEHOLDER FAILING",
+          "reference": "po-ca0c05322c87411fa3c26a64afabed1f-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-ca0c05322c87411fa3c26a64afabed1f-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-19T13:29:32.880980"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "782b30c4-afec-4093-b436-94b567e953b1",
+          "cancelled_at": "2026-10-19T13:29:33.502332",
+          "cancel_reason": "Placeholder: the totals do not match Finance's report",
+          "created_at": "2026-10-19T13:29:32.879833"
+        },
+        {
+          "id": "1fd3801b-47ca-48b4-a312-26b5b2cf8c09",
+          "batch_id": "b0320517-068c-429f-8afb-16295b8ab814",
+          "batch_period": "2026-11-09",
+          "caregiver_id": "a64b9bdc-eb3b-41ba-b0c1-0258743623c0",
+          "caregiver_name": "Placeholder Paid",
+          "amount_kobo": 1200000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0011",
+          "account_name": "PLACEHOLDER PAID",
+          "reference": "po-1fd3801b47ca48b4a31226b5b2cf8c09-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-1fd3801b47ca48b4a31226b5b2cf8c09-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-19T13:29:32.894773"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "782b30c4-afec-4093-b436-94b567e953b1",
+          "cancelled_at": "2026-10-19T13:29:33.502332",
+          "cancel_reason": "Placeholder: the totals do not match Finance's report",
+          "created_at": "2026-10-19T13:29:32.893107"
+        },
+        {
+          "id": "c1a70a7b-f78b-457d-8ae8-4ebad03591ac",
+          "batch_id": "b0320517-068c-429f-8afb-16295b8ab814",
+          "batch_period": "2026-11-09",
+          "caregiver_id": "dbe7a698-763b-45a3-a4a4-4d710bfd1465",
+          "caregiver_name": "Placeholder Batch Cancel",
+          "amount_kobo": 900000,
+          "status": "cancelled",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0024",
+          "account_name": "PLACEHOLDER BATCH CANCEL",
+          "reference": "po-c1a70a7bf78b457d8ae84ebad03591ac-1",
+          "transfer_code": null,
+          "attempts": 1,
+          "attempt_history": [
+            {
+              "attempt": 1,
+              "reference": "po-c1a70a7bf78b457d8ae84ebad03591ac-1",
+              "status": "pending",
+              "failure_reason": null,
+              "created_at": "2026-10-19T13:29:32.908700"
+            }
+          ],
+          "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
+          "failure_reason": null,
+          "initiated_at": null,
+          "completed_at": null,
+          "approved_by": null,
+          "approved_at": null,
+          "cancelled_by": "782b30c4-afec-4093-b436-94b567e953b1",
+          "cancelled_at": "2026-10-19T13:29:33.502332",
+          "cancel_reason": "Placeholder: the totals do not match Finance's report",
+          "created_at": "2026-10-19T13:29:32.906084"
+        }
+      ]
+    }
+  },
+  "note": "Done by a Finance admin (payouts.execute). Every payout still waiting is cancelled and its money returned in one transaction."
+}

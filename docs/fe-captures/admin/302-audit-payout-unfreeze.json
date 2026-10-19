@@ -1,0 +1,152 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=caregiver&limit=5",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "e5bd6838-4fbb-4d94-8d6b-b1c2063b52dc",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.unfreeze",
+          "entity_type": "caregiver",
+          "entity_id": "e1806387-f470-4c99-a7ec-45f5a10806ad",
+          "before": {
+            "payouts_frozen_at": "2026-10-19T13:29:54.602355",
+            "payouts_frozen_reason": "Payout ab693793-b0aa-471a-904e-95a1f1fae4d9: Paystack paid attempt 1 after the payout was marked failed; 0 kobo was taken back from the available balance, 1000000 kobo could not be recovered (shortfall).",
+            "outstanding_shortfall_kobo": 0
+          },
+          "after": {
+            "payouts_frozen_at": null,
+            "debited_from_balance_kobo": 0,
+            "written_off_shortfall_kobo": 0,
+            "outstanding_shortfall_kobo": 0,
+            "per_payout": {}
+          },
+          "reason": "Both transfers accounted for",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:54.903607"
+        },
+        {
+          "id": "ad451435-4d04-4f2a-9743-5c3e89b778d4",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.unfreeze",
+          "entity_type": "caregiver",
+          "entity_id": "5d4824cb-7fa1-48e8-bc68-b7ae067bef4a",
+          "before": {
+            "payouts_frozen_at": "2026-10-19T13:29:30.189672",
+            "payouts_frozen_reason": "Payout ded559d1-47f5-4137-ba63-6799c94b966f: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 500000 kobo could not be recovered (shortfall).",
+            "outstanding_shortfall_kobo": 500000
+          },
+          "after": {
+            "payouts_frozen_at": null,
+            "debited_from_balance_kobo": 0,
+            "written_off_shortfall_kobo": 500000,
+            "outstanding_shortfall_kobo": 0,
+            "per_payout": {
+              "ded559d1-47f5-4137-ba63-6799c94b966f": {
+                "debited_kobo": 0,
+                "written_off_kobo": 500000
+              }
+            }
+          },
+          "reason": "Caregiver agreed to a write-off of the 5,000.00 NGN shortfall",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:30.263979"
+        },
+        {
+          "id": "d0629ccc-0e2b-4358-9dfd-dc11e87d7928",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.unfreeze",
+          "entity_type": "caregiver",
+          "entity_id": "3bb04460-4c40-44ce-bc69-b1ff2e130d7b",
+          "before": {
+            "payouts_frozen_at": "2026-10-19T13:29:29.645050",
+            "payouts_frozen_reason": "Payout 177df64f-4f83-4714-a19f-99676ac40610: Paystack has no record; check before releasing",
+            "outstanding_shortfall_kobo": 0
+          },
+          "after": {
+            "payouts_frozen_at": null,
+            "debited_from_balance_kobo": 0,
+            "written_off_shortfall_kobo": 0,
+            "outstanding_shortfall_kobo": 0,
+            "per_payout": {}
+          },
+          "reason": "Checked with Paystack support: no transfer exists, and the money was returned by resolving the payout",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:30.123919"
+        },
+        {
+          "id": "267a875c-47b3-4152-9e73-21ef70aa5584",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.unfreeze",
+          "entity_type": "caregiver",
+          "entity_id": "63f4b91b-db58-4589-ab8e-8d9acc679e17",
+          "before": {
+            "payouts_frozen_at": "2026-10-19T13:29:27.255657",
+            "payouts_frozen_reason": "Payout 5c7eabab-f793-4478-bf7e-41e4e86e531b: Paystack paid attempt 1 after the payout was marked failed; 300000 kobo was taken back from the available balance, 800000 kobo could not be recovered (shortfall).",
+            "outstanding_shortfall_kobo": 800000
+          },
+          "after": {
+            "payouts_frozen_at": null,
+            "debited_from_balance_kobo": 800000,
+            "written_off_shortfall_kobo": 0,
+            "outstanding_shortfall_kobo": 0,
+            "per_payout": {
+              "5c7eabab-f793-4478-bf7e-41e4e86e531b": {
+                "debited_kobo": 800000,
+                "written_off_kobo": 0
+              }
+            }
+          },
+          "reason": "Earnings kept accruing while frozen; the shortfall is taken from them",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:27.398274"
+        },
+        {
+          "id": "dfa4fe2c-0ab8-443e-8bfe-f34bbd150f6c",
+          "admin_user_id": "6255fd01-7112-40cc-a9cf-e005bf4c3bf2",
+          "admin_email": "boss-d704c6pay@example.com",
+          "action": "payout.unfreeze",
+          "entity_type": "caregiver",
+          "entity_id": "1ea14f8e-28ac-4c89-bfd4-15c81e8487f5",
+          "before": {
+            "payouts_frozen_at": "2026-10-19T13:29:14.370730",
+            "payouts_frozen_reason": "Payout d78d3234-95ec-4a0c-9241-83d4adf920d4: Paystack reported attempt 2 as reversed after it had been paid. Check Paystack, then resolve this payout as failed (the money is returned) or paid.",
+            "outstanding_shortfall_kobo": 0
+          },
+          "after": {
+            "payouts_frozen_at": null,
+            "debited_from_balance_kobo": 0,
+            "written_off_shortfall_kobo": 0,
+            "outstanding_shortfall_kobo": 0,
+            "per_payout": {}
+          },
+          "reason": "Reversal confirmed with Paystack and the money returned; nothing else is open",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:14.446375"
+        }
+      ],
+      "total": 5,
+      "limit": 5,
+      "offset": 0
+    }
+  },
+  "note": "payout.unfreeze entries: what the freeze was, the shortfall that was written off and what stays recorded."
+}

@@ -1,0 +1,49 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=payout_batch&limit=2",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "96545600-5e1e-48d4-81ea-7340160f8876",
+          "admin_user_id": "782b30c4-afec-4093-b436-94b567e953b1",
+          "admin_email": "fin-d704c6pay@example.com",
+          "action": "payout_batch.approve",
+          "entity_type": "payout_batch",
+          "entity_id": "ecd85e88-3c30-4858-8046-69b2ed56fe3a",
+          "before": {
+            "status": "pending_approval"
+          },
+          "after": {
+            "status": "approved",
+            "approved_payouts": [
+              "d78d3234-95ec-4a0c-9241-83d4adf920d4",
+              "87e77b91-5f35-4ea9-b8ea-5b7919230d4b",
+              "095b3872-1a06-47e7-b604-78c9ba893f04",
+              "f11dc9d6-778b-4433-8e31-b51251bb86cd",
+              "1ca00fde-0db3-4909-8256-65ebd86c2d6b"
+            ],
+            "approved_total_kobo": 9200000,
+            "cancelled_at_approval": []
+          },
+          "reason": "Placeholder: totals checked against the ledger",
+          "ip": "172.19.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-19T13:29:08.616162"
+        }
+      ],
+      "total": 1,
+      "limit": 2,
+      "offset": 0
+    }
+  },
+  "note": "One entry for the batch approval, with the approved payouts, the total and the reason."
+}
