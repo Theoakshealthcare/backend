@@ -368,7 +368,7 @@ The existing `declined` status is dropped from use: a decline is recorded on the
 | `prescriptions.manage` | ✓ | | | | | ✓ | |
 | `whatsapp.read` | ✓ | ✓ | | | ✓ | | |
 | `admins.manage` | ✓ | | | | | | |
-| `audit.read` | ✓ | | | | | | |
+| `audit.read` | ✓ | | | ✓ | | | |
 | `exports.pii` | ✓ | | | ✓ | | | |
 
 ### 8.3 Data model changes (in addition to the WhatsApp PRD §10)

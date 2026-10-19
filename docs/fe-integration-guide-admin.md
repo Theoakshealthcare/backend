@@ -26,7 +26,7 @@ Admins are **their own accounts**. They are not patient or caregiver users, they
 3. **A session is a 15-minute access token plus a rotating refresh token.** Refresh tokens are single-use. Using an old one again is treated as theft and signs the admin out of **everything**.
 4. **Super Admins manage admins.** They invite by email, assign roles, disable, and force an MFA reset. The last active Super Admin can never be removed.
 5. **One permission check guards every admin route.** An admin has roles, roles bundle permissions, and each route needs one permission. `/admin/me` tells the console what the admin may do, so it can hide what they cannot.
-6. **Every admin action is audited**, and Super Admins can read the audit log.
+6. **Every admin action is audited**, and the Super Admin and Finance can read the audit log.
 
 ## 2. Conventions
 
@@ -481,7 +481,7 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
 | `GET /patient/admin/refund/requests`, `PUT /patient/admin/refund/requests/{id}` | `refunds.approve` |
 | `GET /booking/ws/stats` | `dashboard.read` |
 | `GET /admin/admins`, `POST /admin/admins`, `PATCH /admin/admins/{id}`, `POST /admin/admins/{id}/reset-mfa` | `admins.manage` |
-| `GET /admin/audit` | `audit.read` |
+| `GET /admin/audit` | `audit.read` (Super Admin, Finance) |
 | `GET /admin/bookings...`, `POST /admin/bookings/{id}/...` | see section 12.1 |
 | `GET /admin/earnings`, `POST /admin/earnings/{id}/hold`, `.../release-hold`, `.../void` | see section 12.10 |
 | `GET /admin/payouts`, `GET /admin/payouts/batches`, `GET /admin/payouts/batches/{id}` | `payments.read` (section 12.11) |
@@ -818,7 +818,7 @@ The console shows role names; the API returns only keys.
 The permissions each role holds are from the PRD, section 8.2, and are what `/admin/me` returns; they are defined in `app/core/admin_permissions.py`. The console should gate on `permissions` from `/admin/me`, not on role keys.
 
 ## 11. The audit log: `GET /api/v1/admin/audit`
-Needs `audit.read` (Super Admin only). Newest first.
+Needs `audit.read` (Super Admin and, since 2026-10-19, Finance). Newest first. **[not live]** Finance's `200` was not captured: the response shape is the same as for the Super Admin (captures 059 to 061), and the permission is asserted in `test_admin_rbac.py` and `test_admin_users.py`. The log shows every admin's actions with `admin_email`, `ip` and `user_agent`, so show it only to roles that hold `audit.read` (read `permissions` from `GET /admin/me`).
 
 | Query parameter | Meaning |
 |---|---|
@@ -4641,7 +4641,8 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | `403` for a missing permission | Verified live | 040, 041, 043 |
 | Every admin route against every role | Test only | `test_admin_rbac.py` (about 50 routes, 7 roles) |
 | Shared routes (booking detail, document file, prescriptions) with an admin token | Test only | `test_admin_rbac.py` and the existing access tests |
-| Audit viewer, filters, paging | Verified live | 059, 060, 061 |
+| Audit viewer, filters, paging | Verified live (as Super Admin) | 059, 060, 061 |
+| Audit viewer for Finance `200`; other roles `403` | **[not live]** test only (`test_finance_reads_the_audit_log_but_cannot_manage_admins`) | |
 | Bookings list: filters, search, `no_show`, masking without `people.pii`, bad enum `422` | Verified live | 079 to 084 |
 | Date-range filters, sort, pagination, search by phone in each format, LIKE-wildcard escaping | Test only | `test_admin_bookings.py` |
 | Unmatched queue and the `reason` filter | Verified live | 085, 086 |

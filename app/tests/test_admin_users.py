@@ -402,7 +402,8 @@ def test_audit_viewer_filters_and_paginates(db, client):
 
 
 def test_audit_viewer_needs_audit_read_and_validates_paging(db, client):
-    assert client.get(AUDIT, headers=auth_headers(make_admin(db, ["finance"]))).status_code == 403
+    assert client.get(AUDIT, headers=auth_headers(make_admin(db, ["operations"]))).status_code == 403
+    assert client.get(AUDIT, headers=auth_headers(make_admin(db, ["finance"]))).status_code == 200  # since 0013
     boss = make_admin(db)
     for params in ({"limit": 0}, {"limit": 500}, {"offset": -1}, {"date_from": "yesterday"}, {"admin_user_id": "x"}):
         assert client.get(AUDIT, headers=auth_headers(boss), params=params).status_code == 422, params
