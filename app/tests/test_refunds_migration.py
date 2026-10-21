@@ -177,15 +177,27 @@ def test_several_take_back_rows_per_booking_but_one_earning(db, booking):
     db.rollback()
 
 
-def test_0015_event_check_matches_the_model_and_round_trips(scratch):  # noqa: F811
+def test_0014_event_check_matches_the_model(scratch):  # noqa: F811
     import importlib.util
     from pathlib import Path
     from app.db.models.whatsapp_booking import BOOKING_EVENTS
-    path = Path(__file__).parents[1] / "alembic" / "versions" / "0015_refund_bank_details_event.py"
-    spec = importlib.util.spec_from_file_location("mig0015", path)
+    path = Path(__file__).parents[1] / "alembic" / "versions" / "0014_refunds_v2.py"
+    spec = importlib.util.spec_from_file_location("mig0014", path)
     mig = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mig)
     assert set(mig.NEW_EVENTS) == set(BOOKING_EVENTS)
-    _run(scratch, command.upgrade, "0015_refund_bank_details")
-    _run(scratch, command.downgrade, THIS)
-    _run(scratch, command.upgrade, "0015_refund_bank_details")
+
+
+def test_one_paystack_refund_belongs_to_one_attempt(db, booking):
+    first, second = _refund(booking), _refund(booking, status="succeeded")
+    db.add_all([first, second])
+    db.commit()
+    db.add(RefundAttempt(refund_id=first.id, attempt=1, status="pending", paystack_refund_id="UNIQ_1"))
+    db.commit()
+    db.add(RefundAttempt(refund_id=second.id, attempt=1, status="pending", paystack_refund_id="UNIQ_1"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+    db.add_all([RefundAttempt(refund_id=second.id, attempt=1, status="unknown"),
+                RefundAttempt(refund_id=second.id, attempt=2, status="unknown")])  # many without an id are fine
+    db.commit()

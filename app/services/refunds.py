@@ -451,6 +451,13 @@ def _record_send(db: Session, refund_id: UUID, attempt_id: UUID, result: Dict[st
             outcome = "unknown"
         if outcome == "accepted":
             pid = str(pid)
+            if attempt.paystack_refund_id and attempt.paystack_refund_id != pid:
+                # An early webhook (or a refund made on the Paystack dashboard) tied this attempt to another Paystack
+                # refund, and now the create call returned a different one: two refunds may exist for one attempt.
+                _flag_review(db, refund, f"Paystack's reply to the send names refund {pid}, but this attempt was already "
+                                         f"tied to refund {attempt.paystack_refund_id}. Two refunds may exist.")
+                db.commit()
+                return
             if not attempt.paystack_refund_id:
                 attempt.paystack_refund_id = pid
             if attempt.status in (ATTEMPT_SENDING, ATTEMPT_UNKNOWN):
@@ -502,16 +509,23 @@ def _kobo(value: Any) -> Optional[int]:
     return None
 
 
-def _flag_review(refund: Refund, why: str) -> str:
-    """Paystack disagrees with what we recorded. Nothing else moves by itself (spec 4.3). A refund that is already finished
-    keeps its status (reopening it could collide with the booking's open refund); the note carries the warning instead."""
+def _flag_review(db: Session, refund: Refund, why: str) -> str:
+    """Paystack disagrees with what we recorded (spec 4.3). Nothing else moves by itself. The refund goes to ``needs_review``
+    unless it is finished AND its booking has another open refund (reopening it would collide with the one-open-refund
+    index): then it keeps its status and carries ``review_flagged_at`` / ``review_reason`` for the console queue. The flag is
+    always set, so a person can find every contradiction."""
     logger.error("refund %s needs review: %s", refund.id, why)
+    refund.review_flagged_at = refund.review_flagged_at or datetime.utcnow()
+    refund.review_reason = why[:500]
     if refund.status in REFUND_OPEN_STATUSES:
         refund.status = REFUND_NEEDS_REVIEW
         refund.failure_reason = why[:500]
-    else:
-        stamp = f"[needs review] {why}"
-        refund.note = f"{refund.note}\n{stamp}" if refund.note else stamp
+    elif refund.status in (REFUND_SUCCEEDED, REFUND_CLOSED):
+        other_open = (db.query(Refund.id).filter(Refund.booking_id == refund.booking_id, Refund.id != refund.id,
+                                                 Refund.status.in_(REFUND_OPEN_STATUSES)).first())
+        if other_open is None:
+            refund.status = REFUND_NEEDS_REVIEW
+            refund.failure_reason = why[:500]
     return "review"
 
 
@@ -525,24 +539,27 @@ def _settle_locked(db: Session, booking: Booking, refund: Refund, attempts: List
         logger.warning("refund %s: Paystack says %s but the refund is awaiting review; nothing moved", refund.id, status)
         return "review"
     if transaction_reference and booking.paystack_reference != transaction_reference:
-        return _flag_review(refund, f"Paystack reported {status} for transaction {transaction_reference}, which is not "
+        return _flag_review(db, refund, f"Paystack reported {status} for transaction {transaction_reference}, which is not "
                                     "this booking's payment.")
     current = attempts[-1] if attempts else None
     if current is None:
-        return _flag_review(refund, f"Paystack reported {status} for a refund Oakly never sent from this refund. Check "
+        return _flag_review(db, refund, f"Paystack reported {status} for a refund Oakly never sent from this refund. Check "
                                     "the Paystack dashboard.")
     target = target or current
     if target.id != current.id:
         if status == "processed":
-            return _flag_review(refund, f"Paystack processed attempt {target.attempt}, but attempt {current.attempt} is the "
+            return _flag_review(db, refund, f"Paystack processed attempt {target.attempt}, but attempt {current.attempt} is the "
                                         "current one. Money may have been sent twice.")
         logger.warning("refund %s: ignoring %s for the older attempt %s", refund.id, status, target.attempt)
         return "duplicate"
     if pid and current.paystack_refund_id and current.paystack_refund_id != pid:
-        return _flag_review(refund, f"Paystack reported {status} for refund {pid}, but this attempt is refund "
+        return _flag_review(db, refund, f"Paystack reported {status} for refund {pid}, but this attempt is refund "
                                     f"{current.paystack_refund_id}. Two refunds may exist.")
+    if status == "processed" and amount_kobo is None and state != REFUND_SUCCEEDED:
+        return _flag_review(db, refund, "Paystack reported the refund processed but the amount could not be read, so it "
+                                        "cannot be confirmed. Check the Paystack dashboard.")
     if amount_kobo is not None and refund.amount_kobo is not None and int(amount_kobo) != int(refund.amount_kobo):
-        return _flag_review(refund, f"Paystack reported {status} for {amount_kobo} kobo, but this refund is "
+        return _flag_review(db, refund, f"Paystack reported {status} for {amount_kobo} kobo, but this refund is "
                                     f"{refund.amount_kobo} kobo.")
 
     def adopt() -> None:
@@ -558,7 +575,7 @@ def _settle_locked(db: Session, booking: Booking, refund: Refund, attempts: List
             return "applied"
         if state == REFUND_SUCCEEDED and current.status == ATTEMPT_PROCESSED:
             return "duplicate"
-        return _flag_review(refund, f"Paystack processed this refund while it was {state}.")
+        return _flag_review(db, refund, f"Paystack processed this refund while it was {state}.")
     if status == "failed":
         if state in (REFUND_PROCESSING, REFUND_NEEDS_ATTENTION):
             adopt()
@@ -568,10 +585,10 @@ def _settle_locked(db: Session, booking: Booking, refund: Refund, attempts: List
             return "applied"
         if state in (REFUND_FAILED, REFUND_CLOSED, REFUND_REJECTED):
             return "duplicate"
-        return _flag_review(refund, f"Paystack reported the refund as failed while it was {state}.")
+        return _flag_review(db, refund, f"Paystack reported the refund as failed while it was {state}.")
     # pending | processing | needs-attention
     if state in _NOT_SENT:
-        return _flag_review(refund, f"Paystack reported {status} for a refund Oakly has not sent ({state}).")
+        return _flag_review(db, refund, f"Paystack reported {status} for a refund Oakly has not sent ({state}).")
     if state in _FINISHED:
         logger.warning("refund %s: ignoring a late %s (the refund is %s)", refund.id, status, state)
         return "duplicate"
@@ -605,9 +622,12 @@ def _locate_for_event(db: Session, transaction_reference: Optional[str], pid: Op
         if row is not None:
             return row
     if transaction_reference:
-        booking_id = db.query(Booking.id).filter(Booking.paystack_reference == transaction_reference).scalar()
-        if booking_id is not None:
-            return booking_id, None, None
+        ids = db.query(Booking.id).filter(Booking.paystack_reference == transaction_reference).limit(2).all()
+        if len(ids) > 1:
+            logger.error("refund event: more than one booking has Paystack reference %s; ignored", transaction_reference)
+            return None
+        if ids:
+            return ids[0][0], None, None
     return None
 
 
@@ -618,31 +638,39 @@ def _already_settled(db: Session, booking: Booking, status: str, pid: Optional[s
     for refund in db.query(Refund).filter(Refund.booking_id == booking.id, Refund.status == REFUND_SUCCEEDED).all():
         current = max(refund.attempts, key=lambda a: a.attempt, default=None)
         if (current is not None and current.status == ATTEMPT_PROCESSED and (pid is None or current.paystack_refund_id == pid)
-                and (amount_kobo is None or int(amount_kobo) == int(refund.amount_kobo or 0))):
+                and (amount_kobo is None or amount_kobo == int(refund.amount_kobo or 0))):
             return True
     return False
 
 
 def apply_refund_event(db: Session, *, status: str, transaction_reference: Optional[str], paystack_refund_id: Optional[str],
-                       amount_kobo: Optional[int], reason: Optional[str] = None, now: Optional[datetime] = None) -> str:
+                       amount_kobo: Optional[int], reason: Optional[str] = None, now: Optional[datetime] = None,
+                       attempt_id: Optional[UUID] = None, paystack: Optional[PaystackService] = None) -> str:
     """Settle a refund from Paystack's word (a ``refund.*`` webhook, or reconcile). ``status`` is Paystack's refund status:
     pending, processing, needs-attention, processed or failed. Matches by Paystack's refund id, else by the transaction
     reference to the booking's one open refund and its current attempt. Safe to call any number of times for one event.
     Returns ``applied``, ``duplicate``, ``ignored`` (not ours) or ``review`` (Paystack contradicts what we recorded: the refund
-    is ``needs_review``). Commits."""
+    is ``needs_review``). ``attempt_id`` pins the event to the attempt the caller (reconcile) was asking about. A ``processed``
+    whose amount is missing or unreadable is looked up at Paystack first (no lock held); still unknown, it is a
+    contradiction. Commits."""
     now = now or datetime.utcnow()
     status = _normal_status(status)
     pid = str(paystack_refund_id) if paystack_refund_id not in (None, "") else None
     if status not in EVENT_STATUSES:
         logger.info("refund event with status %r ignored", status)
         return "ignored"
+    amount_kobo = _kobo(amount_kobo)
+    if status == "processed" and amount_kobo is None and pid:
+        got = (paystack or PaystackService()).fetch_refund(pid)
+        if got.get("outcome") == "found":
+            amount_kobo = _kobo(got.get("amount_kobo"))
     try:
         found = _locate_for_event(db, transaction_reference, pid)
         db.rollback()  # the lookup held no lock worth keeping; start the locked part clean
         if found is None:
             logger.warning("refund event %s for an unknown refund (%s): ignored", status, pid or transaction_reference)
             return "ignored"
-        booking_id, refund_id, attempt_id = found
+        booking_id, refund_id, found_attempt_id = found
         booking = db.query(Booking).filter(Booking.id == booking_id).with_for_update().populate_existing().one()
         query = db.query(Refund)
         query = (query.filter(Refund.id == refund_id) if refund_id is not None
@@ -655,8 +683,9 @@ def apply_refund_event(db: Session, *, status: str, transaction_reference: Optio
             db.rollback()
             return result
         attempts = _lock_attempts(db, refund.id)
-        target = next((a for a in attempts if a.id == attempt_id), None) if attempt_id else None
-        result = _settle_locked(db, booking, refund, attempts, target, status, pid, _kobo(amount_kobo), reason,
+        pinned = attempt_id or found_attempt_id
+        target = next((a for a in attempts if a.id == pinned), None) if pinned else None
+        result = _settle_locked(db, booking, refund, attempts, target, status, pid, amount_kobo, reason,
                                 transaction_reference, now)
         db.commit()
         if result == "applied":
@@ -676,11 +705,11 @@ def _review_unsettled(db: Session, refund_id: UUID, attempt_id: UUID, why: str) 
             db.rollback()
             return False
         _booking, refund, attempts = family
-        if (refund.status != REFUND_PROCESSING or not attempts or attempts[-1].id != attempt_id
+        if (refund.status not in (REFUND_PROCESSING, REFUND_NEEDS_ATTENTION) or not attempts or attempts[-1].id != attempt_id
                 or attempts[-1].status not in _RANK):
             db.rollback()
             return False
-        _flag_review(refund, why)
+        _flag_review(db, refund, why)
         db.commit()
         return True
     except Exception:
@@ -690,52 +719,63 @@ def _review_unsettled(db: Session, refund_id: UUID, attempt_id: UUID, why: str) 
 
 def reconcile(db: Session, *, paystack: Optional[PaystackService] = None, now: Optional[datetime] = None,
               limit: int = RECONCILE_BATCH) -> int:
-    """Ask Paystack about refunds that have been ``processing`` for a while (a webhook that never came, or a send whose reply
-    was lost) and apply what it says, as the webhook would. A definite answer settles the refund. Paystack having NO record
-    30 minutes after we sent is not proof the refund was not sent, so it is never "failed": the refund goes to
-    ``needs_review``. An unreachable Paystack changes nothing. Returns how many refunds were acted on."""
+    """Ask Paystack about refunds that have been ``processing`` (or ``needs_attention``) for a while (a webhook that never
+    came, or a send whose reply was lost) and apply what it says, as the webhook would. A definite answer settles the refund.
+    Paystack having NO record 30 minutes after we sent is not proof the refund was not sent, so it is never "failed": the
+    refund goes to ``needs_review``. An unreachable Paystack changes nothing. Sends without a Paystack id (sending, unknown)
+    are asked about first, so a pile of old ``processing`` refunds cannot starve them. One refund failing does not stop the
+    others. Returns how many refunds were acted on."""
     paystack = paystack or PaystackService()
     now = now or datetime.utcnow()
     latest = select(func.max(RefundAttempt.attempt)).where(RefundAttempt.refund_id == Refund.id).correlate(Refund).scalar_subquery()
     due = (db.query(Refund.id, Refund.amount_kobo, RefundAttempt.id, RefundAttempt.paystack_refund_id,
                     RefundAttempt.created_at, Booking.paystack_reference)
            .join(RefundAttempt, RefundAttempt.refund_id == Refund.id).join(Booking, Booking.id == Refund.booking_id)
-           .filter(Refund.status == REFUND_PROCESSING, RefundAttempt.attempt == latest,
+           .filter(Refund.status.in_((REFUND_PROCESSING, REFUND_NEEDS_ATTENTION)), RefundAttempt.attempt == latest,
                    RefundAttempt.status.in_(tuple(_RANK)), RefundAttempt.created_at <= now - RECONCILE_AFTER)
-           .order_by(RefundAttempt.created_at).limit(limit).all())
+           .order_by(RefundAttempt.paystack_refund_id.isnot(None), RefundAttempt.created_at).limit(limit).all())
     db.rollback()
     acted = 0
-    for refund_id, amount, attempt_id, pid, sent_at, reference in due:
-        overdue = now - sent_at >= NOT_FOUND_GRACE
-        if pid:
-            got = paystack.fetch_refund(pid)
-            if got.get("outcome") == "found":
-                result = apply_refund_event(db, status=got.get("status"), transaction_reference=reference,
-                                            paystack_refund_id=pid, amount_kobo=_kobo(got.get("amount_kobo")), now=now)
-                acted += result in ("applied", "review")
-            elif got.get("outcome") == "not_found" and overdue:
-                acted += _review_unsettled(db, refund_id, attempt_id, NO_RECORD_REASON)
-            continue
-        listed = paystack.list_refunds(reference)
-        if listed.get("outcome") != "found":
-            continue  # Paystack could not be reached: silence is not "no record"
-        booking_id = db.query(Refund.booking_id).filter(Refund.id == refund_id).scalar()
-        taken = {p for (p,) in db.query(RefundAttempt.paystack_refund_id).join(Refund, Refund.id == RefundAttempt.refund_id)
-                 .filter(Refund.booking_id == booking_id, RefundAttempt.paystack_refund_id.isnot(None))}
-        db.rollback()
-        # A transaction can carry several Paystack refunds: ours is one not already tied to an attempt, for our amount.
-        candidates = [r for r in listed.get("refunds", []) if r["paystack_refund_id"] not in taken
-                      and _kobo(r.get("amount_kobo")) == int(amount or 0)]
-        if len(candidates) == 1:
-            found = candidates[0]
-            result = apply_refund_event(db, status=found.get("status"), transaction_reference=reference,
-                                        paystack_refund_id=found["paystack_refund_id"],
-                                        amount_kobo=_kobo(found.get("amount_kobo")), now=now)
-            acted += result in ("applied", "review")
-        elif len(candidates) > 1:
-            acted += _review_unsettled(db, refund_id, attempt_id,
-                                       "Paystack holds more than one refund that could be this attempt. Check the Paystack "
-                                       "dashboard before resolving it.")
-        elif overdue:
-            acted += _review_unsettled(db, refund_id, attempt_id, NO_RECORD_REASON)
+    for item in due:
+        try:
+            acted += _reconcile_one(db, paystack, now, *item)
+        except Exception:
+            db.rollback()
+            logger.exception("refund %s: reconcile failed; the others carry on", item[0])
     return acted
+
+
+def _reconcile_one(db: Session, paystack: PaystackService, now: datetime, refund_id: UUID, amount: Optional[int],
+                   attempt_id: UUID, pid: Optional[str], sent_at: datetime, reference: Optional[str]) -> int:
+    overdue = now - sent_at >= NOT_FOUND_GRACE
+    if pid:
+        got = paystack.fetch_refund(pid)
+        if got.get("outcome") == "found":
+            return apply_refund_event(db, status=got.get("status"), transaction_reference=reference, paystack_refund_id=pid,
+                                      amount_kobo=got.get("amount_kobo"), now=now, attempt_id=attempt_id,
+                                      paystack=paystack) in ("applied", "review")
+        if got.get("outcome") == "not_found" and overdue:
+            return _review_unsettled(db, refund_id, attempt_id, NO_RECORD_REASON)
+        return 0
+    if not reference:
+        return 0
+    listed = paystack.list_refunds(reference)
+    if listed.get("outcome") != "found":
+        return 0  # Paystack could not be reached: silence is not "no record"
+    booking_id = db.query(Refund.booking_id).filter(Refund.id == refund_id).scalar()
+    taken = {p for (p,) in db.query(RefundAttempt.paystack_refund_id).join(Refund, Refund.id == RefundAttempt.refund_id)
+             .filter(Refund.booking_id == booking_id, RefundAttempt.paystack_refund_id.isnot(None))}
+    db.rollback()
+    # A transaction can carry several Paystack refunds: ours is one not already tied to an attempt, for our amount.
+    candidates = [r for r in listed.get("refunds", []) if r["paystack_refund_id"] not in taken
+                  and _kobo(r.get("amount_kobo")) == int(amount or 0)]
+    if len(candidates) == 1:
+        found = candidates[0]
+        return apply_refund_event(db, status=found.get("status"), transaction_reference=reference,
+                                  paystack_refund_id=found["paystack_refund_id"], amount_kobo=found.get("amount_kobo"),
+                                  now=now, attempt_id=attempt_id, paystack=paystack) in ("applied", "review")
+    if len(candidates) > 1:
+        return _review_unsettled(db, refund_id, attempt_id,
+                                 "Paystack holds more than one refund that could be this attempt. Check the Paystack "
+                                 "dashboard before resolving it.")
+    return _review_unsettled(db, refund_id, attempt_id, NO_RECORD_REASON) if overdue else 0

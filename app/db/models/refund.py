@@ -83,6 +83,10 @@ class Refund(Base):
     failure_reason = Column(Text, nullable=True)  # Paystack's text on the current attempt
     processed_at = Column(DateTime, nullable=True)  # money confirmed out
     note = Column(Text, nullable=True)
+    # Paystack contradicted what we recorded on a refund that cannot change status (finished, or the booking has another open
+    # refund): the console queue shows these. A refund that CAN change goes to needs_review instead.
+    review_flagged_at = Column(DateTime, nullable=True)
+    review_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -101,7 +105,8 @@ class RefundAttempt(Base):
     __table_args__ = (
         CheckConstraint(_in("status", REFUND_ATTEMPT_STATUSES), name="ck_refund_attempts_status"),
         UniqueConstraint("refund_id", "attempt", name="uq_refund_attempts_refund_attempt"),
-        Index("ix_refund_attempts_paystack_refund_id", "paystack_refund_id"),
+        Index("uq_refund_attempts_paystack_refund_id", "paystack_refund_id", unique=True,
+              postgresql_where=text("paystack_refund_id IS NOT NULL")),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

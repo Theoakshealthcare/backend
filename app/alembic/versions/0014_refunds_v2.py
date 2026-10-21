@@ -12,6 +12,10 @@ Create Date: 2026-10-21
   ``refund_take_back``.
 - ``uq_caregiver_transactions_booking_type`` becomes a partial unique index that skips ``refund_take_back`` (several per booking).
 - ``patient_transactions.refund_id``: the refund a wallet credit came from.
+- ``refunds.review_flagged_at`` / ``review_reason``: a Paystack contradiction on a refund that cannot leave its status (it is
+  finished, or the booking has another open refund) is flagged here so the console queue can show it (spec 4.3).
+- ``refund_attempts.paystack_refund_id`` is unique where set: one Paystack refund belongs to one attempt.
+- ``booking_events``: the ``refund_needs_bank_details`` event (the family is told Paystack needs their bank account).
 - ``admin_role_permissions``: ``refunds.approve_above_limit`` for the Super Admin only.
 
 Downgrade drops the tables, columns and CHECKs and removes ``refund_take_back`` ledger rows (the type CHECK cannot be restored
@@ -37,6 +41,18 @@ ATTEMPT_STATUSES = "'sending','pending','processing','needs_attention','processe
 TX_TYPES_OLD = "'earning','late_cancel_compensation','withdrawal','payout'"
 TX_TYPES_NEW = TX_TYPES_OLD + ",'refund_take_back'"
 PERMISSION = 'refunds.approve_above_limit'
+OLD_EVENTS = (
+    "payment_received", "payment_link_expiring", "booking_cancelled_unpaid", "payment_refund_pending",
+    "caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
+    "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "refund_flagged", "refund_processed",
+    "caregiver_reassigned", "caregiver_dropped_replacing", "dropout_choice_needed", "dropout_handed_over",
+    "caregiver_booking_cancelled",
+)
+NEW_EVENTS = OLD_EVENTS + ("refund_needs_bank_details",)
+
+
+def _events_check(events) -> str:
+    return "event IN (" + ", ".join(f"'{e}'" for e in events) + ")"
 
 
 def upgrade() -> None:
@@ -75,6 +91,8 @@ def upgrade() -> None:
         sa.Column('failure_reason', sa.Text(), nullable=True),
         sa.Column('processed_at', sa.DateTime(), nullable=True),
         sa.Column('note', sa.Text(), nullable=True),
+        sa.Column('review_flagged_at', sa.DateTime(), nullable=True),
+        sa.Column('review_reason', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(['booking_id'], ['bookings.id']),
@@ -110,7 +128,11 @@ def upgrade() -> None:
         sa.CheckConstraint(f"status IN ({ATTEMPT_STATUSES})", name='ck_refund_attempts_status'),
         sa.UniqueConstraint('refund_id', 'attempt', name='uq_refund_attempts_refund_attempt'),
     )
-    op.create_index('ix_refund_attempts_paystack_refund_id', 'refund_attempts', ['paystack_refund_id'])
+    op.create_index('uq_refund_attempts_paystack_refund_id', 'refund_attempts', ['paystack_refund_id'], unique=True,
+                    postgresql_where=sa.text('paystack_refund_id IS NOT NULL'))
+
+    op.drop_constraint('ck_booking_events_event', 'booking_events', type_='check')
+    op.create_check_constraint('ck_booking_events_event', 'booking_events', _events_check(NEW_EVENTS))
 
     op.add_column('patient_transactions', sa.Column('refund_id', sa.UUID(), nullable=True))
     op.create_foreign_key('fk_patient_transactions_refund_id', 'patient_transactions', 'refunds', ['refund_id'], ['id'])
@@ -122,6 +144,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_constraint('ck_booking_events_event', 'booking_events', type_='check')
+    op.execute("DELETE FROM booking_events WHERE event = 'refund_needs_bank_details'")
+    op.create_check_constraint('ck_booking_events_event', 'booking_events', _events_check(OLD_EVENTS))
     op.execute(f"DELETE FROM admin_role_permissions WHERE permission = '{PERMISSION}'")
     op.drop_constraint('fk_patient_transactions_refund_id', 'patient_transactions', type_='foreignkey')
     op.drop_column('patient_transactions', 'refund_id')

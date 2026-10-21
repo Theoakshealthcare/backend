@@ -530,3 +530,207 @@ def test_a_second_refund_on_the_same_booking_notifies_again(db, chat, fake_payst
         texts += [body_text(b) for b in deliver(db, chat)]
     assert len(texts) == 2  # "being processed" is dropped once the refund is complete; "complete" goes out for each refund
     assert all("is complete" in t for t in texts) and "₦10,000" in texts[0] and "₦5,000" in texts[1]
+
+
+# --- review round 1: every contradiction is flagged, reconcile is hardened -----------------------------------------------
+def test_create_response_with_a_different_id_than_adopted_goes_to_review(db, fake_paystack):
+    """A dashboard refund X is adopted by an early webhook while we send; our create call then returns Y."""
+    booking, refund = approved(db, fake_paystack)
+    real = fake_paystack.call
+
+    def spy(method, path, params=None, json_body=None):
+        if method == "POST" and path == "/refund":
+            assert apply(db_other, booking, "pending", "5555", TOTAL) == "applied"  # adopted onto the sending attempt
+        return real(method, path, params, json_body)
+
+    db_other = SessionLocal()
+    fake_paystack.call = spy
+    try:
+        refunds.dispatch_due(db)
+    finally:
+        db_other.close()
+    r, = reload(db, refund)
+    assert r.status == "needs_review" and r.review_flagged_at is not None and "5555" in r.review_reason
+    assert attempts_of(db, refund)[0].paystack_refund_id == "5555"
+    assert apply(db, booking, "processed", "1001", TOTAL) == "review"  # not silently ignored
+    assert refunds.dispatch_due(db) == 0
+
+
+def test_early_webhook_between_claim_and_record_is_not_undone(db, fake_paystack):
+    booking, refund = approved(db, fake_paystack)
+    real = fake_paystack.call
+    other = SessionLocal()
+
+    def spy(method, path, params=None, json_body=None):
+        out = real(method, path, params, json_body)
+        if method == "POST" and path == "/refund":  # the webhook beats our own bookkeeping
+            assert apply(other, booking, "processed", "1001", TOTAL) == "applied"
+        return out
+
+    fake_paystack.call = spy
+    try:
+        refunds.dispatch_due(db)
+    finally:
+        other.close()
+    r, b = reload(db, refund, booking)
+    assert (r.status, b.payment_status) == ("succeeded", PaymentStatus.REFUNDED)
+    assert [(a.status, a.paystack_refund_id) for a in attempts_of(db, refund)] == [("processed", "1001")]
+    assert events(db, booking) == [("refund_processed", f"{refund.id}:complete")]  # no stale "being processed"
+
+
+def test_late_processed_for_attempt_one_after_success_by_attempt_two_goes_to_needs_review(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack)
+    apply(db, booking, "failed", pid, TOTAL, reason="x")
+    r, = reload(db, refund)
+    r.status = "approved"
+    db.commit()
+    refunds.dispatch_due(db)
+    pid2 = attempts_of(db, refund)[1].paystack_refund_id
+    assert apply(db, booking, "processed", pid2, TOTAL) == "applied"
+    assert apply(db, booking, "processed", pid, TOTAL) == "review"  # attempt 1 paid too: double payment
+    r, = reload(db, refund)
+    assert r.status == "needs_review" and r.review_flagged_at is not None
+
+
+def test_contradiction_on_a_finished_refund_with_another_open_refund_sets_the_review_flag(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack, amount=1_000_000)
+    apply(db, booking, "processed", pid, 1_000_000)
+    other = Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                   suggested_amount_kobo=500_000, status="pending_approval")
+    db.add(other)
+    db.commit()
+    assert apply(db, booking, "failed", pid, 1_000_000) == "review"  # failed after processed
+    r, o = reload(db, refund, other)
+    assert r.status == "succeeded" and r.review_flagged_at is not None and "failed" in r.review_reason
+    assert o.status == "pending_approval"  # the one-open-refund index is not disturbed
+
+
+def test_failed_after_processed_goes_to_needs_review(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack)
+    apply(db, booking, "processed", pid, TOTAL)
+    assert apply(db, booking, "failed", pid, TOTAL) == "review"
+    r, = reload(db, refund)
+    assert r.status == "needs_review" and r.review_flagged_at is not None
+
+
+def test_late_processed_after_a_wallet_switch_goes_to_needs_review(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack)
+    apply(db, booking, "failed", pid, TOTAL, reason="x")
+    r, = reload(db, refund)
+    r.status, r.destination = "succeeded", "wallet"  # what Task 7's switch-to-wallet will leave behind
+    db.commit()
+    assert apply(db, booking, "processed", pid, TOTAL) == "review"
+    r, = reload(db, refund)
+    assert r.status == "needs_review"
+
+
+def test_sending_attempt_with_no_reply_goes_to_review_after_grace_and_is_never_resent(db, fake_paystack):
+    booking, refund = approved(db, fake_paystack)
+    real = fake_paystack.call
+    calls = []
+
+    def crash(method, path, params=None, json_body=None):
+        if method == "POST" and path == "/refund":
+            calls.append(1)
+            raise SystemExit  # the worker dies after the claim committed, before any answer
+        return real(method, path, params, json_body)
+
+    fake_paystack.call = crash
+    with pytest.raises(SystemExit):
+        refunds.dispatch_due(db)
+    db.rollback()
+    fake_paystack.call = real
+    assert [a.status for a in attempts_of(db, refund)] == ["sending"]
+    for _ in range(3):
+        assert refunds.dispatch_due(db) == 0
+    aged(db, refund, 31)
+    assert refunds.reconcile(db) == 1
+    r, = reload(db, refund)
+    assert r.status == "needs_review"
+    assert len(calls) == 1 and posts(fake_paystack) == []  # exactly one attempt to send, never repeated
+
+
+def test_refund_event_on_an_unsent_refund_goes_to_review_and_nothing_is_sent(db, fake_paystack):
+    booking, refund = approved(db, fake_paystack)
+    assert apply(db, booking, "processed", "777", TOTAL) == "review"  # a refund made outside Oakly
+    r, b = reload(db, refund, booking)
+    assert (r.status, b.payment_status) == ("needs_review", PaymentStatus.PAID)
+    assert refunds.dispatch_due(db) == 0 and posts(fake_paystack) == []
+
+
+def test_processed_with_no_amount_looks_it_up_and_succeeds(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack)
+    assert apply(db, booking, "processed", pid, None) == "applied"  # the fake knows the amount
+    r, = reload(db, refund)
+    assert r.status == "succeeded"
+
+
+def test_processed_with_an_unreadable_amount_that_cannot_be_looked_up_is_a_contradiction(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack)
+    fake_paystack.refund_error = "timeout"
+    assert apply(db, booking, "processed", pid, "n/a") == "review"
+    r, b = reload(db, refund, booking)
+    assert (r.status, b.payment_status) == ("needs_review", PaymentStatus.PAID)
+
+
+def test_two_bookings_with_one_reference_are_ignored_not_a_500(db, client, fake_paystack):
+    booking, refund = approved(db, fake_paystack)
+    make_booking(db, make_patient(db), paystack_reference=booking.paystack_reference)
+    assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
+                                      paystack_refund_id=None, amount_kobo=TOTAL) == "ignored"
+
+
+def test_a_garbage_amount_on_a_repeat_does_not_500(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack)
+    apply(db, booking, "processed", pid, TOTAL)
+    other = Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                   status="pending_approval")
+    db.add(other)
+    db.commit()  # no id match and an open refund: goes through the reference path
+    assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
+                                      paystack_refund_id=None, amount_kobo="x") in ("ignored", "duplicate", "review")
+
+
+def test_reconcile_covers_needs_attention_refunds(db, fake_paystack):
+    booking, refund, pid = sent(db, fake_paystack)
+    apply(db, booking, "needs-attention", pid, TOTAL)
+    fake_paystack.refunds[pid]["status"] = "processed"  # the final webhook was lost
+    aged(db, refund, 11)
+    assert refunds.reconcile(db) == 1
+    r, = reload(db, refund)
+    assert r.status == "succeeded"
+
+
+def test_one_failing_refund_does_not_stop_the_batch(db, fake_paystack, monkeypatch):
+    b1, r1, p1 = sent(db, fake_paystack)
+    b2, r2, p2 = sent(db, fake_paystack)
+    fake_paystack.refunds[p1]["status"] = fake_paystack.refunds[p2]["status"] = "processed"
+    aged(db, r1, 11)
+    aged(db, r2, 12)
+    real = refunds.PaystackService.fetch_refund
+
+    def flaky(self, pid_):
+        if pid_ == p2:  # the older one is first
+            raise RuntimeError("boom")
+        return real(self, pid_)
+
+    monkeypatch.setattr(refunds.PaystackService, "fetch_refund", flaky)
+    assert refunds.reconcile(db) == 1
+    a, b = reload(db, r1, r2)
+    assert (a.status, b.status) == ("succeeded", "processing")
+
+
+def test_old_processing_refunds_do_not_starve_unknown_sends(db, fake_paystack):
+    for _ in range(3):
+        _b, r, _p = sent(db, fake_paystack)
+        aged(db, r, 100)
+    booking, refund = approved(db, fake_paystack)
+    fake_paystack.refund_error = "timeout"
+    refunds.dispatch_due(db)
+    fake_paystack.refund_error = None
+    fake_paystack.refunds["2001"] = {"id": "2001", "transaction_reference": booking.paystack_reference, "amount": TOTAL,
+                                     "status": "processed"}
+    aged(db, refund, 11)
+    assert refunds.reconcile(db, limit=1) == 1  # the one slot goes to the send that has no Paystack id
+    r, = reload(db, refund)
+    assert r.status == "succeeded"

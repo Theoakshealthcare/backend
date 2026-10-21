@@ -193,7 +193,7 @@ def test_detail_has_every_section_and_a_timeline(client, db, boss):
     assert [w["wave_no"] for w in d["dispatch"]["waves"]] == [1]
     assert d["dispatch"]["waves"][0]["notified_count"] == 1
     assert d["dispatch"]["offers"][0]["caregiver_id"] == str(cg.id)
-    assert {e["event"] for e in d["events"]} == {"payment_received", "booking_cancelled_by_admin", "refund_flagged"}
+    assert {e["event"] for e in d["events"]} == {"payment_received", "booking_cancelled_by_admin"}
     kinds = [t["kind"] for t in d["timeline"]]
     assert kinds[0] == "booking_created" and "wave_sent" in kinds and "admin_action" in kinds
     assert [t["at"] for t in d["timeline"]] == sorted(t["at"] for t in d["timeline"])
@@ -468,7 +468,7 @@ def test_cancel_with_a_full_refund_flags_it_and_tells_the_booker(client, db, ops
     assert b2.payment_status == PaymentStatus.PAID  # no money moved: the refund queue does that
     assert b2.refund_amount_kobo == b2.total_amount_kobo
     assert sorted(e.event for e in db.query(BookingEvent).filter_by(booking_id=b.id)) == [
-        "booking_cancelled_by_admin", "refund_flagged"]  # W3: the booker is told, and told about the refund
+        "booking_cancelled_by_admin"]  # the booker is told it is cancelled; the refund is announced when it is sent
     (row,) = audit_rows(db, b, "booking.cancel")
     assert row.reason == "Patient called" and row.after["refund"] == "full"
     assert row.before["status"] == "pending" and row.after["status"] == "cancelled"
@@ -751,7 +751,7 @@ def test_two_admins_cancelling_at_once_only_one_succeeds(db):
     assert sorted(results) == ["conflict", "ok"]
     assert len(audit_rows(db, booking, "booking.cancel")) == 1
     assert sorted(e.event for e in db.query(BookingEvent).filter_by(booking_id=booking.id)) == [
-        "booking_cancelled_by_admin", "refund_flagged"]  # one cancel, so each told exactly once
+        "booking_cancelled_by_admin"]  # one cancel, so told exactly once
 
 
 def test_search_by_name_or_phone_needs_people_pii(client, db):
