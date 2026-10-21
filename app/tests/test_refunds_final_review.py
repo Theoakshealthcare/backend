@@ -20,7 +20,7 @@ from app.tests.fake_meta import fake_paystack  # noqa: F401  (fixture)
 from app.tests.refund_helpers import assert_refund_conserved, refunds_of
 from app.tests.test_money_webhook import _post as post_charge_event
 from app.tests.test_refunds_failures import (
-    TOTAL, attempts_of, dashboard_refund, failed, finance, get, sent_refund, super_admin)
+    TOTAL, attempts_of, dashboard_refund, failed, finance, get, reviewed, sent_refund, super_admin)
 
 
 def paid_booking(db, fake, *, channel="app", total=TOTAL, status=BookingStatus.COMPLETED, **fields):
@@ -386,3 +386,109 @@ def test_m1_old_needs_attention_refunds_do_not_starve_processing_ones(db, fake_p
     for _ in range(3):  # a few runs: every run asks the least recently asked first, so the live one is reached
         refunds.reconcile(db, limit=2)
     assert get(db, refund).status == "succeeded"
+
+
+# --- wave 3 ---------------------------------------------------------------------------------------------------------------
+def unknown_send_in_review(db, fake):
+    """An approved refund whose send got no answer, then reconcile (no Paystack record after the grace) put it in review."""
+    booking = paid_booking(db, fake, channel="whatsapp", status=BookingStatus.CANCELLED)
+    refund = Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                    suggested_amount_kobo=TOTAL, amount_kobo=TOTAL, destination="original_method", status="approved",
+                    approved_at=datetime.utcnow())
+    db.add(refund)
+    db.commit()
+    fake.refund_error = "timeout"
+    assert refunds.dispatch_due(db) == 1
+    fake.refund_error = None
+    for a in attempts_of(db, refund):
+        a.created_at = datetime.utcnow() - timedelta(minutes=60)
+    db.commit()
+    assert refunds.reconcile(db) == 1
+    assert get(db, refund).status == "needs_review"
+    return booking, refund
+
+
+def test_a_late_processed_for_our_own_unconfirmed_send_is_adopted_not_split_off(db, fake_paystack):
+    booking, refund = unknown_send_in_review(db, fake_paystack)
+    pid = dashboard_refund(fake_paystack, booking, "processed", TOTAL)  # the send did reach Paystack after all
+    assert event(db, booking, "processed", pid, TOTAL) == "review"
+    assert len(refunds_of(db, booking)) == 1  # no outside row
+    [attempt] = attempts_of(db, refund)
+    assert (attempt.paystack_refund_id, attempt.status) == (pid, "processed")
+    with pytest.raises(refunds.RefundConflict):
+        refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="failed", note="nothing left")
+    for act in (lambda: refunds.retry_refund(db, refund.id, admin=finance(db)),
+                lambda: refunds.switch_to_wallet(db, refund.id, admin=super_admin(db))):
+        with pytest.raises(refunds.RefundConflict):
+            act()
+    assert refunds.dispatch_due(db) == 0
+    out = refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="it was sent")
+    assert out.status == "succeeded"
+
+
+def test_an_earlier_paid_attempt_is_accepted_only_when_the_current_one_is_dead(db, fake_paystack):
+    booking, refund, pid1 = failed(db, fake_paystack)
+    refunds.retry_refund(db, refund.id, admin=finance(db))
+    refunds.dispatch_due(db)
+    pid2 = attempts_of(db, refund)[1].paystack_refund_id  # attempt 2 is alive at Paystack (pending)
+    r = get(db, refund)
+    r.status, r.review_flagged_at, r.review_reason = "needs_review", datetime.utcnow(), "odd"
+    db.commit()
+    fake_paystack.refunds[pid1]["status"] = "processed"
+    with pytest.raises(refunds.RefundConflict) as e:
+        refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="attempt 1 paid")
+    assert e.value.message == refunds.EARLIER_PAID
+    assert get(db, refund).status == "needs_review"
+    fake_paystack.refunds[pid2]["status"] = "failed"  # now the current attempt is dead too
+    out = refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="attempt 1 paid")
+    assert out.status == "succeeded"
+    assert [a.status for a in attempts_of(db, refund)] == ["processed", "failed"]
+
+
+def test_a_second_flag_appends_to_the_review_reason(db, fake_paystack):
+    booking, refund, pid = reviewed(db, fake_paystack)
+    first = get(db, refund).review_reason
+    assert first
+    other = dashboard_refund(fake_paystack, booking, "processed", 1_000)
+    event(db, booking, "processed", other, 1_000)
+    reason = get(db, refund).review_reason
+    assert first in reason and "outside Oakly" in reason
+
+
+def test_the_backstop_refuses_every_money_move_when_another_counted_refund_covers_the_total(db, fake_paystack, monkeypatch):
+    def cover(booking):  # a succeeded refund that already took the whole payment
+        db.add(Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                      suggested_amount_kobo=TOTAL, amount_kobo=TOTAL, destination="wallet", status="succeeded",
+                      processed_at=datetime.utcnow()))
+        db.commit()
+
+    booking, refund, pid = failed(db, fake_paystack)
+    cover(booking)
+    for act in (lambda: refunds.retry_refund(db, refund.id, admin=finance(db)),
+                lambda: refunds.switch_to_wallet(db, refund.id, admin=super_admin(db))):
+        with pytest.raises(refunds.RefundConflict) as e:
+            act()
+        assert "more than the family paid" in e.value.message
+    assert get(db, refund).status == "failed"
+
+    b2 = paid_booking(db, fake_paystack)
+    wallet_one = pending_refund(db, b2, TOTAL)
+    cover(b2)
+    monkeypatch.setattr(refunds, "refundable_kobo", lambda *a, **k: TOTAL)  # get past the 422 to reach the backstop
+    with pytest.raises(refunds.RefundConflict) as e:
+        refunds.approve_refund(db, wallet_one.id, admin=super_admin(db), amount_kobo=TOTAL, destination="wallet")
+    assert "more than the family paid" in e.value.message
+    assert db.query(PatientTransaction).filter_by(refund_id=wallet_one.id).count() == 0
+    monkeypatch.undo()
+
+    b3 = paid_booking(db, fake_paystack, channel="whatsapp", status=BookingStatus.CANCELLED)
+    sendable = Refund(booking_id=b3.id, patient_id=b3.patient_id, reason_code="other", origin="system",
+                      suggested_amount_kobo=TOTAL, amount_kobo=TOTAL, destination="original_method", status="approved",
+                      approved_at=datetime.utcnow())
+    db.add(sendable)
+    db.commit()
+    cover(b3)
+    assert refunds.dispatch_due(db) == 0
+    assert not [r for r in fake_paystack.requests if r[0] == "POST" and r[1] == "/refund" and r[3].get("transaction") == b3.paystack_reference]
+    s = get(db, sendable)
+    assert s.status == "needs_review" and "more than the family paid" in s.review_reason
