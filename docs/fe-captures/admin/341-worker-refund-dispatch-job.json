@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "refund_dispatch_job -> app.services.refunds.dispatch_due(SessionLocal()), run in a one-off worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "refunds_sent": 3,
+      "refund_requests_seen_by_the_fake": [
+        {
+          "transaction": "BKG_780212EB_15cdb46e",
+          "amount_kobo": 2000000
+        },
+        {
+          "transaction": "BKG_FC463CFD_d4090458",
+          "amount_kobo": 5500000
+        },
+        {
+          "transaction": "BKG_22D0E98F_3a6a03d3",
+          "amount_kobo": 1200000
+        }
+      ]
+    }
+  },
+  "note": "SIMULATION of the schedule: in production the ARQ cron runs this every minute. FAKE PAYSTACK: Three refunds were approved to the original payment method (20,000.00, 55,000.00 and 12,000.00 NGN): the fake received three POST /refund calls, one per refund, with the booking's Paystack reference."
+}

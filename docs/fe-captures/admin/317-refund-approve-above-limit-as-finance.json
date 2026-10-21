@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/7903c1f2-5fbd-4628-aab9-b5ce9e83a600/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Refunds on this booking would total ₦55,000, above the ₦50,000 limit for Finance. A Super Admin must approve it."
+    }
+  },
+  "note": "The suggested amount is the whole 55,000.00 NGN, above Finance's 50,000.00 NGN limit."
+}

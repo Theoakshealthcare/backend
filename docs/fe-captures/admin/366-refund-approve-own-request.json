@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/0f709552-4a5c-478d-9f26-6bf0f8837d00/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "You raised this refund, so someone else must approve it."
+    }
+  }
+}

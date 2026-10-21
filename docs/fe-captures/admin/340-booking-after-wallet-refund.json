@@ -1,0 +1,105 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/bookings/2f1fa0f8-ac3f-40e6-992a-da12d9fb98f4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "2f1fa0f8-ac3f-40e6-992a-da12d9fb98f4",
+      "booking_code": "33E5AA67",
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "booking_for": "myself",
+      "duration_hours": 2,
+      "scheduled_date": "2026-10-22T16:29:06.090526",
+      "scheduled_end_date": "2026-10-22T18:29:06.090526",
+      "actual_start_time": null,
+      "actual_end_time": null,
+      "status": "cancelled",
+      "channel": "app",
+      "cancel_reason": "no_supply",
+      "created_at": "2026-10-21T13:49:06.089407",
+      "updated_at": "2026-10-21T14:29:06.703125",
+      "age_minutes": 40,
+      "patient": {
+        "id": "0c49611a-830a-4713-8b28-66f9c0b7c4ec",
+        "full_name": "Ada O.",
+        "phone": "+234****6801",
+        "masked": true
+      },
+      "caregiver": null,
+      "address": {
+        "city": "Lagos",
+        "state": "Lagos",
+        "visible": false,
+        "line": null,
+        "latitude": null,
+        "longitude": null,
+        "needs_address_check": false
+      },
+      "clinical": {
+        "masked": true,
+        "has_condition": true,
+        "has_special_instructions": true,
+        "condition": null,
+        "special_instructions": null
+      },
+      "price": {
+        "total_kobo": 5500000,
+        "service_fee_kobo": 5000000,
+        "platform_fee_kobo": 500000
+      },
+      "payment": {
+        "status": "refunded",
+        "paystack_reference": "BKG_33E5AA67_bbc576af",
+        "failure_reason": null,
+        "expires_at": null,
+        "refund_required": false,
+        "refund_required_reason": "admin_cancelled_full",
+        "refund_amount_kobo": 5500000,
+        "attempts": []
+      },
+      "dispatch": {
+        "state": "dispatching",
+        "started_at": "2026-10-21T14:24:06.090530",
+        "waves": [],
+        "offers": []
+      },
+      "events": [],
+      "no_show_flagged_at": null,
+      "no_show_suspected": false,
+      "note_count": 0,
+      "timeline": [
+        {
+          "at": "2026-10-21T13:49:06.089407",
+          "kind": "booking_created",
+          "title": "Booking created via app",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-10-21T14:24:06.090530",
+          "kind": "dispatch_started",
+          "title": "Dispatch started",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-10-21T14:29:06.157988",
+          "kind": "admin_action",
+          "title": "booking.cancel",
+          "actor": "admin: Placeholder operations",
+          "detail": "No caregiver could take the visit"
+        }
+      ],
+      "available_actions": []
+    }
+  },
+  "note": "payment_status is refunded: the whole 55,000.00 NGN went to the wallet."
+}

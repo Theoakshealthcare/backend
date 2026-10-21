@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "refund_reconcile_job -> app.services.refunds.reconcile(SessionLocal(), now=<31 minutes ahead>)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "refunds_acted_on": 1
+    }
+  },
+  "note": "SIMULATION: the job's clock was moved 31 minutes ahead. Paystack still has no record of the refund, which does not prove it was not sent, so the refund goes to needs_review rather than failed."
+}

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/7903c1f2-5fbd-4628-aab9-b5ce9e83a600/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "amount_naira": 20000,
+      "destination": "wallet"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Only a Super Admin can refund to the Oakly wallet."
+    }
+  }
+}

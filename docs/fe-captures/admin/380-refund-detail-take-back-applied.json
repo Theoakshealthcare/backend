@@ -1,0 +1,74 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds/0f709552-4a5c-478d-9f26-6bf0f8837d00",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "0f709552-4a5c-478d-9f26-6bf0f8837d00",
+      "booking_id": "d5d5e833-3ab2-476d-9471-93b2d7efd831",
+      "booking_code": "A18FA979",
+      "status": "succeeded",
+      "reason_code": "complaint",
+      "origin": "staff",
+      "suggested_amount_naira": 20000.0,
+      "amount_naira": 20000.0,
+      "destination": "original_method",
+      "take_back_from_caregiver": true,
+      "take_back_naira": 14545.45,
+      "failure_reason": null,
+      "note": "Placeholder: the family says the visit was cut short",
+      "rejected_reason": null,
+      "requested_by": "e935f884-e2d3-41bc-9cd9-8237111d16c8",
+      "approved_by": "be72d91d-f2fa-4fa3-a44b-c7c44a1b23a5",
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-10-21T14:29:14.542361",
+      "approved_at": "2026-10-21T14:29:14.741555",
+      "processed_at": "2026-10-21T14:29:21.474143",
+      "max_approvable_naira": 50000.0,
+      "available_actions": [],
+      "booking": {
+        "code": "A18FA979",
+        "status": "completed",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": true,
+        "caregiver_arrived": true,
+        "completed": true,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 20000.0,
+        "refundable_naira": 35000.0
+      },
+      "suggestion_why": "The amount entered when this refund was raised.",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "processed",
+          "failure_reason": null,
+          "paystack_refund_id": "1004",
+          "bank_code": null,
+          "account_last4": null,
+          "account_name": null,
+          "bank_details_submitted_at": null,
+          "created_at": "2026-10-21T14:29:17.717228"
+        }
+      ],
+      "take_back_reason": "The caregiver left the visit early",
+      "take_back_preview_naira": null,
+      "take_back_debited_naira": 1000.0,
+      "take_back_owed_naira": 13545.45,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "take_back_debited_naira came out of the caregiver's wallet; take_back_owed_naira is what the wallet could not cover and is recovered from her next earnings."
+}

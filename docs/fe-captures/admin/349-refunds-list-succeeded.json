@@ -1,0 +1,96 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds?status=succeeded&limit=5",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "d7b74acb-16af-4965-b6b3-5de7e7995b5b",
+          "booking_id": "e559a2e8-c4a0-489f-a091-9cb3ab147178",
+          "booking_code": "22D0E98F",
+          "status": "succeeded",
+          "reason_code": "admin_cancelled",
+          "origin": "system",
+          "suggested_amount_naira": 12000.0,
+          "amount_naira": 12000.0,
+          "destination": "original_method",
+          "take_back_from_caregiver": false,
+          "take_back_naira": 0.0,
+          "failure_reason": null,
+          "note": null,
+          "rejected_reason": null,
+          "requested_by": null,
+          "approved_by": "e935f884-e2d3-41bc-9cd9-8237111d16c8",
+          "review_flagged_at": null,
+          "review_reason": null,
+          "created_at": "2026-10-21T14:29:06.229633",
+          "approved_at": "2026-10-21T14:29:06.464654",
+          "processed_at": "2026-10-21T14:29:10.752643",
+          "max_approvable_naira": 50000.0,
+          "available_actions": []
+        },
+        {
+          "id": "87c46e35-d6bf-4a04-a686-4a0f766febe1",
+          "booking_id": "2f1fa0f8-ac3f-40e6-992a-da12d9fb98f4",
+          "booking_code": "33E5AA67",
+          "status": "succeeded",
+          "reason_code": "admin_cancelled",
+          "origin": "system",
+          "suggested_amount_naira": 55000.0,
+          "amount_naira": 55000.0,
+          "destination": "wallet",
+          "take_back_from_caregiver": false,
+          "take_back_naira": 0.0,
+          "failure_reason": null,
+          "note": null,
+          "rejected_reason": null,
+          "requested_by": null,
+          "approved_by": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+          "review_flagged_at": null,
+          "review_reason": null,
+          "created_at": "2026-10-21T14:29:06.156855",
+          "approved_at": "2026-10-21T14:29:06.697764",
+          "processed_at": "2026-10-21T14:29:06.697764",
+          "max_approvable_naira": 50000.0,
+          "available_actions": []
+        },
+        {
+          "id": "b194c45f-cbdd-41cc-a6c3-03c0ca65bfdf",
+          "booking_id": "46a72810-7729-40ce-9f68-b3d1f9ae06ec",
+          "booking_code": "FC463CFD",
+          "status": "succeeded",
+          "reason_code": "admin_cancelled",
+          "origin": "system",
+          "suggested_amount_naira": 55000.0,
+          "amount_naira": 55000.0,
+          "destination": "original_method",
+          "take_back_from_caregiver": false,
+          "take_back_naira": 0.0,
+          "failure_reason": null,
+          "note": null,
+          "rejected_reason": null,
+          "requested_by": null,
+          "approved_by": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+          "review_flagged_at": null,
+          "review_reason": null,
+          "created_at": "2026-10-21T14:29:06.145824",
+          "approved_at": "2026-10-21T14:29:06.449987",
+          "processed_at": "2026-10-21T14:29:10.693794",
+          "max_approvable_naira": 50000.0,
+          "available_actions": []
+        }
+      ],
+      "total": 3,
+      "limit": 5,
+      "offset": 0
+    }
+  }
+}

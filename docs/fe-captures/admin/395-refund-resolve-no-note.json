@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/bbaf23f5-3fed-46bc-b474-25599b045e7c/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "succeeded"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "note"
+          ],
+          "msg": "Field required",
+          "input": {
+            "outcome": "succeeded"
+          }
+        }
+      ]
+    }
+  }
+}

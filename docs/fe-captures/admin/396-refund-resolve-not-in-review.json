@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/d7b74acb-16af-4965-b6b3-5de7e7995b5b/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "succeeded",
+      "note": "Placeholder"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "This refund is not waiting for review"
+    }
+  }
+}

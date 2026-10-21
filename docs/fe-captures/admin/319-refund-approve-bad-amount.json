@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/7903c1f2-5fbd-4628-aab9-b5ce9e83a600/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "amount_naira": 10.123
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "decimal_max_places",
+          "loc": [
+            "body",
+            "amount_naira"
+          ],
+          "msg": "Decimal input should have no more than 2 decimal places",
+          "input": 10.123,
+          "ctx": {
+            "decimal_places": 2
+          }
+        }
+      ]
+    }
+  }
+}

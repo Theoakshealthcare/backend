@@ -1,0 +1,78 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/bbaf23f5-3fed-46bc-b474-25599b045e7c/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "succeeded",
+      "note": "Checked the Paystack dashboard: 54,000.00 NGN processed",
+      "amount_naira": 54000
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "bbaf23f5-3fed-46bc-b474-25599b045e7c",
+      "booking_id": "1639d024-269b-495c-bd4e-e5837707bf18",
+      "booking_code": "4AE4BD30",
+      "status": "succeeded",
+      "reason_code": "admin_cancelled",
+      "origin": "system",
+      "suggested_amount_naira": 55000.0,
+      "amount_naira": 54000.0,
+      "destination": "original_method",
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": null,
+      "rejected_reason": null,
+      "requested_by": null,
+      "approved_by": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-10-21T14:29:06.197649",
+      "approved_at": "2026-10-21T14:29:15.158719",
+      "processed_at": "2026-10-21T14:29:21.799036",
+      "max_approvable_naira": 55000.0,
+      "available_actions": [],
+      "booking": {
+        "code": "4AE4BD30",
+        "status": "cancelled",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": false,
+        "caregiver_arrived": false,
+        "completed": false,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 54000.0,
+        "refundable_naira": 1000.0
+      },
+      "suggestion_why": "Set by the admin who cancelled the booking.",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "processed",
+          "failure_reason": null,
+          "paystack_refund_id": "1008",
+          "bank_code": null,
+          "account_last4": null,
+          "account_name": null,
+          "bank_details_submitted_at": null,
+          "created_at": "2026-10-21T14:29:17.825947"
+        }
+      ],
+      "take_back_reason": null,
+      "take_back_preview_naira": null,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "The refund records the amount that really left (54,000.00 NGN)."
+}

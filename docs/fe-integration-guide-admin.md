@@ -1,8 +1,8 @@
-# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy, pricing, earnings, payouts)
+# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy, pricing, earnings, payouts, refunds)
 
 | | |
 |---|---|
-| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers`. Pricing settings (section 13), branch `fix/booking-settings-audit`, no migration |
+| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers`. Pricing settings (section 13), branch `fix/booking-settings-audit`, no migration. Refunds (section 12.12), branch `feat/refunds-v2`, migration `0014_refunds_v2` |
 | **Audience** | `apps/admin` (the console): A1, A2 |
 | **Base URL** | `http://127.0.0.1:8000` for the local stack; every path below starts with `/api/v1` |
 | **Source of truth** | Every request and response body, status code and error string below was **copied from a real response** captured by `scripts/capture_admin_flow.py` against the running docker compose stack. The files are in [`docs/fe-captures/admin/`](fe-captures/admin/); each example names its file. Anything that could not be exercised live is marked **[not live]** with the reason. |
@@ -478,7 +478,7 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
 | `POST`/`PUT`/`DELETE /booking-settings/...` | `pricing.write` (section 13) |
 | `POST`/`PUT`/`DELETE /prescription/settings/...`, `PATCH /prescription/{id}`, `POST /prescription/{id}/upload_note`, `PATCH /prescription/{id}/status` | `prescriptions.manage` |
 | `POST`/`PUT`/`DELETE /fallguard/admin/question...`, `GET /fallguard/admin/questions` | `fallguard.write` |
-| `GET /patient/admin/refund/requests`, `PUT /patient/admin/refund/requests/{id}` | `refunds.approve` |
+| `GET /patient/admin/refund/requests`, `PUT /patient/admin/refund/requests/{id}` (retired: `410`, section 12.12) | `refunds.approve` |
 | `GET /booking/ws/stats` | `dashboard.read` |
 | `GET /admin/admins`, `POST /admin/admins`, `PATCH /admin/admins/{id}`, `POST /admin/admins/{id}/reset-mfa` | `admins.manage` |
 | `GET /admin/audit` | `audit.read` (Super Admin, Finance) |
@@ -1166,7 +1166,7 @@ One call returns everything the detail screen needs. As Operations (address visi
 
 - `caregiver` is `null` until someone accepts. `dispatch.state` is `null` for a booking never dispatched (unpaid, or held).
 - `dispatch.offers[].response` is `null` until the caregiver answers, then `accept`, `declined`, `auto_declined` (someone else took it), `booking_cancelled`, `reassigned` or `assigned_by_admin`.
-- `payment.refund_required_reason` is a free-text code: `paid_after_expiry`, `paid_after_cancellation`, `admin_cancelled_full` or `admin_cancelled_partial`. The amount to refund is `payment.refund_amount_kobo` (integer kobo; `null` means the refund module decides). *Not captured live: this field was added after the captures; the shape follows the schema.*
+- `payment.refund_required_reason` is a free-text code: `paid_after_expiry`, `paid_after_cancellation`, `admin_cancelled_full` or `admin_cancelled_partial`. The amount to refund is `payment.refund_amount_kobo` (integer kobo; `null` means a person decides it in the refunds queue, section 12.12). *Not captured live: this field was added after the captures; the shape follows the schema.*
 
 **Clinical details are gated and every read is audited.** Without `clinical.read` the response says only that something exists:
 
@@ -1282,7 +1282,7 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 - **Every action returns the same small object** (what changed; refetch the detail for the rest) with `notified_caregivers` counting caregivers offered the visit (re-dispatch, assign offer, confirm-address):
 - **Errors.** `404` unknown booking or caregiver (string `detail`). `409` the booking is not in a state that allows it (string `detail`, exact wording below; **always show it to the admin**, it says what to do). `403` `Access denied. Missing permission: <permission>` as in section 2, or `Only a Super Admin can force an assignment`. `422` for invalid input.
 - **Two admins at once:** the second one gets a `409` describing the state the first one left. Refetch the detail.
-- **No action moves money.** Cancelling flags the booking for the refund queue; nothing is refunded until that queue (a later work package) acts.
+- **No action here moves money.** Cancelling a paid booking with a refund choice queues a refund in the refunds queue (section 12.12); nothing is refunded until a person approves it there and Paystack pays it.
 
 <!-- capture: 096-redispatch.json response.body -->
 ```json
@@ -1514,7 +1514,7 @@ Allowed from `pending`, `accepted` and `en_route`. A refund choice on an unpaid 
 
 **UX the console must surface**
 
-- **Cancelling does not refund.** `refund_required` becomes `true`; the booking's `payment_status` stays `paid`. Say "refund requested", never "refunded".
+- **Cancelling does not refund.** `refund_required` becomes `true` and a refund is queued for approval (section 12.12); the booking's `payment_status` stays `paid` until a refund succeeds (then `partially_refunded` or `refunded`). Say "refund requested", never "refunded".
 - A WhatsApp booker is told "a refund is coming" when a refund was chosen. **A cancel with `refund: none` sends the patient no cancellation message yet** (there is no event for it; follow-up). Tell the admin to contact the patient.
 - A caregiver who had accepted gets a notification and a push; unanswered offers to other caregivers are closed.
 
@@ -4253,6 +4253,837 @@ _captures `283`, `284`_
 - Payouts are weekly by default; show the policy's `payout_cadence` and `payout_min_naira` on the batch screen and link to the booking policy editor.
 - The console can never see a full bank account number here; do not build a "reveal" control.
 
+## 12.12 Refunds (A3 slice 3): `/api/v1/admin/refunds`
+
+**What it is, in the console's terms.** A **refund** is one row in a queue that Finance works. Every refund is created `pending_approval`, a **person always approves it** (nothing is refunded automatically, even when nobody was at fault), it is paid **once**, through **one destination** (the family's original payment method through Paystack, or the family's Oakly wallet), and its status is **Paystack's word**, not a guess. A booking can have several refunds over its life (for example a fee refunded after the main refund) but **never two open at once**.
+
+A refund is created by:
+
+| Origin | `origin` | How | Evidence |
+|---|---|---|---|
+| A cancel path | `system` | An admin cancels a **paid** booking with `refund: full` or `partial` (section 12.6); the caregiver cancels a paid **app** booking; the booker cancels on WhatsApp; a payment lands after the booking expired or was cancelled. `suggested_amount_naira` comes from the cancel policy: the whole payment for a no-fault cancel, the payment less the cancellation fee for a family cancel, the admin's amount for a partial cancel. `requested_by` is `null`. | Admin cancel: 304, 306. The other three paths: **[not live]**, tests only (`test_refunds_create.py`, `test_whatsapp_notifications.py`); no caregiver app or WhatsApp user was driven in the capture run |
+| A person | `staff` | `POST /admin/refunds`, for a complaint or anything else, on a **completed or cancelled** booking only. `requested_by` is the admin. | 328, 364 |
+
+**[seeded]** The patients, caregivers and the 13 paid bookings (55,000.00 NGN each) are inserted directly (capture 303). **[fake Paystack]** Every Paystack answer and webhook below comes from a **local fake** shaped after Paystack's documented refund replies; the webhooks are correctly signed with the stack's placeholder key. **[simulated schedule]** The send and reconcile steps are the **real functions** run in a one-off worker container (in production the ARQ cron runs them: send every minute, reconcile every 15 minutes). **A live Paystack account has not been exercised**, so real Paystack timings (a processed card refund reaches the family **up to 10 business days later**) and real WhatsApp delivery are **[not live]**.
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /admin/refunds` | any of `refunds.request`, `refunds.approve`, `payments.read` (Operations, Support, Finance, Super Admin) | filters `status`, `reason_code`, `booking_id`, `above_limit`; `limit` (1 to 200, default 50), `offset`; newest first. Returns `{items, total, limit, offset}` |
+| `GET /admin/refunds/{id}` | same | the refund plus its booking context, attempts and the caller's `available_actions` |
+| `POST /admin/refunds` | `refunds.request` | body `{booking_id, amount_naira, reason_code, note?}`; **`201`** with the detail |
+| `POST /admin/refunds/{id}/approve` | `refunds.approve` (Finance, Super Admin), plus `refunds.approve_above_limit` (**Super Admin only**) above the limit or for the wallet | body `{amount_naira?, destination?, take_back_from_caregiver?, take_back_reason?, note?}`, all optional; returns the detail |
+| `POST /admin/refunds/{id}/reject` | `refunds.approve` | body `{reason}` |
+| `POST /admin/refunds/{id}/retry` | `refunds.approve` | no body; only a `failed` refund |
+| `POST /admin/refunds/{id}/bank-details` | `refunds.approve` | body `{bank_code, account_number}`; only a `needs_attention` refund |
+| `POST /admin/refunds/{id}/switch-to-wallet` | `refunds.approve_above_limit` (**Super Admin only**) | no body; only a `failed` refund of an app booker |
+| `POST /admin/refunds/{id}/close` | `refunds.approve` | body `{reason}`; only a `failed` refund |
+| `POST /admin/refunds/{id}/resolve` | `refunds.approve_above_limit` (**Super Admin only**) | body `{outcome: "succeeded" or "failed", note, amount_naira?}`; only a refund in `needs_review` (or flagged) |
+
+Every write returns the **refund detail** (the same shape as `GET /admin/refunds/{id}`), so the console can replace the row without a second call. Every write is audited (section "The audit trail" below). **There is no "send" route**: approving does not send, the send job does (up to a minute later).
+
+**Money is NAIRA here, as JSON numbers with at most two decimals** (`55000.0`, `14545.45`), **not kobo**. The booking routes (section 12) and the payouts (12.11) speak integer kobo; this API does not. Request amounts with more than two decimals are a `422` (capture 319). One message is still in kobo (capture 331, see the errors table).
+
+### Reading the queue
+
+The default `status` is **`open`**: every unfinished refund (`pending_approval`, `approved`, `processing`, `needs_attention`, `needs_review`, `failed`) **plus finished ones flagged for review** (`review_flagged_at` not `null`). `all` removes the filter; any single status filters to it. `reason_code` is one of `cancelled_by_booker`, `caregiver_cancelled`, `no_caregiver_found`, `admin_cancelled`, `paid_after_expiry`, `paid_after_cancellation`, `complaint`, `other`. `above_limit=true` keeps refunds whose booking's refunds total more than the Finance limit.
+
+<!-- capture: 307-refunds-list.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "d7b74acb-16af-4965-b6b3-5de7e7995b5b",
+    "booking_id": "e559a2e8-c4a0-489f-a091-9cb3ab147178",
+    "booking_code": "22D0E98F",
+    "status": "pending_approval",
+    "reason_code": "admin_cancelled",
+    "origin": "system",
+    "suggested_amount_naira": 12000.0,
+    "amount_naira": null,
+    "destination": null,
+    "take_back_from_caregiver": false,
+    "take_back_naira": 0.0,
+    "failure_reason": null,
+    "note": null,
+    "rejected_reason": null,
+    "requested_by": null,
+    "approved_by": null,
+    "review_flagged_at": null,
+    "review_reason": null,
+    "created_at": "2026-10-21T14:29:06.229633",
+    "approved_at": null,
+    "processed_at": null,
+    "max_approvable_naira": 50000.0,
+    "available_actions": [
+      "approve",
+      "reject"
+    ]
+  }
+]
+```
+
+_capture `307-refunds-list.json` (first of three items; `total` was 10)_
+
+A filtered list (`status=pending_approval`, `reason_code=admin_cancelled`, `above_limit=true`):
+
+<!-- capture: 308-refunds-list-filtered.json response.body keys=total,limit,offset -->
+```json
+{
+  "total": 9,
+  "limit": 2,
+  "offset": 0
+}
+```
+
+Errors: a bad `status` is a `422` with a list `detail` (capture 310); no token `401` (312); a signed-in admin with none of the three read permissions (the Clinical Reviewer) gets `403` `Access denied. Missing permission: one of refunds.request, refunds.approve, payments.read` (311).
+
+### The refund object, and the detail
+
+<!-- capture: 313-refund-detail-system.json response.body -->
+```json
+{
+  "id": "7903c1f2-5fbd-4628-aab9-b5ce9e83a600",
+  "booking_id": "4ec47135-8b9b-46cc-83d5-92f12d18b440",
+  "booking_code": "780212EB",
+  "status": "pending_approval",
+  "reason_code": "admin_cancelled",
+  "origin": "system",
+  "suggested_amount_naira": 55000.0,
+  "amount_naira": null,
+  "destination": null,
+  "take_back_from_caregiver": false,
+  "take_back_naira": 0.0,
+  "failure_reason": null,
+  "note": null,
+  "rejected_reason": null,
+  "requested_by": null,
+  "approved_by": null,
+  "review_flagged_at": null,
+  "review_reason": null,
+  "created_at": "2026-10-21T14:29:06.129551",
+  "approved_at": null,
+  "processed_at": null,
+  "max_approvable_naira": 50000.0,
+  "available_actions": [
+    "approve",
+    "reject"
+  ],
+  "booking": {
+    "code": "780212EB",
+    "status": "cancelled",
+    "channel": "app",
+    "cancel_fee_tier": null,
+    "cancel_fee_naira": null,
+    "caregiver_assigned": false,
+    "caregiver_arrived": false,
+    "completed": false,
+    "total_naira": 55000.0,
+    "paystack_fee_naira": 825.0,
+    "refunded_naira": 0.0,
+    "refundable_naira": 55000.0
+  },
+  "suggestion_why": "Set by the admin who cancelled the booking.",
+  "attempts": [],
+  "take_back_reason": null,
+  "take_back_preview_naira": 0.0,
+  "take_back_debited_naira": null,
+  "take_back_owed_naira": null,
+  "needs_super_admin": true,
+  "limit_naira": 50000.0
+}
+```
+
+_capture `313-refund-detail-system.json`: a system refund of a cancelled booking, read by Finance_
+
+**Field-nesting and null traps**
+
+| Field | What to know |
+|---|---|
+| `suggested_amount_naira` vs `amount_naira` | `suggested_amount_naira` is what the policy said, frozen at creation; it is `null` when "a person must enter the amount" (a started visit cancelled by the caregiver, for example). `amount_naira` is **`null` until the refund is approved**, then the amount approved. Show the suggestion while pending, the amount afterwards. |
+| `destination` | `null` until approved, then `original_method` or `wallet`. |
+| `requested_by` / `approved_by` | admin ids. `requested_by` is `null` for a `system` refund; both are `null` until they happen. They are ids only: look the name up in the admin list if you need it. |
+| `take_back_naira`, `take_back_preview_naira`, `take_back_debited_naira`, `take_back_owed_naira` | `take_back_naira` is the amount **agreed at approval** (`0.0` when not taken back). `take_back_preview_naira` is what taking back **would** be: `0.0` for a booking that is not completed, a number for a completed one, and **`null` once the refund is finished** (succeeded, rejected, closed). `take_back_debited_naira` and `take_back_owed_naira` are **`null` until the money has left** and the take-back was applied, then the split: debited from the caregiver's wallet now, and owed (recovered from her next earnings). |
+| `review_flagged_at`, `review_reason` | set when Paystack contradicted Oakly (see "Needs review"). **They can be set on a refund whose `status` is `succeeded`, `closed` or `rejected`** (when the booking already has another open refund, the contradicting refund keeps its finished status and carries the flag). So the console's "needs a person" filter is **`status = needs_review` OR `review_flagged_at != null`**, which is exactly the default `open` list. |
+| `failure_reason` | Paystack's text for the current attempt, or Oakly's explanation. On a refund in `needs_review` it repeats the `review_reason`. Cleared when the refund is retried. |
+| `max_approvable_naira` vs `needs_super_admin` | **Both are about the caller.** `max_approvable_naira` is the most **this admin** may approve now: what is left to refund on the booking, and (without `refunds.approve_above_limit`) also what is left under the Finance limit, counting this booking's other refunds. `needs_super_admin` (detail only) is `true` when this refund's amount (the approved amount, else the suggestion) is **more than `max_approvable_naira`** for this caller. A Super Admin sees `needs_super_admin: false` for the same refund (capture 314). It is also computed for finished refunds, where it means nothing: ignore both fields once the refund is terminal. |
+| `limit_naira` | the Finance limit in force (policy `finance_refund_limit_naira`, 50,000.00 by default). |
+| `booking.refunded_naira` / `refundable_naira` | what is committed to refunds of this booking **including this one once approved** (not what has been paid out), and what is still refundable. `refundable_naira` is `0.0` while a 55,000.00 refund of a 55,000.00 booking is merely approved. |
+| `booking.cancel_fee_tier`, `cancel_fee_naira` | `null` for an admin cancel (no tier applies); set for a family cancel. `cancel_fee_naira` is `null` when the booking has no policy copy to work it out from. |
+| `booking.paystack_fee_naira` | `null` for bookings paid before this slice. Oakly **absorbs** Paystack's fee on every refund: the family gets every naira of the refund amount. |
+| `attempts[]` | one entry per call to Paystack, oldest first. `paystack_refund_id` is `null` until Paystack answered. `bank_code`, `account_last4`, `account_name` are filled only after bank details were given **and the caller holds `refunds.approve` or `payments.read`**: for **Support and Operations they are `null`** even when set (capture 359 vs 358). The full account number is **never stored and never returned** (no response in these captures contains it). |
+| `suggestion_why` | a plain sentence for the console to show under the suggestion. |
+| `available_actions` | what **this caller** may do **now**, a subset of `approve`, `reject`, `retry`, `bank_details`, `switch_to_wallet`, `close`, `resolve`. **Render buttons from this list; never re-derive permissions.** It is empty for a finished refund. |
+
+**`available_actions` is the truth about "someone else must approve it".** The admin who **raised** a staff refund is never offered `approve` (they may still `reject` their own request), and an approver with **nothing left under their limit** is not offered it either. The admin who **approved or raised** a refund is never offered `bank_details` for it. Compare 351 (Finance who approved it: `[]`) with 352 (another Finance admin: `["bank_details"]`), and 364 (the raiser: `["reject"]`) with 365 (another Finance admin: `["approve", "reject"]`).
+
+### Raising a refund by hand: `POST /admin/refunds`
+
+<!-- capture: 328-refund-request.json request.body -->
+```json
+{
+  "booking_id": "0f511a01-411a-4f5c-b4e2-22b22a67ec07",
+  "amount_naira": 5000,
+  "reason_code": "complaint",
+  "note": "Placeholder: the family complained about the cancellation fee"
+}
+```
+
+<!-- capture: 328-refund-request.json response.body keys=id,booking_code,status,reason_code,origin,suggested_amount_naira,amount_naira,requested_by,note,available_actions -->
+```json
+{
+  "id": "650d0029-531c-4d1c-90b5-11acc207b626",
+  "booking_code": "E819BAF2",
+  "status": "pending_approval",
+  "reason_code": "complaint",
+  "origin": "staff",
+  "suggested_amount_naira": 5000.0,
+  "amount_naira": null,
+  "requested_by": "e32c8e64-e715-4453-92f9-7b48d39dfb96",
+  "note": "Placeholder: the family complained about the cancellation fee",
+  "available_actions": []
+}
+```
+
+_capture `328-refund-request.json`: **`201`**, trimmed_
+
+The person who raised it cannot approve it: `403` `You raised this refund, so someone else must approve it.` (capture 366, below). A refund can be raised only for a **completed or cancelled** booking that was paid; a booking with an open refund cannot have a second.
+
+### Approving: the limit, a lower amount, the wallet
+
+The Finance limit is **cumulative per booking**: this refund **plus** the booking's earlier approved, in-flight and succeeded refunds, so a large refund cannot be split to get under it. Finance approves up to the limit; a Super Admin approves any amount. The approver may approve a **lower amount** than suggested, never more than is still refundable.
+
+| Case | Capture | Result |
+|---|---|---|
+| Finance, suggestion above the limit | 317 | `403` |
+| Finance, a lower amount within the limit | 321 | `200`, status `approved`, `amount_naira` 20000 |
+| Super Admin, the whole 55,000.00 | 323 | `200`, status `approved` |
+| Finance, suggestion within the limit | 324 | `200` |
+| Finance asks for the wallet | 320 | `403` |
+| Super Admin, wallet | 339 | `200`, **already `succeeded`** (the wallet is credited in the same call) |
+| Super Admin, wallet, WhatsApp booker | 338 | `422` |
+| Support (no `refunds.approve`) | 316 | `403` |
+
+<!-- capture: 317-refund-approve-above-limit-as-finance.json response.body -->
+```json
+{
+  "detail": "Refunds on this booking would total ₦55,000, above the ₦50,000 limit for Finance. A Super Admin must approve it."
+}
+```
+
+<!-- capture: 321-refund-approve-lower-amount.json request.body -->
+```json
+{
+  "amount_naira": 20000,
+  "note": "Approving 20,000.00 NGN now; the rest can be raised later"
+}
+```
+
+<!-- capture: 321-refund-approve-lower-amount.json response.body keys=status,amount_naira,destination,approved_by,approved_at,max_approvable_naira,available_actions -->
+```json
+{
+  "status": "approved",
+  "amount_naira": 20000.0,
+  "destination": "original_method",
+  "approved_by": "e935f884-e2d3-41bc-9cd9-8237111d16c8",
+  "approved_at": "2026-10-21T14:29:06.424294",
+  "max_approvable_naira": 50000.0,
+  "available_actions": []
+}
+```
+
+_capture `321-refund-approve-lower-amount.json`: **`approved` is not sent yet.** The send job sends it within a minute._
+
+<!-- capture: 339-refund-approve-wallet.json response.body keys=status,destination,amount_naira,processed_at,available_actions -->
+```json
+{
+  "status": "succeeded",
+  "destination": "wallet",
+  "amount_naira": 55000.0,
+  "processed_at": "2026-10-21T14:29:06.697764",
+  "available_actions": []
+}
+```
+
+_capture `339-refund-approve-wallet.json`: wallet credit is immediate, so the refund is `succeeded` and has `processed_at`_
+
+**Take-back (a refund of a completed visit).** The approver may take the caregiver's share of the refund back: send `take_back_from_caregiver: true` with a `take_back_reason`. It is only for a **completed** visit with a caregiver earning (`422` otherwise, capture 337); the reason is required (`422`, capture 367). The amount is **proportional and not editable**: the earning's share of what is refunded (here a 40,000.00 earning, 20,000.00 of 55,000.00 refunded: 14,545.45), capped at the earning less earlier take-backs. Show `take_back_preview_naira` **before** the approver confirms (capture 365). **Nothing is taken at approval; it happens when Paystack says the money has left.** It follows what the caregiver actually received: money still waiting to clear is reduced there, money already in her wallet is debited, and whatever the wallet cannot cover is recorded as **owed** and recovered from her **next earnings** (and from any payout, which cannot send money that is owed). The caregiver is never asked to repay. Result after the money left (capture 380): `take_back_debited_naira` 1000 (all her wallet held) and `take_back_owed_naira` 13545.45. The `late_cancel_compensation` a caregiver earned is never reversed by the refund of its own booking.
+
+<!-- capture: 365-refund-detail-take-back-preview.json response.body keys=status,take_back_preview_naira,available_actions,booking -->
+```json
+{
+  "status": "pending_approval",
+  "take_back_preview_naira": 14545.45,
+  "available_actions": [
+    "approve",
+    "reject"
+  ],
+  "booking": {
+    "code": "A18FA979",
+    "status": "completed",
+    "channel": "app",
+    "cancel_fee_tier": null,
+    "cancel_fee_naira": null,
+    "caregiver_assigned": true,
+    "caregiver_arrived": true,
+    "completed": true,
+    "total_naira": 55000.0,
+    "paystack_fee_naira": 825.0,
+    "refunded_naira": 0.0,
+    "refundable_naira": 55000.0
+  }
+}
+```
+
+<!-- capture: 368-refund-approve-with-take-back.json request.body -->
+```json
+{
+  "take_back_from_caregiver": true,
+  "take_back_reason": "The caregiver left the visit early"
+}
+```
+
+<!-- capture: 380-refund-detail-take-back-applied.json response.body keys=status,take_back_from_caregiver,take_back_naira,take_back_reason,take_back_debited_naira,take_back_owed_naira,take_back_preview_naira,processed_at -->
+```json
+{
+  "status": "succeeded",
+  "take_back_from_caregiver": true,
+  "take_back_naira": 14545.45,
+  "take_back_reason": "The caregiver left the visit early",
+  "take_back_debited_naira": 1000.0,
+  "take_back_owed_naira": 13545.45,
+  "take_back_preview_naira": null,
+  "processed_at": "2026-10-21T14:29:21.474143"
+}
+```
+
+### Rejecting
+
+`POST /admin/refunds/{id}/reject` `{"reason": "..."}` (a reason is required: `422` without, capture 325). Only a `pending_approval` refund; it becomes `rejected`, which is final and **frees the booking** so it can be refunded again. Again: `409` (327).
+
+<!-- capture: 326-refund-reject.json response.body keys=status,rejected_reason,available_actions -->
+```json
+{
+  "status": "rejected",
+  "rejected_reason": "Raised by mistake: the family keeps the visit credit instead",
+  "available_actions": []
+}
+```
+
+### The refund's life, and what the console does in each state
+
+```
+pending_approval --approve--> approved --send job--> processing --refund.processed--> succeeded
+      |                          |    (wallet: credited at approval, succeeded at once)
+      +--reject--> rejected      |                       +--refund.needs-attention--> needs_attention --bank details--> processing
+                                                         +--refund.failed--> failed --retry--> approved
+                                                                                  +--switch to wallet (Super Admin)--> succeeded
+                                                                                  +--close--> closed
+   (anything Paystack contradicts) --> needs_review --resolve (Super Admin)--> succeeded | failed
+```
+
+| `status` | Open? | What it means | What the console shows or offers |
+|---|---|---|---|
+| `pending_approval` | yes | waiting for a person | `approve` / `reject` from `available_actions` |
+| `approved` | yes | approved, **not sent yet** | "Waiting to be sent" (the send job runs every minute). Nothing to do. |
+| `processing` | yes | sent to Paystack; waiting for its word | "Sent to Paystack". **Do not call it refunded.** |
+| `needs_attention` | yes | Paystack cannot send the money back to the card and wants the family's bank account | `bank_details` (not to the admin who approved or raised it) |
+| `failed` | yes (**still open**) | Paystack failed it and returned the money to Oakly | `retry`, `close`, and for a Super Admin of an app booker `switch_to_wallet`. It keeps the booking's open-refund slot until closed. |
+| `needs_review` | yes | Paystack contradicts what Oakly recorded, or Paystack has no record of a send | `resolve` (Super Admin only). Nobody else can act. |
+| `succeeded` | no | the money has left Oakly (Paystack `processed`, or the wallet was credited) | nothing; show `processed_at` |
+| `rejected`, `closed` | no | finished, no money moved | nothing |
+
+`approved` and `processing` count against what is still refundable the moment they are approved, so a second refund cannot be approved on top of them.
+
+### Sending and Paystack's word
+
+After approval the send job (`refund_dispatch_job`, every minute) claims the refund, records attempt N, and calls Paystack with the booking's payment reference and the amount. **It never sends a refund twice**: if Paystack does not answer, the attempt is left `unknown` and the refund stays `processing` until the reconcile job (every 15 minutes) asks Paystack.
+
+<!-- capture: 341-worker-refund-dispatch-job.json response.body -->
+```json
+{
+  "refunds_sent": 3,
+  "refund_requests_seen_by_the_fake": [
+    {
+      "transaction": "BKG_780212EB_15cdb46e",
+      "amount_kobo": 2000000
+    },
+    {
+      "transaction": "BKG_FC463CFD_d4090458",
+      "amount_kobo": 5500000
+    },
+    {
+      "transaction": "BKG_22D0E98F_3a6a03d3",
+      "amount_kobo": 1200000
+    }
+  ]
+}
+```
+
+_capture `341-worker-refund-dispatch-job.json`: the job run by hand; the amounts are kobo here because they are the fake Paystack's own view_
+
+<!-- capture: 342-refund-detail-processing.json response.body keys=status,amount_naira,failure_reason,attempts,available_actions -->
+```json
+{
+  "status": "processing",
+  "amount_naira": 20000.0,
+  "failure_reason": null,
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "pending",
+      "failure_reason": null,
+      "paystack_refund_id": "1001",
+      "bank_code": null,
+      "account_last4": null,
+      "account_name": null,
+      "bank_details_submitted_at": null,
+      "created_at": "2026-10-21T14:29:10.145603"
+    }
+  ],
+  "available_actions": []
+}
+```
+
+Paystack then tells Oakly by a signed webhook (`POST /payment/paystack/webhook`, section for the webhook is Paystack's, not the console's). The events the console sees the effect of, all handled idempotently (a repeat changes nothing):
+
+<!-- capture: 343-paystack-refund-processing-webhook.json request.body -->
+```json
+{
+  "event": "refund.processing",
+  "data": {
+    "status": "processing",
+    "transaction_reference": "BKG_FC463CFD_d4090458",
+    "refund_reference": null,
+    "amount": "5500000",
+    "currency": "NGN",
+    "processor": "instant-transfer",
+    "customer": {
+      "email": "placeholder@example.com"
+    },
+    "integration": 412829,
+    "domain": "test",
+    "id": 1002
+  }
+}
+```
+
+_capture `343`: the shape of Paystack's refund webhook (**fake**, shaped after Paystack's documented one). The refund id is `data.id`; `refund_reference` is `null`; `amount` is a **string** of kobo._
+
+<!-- capture: 345-refund-detail-succeeded.json response.body keys=status,amount_naira,processed_at,attempts,booking,available_actions -->
+```json
+{
+  "status": "succeeded",
+  "amount_naira": 55000.0,
+  "processed_at": "2026-10-21T14:29:10.693794",
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "processed",
+      "failure_reason": null,
+      "paystack_refund_id": "1002",
+      "bank_code": null,
+      "account_last4": null,
+      "account_name": null,
+      "bank_details_submitted_at": null,
+      "created_at": "2026-10-21T14:29:10.226966"
+    }
+  ],
+  "booking": {
+    "code": "FC463CFD",
+    "status": "cancelled",
+    "channel": "app",
+    "cancel_fee_tier": null,
+    "cancel_fee_naira": null,
+    "caregiver_assigned": false,
+    "caregiver_arrived": false,
+    "completed": false,
+    "total_naira": 55000.0,
+    "paystack_fee_naira": 825.0,
+    "refunded_naira": 55000.0,
+    "refundable_naira": 0.0
+  },
+  "available_actions": []
+}
+```
+
+_capture `345`: after `refund.processed`_
+
+**The booking's `payment_status` changes when a refund succeeds.** `refunded` when the refunds that succeeded reach the whole payment, **`partially_refunded`** when they do not. **This is a new value on the booking routes** (section 12.2 filter `payment_status`, the list's `payment_status`, the detail's `payment.status`): the console's enum must accept `pending`, `paid`, `failed`, `partially_refunded` and `refunded`. These routes answered `500` for a partially refunded booking until these captures found it (fixed in commit `c1b9cdd`, with a test); they are verified live now (captures 340, 346, 348):
+
+<!-- capture: 348-booking-after-partial-refund.json response.body path=payment -->
+```json
+{
+  "status": "partially_refunded",
+  "paystack_reference": "BKG_22D0E98F_3a6a03d3",
+  "failure_reason": null,
+  "expires_at": null,
+  "refund_required": false,
+  "refund_required_reason": "admin_cancelled_partial",
+  "refund_amount_kobo": 1200000,
+  "attempts": []
+}
+```
+
+_capture `348`: `payment.status` is `partially_refunded` after 12,000.00 of 55,000.00 was refunded. `payment.refund_required` is `false` once a refund succeeds; the flag is only the "a refund is owed" marker until then._
+
+**UX consequences the console must surface**
+
+- **"Processed" is not "in the family's account".** For a card refund the family sees the money **up to 10 business days after** Paystack says `processed`. Never promise a date; say "Paystack has refunded it; it can take up to 10 business days to appear". **[not live]**: real timing was not exercised.
+- **The family is told on WhatsApp** (template `refund_update`) when the refund is **sent to Paystack** ("being processed"), when it is **complete**, and when it **needs bank details** ("waiting for your bank details. Our team will contact you"). It is sent once per refund and status. **[not live]**: queued and asserted against a fake Meta in tests (`test_refunds_settle.py`, `test_whatsapp_notifications.py`), not delivered live. **App-channel bookers are not notified by this slice** (the booking's `payment_status` is the only signal); say so to the family on the phone.
+- **"Someone else must approve it"**: when `approve` is missing for a refund the admin raised, show "Another admin must approve this refund" instead of an empty row; the API answers `403` `You raised this refund, so someone else must approve it.` if they try (capture 366).
+- **Above the limit**: when `needs_super_admin` is `true` for the caller, show "A Super Admin must approve this" and offer a lower amount up to `max_approvable_naira`.
+- **A taken-back share is recorded, not collected**: the preview is shown before the choice; after it, show debited vs owed.
+
+### Needs attention: the family's bank details
+
+Paystack sometimes cannot send the money back to the card and asks for a bank account. The refund goes to `needs_attention` and the family is told Oakly is waiting for their bank details. Finance gets them from the family (by phone) and enters them here.
+
+<!-- capture: 350-paystack-refund-needs-attention-webhook.json request.body keys=event -->
+```json
+{
+  "event": "refund.needs-attention"
+}
+```
+
+<!-- capture: 352-refund-detail-needs-attention-other-finance.json response.body keys=status,available_actions -->
+```json
+{
+  "status": "needs_attention",
+  "available_actions": [
+    "bank_details"
+  ]
+}
+```
+
+<!-- capture: 358-refund-bank-details.json request.body -->
+```json
+{
+  "bank_code": "058",
+  "account_number": "0000000077"
+}
+```
+
+_capture `358`: the account number is a placeholder. It goes to Paystack and is **never stored**._
+
+<!-- capture: 358-refund-bank-details.json response.body keys=status,attempts -->
+```json
+{
+  "status": "processing",
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "processing",
+      "failure_reason": null,
+      "paystack_refund_id": "1001",
+      "bank_code": "058",
+      "account_last4": "0077",
+      "account_name": "PLACEHOLDER ACCOUNT 0077",
+      "bank_details_submitted_at": "2026-10-21T14:29:10.953165",
+      "created_at": "2026-10-21T14:29:10.145603"
+    }
+  ]
+}
+```
+
+_capture `358`: the attempt keeps the bank code, the last four digits and the account name Paystack resolved. The same refund seen by Support (capture 359) has `null` in all three._
+
+The rules: `account_number` is exactly 10 digits (a shorter one is a `422` with a list `detail`, capture 355); `bank_code` must be in Paystack's bank list (`422` `Choose a bank from the list.`, 356); the admin who **approved** the refund, or raised it, cannot enter the details (`403`, capture 353), because the details decide where the money goes; above the Finance limit only a Super Admin can; a refund that is not waiting is a `409` (357); Operations and Support have no `refunds.approve` (`403`, 354). After success the refund is `processing` again and Paystack's webhook finishes it (captures 360, 361).
+
+### Failed: retry, switch to the wallet, close
+
+`failed` means Paystack returned the money to Oakly. The refund stays open. Before any of the three actions Oakly **asks Paystack whether the last attempt really failed** and proceeds only if Paystack says so; if Paystack says it is still moving or already processed, nothing is done and the answer is a `409` (a `processed` answer puts the refund in `needs_review`). If Paystack cannot be reached the answer is `503` and the refund stays `failed`.
+
+- **Retry** (`refunds.approve`): the refund goes back to `approved`; the send job makes **attempt 2**. Attempt 1 stays in `attempts` with its reason (capture 378).
+- **Switch to the wallet** (Super Admin): app bookers only; credits the patient's Oakly wallet and the refund is `succeeded` (384).
+- **Close** (`refunds.approve`, reason required): the money stays with Oakly; the refund is `closed` and the booking can be refunded again (389).
+
+<!-- capture: 373-refund-detail-failed.json response.body keys=status,failure_reason,attempts,available_actions -->
+```json
+{
+  "status": "failed",
+  "failure_reason": "Paystack reported the refund as failed",
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "failed",
+      "failure_reason": "Paystack reported the refund as failed",
+      "paystack_refund_id": "1005",
+      "bank_code": null,
+      "account_last4": null,
+      "account_name": null,
+      "bank_details_submitted_at": null,
+      "created_at": "2026-10-21T14:29:17.801827"
+    }
+  ],
+  "available_actions": [
+    "retry",
+    "close"
+  ]
+}
+```
+
+_capture `373`: a WhatsApp booker's failed refund. `switch_to_wallet` is absent because only app bookers have a wallet. Compare 406 (an app booker's refund after a resolve): `["retry", "switch_to_wallet", "close"]`._
+
+<!-- capture: 378-refund-detail-after-retry.json response.body keys=status,attempts,available_actions -->
+```json
+{
+  "status": "succeeded",
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "failed",
+      "failure_reason": "Paystack reported the refund as failed",
+      "paystack_refund_id": "1005",
+      "bank_code": null,
+      "account_last4": null,
+      "account_name": null,
+      "bank_details_submitted_at": null,
+      "created_at": "2026-10-21T14:29:17.801827"
+    },
+    {
+      "attempt": 2,
+      "status": "processed",
+      "failure_reason": null,
+      "paystack_refund_id": "1009",
+      "bank_code": null,
+      "account_last4": null,
+      "account_name": null,
+      "bank_details_submitted_at": null,
+      "created_at": "2026-10-21T14:29:20.896146"
+    }
+  ],
+  "available_actions": []
+}
+```
+
+<!-- capture: 389-refund-close.json response.body keys=status,note,booking,available_actions -->
+```json
+{
+  "status": "closed",
+  "note": "Closed: The family asked us to stop; they will use their credit instead",
+  "booking": {
+    "code": "68DACF41",
+    "status": "cancelled",
+    "channel": "app",
+    "cancel_fee_tier": null,
+    "cancel_fee_naira": null,
+    "caregiver_assigned": false,
+    "caregiver_arrived": false,
+    "completed": false,
+    "total_naira": 55000.0,
+    "paystack_fee_naira": 825.0,
+    "refunded_naira": 0.0,
+    "refundable_naira": 55000.0
+  },
+  "available_actions": []
+}
+```
+
+_capture `389`: after closing, `booking.refundable_naira` is back to the whole 55,000.00._
+
+### Needs review: `POST /admin/refunds/{id}/resolve` (Super Admin)
+
+When Paystack's word contradicts what Oakly recorded, **nothing moves by itself**: the refund goes to `needs_review`, an error is logged, and a Super Admin decides after looking at the Paystack dashboard. Causes include: Paystack processed a different amount (capture 391), Paystack processed an older attempt while a newer one exists (a possible double payment), Paystack reported `processed` for a refund that was failed or closed, a refund processed outside Oakly, and **Paystack having no record of a send 30 minutes after Oakly sent it** (captures 401 to 405).
+
+<!-- capture: 392-refund-detail-needs-review.json response.body keys=status,failure_reason,review_flagged_at,review_reason,available_actions -->
+```json
+{
+  "status": "needs_review",
+  "failure_reason": "Paystack reported processed for 5400000 kobo, but this refund is 5500000 kobo.",
+  "review_flagged_at": "2026-10-21T14:29:21.705900",
+  "review_reason": "Paystack reported processed for 5400000 kobo, but this refund is 5500000 kobo.",
+  "available_actions": [
+    "resolve"
+  ]
+}
+```
+
+_capture `392`: processed for 54,000.00 where Oakly asked for 55,000.00_
+
+<!-- capture: 405-refund-detail-no-record-review.json response.body keys=status,review_reason,attempts,available_actions -->
+```json
+{
+  "status": "needs_review",
+  "review_reason": "Paystack has no record of this refund, but it may have been sent. Check the Paystack dashboard before resolving it.",
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "unknown",
+      "failure_reason": null,
+      "paystack_refund_id": null,
+      "bank_code": null,
+      "account_last4": null,
+      "account_name": null,
+      "bank_details_submitted_at": null,
+      "created_at": "2026-10-21T14:29:24.292704"
+    }
+  ],
+  "available_actions": [
+    "resolve"
+  ]
+}
+```
+
+_capture `405`: the reconcile job (clock moved 31 minutes ahead, **[simulated]**, captures 403 and 404) found Paystack has no record. That is not proof the refund was not sent, so it is `needs_review`, never `failed`._
+
+`resolve` re-asks Paystack and the answer must agree with the outcome. `succeeded` records the success once (booking `payment_status`, take-back, the family told "complete"); `failed` makes the refund `failed` so retry, switch or close follow. A refund whose money already left cannot be marked failed (409); reversing it is a manual matter on the Paystack dashboard. When Paystack confirmed a **different amount**, the first call answers `409` naming it and the second call carries `amount_naira`:
+
+<!-- capture: 398-refund-resolve-different-amount.json response.body -->
+```json
+{
+  "detail": "Paystack processed a different amount from this refund's. To record what Paystack confirmed, resolve again with that amount (5400000 kobo)."
+}
+```
+
+<!-- capture: 399-refund-resolve-succeeded.json request.body -->
+```json
+{
+  "outcome": "succeeded",
+  "note": "Checked the Paystack dashboard: 54,000.00 NGN processed",
+  "amount_naira": 54000
+}
+```
+
+<!-- capture: 399-refund-resolve-succeeded.json response.body keys=status,amount_naira,processed_at,review_flagged_at,review_reason,available_actions -->
+```json
+{
+  "status": "succeeded",
+  "amount_naira": 54000.0,
+  "processed_at": "2026-10-21T14:29:21.799036",
+  "review_flagged_at": null,
+  "review_reason": null,
+  "available_actions": []
+}
+```
+
+<!-- capture: 406-refund-resolve-failed.json response.body keys=status,failure_reason,available_actions -->
+```json
+{
+  "status": "failed",
+  "failure_reason": "Marked failed after review: Checked the Paystack dashboard: no refund for this payment",
+  "available_actions": [
+    "retry",
+    "switch_to_wallet",
+    "close"
+  ]
+}
+```
+
+### Every error the console must handle
+
+`detail` is a **string** for the errors the service raises on purpose, and a **list of objects** for request-validation `422`s (bad types, more than two decimals, a missing field, a bad enum, an account number that is not 10 digits). Branch on the status, show the string.
+
+| Status | `detail` (exact) | When | Capture |
+|---|---|---|---|
+| `401` | `Not authenticated` | no token | 312 |
+| `403` | `Access denied. Missing permission: refunds.approve` | approve, reject, retry, bank details, close without it | 316, 354, 374 |
+| `403` | `Access denied. Missing permission: refunds.approve_above_limit` | switch to wallet, resolve as Finance | 383, 394 |
+| `403` | `Access denied. Missing permission: one of refunds.request, refunds.approve, payments.read` | reads without any of the three | 311 |
+| `403` | `Access denied. Missing permission: refunds.request` | raising without it | 335 |
+| `403` | `Refunds on this booking would total ₦55,000, above the ₦50,000 limit for Finance. A Super Admin must approve it.` | Finance above the cumulative limit | 317 |
+| `403` | `Only a Super Admin can refund to the Oakly wallet.` | Finance chooses the wallet | 320 |
+| `403` | `You raised this refund, so someone else must approve it.` | approving your own staff refund | 366 |
+| `403` | `Someone other than the person who approved this refund must enter the family's bank details.` | bank details by the approver or raiser | 353 |
+| `404` | `Refund not found` / `Booking not found` | unknown id | 315, 334 |
+| `409` | `This refund is no longer waiting for approval` | approve or reject twice | 322, 327 |
+| `409` | `This booking already has a refund in progress` | raising on a booking with an open refund | 329 |
+| `409` | `Only a failed refund can be retried, switched to the wallet or closed` | retry, switch or close of a refund that is not `failed` | 371, 385, 388 |
+| `409` | `This refund is not waiting for bank details` | bank details when not `needs_attention` | 357 |
+| `409` | `This refund is not waiting for review` | resolve of a refund not in review | 396 |
+| `409` | `Paystack shows this refund as processed, not failed. Check the Paystack dashboard.` | resolve as failed while Paystack shows processed | 397 |
+| `409` | `Paystack processed a different amount from this refund's. To record what Paystack confirmed, resolve again with that amount (5400000 kobo).` | resolve as succeeded for a different amount (**the amount is in kobo; send `amount_naira`**) | 398 |
+| `422` | `A refund can be raised only for a completed or cancelled visit.` | raising on a pending or active booking | 330 |
+| `422` | `The amount must be between 1 and 5500000 kobo, what is left to refund` | raising too much (**kobo in a naira API: convert it for display**) | 331 |
+| `422` | `The amount must be between ₦0.01 and ₦55,000, what is left to refund` | approving too much | 318 |
+| `422` | `The caregiver's share can only be taken back for a completed visit` | take-back on a booking that is not completed | 337 |
+| `422` | `Give a reason for taking back the caregiver's share` | take-back without a reason | 367 |
+| `422` | `Wallet credit is only for app users. Refund this one to the original payment method.` | wallet for a WhatsApp booker | 338 |
+| `422` | `Choose a bank from the list.` | unknown bank code | 356 |
+| `422` | list (`loc`, `msg`, `type`) | a missing or malformed field (no `reason`, more than 2 decimals, a zero amount, an unknown `reason_code`, a bad `status` filter, a short account number) | 310, 319, 325, 332, 333, 355, 387, 395 |
+
+**[not live]** These service errors exist and are covered by tests, but were not provoked in the capture run (the string is quoted from `app/services/refunds.py`, so check the wording against a real response before building a translation table on it): `Paying this would refund more than the family paid. Check the Paystack dashboard.` (`409`); `This refund changed while Paystack was being asked. Look at it again.` (`409`); `We couldn't reach Paystack to confirm the last attempt failed. Try again shortly.` (**`503`**, also for the other "couldn't reach Paystack" messages); `Paystack shows another refund on this payment; check the Paystack dashboard before retrying.` (`409`); `Paystack shows an earlier attempt of this refund as processed, so the money has already left. ...` (`409`); `This account is closed, so it cannot be credited. Refund to the original payment method.` (`422`); `We could not find that account. Check the account number and the bank.` (`422`); `Paystack did not accept the bank details for this refund. Look at it again.` (`409`); `This refund is above the Finance limit, so a Super Admin must enter the family's bank details.` (`403`); `Money has already left for this refund (it was processed or credited), so it cannot be marked failed here. ...` (`409`).
+
+### Polling
+
+There is no push. **Poll `GET /admin/refunds/{id}` (or the list) every 30 to 60 seconds while a refund is `approved` or `processing`**, and stop on a terminal status. After a write, use the detail that the write returned. A refund normally leaves `approved` within a minute (the send job) and `processing` within minutes (Paystack's webhook); if it stays `processing` for more than about 15 minutes the reconcile job will ask Paystack on its own. The queue (`status=open`) is the Finance work list; refresh it on focus.
+
+### The retired routes
+
+`GET /patient/admin/refund/requests` and `PUT /patient/admin/refund/requests/{id}` (admin) and `POST /patient/wallet/refund/request` (patient) answer **`410`**. The admin ones keep their permission check in front of the 410, so an admin without `refunds.approve` gets `403`, not `410` (capture 413):
+
+<!-- capture: 411-legacy-admin-refund-list.json response.body -->
+```json
+{
+  "detail": "This route has moved to /api/v1/admin/refunds."
+}
+```
+
+<!-- capture: 415-legacy-patient-refund-request.json response.body -->
+```json
+{
+  "detail": "Refunds are now handled by the Oakly team. Contact support to request one."
+}
+```
+
+### The audit trail
+
+Every write is an `admin_audit_log` row with `entity_type` `refund` and `entity_id` the refund id: `refund.request`, `refund.approve`, `refund.reject`, `refund.retry`, `refund.bank_details`, `refund.switch_to_wallet`, `refund.close`, `refund.resolve`. Read them with `GET /admin/audit?entity_type=refund&action=...` (section 11; Super Admin and Finance hold `audit.read`). Amounts there are **kobo** (it is the audit's own free-form `before`/`after`).
+
+<!-- capture: 407-audit-refund-approve.json response.body path=items.0 -->
+```json
+{
+  "id": "4bc16631-1ae2-4ca2-8dc5-033707f87a19",
+  "admin_user_id": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+  "admin_email": "boss-cba871ref@example.com",
+  "action": "refund.approve",
+  "entity_type": "refund",
+  "entity_id": "1888dd86-81b2-407f-a6f2-84f3dcaef0e7",
+  "before": {
+    "status": "pending_approval",
+    "suggested_amount_kobo": 5500000
+  },
+  "after": {
+    "booking_id": "9fd6a940-e5d7-4d98-9385-b499f1a1b71f",
+    "status": "approved",
+    "amount_kobo": 5500000,
+    "destination": "original_method",
+    "take_back_from_caregiver": false,
+    "take_back_kobo": 0,
+    "limit_kobo": 5000000,
+    "cumulative_kobo": 5500000,
+    "above_limit": true
+  },
+  "reason": null,
+  "ip": "172.24.0.1",
+  "user_agent": "python-httpx/0.28.1",
+  "created_at": "2026-10-21T14:29:21.830120"
+}
+```
+
+_capture `407`: the approval with the limit in force and whether this one was above it_
+
+<!-- capture: 408-audit-refund-bank-details.json response.body path=items.0 keys=action,before,after,reason -->
+```json
+{
+  "action": "refund.bank_details",
+  "before": {
+    "status": "needs_attention",
+    "attempt": 1
+  },
+  "after": {
+    "booking_id": "4ec47135-8b9b-46cc-83d5-92f12d18b440",
+    "status": "processing",
+    "attempt": 1,
+    "bank_code": "058",
+    "bank_id": "9",
+    "account_last4": "0077",
+    "account_name": "PLACEHOLDER ACCOUNT 0077"
+  },
+  "reason": null
+}
+```
+
+_capture `408`: only the bank code, the last four digits and the resolved name are ever written down._
+
 ## 13. Pricing settings: `/api/v1/booking-settings`
 
 The price list the app and the WhatsApp flow quote from: base fee per hour, platform fee, per-service multipliers, surge and discount. **Money is in naira here**, as before.
@@ -4717,4 +5548,26 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | Payouts: approval cancels a payout whose caregiver was suspended or changed bank account; the other 409 texts; wrong-amount webhooks; bad signature; no-answer from Paystack; the not-found grace period; concurrent approve/cancel, concurrent webhooks and two send workers | Test only | `test_payouts.py` (real threads, real row locks) |
 | Payouts: every `/admin/payouts` route against every role | Test only | `test_admin_rbac.py` |
 | A live Paystack account: transfers, webhooks, balance, OTP setting | **[not live]** | never exercised; shapes are Paystack's documented ones as implemented in `app/tests/fake_meta.py` |
+| Refunds: seeding, admin cancel (full and partial) queues a `system` refund | Verified live, seeded bookings | 303 to 306 |
+| Refunds: queue list (default open, filters, by booking), bad status `422`, Clinical Reviewer `403`, no token `401`, detail as Finance and Super Admin, unknown `404` | Verified live | 307 to 315 |
+| Refunds: approve (Support `403`, Finance above the limit `403`, too much `422`, three decimals `422`, wallet as Finance `403`, a lower amount, again `409`, Super Admin above the limit, within the limit) | Verified live | 316 to 324 |
+| Refunds: reject (no reason `422`, success, again `409`) | Verified live | 325 to 327 |
+| Refunds: staff request (`201`, open refund `409`, not completed `422`, too much `422`, zero `422`, bad reason `422`, unknown booking `404`, Clinical Reviewer `403`), take-back on a booking that is not completed `422` | Verified live | 328 to 337 |
+| Refunds: wallet destination (WhatsApp booker `422`; Super Admin success, refund `succeeded` at once, booking `refunded`) | Verified live | 338 to 340 |
+| Refunds: send job, `refund.processing` and `refund.processed` webhooks, booking `refunded` / `partially_refunded` | Verified live, **against a fake Paystack** | 341 to 349 |
+| Refunds: `refund.needs-attention`, bank details (approver `403`, Operations `403`, short number `422`, unknown bank `422`, not waiting `409`, another Finance admin succeeds), Support's view with the bank fields `null`, `refund.processed` after, no full account number in any response | Verified live, **against a fake Paystack** | 350 to 361 |
+| Refunds: staff refund of a completed visit with take-back (own request `403`, no reason `422`, preview, approve, processed, wallet debited and the rest owed) | Verified live, **against a fake Paystack** (**[db-simulated]** release of the earning and a 1,000.00 wallet: 363) | 362 to 368, 379 to 381 |
+| Refunds: failed webhook, retry (not failed `409`, Operations `403`, success, attempt 2, processed) | Verified live, **against a fake Paystack** | 370 to 378 |
+| Refunds: failed then switch to wallet (Finance `403`, Super Admin success, again `409`); failed then close (no reason `422`, not failed `409`, success) | Verified live, **against a fake Paystack** | 382 to 389 |
+| Refunds: Paystack processes a different amount: `needs_review`; resolve (Finance `403`, no note `422`, not in review `409`, failed while Paystack shows processed `409`, succeeded naming the amount `409`, succeeded with it) | Verified live, **against a fake Paystack** (**[simulated]** Paystack's amount changed: 390) | 390 to 399 |
+| Refunds: a send nobody answered stays `processing` and is never resent; reconcile after 11 minutes does nothing; after 31 minutes with no Paystack record it is `needs_review`; resolve as failed | Verified live, **against a fake Paystack** (**[simulated]** job clock moved ahead: 403, 404) | 400 to 406 |
+| Refunds: audit entries for approve, bank details, resolve, and the list for the entity | Verified live | 407 to 410 |
+| Refunds: the retired routes answer `410` (admin list and decide, patient request); Operations `403` | Verified live | 411 to 415 |
+| Booking list filter, list and detail with `partially_refunded` | Verified live (after the fix `c1b9cdd`) | 348; `test_a_partially_refunded_booking_lists_filters_and_opens` |
+| Refunds: caregiver cancel of a paid app booking, WhatsApp cancel by the booker, payment after expiry or cancellation each queue a refund | Test only | `test_refunds_create.py`, `test_whatsapp_notifications.py` |
+| Refunds: every `503` "couldn't reach Paystack" answer; a `processed` found while retrying; another refund on the payment; earlier attempt paid; the within-total backstop; races (double approve, approve vs webhook, two send workers, webhook vs reconcile, take-back vs payout batch) and 100 random event sequences | Test only | `test_refunds_failures.py`, `test_refunds_final_review.py`, `test_refunds_sequences.py` |
+| Refunds: the owed balance recovered from a later release or payout reservation; retry of a payout refused while a debt is owed | Test only | `test_refunds_take_back.py` |
+| Refunds: the WhatsApp notices (sent, complete, needs bank details) | **[not live]** | queued and asserted against a fake Meta in tests; not delivered live |
+| Refunds: real Paystack refunds, their webhooks, and the up to 10 business days for the family to see the money | **[not live]** | never exercised; shapes are Paystack's documented ones as implemented in `app/tests/fake_meta.py` |
+| `GET /admin/me` for a Super Admin lists `refunds.approve_above_limit` | Test only | captures 010 and 039 were taken before the permission existed; `test_admin_rbac.py` |
 

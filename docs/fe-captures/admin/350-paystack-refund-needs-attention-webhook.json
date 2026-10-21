@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/payment/paystack/webhook",
+    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>",
+    "body": {
+      "event": "refund.needs-attention",
+      "data": {
+        "status": "needs-attention",
+        "transaction_reference": "BKG_780212EB_15cdb46e",
+        "refund_reference": null,
+        "amount": "2000000",
+        "currency": "NGN",
+        "processor": "instant-transfer",
+        "customer": {
+          "email": "placeholder@example.com"
+        },
+        "integration": 412829,
+        "domain": "test",
+        "id": 1001
+      }
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {},
+    "body": {
+      "status": "success",
+      "message": "Webhook processed successfully"
+    }
+  },
+  "note": "FAKE PAYSTACK: refund.needs-attention: Paystack could not send the money back to the card and needs the customer's bank account. The family is told on WhatsApp that Oakly is waiting for their bank details."
+}

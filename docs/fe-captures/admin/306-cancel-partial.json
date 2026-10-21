@@ -1,0 +1,34 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/e559a2e8-c4a0-489f-a091-9cb3ab147178/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason_code": "safety",
+      "reason": "Unsafe address: partial goodwill refund",
+      "refund": "partial",
+      "refund_amount_kobo": 1200000
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "e559a2e8-c4a0-489f-a091-9cb3ab147178",
+      "booking_code": "22D0E98F",
+      "status": "cancelled",
+      "payment_status": "paid",
+      "dispatch_state": "dispatching",
+      "caregiver_id": null,
+      "needs_address_check": false,
+      "refund_required": true,
+      "refund_required_reason": "admin_cancelled_partial",
+      "refund_amount_kobo": 1200000,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  },
+  "note": "No money moves here. Cancelling a PAID booking with a refund choice also queues a refund (pending_approval) for Finance: see the refunds list."
+}

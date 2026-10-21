@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "refund_reconcile_job -> app.services.refunds.reconcile(SessionLocal(), now=<11 minutes ahead>)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "refunds_acted_on": 0
+    }
+  },
+  "note": "SIMULATION: the job's clock was moved 11 minutes ahead. The fake Paystack has no refund for the transaction, but that is not yet 30 minutes after the send, so nothing changes."
+}

@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/payment/paystack/webhook",
+    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>",
+    "body": {
+      "event": "refund.processed",
+      "data": {
+        "status": "processed",
+        "transaction_reference": "BKG_4AE4BD30_40f6ff28",
+        "refund_reference": null,
+        "amount": "5400000",
+        "currency": "NGN",
+        "processor": "instant-transfer",
+        "customer": {
+          "email": "placeholder@example.com"
+        },
+        "integration": 412829,
+        "domain": "test",
+        "id": 1008
+      }
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {},
+    "body": {
+      "status": "success",
+      "message": "Webhook processed successfully"
+    }
+  },
+  "note": "FAKE PAYSTACK: refund.processed for 54,000.00 NGN, but Oakly asked for 55,000.00 NGN. Nothing is settled by guessing: the refund goes to needs_review."
+}

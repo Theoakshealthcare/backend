@@ -1,0 +1,75 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds/1888dd86-81b2-407f-a6f2-84f3dcaef0e7",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "1888dd86-81b2-407f-a6f2-84f3dcaef0e7",
+      "booking_id": "9fd6a940-e5d7-4d98-9385-b499f1a1b71f",
+      "booking_code": "924D189B",
+      "status": "needs_review",
+      "reason_code": "admin_cancelled",
+      "origin": "system",
+      "suggested_amount_naira": 55000.0,
+      "amount_naira": 55000.0,
+      "destination": "original_method",
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": "Paystack has no record of this refund, but it may have been sent. Check the Paystack dashboard before resolving it.",
+      "note": null,
+      "rejected_reason": null,
+      "requested_by": null,
+      "approved_by": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+      "review_flagged_at": "2026-10-21T14:29:30.913259",
+      "review_reason": "Paystack has no record of this refund, but it may have been sent. Check the Paystack dashboard before resolving it.",
+      "created_at": "2026-10-21T14:29:06.205943",
+      "approved_at": "2026-10-21T14:29:21.828817",
+      "processed_at": null,
+      "max_approvable_naira": 55000.0,
+      "available_actions": [
+        "resolve"
+      ],
+      "booking": {
+        "code": "924D189B",
+        "status": "cancelled",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": false,
+        "caregiver_arrived": false,
+        "completed": false,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 55000.0,
+        "refundable_naira": 0.0
+      },
+      "suggestion_why": "Set by the admin who cancelled the booking.",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "unknown",
+          "failure_reason": null,
+          "paystack_refund_id": null,
+          "bank_code": null,
+          "account_last4": null,
+          "account_name": null,
+          "bank_details_submitted_at": null,
+          "created_at": "2026-10-21T14:29:24.292704"
+        }
+      ],
+      "take_back_reason": null,
+      "take_back_preview_naira": 0.0,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  }
+}

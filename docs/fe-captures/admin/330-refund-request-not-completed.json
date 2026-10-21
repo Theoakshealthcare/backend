@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "booking_id": "b0d2dc45-ebe8-443e-80c1-7c2a8e89d17a",
+      "amount_naira": 5000,
+      "reason_code": "complaint"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "A refund can be raised only for a completed or cancelled visit."
+    }
+  },
+  "note": "A paid booking that is still pending (the visit has not happened) cannot be refunded by hand."
+}

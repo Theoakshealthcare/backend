@@ -93,6 +93,11 @@ Self-withdrawal moved money out with no human in the loop and no integration wit
 - Changing `payout_cadence` or `payout_min_naira` (`PATCH /admin/booking-policy`) takes effect at the next job run.
 - Roll back: `alembic downgrade -1` drops the new tables and deletes `payout` ledger rows. A payout that was reserved but not paid would then look available again, and money Paystack already paid is not undone. **Once real payouts exist, do not downgrade; reconcile by hand or write a forward migration.** (Greenfield now, so acceptable today.) To stop payouts without a rollback: do not approve the batch, or cancel its payouts; or set `payout_min_naira` very high.
 
+## Refunds v2 changes (2026-10-21)
+- **`owed_kobo` is netted at payout reservation.** `payouts._reserve` (the single choke point every batch passes through) takes `caregiver_wallets.owed_kobo` off the balance before it reserves, so money that a failed or reversed payout returned to the balance cannot be paid out while the caregiver still owes a refund take-back. Each recovery is a `refund_take_back` ledger row. A caregiver whose balance does not cover the debt gets no payout that period.
+- **`retry_payout` is refused (409) while `owed_kobo > 0`.** The admin cancels the payout; the next batch nets the debt first. Shrinking a payout mid-life would break its attempt amounts. A refused retry still spends one Paystack verify call.
+- A payout already reserved or sent is **not** touched by a take-back: its money is the caregiver's, and the take-back goes to `owed_kobo`. Take-back never freezes payouts (it is not a Paystack contradiction) and never credits.
+
 ## Follow-ups
 - A live Paystack test (not done); OTP disabled for transfers (not done).
 - No route to make a batch by hand after a missed payout day.
@@ -107,7 +112,7 @@ Self-withdrawal moved money out with no human in the loop and no integration wit
 - ~~Finance cannot approve payouts~~ Decided 2026-10-19: Finance approves and cancels (`payouts.execute`); retry, resolve and unfreeze stay Super Admin only.
 - The lookup limiter and bank-list cache are per process (Redis if the API scales out); compare the resolved name with the caregiver's profile name.
 - Console screens for batches and payouts, and the caregiver app's payout and bank-account screens (the app is dropping the withdraw button in parallel).
-- Slice 3: refunds v2 and ledger adjustments; an earning or payout for a booking refunded after completion does not claw back.
+- Slice 3: **refunds v2 is done (2026-10-21)**, see [refunds v2](2026-10-21-refunds-v2.md): a refund of a completed visit can take the caregiver's share back (wallet first, then `owed_kobo`). Ledger adjustments (AD-FR-42) are still open. A payout already sent is never clawed back; its share becomes `owed_kobo`, recovered from future earnings.
 - **Webhook has no recipient check.** `apply_transfer_event` matches on our attempt reference and amount but does not compare the event's recipient with the payout's `recipient_code`. The HMAC signature check makes this low risk; add the comparison if Paystack ever sends events from other integrations.
 - **`resolve(failed, force)` does not re-check `initiated_at`.** An admin forcing `failed` on a payout that was sent but unanswered releases money that may still be paid. Relies on the admin's reason and the Paystack check; consider refusing it when `initiated_at` is set and Paystack's answer is not final.
 - **The first-save cool-down ignores earnings still clearing.** It looks at the wallet balance only, so a first bank account saved while earnings are still in the clearing period does not start a cool-down.

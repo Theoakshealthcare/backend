@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds/78e5b28d-023a-4814-ade6-662f0f18c651",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Refund not found"
+    }
+  }
+}

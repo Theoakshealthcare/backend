@@ -20,14 +20,26 @@ What is real and what is not
   placeholder key), are shaped after Paystack's documented ones; no live Paystack account was used. The batch, send and reconcile
   steps are the real functions run inside the worker container (in production the ARQ cron runs them).
 
+- The refunds section (`--section refunds`, captures 303 onward) uses the same LOCAL FAKE Paystack (refund endpoints included) and the
+  same placeholder key for signing the refund webhooks. The worker service must NOT be running: the send and reconcile steps are the real
+  functions run in one-off worker containers (`docker compose run --rm --no-deps -T worker python -c ...`, so COMPOSE_PROJECT_NAME,
+  COMPOSE_FILE and OAKLY_ENV_FILE_PATH must be set), which keeps the cron from sending refunds between the script's steps. The
+  reconcile step's clock is moved ahead (11 and 31 minutes) instead of waiting; the earning's 24-hour hold and the caregiver's wallet
+  balance are moved in the database. Each is labelled in its capture.
+
 Everything created here uses placeholder data (example.com emails, fake names). Secrets are replaced in
 the files: JWTs, refresh/invite tokens, TOTP secrets and codes, passwords.
 """
 
 import argparse
+import hashlib
+import hmac
 import json
+import os
 import re
 import shutil
+import subprocess
+import sys
 import time
 import types
 import uuid
@@ -1062,6 +1074,434 @@ def payouts_net_off(rec, db, ctx, fake, caregiver, payout_of, P, boss, fin, toda
              note="payout.unfreeze entries: what the freeze was, the shortfall that was written off and what stays recorded.")
 
 
+# --- A3 slice 3: refunds ---------------------------------------------------------------------------------------------
+
+
+def _compose_env() -> Dict[str, str]:
+    from scripts.capture_caregiver_flow import _SET_HERE
+    return {k: v for k, v in os.environ.items() if k not in _SET_HERE}  # a placeholder DATABASE_URL must not reach compose
+
+
+def run_refund_job(code: str) -> str:
+    """Run a snippet in a one-off container of the worker service (the cron worker itself is NOT running during the refunds
+    section, so the send and reconcile steps happen only when this script runs them). Returns the last line it printed."""
+    out = subprocess.run(["docker", "compose", "run", "--rm", "--no-deps", "-T", "worker", "python", "-c", code],
+                         capture_output=True, text=True, check=True, env=_compose_env()).stdout
+    return out.strip().splitlines()[-1]
+
+
+def run_refund_dispatch_job() -> int:
+    """The send step (the real ``refunds.dispatch_due``, what refund_dispatch_job runs every minute)."""
+    return int(run_refund_job("from app.db.session import SessionLocal; from app.services import refunds; "
+                              "print('sent=%d' % refunds.dispatch_due(SessionLocal()))").split("=")[1])
+
+
+def run_refund_reconcile_job(minutes_ahead: int = 0) -> int:
+    """The reconcile step (``refunds.reconcile``, what refund_reconcile_job runs every 15 minutes), with its clock moved ahead
+    so a capture does not have to wait for the real 10 and 30 minute thresholds."""
+    return int(run_refund_job(
+        "from datetime import datetime, timedelta; from app.db.session import SessionLocal; from app.services import refunds; "
+        "print('acted=%%d' %% refunds.reconcile(SessionLocal(), now=datetime.utcnow() + timedelta(minutes=%d)))" % minutes_ahead
+    ).split("=")[1])
+
+
+def refund_webhook(ctx, label: str, fake: FakePaystack, paystack_refund_id: str, status: str, note: str):
+    """Move a refund on the fake Paystack and send the API the correctly signed webhook Paystack would send."""
+    event = fake.settle_refund(paystack_refund_id, status)
+    body = json.dumps(event).encode()
+    sig = hmac.new(ctx.env["PAYSTACK_SECRET_KEY"].encode(), body, hashlib.sha512).hexdigest()
+    r = ctx.rec.http.post("/api/v1/payment/paystack/webhook", content=body,
+                          headers={"x-paystack-signature": sig, "Content-Type": "application/json"})
+    ctx.rec.save(label, {
+        "request": {"method": "POST", "path": "/api/v1/payment/paystack/webhook",
+                    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>", "body": event},
+        "response": {"status_code": r.status_code, "headers": {}, "body": r.json()},
+        "note": note})
+    if r.status_code != 200:
+        sys.exit(f"refund webhook failed: {r.status_code} {r.text}")
+    return event
+
+
+def refunds_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str, paystack_port: int) -> None:
+    """A3 slice 3: the admin side of refunds. Patients, caregivers and paid bookings are seeded; cancels, staff requests and every
+    admin action are real HTTP calls; the send and reconcile steps are the real functions run in a one-off worker container
+    against a LOCAL FAKE Paystack (app/tests/fake_meta.py); Paystack's refund webhooks are signed and sent by this script."""
+    fake = FakePaystack()
+    server = serve_fake_paystack(fake, port=paystack_port)
+    ctx = types.SimpleNamespace(rec=rec, env=env)
+    admins = Admins(db, env, tag + "ref")
+    seed = OpsSeed(db, env, tag + "c", first=800)
+    wait_for_new_rate_window()
+    rec.quiet = True
+    tokens = {}
+    for who, role in (("boss", "super_admin"), ("fin", "finance"), ("fin2", "finance"), ("ops", "operations"),
+                      ("sup", "support"), ("clin", "clinical_reviewer")):
+        tokens[who] = login_and_verify(rec, admins, who, admins.seed(who, role, f"Placeholder {role}"))["access_token"]
+    rec.quiet = False
+    boss, fin, fin2, ops, sup, clin = (tokens[k] for k in ("boss", "fin", "fin2", "ops", "sup", "clin"))
+    R, B = f"{ADMIN}/refunds", f"{ADMIN}/bookings"
+    FAKE = "FAKE PAYSTACK: "
+
+    def auth(token: str) -> Dict[str, str]:
+        return {"Authorization": f"Bearer {token}"}
+
+    def quiet_get(path: str, token: str = boss, **params) -> Dict[str, Any]:
+        return rec.http.get(path, params=params or None, headers=auth(token)).json()
+
+    def refund_of(booking: Dict[str, Any]) -> Dict[str, Any]:
+        return quiet_get(R, boss, booking_id=booking["id"], status="all")["items"][0]
+
+    def pid_of(refund_id: str) -> str:
+        return quiet_get(f"{R}/{refund_id}")["attempts"][-1]["paystack_refund_id"]
+
+    def dispatch(label: str, note: str) -> int:
+        before = len(fake.requests)
+        sent = run_refund_dispatch_job()
+        rec.save(label, {
+            "request": {"method": "JOB", "path": "refund_dispatch_job -> app.services.refunds.dispatch_due(SessionLocal()), run in a one-off worker container",
+                        "auth": None, "body": None},
+            "response": {"status_code": None, "headers": {}, "body": {"refunds_sent": sent, "refund_requests_seen_by_the_fake": [
+                {"transaction": r[3].get("transaction"), "amount_kobo": r[3].get("amount")}
+                for r in fake.requests[before:] if r[0] == "POST" and r[1].endswith("/refund")]}},
+            "note": f"SIMULATION of the schedule: in production the ARQ cron runs this every minute. {FAKE}{note}"})
+        return sent
+
+    # --- seeding: patients, caregivers, paid bookings (no API creates them without a live Paystack account) ---------------------
+    seeded = "SEEDED: patients, caregivers and paid bookings are inserted directly. Everything is placeholder data."
+    ada, bola, chi = seed.patient("Ada Okafor"), seed.patient("Bola Adeyemi"), seed.patient("Chidi Eze")
+    nurse = seed.caregiver("Placeholder Nurse Refunds", offset=0.002)
+
+    def paid(patient: str, *, status: str = "PENDING", channel: str = "app", caregiver_id: Optional[str] = None,
+             started: bool = False, fee_kobo: int = 82_500) -> Dict[str, Any]:
+        """A booking the family paid 55,000.00 NGN for, whose Paystack charge the fake knows (so it can refund it)."""
+        b = seed.booking(patient, status=status, payment="PAID", channel=channel, caregiver_id=caregiver_id, started=started,
+                         dispatch_state="matched" if caregiver_id else "dispatching",
+                         dispatch_started_ago_min=None if caregiver_id else 5, hours_ahead=-1 if started else 26)
+        (reference,), = db.run("SELECT paystack_reference FROM bookings WHERE id = %s", (b["id"],))
+        db.run("UPDATE bookings SET paystack_fee_kobo = %s WHERE id = %s", (fee_kobo, b["id"]))
+        fake.initialised.append({"reference": reference, "amount": 5_500_000})
+        fake.paid.add(reference)
+        return b
+
+    big_lower, big_super, partial, wallet = paid(ada), paid(bola), paid(chi), paid(ada)
+    wa_retry, to_wallet, to_close, review = paid(bola, channel="whatsapp"), paid(chi), paid(ada), paid(bola)
+    silent, rejected, done, pending_paid = paid(chi), paid(ada), paid(bola, status="IN_PROGRESS", caregiver_id=nurse, started=True), paid(chi)
+    kept = paid(bola)
+    rec.save("db-seeded-refund-bookings", {
+        "request": {"method": "SQL", "path": "INSERT INTO patients / caregivers / bookings ... (13 paid placeholder bookings of 5,500,000 kobo each)",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"each_booking": {
+            "total_amount_kobo": 5_500_000, "payment_status": "paid", "paystack_fee_kobo": 82_500,
+            "paystack": "the fake Paystack knows the charge, so it accepts a refund of it"},
+            "channels": {"whatsapp": 1, "app": 12}}},
+        "note": seeded + " The Finance limit in the booking policy is 50,000.00 NGN, so a full refund of one of these "
+                         "(55,000.00 NGN) is above it."})
+
+    # --- the system makes refunds: real admin cancels ------------------------------------------------------------------------------
+    cancel_note = ("No money moves here. Cancelling a PAID booking with a refund choice also queues a refund (pending_approval) "
+                   "for Finance: see the refunds list.")
+    rec.call("cancel-big-lower", "POST", f"{B}/{big_lower['id']}/cancel", token=ops, note=cancel_note,
+             json_body={"reason_code": "no_supply", "reason": "No caregiver could take the visit", "refund": "full"})
+    rec.quiet = True
+    for b in (big_super, wallet, wa_retry, to_wallet, to_close, review, silent, rejected):
+        rec.call("cancel", "POST", f"{B}/{b['id']}/cancel", token=ops,
+                 json_body={"reason_code": "no_supply", "reason": "No caregiver could take the visit", "refund": "full"})
+    rec.quiet = False
+    rec.call("cancel-no-refund", "POST", f"{B}/{kept['id']}/cancel", token=ops, note="Cancelled with refund 'none': no refund row exists for this booking.",
+             json_body={"reason_code": "duplicate", "reason": "Duplicate booking", "refund": "none"})
+    rec.call("cancel-partial", "POST", f"{B}/{partial['id']}/cancel", token=ops, note=cancel_note,
+             json_body={"reason_code": "safety", "reason": "Unsafe address: partial goodwill refund", "refund": "partial",
+                        "refund_amount_kobo": 1_200_000})
+
+    # --- reading: the queue and a refund ------------------------------------------------------------------------------------------
+    rec.call("refunds-list", "GET", R, token=fin, params={"limit": 3},
+             note="Default filter is 'open': every unfinished refund, plus finished ones flagged for review. Newest first. "
+                  "Naira are JSON numbers.")
+    rec.call("refunds-list-filtered", "GET", R, token=fin, params={
+        "status": "pending_approval", "reason_code": "admin_cancelled", "above_limit": "true", "limit": 2})
+    rec.call("refunds-list-by-booking", "GET", R, token=ops, params={"booking_id": partial["id"], "status": "all"},
+             note="Operations holds refunds.request, which is enough to read the queue.")
+    rec.call("refunds-list-bad-status", "GET", R, token=fin, expect=422, params={"status": "bogus"})
+    rec.call("refunds-list-as-clinical-reviewer", "GET", R, token=clin, expect=403,
+             note="The Clinical Reviewer holds none of refunds.request, refunds.approve or payments.read.")
+    rec.call("refunds-list-no-token", "GET", R, expect=401)
+    lower_r, super_r, partial_r = refund_of(big_lower), refund_of(big_super), refund_of(partial)
+    rec.call("refund-detail-system", "GET", f"{R}/{lower_r['id']}", token=fin,
+             note="Finance sees needs_super_admin true and max_approvable_naira 50000: it may approve up to the limit, no more.")
+    rec.call("refund-detail-as-super-admin", "GET", f"{R}/{lower_r['id']}", token=boss)
+    rec.call("refund-detail-unknown", "GET", f"{R}/{uuid.uuid4()}", token=fin, expect=404)
+
+    # --- approving: the limit, the lower amount, Super Admin -----------------------------------------------------------------------
+    rec.call("refund-approve-as-support", "POST", f"{R}/{partial_r['id']}/approve", token=sup, expect=403, json_body={},
+             note="Support can raise a refund (refunds.request) but not approve one.")
+    rec.call("refund-approve-above-limit-as-finance", "POST", f"{R}/{lower_r['id']}/approve", token=fin, expect=403, json_body={},
+             note="The suggested amount is the whole 55,000.00 NGN, above Finance's 50,000.00 NGN limit.")
+    rec.call("refund-approve-too-much", "POST", f"{R}/{lower_r['id']}/approve", token=boss, expect=422,
+             json_body={"amount_naira": 60000})
+    rec.call("refund-approve-bad-amount", "POST", f"{R}/{lower_r['id']}/approve", token=boss, expect=422,
+             json_body={"amount_naira": 10.123})
+    rec.call("refund-approve-wallet-as-finance", "POST", f"{R}/{lower_r['id']}/approve", token=fin, expect=403,
+             json_body={"amount_naira": 20000, "destination": "wallet"})
+    rec.call("refund-approve-lower-amount", "POST", f"{R}/{lower_r['id']}/approve", token=fin,
+             json_body={"amount_naira": 20000, "note": "Approving 20,000.00 NGN now; the rest can be raised later"},
+             note="Finance approves a lower amount that is within its limit. The status is 'approved': the send job sends it.")
+    rec.call("refund-approve-again", "POST", f"{R}/{lower_r['id']}/approve", token=boss, expect=409, json_body={})
+    rec.call("refund-approve-super-admin-above-limit", "POST", f"{R}/{super_r['id']}/approve", token=boss, json_body={},
+             note="A Super Admin approves the whole 55,000.00 NGN.")
+    rec.call("refund-approve-within-limit", "POST", f"{R}/{partial_r['id']}/approve", token=fin, json_body={},
+             note="The 12,000.00 NGN partial refund from the admin cancel, approved as suggested.")
+
+    # --- rejecting; then staff raise one by hand --------------------------------------------------------------------------------------
+    rejected_r = refund_of(rejected)
+    rec.call("refund-reject-no-reason", "POST", f"{R}/{rejected_r['id']}/reject", token=fin, expect=422, json_body={})
+    rec.call("refund-reject", "POST", f"{R}/{rejected_r['id']}/reject", token=fin,
+             json_body={"reason": "Raised by mistake: the family keeps the visit credit instead"},
+             note="Rejected is final, and it frees the booking: it can be refunded again.")
+    rec.call("refund-reject-again", "POST", f"{R}/{rejected_r['id']}/reject", token=fin, expect=409,
+             json_body={"reason": "Again"})
+    rec.call("refund-request", "POST", R, token=ops, expect=201,
+             json_body={"booking_id": rejected["id"], "amount_naira": 5000, "reason_code": "complaint",
+                        "note": "Placeholder: the family complained about the cancellation fee"},
+             note="A staff-raised refund waits for someone else to approve it. A booking must be completed or cancelled.")
+    rec.call("refund-request-open-exists", "POST", R, token=ops, expect=409,
+             json_body={"booking_id": rejected["id"], "amount_naira": 1000, "reason_code": "other"})
+    rec.call("refund-request-not-completed", "POST", R, token=ops, expect=422,
+             json_body={"booking_id": pending_paid["id"], "amount_naira": 5000, "reason_code": "complaint"},
+             note="A paid booking that is still pending (the visit has not happened) cannot be refunded by hand.")
+    rec.call("refund-request-too-much", "POST", R, token=ops, expect=422,
+             json_body={"booking_id": kept["id"], "amount_naira": 90000, "reason_code": "other"})
+    rec.call("refund-request-zero", "POST", R, token=ops, expect=422,
+             json_body={"booking_id": kept["id"], "amount_naira": 0, "reason_code": "other"})
+    rec.call("refund-request-bad-reason", "POST", R, token=ops, expect=422,
+             json_body={"booking_id": kept["id"], "amount_naira": 100, "reason_code": "bogus"})
+    rec.call("refund-request-unknown-booking", "POST", R, token=ops, expect=404,
+             json_body={"booking_id": str(uuid.uuid4()), "amount_naira": 1000, "reason_code": "other"})
+    rec.call("refund-request-as-clinical-reviewer", "POST", R, token=clin, expect=403,
+             json_body={"booking_id": rejected["id"], "amount_naira": 1000, "reason_code": "other"})
+    staff_r = refund_of(rejected)
+    rec.call("refund-detail-staff", "GET", f"{R}/{staff_r['id']}", token=fin)
+    rec.call("refund-approve-take-back-not-completed", "POST", f"{R}/{staff_r['id']}/approve", token=fin, expect=422,
+             json_body={"take_back_from_caregiver": True, "take_back_reason": "Placeholder"})
+
+    # --- wallet destination -------------------------------------------------------------------------------------------------------
+    wallet_r, wa_r = refund_of(wallet), refund_of(wa_retry)
+    rec.call("refund-approve-wallet-whatsapp", "POST", f"{R}/{wa_r['id']}/approve", token=boss, expect=422,
+             json_body={"destination": "wallet"}, note="A WhatsApp booker has no app wallet, so only the original payment method works.")
+    rec.call("refund-approve-wallet", "POST", f"{R}/{wallet_r['id']}/approve", token=boss, json_body={"destination": "wallet"},
+             note="Super Admin only. The patient's Oakly wallet is credited in the same transaction, so the refund is already succeeded.")
+    rec.call("booking-after-wallet-refund", "GET", f"{B}/{wallet['id']}", token=fin,
+             note="payment_status is refunded: the whole 55,000.00 NGN went to the wallet.")
+
+    # --- sending, and Paystack's word -----------------------------------------------------------------------------------------------
+    dispatch("worker-refund-dispatch-job", "Three refunds were approved to the original payment method (20,000.00, 55,000.00 and "
+             "12,000.00 NGN): the fake received three POST /refund calls, one per refund, with the booking's Paystack reference.")
+    rec.call("refund-detail-processing", "GET", f"{R}/{lower_r['id']}", token=fin,
+             note="Sent to Paystack: status processing, one attempt with Paystack's refund id. Nothing is final until Paystack says processed.")
+    refund_webhook(ctx, "paystack-refund-processing-webhook", fake, pid_of(super_r["id"]), "processing",
+                   FAKE + "shaped after Paystack's documented refund.processing event (its refund id is data.id, refund_reference "
+                          "is null, the amount is a string), signed with the stack's placeholder key.")
+    refund_webhook(ctx, "paystack-refund-processed-webhook", fake, pid_of(super_r["id"]), "processed",
+                   FAKE + "refund.processed. For a real card refund the customer sees the money up to 10 business days later: "
+                          "Oakly cannot show that and does not guess it.")
+    rec.call("refund-detail-succeeded", "GET", f"{R}/{super_r['id']}", token=fin)
+    rec.call("booking-after-full-refund", "GET", f"{B}/{big_super['id']}", token=fin, note="payment_status is refunded.")
+    refund_webhook(ctx, "paystack-refund-processed-webhook-partial", fake, pid_of(partial_r["id"]), "processed",
+                   FAKE + "refund.processed for the 12,000.00 NGN refund.")
+    rec.call("booking-after-partial-refund", "GET", f"{B}/{partial['id']}", token=fin,
+             note="payment_status is partially_refunded: 12,000.00 NGN of 55,000.00 NGN has been refunded.")
+    rec.call("refunds-list-succeeded", "GET", R, token=fin, params={"status": "succeeded", "limit": 5})
+
+    # --- needs attention -> the family's bank details ------------------------------------------------------------------------------
+    lower_pid = pid_of(lower_r["id"])
+    refund_webhook(ctx, "paystack-refund-needs-attention-webhook", fake, lower_pid, "needs-attention",
+                   FAKE + "refund.needs-attention: Paystack could not send the money back to the card and needs the customer's "
+                          "bank account. The family is told on WhatsApp that Oakly is waiting for their bank details.")
+    rec.call("refund-detail-needs-attention", "GET", f"{R}/{lower_r['id']}", token=fin,
+             note="Finance approved it, so 'bank_details' is NOT in its available_actions: someone else must enter the account.")
+    rec.call("refund-detail-needs-attention-other-finance", "GET", f"{R}/{lower_r['id']}", token=fin2,
+             note="Another Finance admin is offered bank_details.")
+    rec.call("refund-bank-details-by-approver", "POST", f"{R}/{lower_r['id']}/bank-details", token=fin, expect=403,
+             json_body={"bank_code": "058", "account_number": "0000000077"})
+    rec.call("refund-bank-details-as-operations", "POST", f"{R}/{lower_r['id']}/bank-details", token=ops, expect=403,
+             json_body={"bank_code": "058", "account_number": "0000000077"})
+    rec.call("refund-bank-details-short-number", "POST", f"{R}/{lower_r['id']}/bank-details", token=fin2, expect=422,
+             json_body={"bank_code": "058", "account_number": "123456789"})
+    rec.call("refund-bank-details-unknown-bank", "POST", f"{R}/{lower_r['id']}/bank-details", token=fin2, expect=422,
+             json_body={"bank_code": "999", "account_number": "0000000077"})
+    rec.call("refund-bank-details-not-waiting", "POST", f"{R}/{partial_r['id']}/bank-details", token=fin2, expect=409,
+             json_body={"bank_code": "058", "account_number": "0000000077"})
+    rec.call("refund-bank-details", "POST", f"{R}/{lower_r['id']}/bank-details", token=fin2,
+             json_body={"bank_code": "058", "account_number": "0000000077"},
+             note="Another Finance admin enters the account. The full number goes to Paystack and is never stored: the attempt "
+                  "keeps the bank code, the last four digits and the name Paystack resolved.")
+    rec.call("refund-detail-support-view", "GET", f"{R}/{lower_r['id']}", token=sup,
+             note="Support holds neither refunds.approve nor payments.read, so the attempt's bank_code, account_last4 and "
+                  "account_name are null. The same refund seen by Finance is in the previous capture.")
+    refund_webhook(ctx, "paystack-refund-processed-webhook-after-bank-details", fake, lower_pid, "processed",
+                   FAKE + "refund.processed after the bank details were given.")
+    rec.call("refund-detail-after-bank-details", "GET", f"{R}/{lower_r['id']}", token=fin2)
+
+    # --- the take-back: a completed visit refunded by a complaint ---------------------------------------------------------------------
+    rec.call("complete-visit-for-take-back", "POST", f"{B}/{done['id']}/correct-status", token=boss,
+             json_body={"status": "completed", "reason": "Caregiver forgot to check out"},
+             note="The real completion path: it credits the caregiver's pending earning. " + seeded)
+    db.run("UPDATE caregiver_transactions SET available_at = now() at time zone 'utc' - interval '1 minute'"
+           " WHERE caregiver_id = %s AND type = 'earning'", (nurse,))
+    released = int(run_refund_job("from app.db.session import SessionLocal; from app.services.earnings import release_due; "
+                                  "print('released=%d' % release_due(SessionLocal()))").split("=")[1])
+    db.run("UPDATE caregiver_wallets SET balance = 100000 WHERE caregiver_id = %s", (nurse,))
+    rec.save("worker-release-job-and-wallet-simulation", {
+        "request": {"method": "JOB", "path": "earnings_release_job (app.services.earnings.release_due), then UPDATE caregiver_wallets SET balance = 100000",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"released": released, "wallet_balance_kobo_after": 100000}},
+        "note": "SIMULATION: the 24-hour clearing time was skipped so the earning is released into the caregiver's wallet, and the "
+                "wallet was then set to 1,000.00 NGN to stand for a caregiver who has already been paid out most of it. The refund "
+                "can then take back only what is left; the rest becomes owed."})
+    rec.call("refund-request-by-finance", "POST", R, token=fin, expect=201,
+             json_body={"booking_id": done["id"], "amount_naira": 20000, "reason_code": "complaint",
+                        "note": "Placeholder: the family says the visit was cut short"},
+             note="Finance raises it, so Finance cannot approve it.")
+    done_r = refund_of(done)
+    rec.call("refund-detail-take-back-preview", "GET", f"{R}/{done_r['id']}", token=fin2,
+             note="take_back_preview_naira is the caregiver's share of this refund. The console shows it before the approver chooses.")
+    rec.call("refund-approve-own-request", "POST", f"{R}/{done_r['id']}/approve", token=fin, expect=403, json_body={})
+    rec.call("refund-approve-take-back-no-reason", "POST", f"{R}/{done_r['id']}/approve", token=fin2, expect=422,
+             json_body={"take_back_from_caregiver": True})
+    rec.call("refund-approve-with-take-back", "POST", f"{R}/{done_r['id']}/approve", token=fin2,
+             json_body={"take_back_from_caregiver": True, "take_back_reason": "The caregiver left the visit early"},
+             note="Another Finance admin approves and takes the caregiver's share back. Nothing is taken yet: it happens when the "
+                  "money has actually left (Paystack says processed).")
+
+    # --- batch 2: approve four, send them, and Paystack answers differently for each -----------------------------------------------------
+    to_wallet_r, to_close_r, review_r = refund_of(to_wallet), refund_of(to_close), refund_of(review)
+    for r in (wa_r, to_wallet_r, to_close_r, review_r):
+        rec.quiet = True
+        rec.call("approve", "POST", f"{R}/{r['id']}/approve", token=boss, json_body={})
+        rec.quiet = False
+    rec.save("refunds-approved-by-super-admin", {
+        "request": {"method": "POST", "path": f"{R}/<id>/approve (four times, as the Super Admin)", "auth": "Bearer <ACCESS_TOKEN_JWT>", "body": {}},
+        "response": {"status_code": 200, "headers": {}, "body": {"approved": ["the WhatsApp booker's", "the one that will fail and go to the wallet",
+                                                                              "the one that will fail and be closed", "the one with a different amount"]}},
+        "note": "Four more 55,000.00 NGN refunds approved by the Super Admin (the responses have the same shape as the earlier approvals)."})
+    dispatch("worker-refund-dispatch-job-2", "Five refunds were waiting: the four above and the take-back one approved before them.")
+
+    # failed -> retry (the WhatsApp booker's refund)
+    rec.call("refund-retry-not-failed", "POST", f"{R}/{wa_r['id']}/retry", token=fin, expect=409,
+             note="The refund is processing, not failed.")
+    wa_pid = pid_of(wa_r["id"])
+    refund_webhook(ctx, "paystack-refund-failed-webhook", fake, wa_pid, "failed",
+                   FAKE + "refund.failed: Paystack returned the money to Oakly's balance. Nothing reached the family.")
+    rec.call("refund-detail-failed", "GET", f"{R}/{wa_r['id']}", token=fin,
+             note="failed is still OPEN: it keeps the booking's slot until it is retried, switched to the wallet or closed.")
+    rec.call("refund-retry-as-operations", "POST", f"{R}/{wa_r['id']}/retry", token=ops, expect=403)
+    rec.call("refund-retry", "POST", f"{R}/{wa_r['id']}/retry", token=fin,
+             note="Oakly first asks Paystack whether the last attempt really failed (it did), then queues attempt 2 for the send job.")
+    dispatch("worker-refund-dispatch-job-3", "Retry attempt 2 of the WhatsApp booker's refund went out.")
+    refund_webhook(ctx, "paystack-refund-processed-webhook-retry", fake, pid_of(wa_r["id"]), "processed",
+                   FAKE + "attempt 2 is processed.")
+    rec.call("refund-detail-after-retry", "GET", f"{R}/{wa_r['id']}", token=fin,
+             note="Two attempts: the first failed, the second is processed. The history is never overwritten.")
+
+    # the take-back refund is paid
+    refund_webhook(ctx, "paystack-refund-processed-webhook-take-back", fake, pid_of(done_r["id"]), "processed",
+                   FAKE + "refund.processed for the refund that takes the caregiver's share back.")
+    rec.call("refund-detail-take-back-applied", "GET", f"{R}/{done_r['id']}", token=fin,
+             note="take_back_debited_naira came out of the caregiver's wallet; take_back_owed_naira is what the wallet could not "
+                  "cover and is recovered from her next earnings.")
+    rec.call("earnings-list-after-take-back", "GET", f"{ADMIN}/earnings", token=fin, params={"booking_id": done["id"]})
+
+    # failed -> switch to wallet
+    wallet_pid = pid_of(to_wallet_r["id"])
+    refund_webhook(ctx, "paystack-refund-failed-webhook-wallet", fake, wallet_pid, "failed", FAKE + "refund.failed.")
+    rec.call("refund-switch-to-wallet-as-finance", "POST", f"{R}/{to_wallet_r['id']}/switch-to-wallet", token=fin, expect=403)
+    rec.call("refund-switch-to-wallet", "POST", f"{R}/{to_wallet_r['id']}/switch-to-wallet", token=boss,
+             note="Super Admin only, after Paystack confirms the failure. The patient's wallet is credited and the refund is succeeded.")
+    rec.call("refund-switch-to-wallet-again", "POST", f"{R}/{to_wallet_r['id']}/switch-to-wallet", token=boss, expect=409)
+
+    # failed -> close
+    close_pid = pid_of(to_close_r["id"])
+    refund_webhook(ctx, "paystack-refund-failed-webhook-close", fake, close_pid, "failed", FAKE + "refund.failed.")
+    rec.call("refund-close-no-reason", "POST", f"{R}/{to_close_r['id']}/close", token=fin, expect=422, json_body={})
+    rec.call("refund-close-not-failed", "POST", f"{R}/{partial_r['id']}/close", token=fin, expect=409, json_body={"reason": "Nothing to close"})
+    rec.call("refund-close", "POST", f"{R}/{to_close_r['id']}/close", token=fin,
+             json_body={"reason": "The family asked us to stop; they will use their credit instead"},
+             note="Closed is final. The money stays with Oakly, and the booking can be refunded again: refundable_naira is back to the full amount.")
+
+    # needs review: Paystack processed a different amount
+    review_pid = pid_of(review_r["id"])
+    fake.refunds[review_pid]["amount"] = 5_400_000
+    rec.save("fake-paystack-refund-amount-changed", {
+        "request": {"method": "FAKE", "path": "the refund's amount on the fake Paystack: 5500000 -> 5400000 kobo", "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": None},
+        "note": FAKE + "stands in for Paystack processing a different amount from the one Oakly asked for (a contradiction)."})
+    refund_webhook(ctx, "paystack-refund-processed-webhook-different-amount", fake, review_pid, "processed",
+                   FAKE + "refund.processed for 54,000.00 NGN, but Oakly asked for 55,000.00 NGN. Nothing is settled by guessing: "
+                          "the refund goes to needs_review.")
+    rec.call("refund-detail-needs-review", "GET", f"{R}/{review_r['id']}", token=boss)
+    rec.call("refunds-list-needs-review", "GET", R, token=fin, params={"status": "needs_review"})
+    rec.call("refund-resolve-as-finance", "POST", f"{R}/{review_r['id']}/resolve", token=fin, expect=403,
+             json_body={"outcome": "succeeded", "note": "Placeholder"})
+    rec.call("refund-resolve-no-note", "POST", f"{R}/{review_r['id']}/resolve", token=boss, expect=422,
+             json_body={"outcome": "succeeded"})
+    rec.call("refund-resolve-not-in-review", "POST", f"{R}/{partial_r['id']}/resolve", token=boss, expect=409,
+             json_body={"outcome": "succeeded", "note": "Placeholder"})
+    rec.call("refund-resolve-failed-but-paystack-processed", "POST", f"{R}/{review_r['id']}/resolve", token=boss, expect=409,
+             json_body={"outcome": "failed", "note": "Placeholder: trying to mark it failed"})
+    rec.call("refund-resolve-different-amount", "POST", f"{R}/{review_r['id']}/resolve", token=boss, expect=409,
+             json_body={"outcome": "succeeded", "note": "Checked the Paystack dashboard: processed"},
+             note="The answer names the amount Paystack confirmed, to resolve again with.")
+    rec.call("refund-resolve-succeeded", "POST", f"{R}/{review_r['id']}/resolve", token=boss,
+             json_body={"outcome": "succeeded", "note": "Checked the Paystack dashboard: 54,000.00 NGN processed", "amount_naira": 54000},
+             note="The refund records the amount that really left (54,000.00 NGN).")
+
+    # a send nobody heard back about: unknown -> reconcile -> needs_review -> resolve failed
+    silent_r = refund_of(silent)
+    rec.call("refund-approve-silent", "POST", f"{R}/{silent_r['id']}/approve", token=boss, json_body={})
+    fake.refund_error = "timeout"
+    dispatch("worker-refund-dispatch-job-silent", "Paystack never answered the POST /refund call (the fake dropped the connection). The "
+             "refund is NOT sent again; it waits for reconcile.")
+    fake.refund_error = None
+    rec.call("refund-detail-unknown-send", "GET", f"{R}/{silent_r['id']}", token=fin,
+             note="status processing, one attempt with status unknown and no Paystack refund id.")
+    acted = run_refund_reconcile_job(11)
+    rec.save("worker-refund-reconcile-job-11-minutes", {
+        "request": {"method": "JOB", "path": "refund_reconcile_job -> app.services.refunds.reconcile(SessionLocal(), now=<11 minutes ahead>)", "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"refunds_acted_on": acted}},
+        "note": "SIMULATION: the job's clock was moved 11 minutes ahead. The fake Paystack has no refund for the transaction, but "
+                "that is not yet 30 minutes after the send, so nothing changes."})
+    acted = run_refund_reconcile_job(31)
+    rec.save("worker-refund-reconcile-job-31-minutes", {
+        "request": {"method": "JOB", "path": "refund_reconcile_job -> app.services.refunds.reconcile(SessionLocal(), now=<31 minutes ahead>)", "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"refunds_acted_on": acted}},
+        "note": "SIMULATION: the job's clock was moved 31 minutes ahead. Paystack still has no record of the refund, which does "
+                "not prove it was not sent, so the refund goes to needs_review rather than failed."})
+    rec.call("refund-detail-no-record-review", "GET", f"{R}/{silent_r['id']}", token=boss)
+    rec.call("refund-resolve-failed", "POST", f"{R}/{silent_r['id']}/resolve", token=boss,
+             json_body={"outcome": "failed", "note": "Checked the Paystack dashboard: no refund for this payment"},
+             note="The Super Admin checked the dashboard. The refund is failed, so retry, switch to the wallet or close follow.")
+
+    # --- the audit log ---------------------------------------------------------------------------------------------------------------
+    rec.call("audit-refund-approve", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "refund", "action": "refund.approve", "limit": 2},
+             note="refund.approve entries: the amount, destination, take-back and the Finance limit in force.")
+    rec.call("audit-refund-bank-details", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "refund", "action": "refund.bank_details", "limit": 1},
+             note="Only the bank code, the last four digits and the resolved name: never the full account number.")
+    rec.call("audit-refund-resolve", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "refund", "action": "refund.resolve", "limit": 2})
+    rec.call("audit-refund-all", "GET", f"{ADMIN}/audit", token=boss, params={"entity_type": "refund", "limit": 4})
+
+    # --- the retired routes ----------------------------------------------------------------------------------------------------------
+    legacy = f"{API}/patient/admin/refund/requests"
+    rec.call("legacy-admin-refund-list", "GET", legacy, token=fin, expect=410)
+    rec.call("legacy-admin-refund-decide", "PUT", f"{legacy}/{uuid.uuid4()}", token=fin, expect=410, json_body={"status": "approved"})
+    rec.call("legacy-admin-refund-list-as-operations", "GET", legacy, token=ops, expect=403,
+             note="The permission check stays in front of the 410: an admin without refunds.approve gets 403, not 410.")
+    (email,), = db.run("SELECT u.email FROM users u JOIN patients p ON p.user_id = u.id WHERE p.id = %s", (ada,))
+    tokens_p = rec.call("patient-login", "POST", f"{API}/auth/login/mobile", json_body={
+        "email_or_phone": email, "password": PLACEHOLDER_PASSWORD}).json()
+    rec.call("legacy-patient-refund-request", "POST", f"{API}/patient/wallet/refund/request", token=tokens_p["access_token"], expect=410,
+             json_body={"transaction_id": str(uuid.uuid4()), "reason": "I want my money back"})
+    server.shutdown()
+
+
 def run(args) -> None:
     out = Path(args.out)
     env = read_env(args.env_file)
@@ -1150,6 +1590,21 @@ def run(args) -> None:
         index["sections"].pop("earnings", None)
         index["sections"].pop("payouts", None)
         bookings_ops(rec, db, env, tag)
+        index["captures"] = rec.index
+        (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
+        print(f"wrote {len(rec.index)} captures to {out}")
+        return
+    if args.section == "refunds":
+        # Append only the refunds captures: they follow the payouts section, which stays as it is.
+        index = json.loads((out / "000-index.json").read_text())
+        first = index.get("sections", {}).get("refunds", len(index["captures"]) + 1)
+        for stale in out.glob("*.json"):
+            if stale.name != "000-index.json" and int(stale.name[:3]) >= first:
+                stale.unlink()
+        rec.index = [c for c in index["captures"] if int(c["file"][:3]) < first]
+        rec.n = first - 1
+        index.setdefault("sections", {})["refunds"] = first
+        refunds_ops(rec, db, env, tag, args.paystack_port)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
         print(f"wrote {len(rec.index)} captures to {out}")
@@ -1406,11 +1861,13 @@ def run(args) -> None:
     earnings_ops(rec, db, env, tag)
     first_payouts = rec.n + 1
     payouts_ops(rec, db, env, tag, args.paystack_port)
+    first_refunds = rec.n + 1
+    refunds_ops(rec, db, env, tag, args.paystack_port)
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_admin_flow.py", "run_tag": tag,
         "sections": {"bookings": first_bookings, "policy": first_policy, "pricing": first_pricing,
-                     "earnings": first_earnings, "payouts": first_payouts},
+                     "earnings": first_earnings, "payouts": first_payouts, "refunds": first_refunds},
         "captures": rec.index}, indent=2) + "\n")
     print(f"wrote {len(rec.index)} captures to {out}")
 
@@ -1422,7 +1879,7 @@ def main() -> None:
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Fernet key)")
     p.add_argument("--out", default="docs/fe-captures/admin")
     p.add_argument("--paystack-port", type=int, default=9912, help="where the local fake Paystack listens (payouts section)")
-    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing", "earnings", "payouts"], default="all",
+    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing", "earnings", "payouts", "refunds"], default="all",
                    help="'bookings' re-captures only the A2 section (and drops the policy captures after it), 'policy' only "
                         "the booking-policy section, 'pricing' only the pricing section (the last one); all append to the existing captures")
     run(p.parse_args())

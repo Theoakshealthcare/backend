@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "FAKE",
+    "path": "the refund's amount on the fake Paystack: 5500000 -> 5400000 kobo",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": null
+  },
+  "note": "FAKE PAYSTACK: stands in for Paystack processing a different amount from the one Oakly asked for (a contradiction)."
+}

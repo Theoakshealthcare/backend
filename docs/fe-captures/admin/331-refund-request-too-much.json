@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "booking_id": "99d43241-7752-4184-ac92-5ec3819d15c9",
+      "amount_naira": 90000,
+      "reason_code": "other"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "The amount must be between 1 and 5500000 kobo, what is left to refund"
+    }
+  }
+}

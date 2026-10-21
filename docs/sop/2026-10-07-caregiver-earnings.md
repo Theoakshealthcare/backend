@@ -58,8 +58,8 @@ Caregivers were never credited: completing a visit moved no money, so `total_ear
 
 ## Follow-ups
 - **Slice 2: done (2026-10-12)**, see [caregiver payouts](2026-10-12-caregiver-payouts.md): scheduled Paystack payouts using `payout_cadence` and `payout_min_naira`; `POST /caregiver/wallet/withdraw` now answers 410.
-- Slice 3: refunds queue using `finance_refund_limit_naira`; ledger adjustments (AD-FR-42) to correct a released earning.
-- An earning for a booking cancelled after completion, or a refund of a completed visit, does not claw back yet.
+- Slice 3: **refunds queue done (2026-10-21)**, see [refunds v2](2026-10-21-refunds-v2.md): it enforces `finance_refund_limit_naira`. Ledger adjustments (AD-FR-42) to correct a released earning are still open.
+- ~~A refund of a completed visit does not claw back~~ **Done (refunds v2, 2026-10-21):** the approver may take the caregiver's share back (`refunds.take_back_from_caregiver`). It follows what the caregiver received: an earning still `pending_clearance` or `held` is reduced in place (a `refund_take_back` row with status `voided` records the reduction); a released earning is debited from the wallet first and the rest is recorded as `caregiver_wallets.owed_kobo`; a voided or missing earning takes nothing. `earnings.release_due` nets `owed_kobo` off every earning it releases (each recovery is a `refund_take_back` row), so the caregiver is only ever credited less than the earning, never more. An earning for a booking cancelled after completion is not clawed back.
 - Console screens for earnings.
-- **Refunds v2 (slice 3):** void or adjust the `late_cancel_compensation` earning when a late-cancel fee is later waived or refunded.
+- ~~**Refunds v2 (slice 3):** void or adjust the `late_cancel_compensation` earning when a late-cancel fee is later waived or refunded.~~ **Decided won't-do (owner, RF-D7, 2026-10-19):** the caregiver always keeps the compensation. The refund of its own booking never reverses it. A debt owed from another refund's take-back **is** recovered from a later release of a compensation (a ruling the owner has not confirmed; see the refunds v2 SOP follow-ups).
 - **Product:** consider waiving the late-cancel fee for a no-show-flagged booking (today the family is charged and the compensation is held).

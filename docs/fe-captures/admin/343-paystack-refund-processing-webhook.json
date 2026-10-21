@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/payment/paystack/webhook",
+    "auth": "x-paystack-signature: <HMAC-SHA512 of the body with the Paystack secret key>",
+    "body": {
+      "event": "refund.processing",
+      "data": {
+        "status": "processing",
+        "transaction_reference": "BKG_FC463CFD_d4090458",
+        "refund_reference": null,
+        "amount": "5500000",
+        "currency": "NGN",
+        "processor": "instant-transfer",
+        "customer": {
+          "email": "placeholder@example.com"
+        },
+        "integration": 412829,
+        "domain": "test",
+        "id": 1002
+      }
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {},
+    "body": {
+      "status": "success",
+      "message": "Webhook processed successfully"
+    }
+  },
+  "note": "FAKE PAYSTACK: shaped after Paystack's documented refund.processing event (its refund id is data.id, refund_reference is null, the amount is a string), signed with the stack's placeholder key."
+}

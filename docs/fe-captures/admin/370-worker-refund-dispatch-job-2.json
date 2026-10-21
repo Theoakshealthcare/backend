@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "refund_dispatch_job -> app.services.refunds.dispatch_due(SessionLocal()), run in a one-off worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "refunds_sent": 5,
+      "refund_requests_seen_by_the_fake": [
+        {
+          "transaction": "BKG_A18FA979_54b04505",
+          "amount_kobo": 2000000
+        },
+        {
+          "transaction": "BKG_6011C269_21868ea4",
+          "amount_kobo": 5500000
+        },
+        {
+          "transaction": "BKG_7C925A68_074a2864",
+          "amount_kobo": 5500000
+        },
+        {
+          "transaction": "BKG_68DACF41_5551d3ed",
+          "amount_kobo": 5500000
+        },
+        {
+          "transaction": "BKG_4AE4BD30_40f6ff28",
+          "amount_kobo": 5500000
+        }
+      ]
+    }
+  },
+  "note": "SIMULATION of the schedule: in production the ARQ cron runs this every minute. FAKE PAYSTACK: Five refunds were waiting: the four above and the take-back one approved before them."
+}

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/7903c1f2-5fbd-4628-aab9-b5ce9e83a600/bank-details",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "bank_code": "058",
+      "account_number": "0000000077"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: refunds.approve"
+    }
+  }
+}

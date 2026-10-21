@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/d7b74acb-16af-4965-b6b3-5de7e7995b5b/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: refunds.approve"
+    }
+  },
+  "note": "Support can raise a refund (refunds.request) but not approve one."
+}

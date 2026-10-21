@@ -1,0 +1,34 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "booking_id": "99d43241-7752-4184-ac92-5ec3819d15c9",
+      "amount_naira": 100,
+      "reason_code": "bogus"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "reason_code"
+          ],
+          "msg": "Input should be 'cancelled_by_booker', 'caregiver_cancelled', 'no_caregiver_found', 'admin_cancelled', 'paid_after_expiry', 'paid_after_cancellation', 'complaint' or 'other'",
+          "input": "bogus",
+          "ctx": {
+            "expected": "'cancelled_by_booker', 'caregiver_cancelled', 'no_caregiver_found', 'admin_cancelled', 'paid_after_expiry', 'paid_after_cancellation', 'complaint' or 'other'"
+          }
+        }
+      ]
+    }
+  }
+}

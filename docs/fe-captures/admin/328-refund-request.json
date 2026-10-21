@@ -1,0 +1,67 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "booking_id": "0f511a01-411a-4f5c-b4e2-22b22a67ec07",
+      "amount_naira": 5000,
+      "reason_code": "complaint",
+      "note": "Placeholder: the family complained about the cancellation fee"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "650d0029-531c-4d1c-90b5-11acc207b626",
+      "booking_id": "0f511a01-411a-4f5c-b4e2-22b22a67ec07",
+      "booking_code": "E819BAF2",
+      "status": "pending_approval",
+      "reason_code": "complaint",
+      "origin": "staff",
+      "suggested_amount_naira": 5000.0,
+      "amount_naira": null,
+      "destination": null,
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": "Placeholder: the family complained about the cancellation fee",
+      "rejected_reason": null,
+      "requested_by": "e32c8e64-e715-4453-92f9-7b48d39dfb96",
+      "approved_by": null,
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-10-21T14:29:06.512316",
+      "approved_at": null,
+      "processed_at": null,
+      "max_approvable_naira": 50000.0,
+      "available_actions": [],
+      "booking": {
+        "code": "E819BAF2",
+        "status": "cancelled",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": false,
+        "caregiver_arrived": false,
+        "completed": false,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 0.0,
+        "refundable_naira": 55000.0
+      },
+      "suggestion_why": "The amount entered when this refund was raised.",
+      "attempts": [],
+      "take_back_reason": null,
+      "take_back_preview_naira": 0.0,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "A staff-raised refund waits for someone else to approve it. A booking must be completed or cancelled."
+}
