@@ -696,7 +696,8 @@ def verify_booking_payment(
         
         # Update booking payment status based on Paystack response
         if payment_data.get("status") == "success":
-            outcome = settle_booking_payment(db, booking.id, payment_data.get("amount_kobo"))
+            outcome = settle_booking_payment(db, booking.id, payment_data.get("amount_kobo"),
+                                            fees_kobo=payment_data.get("fees_kobo"))
             if outcome == SettleOutcome.AMOUNT_MISMATCH:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,

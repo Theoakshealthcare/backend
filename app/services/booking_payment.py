@@ -48,7 +48,8 @@ def expected_kobo(booking: Booking) -> int:
 
 
 def settle_booking_payment(
-    db: Session, booking_id: uuid.UUID, paid_kobo: Optional[int], now: Optional[datetime] = None
+    db: Session, booking_id: uuid.UUID, paid_kobo: Optional[int], now: Optional[datetime] = None,
+    fees_kobo: Optional[int] = None,
 ) -> SettleOutcome:
     now = now or datetime.utcnow()
     booking = (
@@ -77,6 +78,8 @@ def settle_booking_payment(
 
     booking.payment_status = PaymentStatus.PAID
     booking.payment_failure_reason = None
+    if isinstance(fees_kobo, int) and not isinstance(fees_kobo, bool) and fees_kobo >= 0:
+        booking.paystack_fee_kobo = fees_kobo  # Paystack's fee, kept for the refund cost-of-fees rule
     cancelled = booking.status == BookingStatus.CANCELLED
     if cancelled:
         lead = timedelta(minutes=settings.LATE_PAYMENT_REINSTATE_MIN_LEAD_MINUTES)
@@ -146,6 +149,6 @@ def verify_and_settle(db: Session, booking_id: uuid.UUID) -> Optional[SettleOutc
     data = verified.get("data") or {}
     if not (verified.get("status") and data.get("status") == "success"):
         return None
-    outcome = settle_booking_payment(db, booking_id, data.get("amount_kobo"))
+    outcome = settle_booking_payment(db, booking_id, data.get("amount_kobo"), fees_kobo=data.get("fees_kobo"))
     logger.info("Booking %s verified with Paystack: %s", booking_id, outcome.value)
     return outcome

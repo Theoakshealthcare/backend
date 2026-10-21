@@ -51,7 +51,8 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
 
             booking = db.query(Booking).filter(Booking.paystack_reference == reference).first()
             if booking:
-                outcome = settle_booking_payment(db, booking.id, _paid_kobo(event_data))
+                outcome = settle_booking_payment(db, booking.id, _paid_kobo(event_data),
+                                                fees_kobo=event_data.get("fees_kobo"))
                 logger.info(f"Booking payment {reference}: {outcome.value}")
             db.rollback()
 

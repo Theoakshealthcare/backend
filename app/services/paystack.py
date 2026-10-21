@@ -129,6 +129,7 @@ class PaystackService:
                         "id": transaction_data["id"],
                         "reference": transaction_data["reference"],
                         "amount_kobo": int(transaction_data["amount"]),  # integer kobo, as Paystack reports it
+                        "fees_kobo": transaction_data.get("fees"),  # Paystack's fee, integer kobo (null when not reported)
                         "status": transaction_data["status"],
                         "paid_at": transaction_data.get("paid_at"),
                         "channel": transaction_data.get("channel"),
@@ -266,6 +267,7 @@ class PaystackService:
                 "event": "payment_successful",
                 "reference": data.get("reference"),
                 "amount_kobo": data.get("amount"),
+                "fees_kobo": data.get("fees"),  # Paystack's fee, integer kobo (null when not reported)
                 "status": data.get("status"),
                 "paid_at": data.get("paid_at"),
                 "channel": data.get("channel"),
@@ -437,3 +439,52 @@ class PaystackService:
         result = self._failure(code, body, "Could not check the transfer")
         result["not_found"] = code == 404
         return result
+
+    # --- refunds v2: create / fetch / list / retry ----------------------------------------------------------------------
+
+    @staticmethod
+    def _refund_write_result(code: Optional[int], body: Optional[Dict[str, Any]], default: str) -> Dict[str, Any]:
+        """Classify a refund write. ``accepted``: Paystack queued it. ``refused``: a definite 4xx (nothing was created).
+        ``unknown``: no answer, a 5xx / 429, or a body we could not read, so a refund may exist and callers must look it up."""
+        message = body.get("message") if isinstance(body, dict) else None
+        data = body.get("data") if isinstance(body, dict) else None
+        if code in (200, 201) and isinstance(body, dict) and body.get("status") and isinstance(data, dict) \
+                and data.get("id") is not None:
+            return {"outcome": "accepted", "paystack_refund_id": str(data["id"]), "status": data.get("status"),
+                    "message": message}
+        if code is not None and 400 <= code < 500 and code != 429:
+            return {"outcome": "refused", "paystack_refund_id": None, "status": None, "message": message or default}
+        return {"outcome": "unknown", "paystack_refund_id": None, "status": None, "message": message or default}
+
+    def create_refund(self, transaction_reference: str, amount_kobo: int) -> Dict[str, Any]:
+        """Ask Paystack to refund ``amount_kobo`` of a settled booking payment. A timeout or 5xx is ``unknown``, never
+        ``refused``: Paystack may have queued the refund, so the caller must look it up (list_refunds) before retrying."""
+        code, body = self._call("POST", "/refund", json_body={"transaction": transaction_reference,
+                                                              "amount": int(amount_kobo), "currency": "NGN"})
+        return self._refund_write_result(code, body, "Refund was not accepted")
+
+    def fetch_refund(self, paystack_refund_id: str) -> Dict[str, Any]:
+        """Where one refund stands: ``found`` (with status and amount), ``not_found`` (a 404) or ``unknown``."""
+        code, body = self._call("GET", f"/refund/{paystack_refund_id}")
+        message = body.get("message") if isinstance(body, dict) else None
+        data = body.get("data") if isinstance(body, dict) else None
+        if code == 200 and isinstance(body, dict) and body.get("status") and isinstance(data, dict):
+            return {"outcome": "found", "status": data.get("status"), "amount_kobo": data.get("amount"), "message": message}
+        outcome = "not_found" if code == 404 else "unknown"
+        return {"outcome": outcome, "status": None, "amount_kobo": None, "message": message}
+
+    def list_refunds(self, transaction_reference: str) -> Dict[str, Any]:
+        """Every refund Paystack holds for a transaction: {"outcome": "found"|"unknown", "refunds": [...]}."""
+        code, body = self._call("GET", "/refund", params={"transaction": transaction_reference})
+        if code == 200 and isinstance(body, dict) and body.get("status") and isinstance(body.get("data"), list):
+            return {"outcome": "found", "refunds": [
+                {"paystack_refund_id": str(r["id"]), "status": r.get("status"), "amount_kobo": r.get("amount")}
+                for r in body["data"] if isinstance(r, dict) and r.get("id") is not None]}
+        return {"outcome": "unknown", "refunds": []}
+
+    def retry_refund_with_customer_details(self, paystack_refund_id: str, account_number: str, bank_id: str) -> Dict[str, Any]:
+        """Give Paystack the customer's bank account for a refund in ``needs-attention``. Paystack answers 422 (``refused``)
+        for a refund in any other state."""
+        code, body = self._call("POST", f"/refund/retry_with_customer_details/{paystack_refund_id}", json_body={
+            "refund_account_details": {"currency": "NGN", "account_number": account_number, "bank_id": bank_id}})
+        return self._refund_write_result(code, body, "Refund retry was not accepted")
