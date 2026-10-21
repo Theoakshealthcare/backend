@@ -6,8 +6,9 @@ import pytest
 from app.db.models.audit import AdminAuditLog
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.caregiver import CaregiverTransaction
-from app.db.models.patient import PatientTransaction, PatientWallet
+from app.db.models.patient import Patient, PatientTransaction, PatientWallet
 from app.db.models.refund import Refund
+from app.db.models.user import User
 from app.db.models.whatsapp_booking import BookingEvent
 from app.services import refunds
 from app.tests.factories import make_admin, make_booking, make_caregiver, make_patient
@@ -147,6 +148,7 @@ def test_wallet_destination_needs_super_admin_and_an_app_booker(db):
     assert db.query(PatientTransaction).filter_by(refund_id=r2.id).count() == 0
     with pytest.raises(refunds.RefundInvalid):
         refunds.approve_refund(db, r.id, admin=super_admin(db), amount_kobo=None, destination="cash")
+    assert_refund_conserved(db, b)
 
 
 def test_wallet_destination_credits_once_and_succeeds(db):
@@ -190,6 +192,7 @@ def test_notice_is_keyed_per_refund(db):
         db.commit()
     keys = {e.dedupe_key for e in db.query(BookingEvent).filter_by(booking_id=b.id, event="refund_processed")}
     assert len(keys) == 2 and all(k.endswith(":complete") for k in keys)
+    assert_refund_conserved(db, b)
 
 
 def test_take_back_only_for_completed_and_needs_reason(db):
@@ -209,8 +212,9 @@ def test_take_back_only_for_completed_and_needs_reason(db):
                                take_back_reason="  ")
     out = refunds.approve_refund(db, r2.id, admin=finance(db), amount_kobo=None, take_back_from_caregiver=True,
                                  take_back_reason="Caregiver at fault")
-    assert (out.take_back_from_caregiver, out.take_back_kobo) == (True, 300_000)  # 30% of 10% of... 3,000,000 * 1/10
+    assert (out.take_back_from_caregiver, out.take_back_kobo) == (True, 300_000)  # 3,000,000 earning * 1,000,000 / 10,000,000
     assert audit_rows(db, "refund.approve")[-1].after["take_back_kobo"] == 300_000
+    assert_refund_conserved(db, done)
 
 
 def test_take_back_preview_formula_rounds_half_up_and_caps(db):
@@ -236,6 +240,7 @@ def test_take_back_preview_formula_rounds_half_up_and_caps(db):
     # and a refund asking for more than what is left is capped at what is left (3,000,000 * 5/10 = 1,500,000 > 300,000)
     r_big = db.query(Refund).filter_by(booking_id=cap.id, status="pending_approval").one()
     assert refunds.take_back_preview_kobo(db, r_big, 5_000_000) == 300_000
+    assert_refund_conserved(db, cap)
 
 
 def test_approve_twice_is_409(db):
@@ -271,12 +276,20 @@ def test_every_action_writes_an_audit_row(db):
     refunds.approve_refund(db, r.id, admin=finance(db), amount_kobo=None)
     [row] = [a for a in audit_rows(db, "refund.approve") if a.entity_id == str(r.id) or str(a.entity_id) == str(r.id)]
     for key, want in (("amount_kobo", 1_200_000), ("destination", "original_method"),
-                      ("take_back_from_caregiver", False), ("take_back_kobo", 0), ("limit_kobo", 5_000_000)):
+                      ("take_back_from_caregiver", False), ("take_back_kobo", 0), ("limit_kobo", 5_000_000),
+                      ("cumulative_kobo", 1_200_000), ("above_limit", False)):
         assert row.after[key] == want
     r2 = pending(db, booking_with(db), 1)
     refunds.reject_refund(db, r2.id, admin=finance(db), reason="duplicate")
     [rej] = [a for a in audit_rows(db, "refund.reject") if str(a.entity_id) == str(r2.id)]
     assert rej.reason == "duplicate"
+    big = booking_with(db)
+    r3 = pending(db, big, 8_000_000)
+    refunds.approve_refund(db, r3.id, admin=super_admin(db), amount_kobo=None)
+    [above] = [a for a in audit_rows(db, "refund.approve") if str(a.entity_id) == str(r3.id)]
+    assert (above.after["above_limit"], above.after["cumulative_kobo"]) == (True, 8_000_000)
+    assert_refund_conserved(db, b)
+    assert_refund_conserved(db, big)
 
 
 def test_system_refund_accepts_a_partially_refunded_booking_and_caps_the_suggestion(db):
@@ -286,6 +299,7 @@ def test_system_refund_accepts_a_partially_refunded_booking_and_caps_the_suggest
     r = refunds.open_system_refund(db, b, "no_caregiver_found", None)
     db.commit()
     assert r is not None and r.suggested_amount_kobo == 400_000  # not the full 4.4m: only 400k is left
+    assert_refund_conserved(db, b)
 
 
 def test_system_refund_suggestion_is_capped_on_a_paid_booking_too(db):
@@ -293,6 +307,7 @@ def test_system_refund_suggestion_is_capped_on_a_paid_booking_too(db):
     pending(db, b, 4_000_000, status="closed", amount=4_000_000)  # closed frees the slot, and is not committed
     r = refunds.open_system_refund(db, b, "no_caregiver_found", None)
     assert r.suggested_amount_kobo == 4_400_000
+    assert_refund_conserved(db, b)
 
 
 def test_concurrent_wallet_approvals_credit_once(db):
@@ -321,3 +336,34 @@ def test_concurrent_wallet_approvals_credit_once(db):
     assert db.query(PatientTransaction).filter_by(refund_id=r.id).count() == 1
     assert db.query(PatientWallet).filter_by(patient_id=b.patient_id).one().balance_kobo == 1_000_000
     assert_refund_conserved(db, b)
+
+
+def test_inactive_account_cannot_take_wallet_credit(db):
+    b = booking_with(db, channel="app")
+    owner = db.query(User).join(Patient, Patient.user_id == User.id).filter(Patient.id == b.patient_id).one()
+    owner.is_active = False
+    db.commit()
+    r = pending(db, b, 1_000_000)
+    with pytest.raises(refunds.RefundInvalid):
+        refunds.approve_refund(db, r.id, admin=super_admin(db), amount_kobo=None, destination="wallet")
+    assert db.query(PatientTransaction).filter_by(refund_id=r.id).count() == 0
+    assert_refund_conserved(db, b)
+
+
+def test_patient_wallet_is_locked_after_the_take_back(db, monkeypatch):
+    """Lock order: booking, refund, caregiver rows (take-back), and the patient wallet LAST."""
+    cg = make_caregiver(db)
+    done = make_booking(db, make_patient(db), cg, status=BookingStatus.COMPLETED, total_amount_kobo=BIG, channel="app")
+    db.add(CaregiverTransaction(caregiver_id=cg.id, type="earning", amount=3_000_000, status="successful",
+                                booking_id=done.id))
+    db.commit()
+    r = pending(db, done, 1_000_000)
+    calls = []
+    monkeypatch.setattr(refunds, "_apply_take_back", lambda *a, **k: calls.append("take_back"))
+    real = refunds.patient_wallet.credit_refund_locked
+    monkeypatch.setattr(refunds.patient_wallet, "credit_refund_locked",
+                        lambda *a, **k: (calls.append("wallet"), real(*a, **k))[1])
+    refunds.approve_refund(db, r.id, admin=super_admin(db), amount_kobo=None, destination="wallet",
+                           take_back_from_caregiver=True, take_back_reason="fault")
+    assert calls == ["take_back", "wallet"]
+    assert_refund_conserved(db, done)

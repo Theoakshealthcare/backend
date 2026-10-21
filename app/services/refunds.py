@@ -254,7 +254,7 @@ def _approve(db: Session, refund_id: UUID, admin: AdminUser, amount_kobo: Option
         raise RefundInvalid("Enter the amount to refund")
     refundable = refundable_kobo(db, booking)  # this refund is pending, so it is not in the committed sum
     if amount <= 0 or amount > refundable:
-        raise RefundInvalid(f"The amount must be between 1 and {refundable} kobo, what is left to refund")
+        raise RefundInvalid(f"The amount must be between \u20a60.01 and {_naira(refundable)}, what is left to refund")
 
     can_above = "refunds.approve_above_limit" in admin.permissions
     limit_kobo = booking_policy.current(db).finance_refund_limit_naira * 100
@@ -299,8 +299,9 @@ def _approve(db: Session, refund_id: UUID, admin: AdminUser, amount_kobo: Option
     refund.status = REFUND_APPROVED
     db.flush()
     if destination == REFUND_DEST_WALLET:
-        patient_wallet.credit_refund_locked(db, booking.patient_id, amount, refund.id)
+        # Lock order: the success routine's take-back locks caregiver rows and wallet first; the patient wallet is last.
         _mark_succeeded(db, refund, booking, now)
+        patient_wallet.credit_refund_locked(db, booking.patient_id, amount, refund.id)
     AuditService(db).record(
         admin_user_id=admin.id, action="refund.approve", entity_type="refund", entity_id=refund.id, before=before,
         after={"booking_id": str(booking.id), "status": refund.status, "amount_kobo": amount, "destination": destination,
