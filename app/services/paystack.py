@@ -392,7 +392,8 @@ class PaystackService:
             code, body = self._call("GET", "/bank", params=params)
             if code != 200 or not body or not body.get("status") or not isinstance(body.get("data"), list):
                 return self._failure(code, body, "Could not load the bank list")
-            banks.extend({"name": b["name"], "code": str(b["code"]), "slug": b.get("slug")}
+            banks.extend({"name": b["name"], "code": str(b["code"]), "slug": b.get("slug"),
+                          "id": str(b["id"]) if b.get("id") is not None else None}
                          for b in body["data"] if b.get("name") and b.get("code") and not b.get("is_deleted"))
             cursor = ((body.get("meta") or {}).get("next"))
             if not cursor:
@@ -403,8 +404,10 @@ class PaystackService:
         """The name the bank holds for the account: {"status": True, "account_name", "account_number"}."""
         code, body = self._call("GET", "/bank/resolve", params={"account_number": account_number, "bank_code": bank_code})
         if code == 200 and body and body.get("status") and (body.get("data") or {}).get("account_name"):
+            bank_id = body["data"].get("bank_id")
             return {"status": True, "account_name": body["data"]["account_name"],
-                    "account_number": body["data"].get("account_number") or account_number}
+                    "account_number": body["data"].get("account_number") or account_number,
+                    "bank_id": str(bank_id) if bank_id is not None else None}
         return self._failure(code, body, "Could not resolve the account")
 
     def create_transfer_recipient(self, *, name: str, account_number: str, bank_code: str) -> Dict[str, Any]:

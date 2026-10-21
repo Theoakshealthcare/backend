@@ -359,8 +359,8 @@ class FakePaystack:
         self.paid: set[str] = set()
         self.fail_init: Optional[str] = None  # the error message to return from initialize
         # payouts
-        self.banks = [{"name": "Placeholder Bank", "code": "058", "slug": "placeholder-bank"},
-                      {"name": "Sample Microfinance Bank", "code": "090", "slug": "sample-mfb"}]
+        self.banks = [{"id": 9, "name": "Placeholder Bank", "code": "058", "slug": "placeholder-bank"},
+                      {"id": 17, "name": "Sample Microfinance Bank", "code": "090", "slug": "sample-mfb"}]
         self.accounts: dict[tuple, str] = {}  # (account_number, bank_code) -> the name to resolve; others get a default
         self.unresolvable: set[tuple] = set()  # (account_number, bank_code) pairs Paystack cannot resolve
         self.recipients: dict[str, dict] = {}  # recipient_code -> the request
@@ -418,7 +418,8 @@ class FakePaystack:
         if (number, bank_code) in self.unresolvable or len(number) != 10 or not any(b["code"] == bank_code for b in self.banks):
             return 422, {"status": False, "message": "Could not resolve account name. Check parameters or try again."}
         return 200, {"status": True, "message": "Account number resolved",
-                     "data": {"account_number": number, "account_name": self.account_name(number, bank_code), "bank_id": 9}}
+                     "data": {"account_number": number, "account_name": self.account_name(number, bank_code),
+                              "bank_id": next(b["id"] for b in self.banks if b["code"] == bank_code)}}
 
     def _recipient(self, payload: dict) -> tuple[int, dict]:
         code = "RCP_" + uuid.uuid5(uuid.NAMESPACE_URL, f"{payload.get('account_number')}/{payload.get('bank_code')}").hex[:12]
@@ -506,6 +507,9 @@ class FakePaystack:
             return 404, {"status": False, "message": "Refund not found"}
         if record["status"] != "needs-attention":
             return 422, {"status": False, "message": "Refund is not in needs-attention status"}
+        details = payload.get("refund_account_details") or {}
+        if str(details.get("bank_id")) not in {str(b["id"]) for b in self.banks}:  # the numeric id, never the bank code
+            return 422, {"status": False, "message": "Invalid bank_id"}
         record["status"] = "processing"
         record["refund_account_details"] = payload.get("refund_account_details")
         return 200, {"status": True, "message": "Refund retry has been queued for processing", "data": self._refund_body(record)}

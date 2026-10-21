@@ -153,13 +153,13 @@ def test_retry_refuses_when_the_refund_moved_while_paystack_was_asked(db, fake_p
     booking, refund, pid = failed(db, fake_paystack)
     admin = finance(db)
     real = refunds.PaystackService.fetch_refund
-    other = super_admin(db)
 
     def moved(self, paystack_refund_id):
         answer = real(self, paystack_refund_id)
         s = SessionLocal()  # someone else closes the refund after Paystack answered and before we lock
         try:
-            refunds.close_refund(s, refund.id, admin=s.get(AdminUser, other.id), reason="gave up")
+            s.get(Refund, refund.id).status = "closed"
+            s.commit()
         finally:
             s.close()
         return answer
@@ -202,15 +202,21 @@ def test_bank_details_resolves_name_calls_retry_and_stores_only_last4(db, fake_p
     fake_paystack.accounts[(ACCOUNT, BANK)] = "ADA OKAFOR"
     out = refunds.submit_bank_details(db, refund.id, admin=finance(db), bank_code=BANK, account_number=ACCOUNT)
     assert out.status == "processing"
-    assert fake_paystack.refunds[pid]["refund_account_details"]["account_number"] == ACCOUNT  # Paystack got it
+    details = fake_paystack.refunds[pid]["refund_account_details"]
+    assert details["account_number"] == ACCOUNT  # Paystack got it
+    assert str(details["bank_id"]) == "9"  # the numeric bank id, not the code "058"
     [attempt] = attempts_of(db, refund)
     assert attempt.status == "processing" and attempt.bank_details_submitted_at is not None
+    assert (attempt.bank_code, attempt.bank_id, attempt.account_last4, attempt.account_name) == (BANK, "9", "6789", "ADA OKAFOR")
+    assert "ADA OKAFOR" not in (get(db, refund).note or "")
     [row] = audit_rows(db, "refund.bank_details")
     blob = json.dumps([row.before, row.after, row.reason], default=str)
     assert "6789" in blob and "ADA OKAFOR" in blob and BANK in blob
     stored = [get(db, refund).__dict__, attempt.__dict__]
     assert ACCOUNT not in blob and ACCOUNT not in json.dumps(stored, default=str)
     assert ACCOUNT not in json.dumps(get(db, refund).note, default=str)
+    cols = {c.name: getattr(attempt, c.name) for c in RefundAttempt.__table__.columns}
+    assert not any(ACCOUNT in str(v) for v in cols.values())
 
 
 def test_bank_details_only_from_needs_attention(db, fake_paystack):
@@ -478,3 +484,158 @@ def test_resolve_failed_on_a_refund_whose_money_already_left_is_refused(db, fake
     assert "already" in e.value.message
     assert get(db, refund).status == "needs_review"
     assert db.query(PatientWallet).filter_by(patient_id=booking.patient_id).one().balance_kobo == TOTAL
+
+
+# --- review round 1 ---------------------------------------------------------------------------------------------------
+def dashboard_refund(fake, booking, status, amount=100_000):
+    """A partial refund made on the Paystack dashboard: on the transaction, tied to none of our attempts."""
+    rec = fake._create_refund({"transaction": booking.paystack_reference, "amount": amount})[1]["data"]
+    fake.refunds[str(rec["id"])]["status"] = status
+    return str(rec["id"])
+
+
+@pytest.mark.parametrize("status", ["pending", "processing", "processed"])
+def test_an_untied_dashboard_refund_blocks_retry_switch_and_resolve_failed(db, fake_paystack, status):
+    booking, refund, pid = failed(db, fake_paystack)
+    dashboard_refund(fake_paystack, booking, status)  # a different amount: it must still block
+    for act in (lambda: refunds.retry_refund(db, refund.id, admin=finance(db)),
+                lambda: refunds.switch_to_wallet(db, refund.id, admin=super_admin(db))):
+        with pytest.raises(refunds.RefundConflict) as e:
+            act()
+        assert "another refund on this payment" in e.value.message
+    assert get(db, refund).status == "failed" and db.query(PatientTransaction).filter_by(refund_id=refund.id).count() == 0
+    b2, r2, p2 = reviewed(db, fake_paystack)
+    dashboard_refund(fake_paystack, b2, status)
+    fake_paystack.refunds[p2]["status"] = "failed"
+    with pytest.raises(refunds.RefundConflict) as e:
+        refunds.resolve_refund(db, r2.id, admin=super_admin(db), outcome="failed", note="checked")
+    assert "another refund on this payment" in e.value.message
+
+
+def test_an_untied_failed_dashboard_refund_does_not_block(db, fake_paystack):
+    booking, refund, pid = failed(db, fake_paystack)
+    dashboard_refund(fake_paystack, booking, "failed")
+    assert refunds.retry_refund(db, refund.id, admin=finance(db)).status == "approved"
+
+
+# --- bank details: separation of duties -----------------------------------------------------------------------------
+def test_bank_details_not_by_the_approver_or_the_raiser(db, fake_paystack):
+    booking, refund, pid = settled(db, fake_paystack, "needs-attention")
+    approver, raiser, other = finance(db), finance(db), finance(db)
+    r = get(db, refund)
+    r.approved_by_admin_id, r.requested_by_admin_id = approver.id, raiser.id
+    db.commit()
+    for who in (approver, raiser):
+        with pytest.raises(refunds.RefundForbidden) as e:
+            refunds.submit_bank_details(db, refund.id, admin=who, bank_code=BANK, account_number=ACCOUNT)
+        assert e.value.message == "Someone other than the person who approved this refund must enter the family's bank details."
+    assert not [r for r in fake_paystack.requests if "retry_with_customer_details" in r[1]]
+    assert refunds.submit_bank_details(db, refund.id, admin=other, bank_code=BANK, account_number=ACCOUNT).status == "processing"
+
+
+def test_bank_details_above_the_finance_limit_need_a_super_admin(db, fake_paystack):
+    booking, refund, pid = settled(db, fake_paystack, "needs-attention", total=10_000_000, amount=10_000_000)  # N100,000
+    with pytest.raises(refunds.RefundForbidden):
+        refunds.submit_bank_details(db, refund.id, admin=finance(db), bank_code=BANK, account_number=ACCOUNT)
+    assert get(db, refund).status == "needs_attention"
+    assert refunds.submit_bank_details(db, refund.id, admin=super_admin(db), bank_code=BANK,
+                                       account_number=ACCOUNT).status == "processing"
+
+
+def test_a_bank_details_refusal_logs_a_fixed_message(db, fake_paystack, caplog):
+    booking, refund, pid = settled(db, fake_paystack, "needs-attention")
+    fake_paystack.refunds[pid]["status"] = "processing"
+    with pytest.raises(refunds.RefundConflict):
+        refunds.submit_bank_details(db, refund.id, admin=finance(db), bank_code=BANK, account_number=ACCOUNT)
+    assert "Refund is not in needs-attention status" not in caplog.text
+
+
+# --- close asks Paystack; late processed on a closed refund -------------------------------------------------------------
+def test_close_re_asks_paystack(db, fake_paystack):
+    booking, refund, pid = failed(db, fake_paystack)
+    fake_paystack.refund_error = "timeout"
+    with pytest.raises(refunds.RefundPaystackUnavailable):
+        refunds.close_refund(db, refund.id, admin=finance(db), reason="stop")
+    fake_paystack.refund_error = None
+    fake_paystack.refunds[pid]["status"] = "processing"
+    with pytest.raises(refunds.RefundConflict):
+        refunds.close_refund(db, refund.id, admin=finance(db), reason="stop")
+    fake_paystack.refunds[pid]["status"] = "processed"
+    with pytest.raises(refunds.RefundConflict):
+        refunds.close_refund(db, refund.id, admin=finance(db), reason="stop")
+    assert get(db, refund).status == "needs_review"  # Paystack paid it: a person resolves
+
+
+def test_processed_on_a_closed_refund_found_by_reference_goes_to_review(db, fake_paystack):
+    booking, refund, pid = failed(db, fake_paystack)
+    refunds.close_refund(db, refund.id, admin=finance(db), reason="stop")
+    assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
+                                      paystack_refund_id=None, amount_kobo=1) == "ignored"  # another amount: not ours
+    assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
+                                      paystack_refund_id=None, amount_kobo=TOTAL) == "review"
+    assert get(db, refund).status == "needs_review"
+
+
+# --- resolve: recorded truth ------------------------------------------------------------------------------------------
+def flagged_closed(db, fake, **kw):
+    """A closed refund that Paystack then processed while the booking has another open refund: flagged, still closed."""
+    booking, refund, pid = failed(db, fake, **kw)
+    refunds.close_refund(db, refund.id, admin=finance(db), reason="stop")
+    again = refunds.request_refund(db, booking_id=booking.id, amount_kobo=100, reason_code="complaint", note=None,
+                                   admin=finance(db))
+    assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
+                                      paystack_refund_id=pid, amount_kobo=TOTAL) == "review"
+    out = get(db, refund)
+    assert out.status == "closed" and out.review_flagged_at is not None
+    return booking, refund, pid, again
+
+
+def test_resolve_succeeded_on_a_closed_refund_records_the_money_that_left(db, fake_paystack, caplog):
+    booking, refund, pid, again = flagged_closed(db, fake_paystack, channel="whatsapp")
+    fake_paystack.settle_refund(pid, "processed")
+    out = refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="paid per dashboard")
+    assert out.status == "succeeded" and out.processed_at is not None and out.review_flagged_at is None
+    assert get(db, booking).payment_status == PaymentStatus.REFUNDED
+    assert events(db, booking).count(("refund_processed", f"{refund.id}:complete")) == 1
+    assert get(db, again).status == "pending_approval"
+
+
+def test_resolve_succeeded_logs_an_error_when_refunds_exceed_the_total(db, fake_paystack, caplog):
+    booking, refund, pid = reviewed(db, fake_paystack)
+    db.add(Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                  suggested_amount_kobo=1000, amount_kobo=1000, destination="original_method", status="succeeded",
+                  processed_at=datetime.utcnow()))
+    db.commit()
+    fake_paystack.settle_refund(pid, "processed")
+    fake_paystack.refunds[pid]["amount"] = TOTAL
+    with caplog.at_level("ERROR"):
+        refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="paid")
+    assert "exceed" in caplog.text
+
+
+def test_resolve_succeeded_with_the_amount_paystack_confirmed(db, fake_paystack):
+    booking, refund, pid = reviewed(db, fake_paystack, channel="whatsapp")  # Paystack processed TOTAL - 1
+    fake_paystack.settle_refund(pid, "processed")
+    fake_paystack.refunds[pid]["amount"] = TOTAL - 1
+    sa = super_admin(db)
+    with pytest.raises(refunds.RefundConflict):  # no amount given: still a mismatch
+        refunds.resolve_refund(db, refund.id, admin=sa, outcome="succeeded", note="paid")
+    with pytest.raises(refunds.RefundConflict):  # an amount that is not what Paystack confirmed
+        refunds.resolve_refund(db, refund.id, admin=sa, outcome="succeeded", note="paid", amount_kobo=TOTAL)
+    out = refunds.resolve_refund(db, refund.id, admin=sa, outcome="succeeded", note="paid", amount_kobo=TOTAL - 1)
+    assert out.status == "succeeded" and out.amount_kobo == TOTAL - 1
+    b = get(db, booking)
+    assert b.payment_status == PaymentStatus.PARTIALLY_REFUNDED and b.refund_amount_kobo == TOTAL - 1
+
+
+# --- Paystack has no record of our own attempt id -------------------------------------------------------------------
+def test_not_found_on_our_attempt_refuses_retry_and_switch_accepts_resolve_failed_then_only_close(db, fake_paystack):
+    booking, refund, pid = reviewed(db, fake_paystack)
+    del fake_paystack.refunds[pid]  # Paystack answers 404 for the id we hold
+    out = refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="failed", note="not on the dashboard")
+    assert out.status == "failed"
+    with pytest.raises(refunds.RefundConflict):
+        refunds.retry_refund(db, refund.id, admin=finance(db))
+    with pytest.raises(refunds.RefundConflict):
+        refunds.switch_to_wallet(db, refund.id, admin=super_admin(db))
+    assert refunds.close_refund(db, refund.id, admin=finance(db), reason="no record").status == "closed"

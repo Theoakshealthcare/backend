@@ -121,6 +121,11 @@ class RefundAttempt(Base):
     status = Column(String, nullable=False, default=ATTEMPT_SENDING)
     failure_reason = Column(Text, nullable=True)
     bank_details_submitted_at = Column(DateTime, nullable=True)
+    # The family's account as given to Paystack. The full account number is never stored: only the bank, the last 4 and the name.
+    bank_code = Column(String, nullable=True)
+    bank_id = Column(String, nullable=True)  # Paystack's numeric bank id (not the bank code)
+    account_last4 = Column(String, nullable=True)
+    account_name = Column(String, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     refund = relationship("Refund", back_populates="attempts")
