@@ -105,6 +105,20 @@ def test_list_filters(client, db, ops):
     assert ids(q="100%") == set()  # LIKE wildcards are escaped, not interpreted
 
 
+def test_a_partially_refunded_booking_lists_filters_and_opens(client, db, ops):
+    """Refunds v2 added the partially_refunded payment status: the admin list, its filter and the detail must carry it (it
+    answered 500 when the response model only knew pending, paid, failed and refunded)."""
+    b = make_booking(db, make_patient(db), payment_status=PaymentStatus.PARTIALLY_REFUNDED)
+    make_booking(db, make_patient(db), payment_status=PaymentStatus.PAID)
+
+    listed = client.get(BASE, params={"payment_status": "partially_refunded"}, headers=ops)
+    assert listed.status_code == 200, listed.text
+    assert [(i["id"], i["payment_status"]) for i in listed.json()["items"]] == [(str(b.id), "partially_refunded")]
+    opened = client.get(f"{BASE}/{b.id}", headers=ops)
+    assert opened.status_code == 200, opened.text
+    assert opened.json()["payment"]["status"] == "partially_refunded"
+
+
 def test_list_searches_by_phone_in_any_format(client, db, ops):
     patient = make_patient(db, phone_number="+2348031234567")
     b = paid(db, patient)
