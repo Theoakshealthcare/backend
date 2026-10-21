@@ -83,7 +83,7 @@ Today a cancelled paid booking is only *flagged* (`bookings.refund_required`, `r
 | `processed_at` | money confirmed out (Paystack `processed`, or wallet credit) |
 | `note`, `created_at`, `updated_at` | |
 
-Constraints: `amount_kobo > 0`; `take_back_kobo >= 0`; status CHECK; **partial unique index: one open refund per booking** (`status` in `pending_approval`, `approved`, `processing`, `needs_attention`, `needs_review`). A booking can have several refunds over time (e.g. a fee refunded after the main refund), but never two open at once. This is also what makes webhook matching by `transaction_reference` unambiguous.
+Constraints: `amount_kobo > 0`; `take_back_kobo >= 0`; status CHECK; **partial unique index: one open refund per booking** (`status` in `pending_approval`, `approved`, `processing`, `needs_attention`, `needs_review`, `failed`; a failed refund can still be retried, so it keeps the booking's slot until closed). A booking can have several refunds over time (e.g. a fee refunded after the main refund), but never two open at once. This is also what makes webhook matching by `transaction_reference` unambiguous.
 
 ### 4.2 `refund_attempts` (new; mirrors `payout_attempts`)
 
@@ -111,7 +111,7 @@ pending_approval ──approve──▶ approved ──send job──▶ process
 
 - `bookings.paystack_fee_kobo` (nullable): Paystack's `fees` from `charge.success` / `verify`, recorded at settlement (RF-D1 reporting). Null for bookings settled before this slice.
 - `payment_status` gains **`partially_refunded`** (enum value). Set when a refund succeeds and less than the total has been refunded in sum; `refunded` when the sum reaches the total. `refund_required` is cleared when a refund for it is created (the flag becomes the queue row); the old flag columns stay for the WhatsApp copy that reads them.
-- **Refundable amount** = `total_amount_kobo − Σ amount_kobo of refunds in (approved, processing, needs_attention, succeeded, needs_review)`. Every create and approve checks `amount ≤ refundable` under the booking lock.
+- **Refundable amount** = `total_amount_kobo − Σ amount_kobo of refunds in (approved, processing, needs_attention, failed, succeeded, needs_review)`. Every create and approve checks `amount ≤ refundable` under the booking lock.
 
 ### 4.5 Caregiver side
 

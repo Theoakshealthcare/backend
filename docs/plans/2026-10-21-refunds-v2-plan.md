@@ -22,8 +22,8 @@
 - **Payout invariant:** automatic code never credits a caregiver.
   - A take-back debits `min(balance, amount)` and records the rest in `caregiver_wallets.owed_kobo`.
   - `ck_caregiver_wallets_balance_not_negative` stays.
-- **Open refunds:** at most one per booking (statuses `pending_approval`, `approved`, `processing`, `needs_attention`, `needs_review`).
-- **Refundable amount:** `refundable = total_amount_kobo − Σ amount_kobo of refunds in (approved, processing, needs_attention, needs_review, succeeded)`.
+- **Open refunds:** at most one per booking (statuses `pending_approval`, `approved`, `processing`, `needs_attention`, `needs_review`, `failed`).
+- **Refundable amount:** `refundable = total_amount_kobo − Σ amount_kobo of refunds in (approved, processing, needs_attention, failed, needs_review, succeeded)`.
 - **Approval limit:** `finance_refund_limit_naira` from `booking_policy.current(db)`, cumulative per booking (RF-D12).
 - **New permission `refunds.approve_above_limit`:** Super Admin only. It is needed:
   - above the limit;
