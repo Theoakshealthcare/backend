@@ -55,7 +55,17 @@ def _effective_kobo(refund: Refund) -> int:
 
 
 # --- what the caller may do (mirrors the service rules, so the console never offers something that 403s) -------------
-def _actions(admin: AdminUser, refund: Refund, *, cumulative_kobo: int, limit_kobo: int, channel: str) -> List[str]:
+def _max_approvable_kobo(admin: AdminUser, total_kobo: int, others_kobo: int, limit_kobo: int) -> int:
+    """The most this caller may approve for the refund: what is left to refund, and for a caller without
+    ``refunds.approve_above_limit`` also what is left under the Finance limit (the limit is cumulative per booking)."""
+    refundable = max(0, total_kobo - others_kobo)
+    if APPROVE_ABOVE_LIMIT in admin.permissions:
+        return refundable
+    return max(0, min(refundable, limit_kobo - others_kobo))
+
+
+def _actions(admin: AdminUser, refund: Refund, *, cumulative_kobo: int, limit_kobo: int, channel: str,
+             max_approvable_kobo: int) -> List[str]:
     perms = admin.permissions
     can_approve = "refunds.approve" in perms
     above = APPROVE_ABOVE_LIMIT in perms
@@ -63,7 +73,9 @@ def _actions(admin: AdminUser, refund: Refund, *, cumulative_kobo: int, limit_ko
     out: List[str] = []
     if state == REFUND_PENDING_APPROVAL and can_approve:
         # RF-D11: the person who raised a staff refund cannot approve it (they can still reject, i.e. withdraw it).
-        if not (refund.origin == REFUND_ORIGIN_STAFF and refund.requested_by_admin_id == admin.id):
+        # An approver with nothing left under their limit would only meet a 403, so they are not offered it.
+        if (not (refund.origin == REFUND_ORIGIN_STAFF and refund.requested_by_admin_id == admin.id)
+                and max_approvable_kobo > 0):
             out.append("approve")
         out.append("reject")
     if state == REFUND_FAILED and can_approve:
@@ -82,8 +94,9 @@ def _actions(admin: AdminUser, refund: Refund, *, cumulative_kobo: int, limit_ko
     return out
 
 
-def _refund_out(admin: AdminUser, refund: Refund, code: Optional[str], channel: str, others_kobo: int,
+def _refund_out(admin: AdminUser, refund: Refund, code: Optional[str], channel: str, total_kobo: int, others_kobo: int,
                 limit_kobo: int) -> RefundOut:
+    max_approvable = _max_approvable_kobo(admin, total_kobo, others_kobo, limit_kobo)
     return RefundOut(
         id=refund.id, booking_id=refund.booking_id, booking_code=code, status=refund.status, reason_code=refund.reason_code,
         origin=refund.origin, suggested_amount_naira=_naira(refund.suggested_amount_kobo),
@@ -92,9 +105,9 @@ def _refund_out(admin: AdminUser, refund: Refund, code: Optional[str], channel: 
         failure_reason=refund.failure_reason, note=refund.note, rejected_reason=refund.rejected_reason,
         requested_by=refund.requested_by_admin_id, approved_by=refund.approved_by_admin_id,
         review_flagged_at=refund.review_flagged_at, review_reason=refund.review_reason, created_at=refund.created_at,
-        approved_at=refund.approved_at, processed_at=refund.processed_at,
+        approved_at=refund.approved_at, processed_at=refund.processed_at, max_approvable_naira=_naira(max_approvable),
         available_actions=_actions(admin, refund, cumulative_kobo=_effective_kobo(refund) + others_kobo,
-                                   limit_kobo=limit_kobo, channel=channel))
+                                   limit_kobo=limit_kobo, channel=channel, max_approvable_kobo=max_approvable))
 
 
 # --- queries ---------------------------------------------------------------------------------------------------------
@@ -105,7 +118,7 @@ def _rows_query(db: Session):
     others = (db.query(func.coalesce(func.sum(other.amount_kobo), 0))
               .filter(other.booking_id == Refund.booking_id, other.id != Refund.id,
                       other.status.in_(REFUND_COMMITTED_STATUSES)).correlate(Refund).scalar_subquery())
-    query = (db.query(Refund, Booking.booking_code, Booking.channel, others.label("others_kobo"))
+    query = (db.query(Refund, Booking.booking_code, Booking.channel, Booking.total_amount_kobo, others.label("others_kobo"))
              .join(Booking, Booking.id == Refund.booking_id))
     return query, others
 
@@ -155,10 +168,10 @@ def _detail(db: Session, admin: AdminUser, refund_id: UUID) -> RefundDetail:
     row = query.filter(Refund.id == refund_id).populate_existing().first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Refund not found")
-    refund, code, channel, others = row
+    refund, code, channel, _total, others = row
     booking = db.get(Booking, refund.booking_id)
     limit_kobo = booking_policy.current(db).finance_refund_limit_naira * 100
-    base = _refund_out(admin, refund, code, channel, int(others), limit_kobo)
+    base = _refund_out(admin, refund, code, channel, int(_total), int(others), limit_kobo)
     attempts = db.query(RefundAttempt).filter(RefundAttempt.refund_id == refund.id).order_by(RefundAttempt.attempt).all()
     effective = _effective_kobo(refund)
     total = int(booking.total_amount_kobo)
@@ -171,17 +184,20 @@ def _detail(db: Session, admin: AdminUser, refund_id: UUID) -> RefundDetail:
         paystack_fee_naira=_naira(booking.paystack_fee_kobo), refunded_naira=_naira(max(0, total - refundable)),
         refundable_naira=_naira(refundable))
     finished = refund.status in REFUND_TERMINAL_STATUSES
+    # Who holds the account (name, last 4, bank) is shown to those who handle payments, as on /admin/payouts.
+    see_bank = "refunds.approve" in admin.permissions or "payments.read" in admin.permissions
     return RefundDetail(
         **base.model_dump(), booking=context, suggestion_why=_suggestion_why(refund, booking),
         attempts=[AttemptOut(attempt=a.attempt, status=a.status, failure_reason=a.failure_reason,
-                             paystack_refund_id=a.paystack_refund_id, bank_code=a.bank_code, account_last4=a.account_last4,
-                             account_name=a.account_name, bank_details_submitted_at=a.bank_details_submitted_at,
+                             paystack_refund_id=a.paystack_refund_id, bank_code=a.bank_code if see_bank else None,
+                             account_last4=a.account_last4 if see_bank else None,
+                             account_name=a.account_name if see_bank else None, bank_details_submitted_at=a.bank_details_submitted_at,
                              created_at=a.created_at) for a in attempts],
         take_back_reason=refund.take_back_reason,
         take_back_preview_naira=(None if finished or not effective
                                  else _naira(refunds.take_back_preview_kobo(db, refund, effective))),
         take_back_debited_naira=_naira(refund.take_back_debited_kobo), take_back_owed_naira=_naira(refund.take_back_owed_kobo),
-        needs_super_admin=effective + int(others) > limit_kobo, limit_naira=_naira(limit_kobo))
+        needs_super_admin=effective > _max_approvable_kobo(admin, total, int(others), limit_kobo), limit_naira=_naira(limit_kobo))
 
 
 def _after_change(db: Session, admin: AdminUser, refund_id: UUID) -> RefundDetail:
@@ -215,7 +231,7 @@ def list_refunds(
         query = query.filter(cumulative > limit_kobo if above_limit else cumulative <= limit_kobo)
     total = query.count()
     rows = query.order_by(Refund.created_at.desc(), Refund.id).limit(limit).offset(offset).all()
-    return RefundList(items=[_refund_out(admin, r, code, channel, int(o), limit_kobo) for r, code, channel, o in rows],
+    return RefundList(items=[_refund_out(admin, r, code, channel, int(t), int(o), limit_kobo) for r, code, channel, t, o in rows],
                       total=total, limit=limit, offset=offset)
 
 

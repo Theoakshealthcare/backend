@@ -249,6 +249,46 @@ def test_available_actions_bank_details_rules(db, client):
     assert actions(client, boss, over) == ["bank_details"]
 
 
+def test_approve_is_offered_only_within_the_callers_limit(db, client):
+    fin, boss = finance(db), super_admin(db)
+    over = refund_row(db, booking_with(db), suggested=6_000_000)  # N60,000 against the N50,000 Finance limit
+    body = get(client, fin, over).json()
+    assert "approve" in body["available_actions"]  # a lower amount is still within reach
+    assert body["max_approvable_naira"] == 50000.0 and body["needs_super_admin"] is True
+    r = client.post(f"{URL}/{over.id}/approve", json={"amount_naira": 50000}, headers=auth_headers(fin))
+    assert r.status_code == 200 and r.json()["amount_naira"] == 50000.0
+    again = refund_row(db, booking_with(db), suggested=6_000_000)
+    assert client.post(f"{URL}/{again.id}/approve", json={}, headers=auth_headers(fin)).status_code == 403
+    listed = next(i for i in client.get(URL, headers=auth_headers(fin)).json()["items"] if i["id"] == str(again.id))
+    assert listed["max_approvable_naira"] == 50000.0 and "approve" in listed["available_actions"]
+    top = get(client, boss, again).json()
+    assert top["max_approvable_naira"] == 100000.0 and top["needs_super_admin"] is False  # refundable, whatever the limit
+
+
+def test_approve_hidden_when_the_limit_is_already_used(db, client):
+    fin, boss = finance(db), super_admin(db)
+    big = booking_with(db, total=20_000_000)
+    refund_row(db, big, status="succeeded", amount=5_000_000)  # N50,000 already committed: nothing left for Finance
+    pending = refund_row(db, big, suggested=1_000_000)
+    body = get(client, fin, pending).json()
+    assert body["max_approvable_naira"] == 0.0 and "approve" not in body["available_actions"]
+    assert "reject" in body["available_actions"]
+    top = get(client, boss, pending).json()
+    assert top["max_approvable_naira"] == 150000.0 and "approve" in top["available_actions"]
+
+
+def test_bank_holder_details_hidden_from_roles_without_payments_access(db, client):
+    b = booking_with(db)
+    r = refund_row(db, b, status="succeeded", amount=1_000_000, destination="original_method")
+    db.add(RefundAttempt(refund_id=r.id, attempt=1, status="processed", paystack_refund_id="PR_9", bank_code="058",
+                         account_last4="6789", account_name="Ada Obi"))
+    db.commit()
+    seen = get(client, admin_of(db, "support"), r).json()["attempts"][0]
+    assert (seen["account_name"], seen["account_last4"], seen["bank_code"]) == (None, None, None)
+    seen = get(client, finance(db), r).json()["attempts"][0]
+    assert (seen["account_name"], seen["account_last4"], seen["bank_code"]) == ("Ada Obi", "6789", "058")
+
+
 # --- naira at the edge ---------------------------------------------------------------------------------------------------
 def test_naira_in_and_out(db, client):
     raiser, approver = finance(db), finance(db)
@@ -403,13 +443,14 @@ def test_switch_to_wallet_and_close_through_the_api(db, client, fake_paystack):
 
 
 def test_paystack_unreachable_is_503(db, client, fake_paystack, monkeypatch):
+    from app.services import refunds
     from app.services.paystack import PaystackService
 
     booking, refund, pid = make_failed(db, fake_paystack)
     monkeypatch.setattr(PaystackService, "_call", lambda self, *a, **kw: {"status": False, "ambiguous": True,
                                                                           "message": "timeout"})
     r = client.post(f"{URL}/{refund.id}/retry", headers=auth_headers(finance(db)))
-    assert r.status_code == 503 and "Paystack" in r.json()["detail"]
+    assert r.status_code == 503 and r.json() == {"detail": refunds.PAYSTACK_UNREACHABLE}
     db.expire_all()
     assert db.get(Refund, refund.id).status == "failed"
 

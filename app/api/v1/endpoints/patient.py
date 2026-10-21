@@ -21,8 +21,7 @@ from app.schemas.patient import (
     PatientPaymentResponse,
     PatientRefundRequestOut,
     PaymentVerificationRequest,
-    PaymentVerificationResponse,
-    PaystackWebhookEvent
+    PaymentVerificationResponse
 )
 from app.services.patient_wallet import PatientWalletService
 from app.services.paystack import PaystackService

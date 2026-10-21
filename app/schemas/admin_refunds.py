@@ -117,6 +117,8 @@ class RefundOut(BaseModel):
     created_at: datetime
     approved_at: Optional[datetime]
     processed_at: Optional[datetime]
+    max_approvable_naira: float = Field(description="The most this caller may approve: what is left to refund and, without "
+                                                    "refunds.approve_above_limit, what is left under the Finance limit")
     available_actions: List[RefundActionName]
 
 
@@ -129,7 +131,7 @@ class RefundDetail(RefundOut):
                                                                   "refund's amount; null once the refund is finished")
     take_back_debited_naira: Optional[float]
     take_back_owed_naira: Optional[float]
-    needs_super_admin: bool = Field(description="Approving this amount takes the booking's refunds above the Finance limit")
+    needs_super_admin: bool = Field(description="This refund's amount is more than this caller may approve (see max_approvable_naira)")
     limit_naira: float
 
 
