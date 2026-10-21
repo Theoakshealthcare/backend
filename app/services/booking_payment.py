@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.services import booking_events
+from app.services.refunds import open_system_refund
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ def settle_booking_payment(
             booking.refund_required_reason = (
                 "paid_after_expiry" if booking.cancel_reason == "unpaid_timeout" else "paid_after_cancellation"
             )
+            open_system_refund(db, booking, booking.refund_required_reason, int(booking.total_amount_kobo))
             booking_events.emit(db, booking, "payment_refund_pending")  # the booker is told a refund is coming
     held_for_address = False
     if not cancelled:
