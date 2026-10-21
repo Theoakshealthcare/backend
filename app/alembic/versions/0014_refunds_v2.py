@@ -10,6 +10,7 @@ Create Date: 2026-10-21
 - ``bookings.paystack_fee_kobo``: Paystack's fee, recorded at settlement (null for older bookings).
 - ``caregiver_wallets.owed_kobo`` (``>= 0``): what a take-back could not debit; ``caregiver_transactions`` type gains
   ``refund_take_back``.
+- ``uq_caregiver_transactions_booking_type`` becomes a partial unique index that skips ``refund_take_back`` (several per booking).
 - ``patient_transactions.refund_id``: the refund a wallet credit came from.
 - ``admin_role_permissions``: ``refunds.approve_above_limit`` for the Super Admin only.
 
@@ -48,6 +49,10 @@ def upgrade() -> None:
     op.create_check_constraint('ck_caregiver_wallets_owed_not_negative', 'caregiver_wallets', 'owed_kobo >= 0')
     op.drop_constraint('ck_caregiver_transactions_type', 'caregiver_transactions', type_='check')
     op.create_check_constraint('ck_caregiver_transactions_type', 'caregiver_transactions', f"type IN ({TX_TYPES_NEW})")
+    # Several refund_take_back rows per booking are legitimate, so the one-per-(booking, type) rule skips that type.
+    op.drop_constraint('uq_caregiver_transactions_booking_type', 'caregiver_transactions', type_='unique')
+    op.create_index('uq_caregiver_transactions_booking_type', 'caregiver_transactions', ['booking_id', 'type'], unique=True,
+                    postgresql_where=sa.text("type <> 'refund_take_back'"))
 
     op.create_table(
         'refunds',
@@ -123,6 +128,8 @@ def downgrade() -> None:
     op.drop_table('refund_attempts')
     op.drop_table('refunds')
     op.execute("DELETE FROM caregiver_transactions WHERE type = 'refund_take_back'")
+    op.drop_index('uq_caregiver_transactions_booking_type', table_name='caregiver_transactions')
+    op.create_unique_constraint('uq_caregiver_transactions_booking_type', 'caregiver_transactions', ['booking_id', 'type'])
     op.drop_constraint('ck_caregiver_transactions_type', 'caregiver_transactions', type_='check')
     op.create_check_constraint('ck_caregiver_transactions_type', 'caregiver_transactions', f"type IN ({TX_TYPES_OLD})")
     op.drop_constraint('ck_caregiver_wallets_owed_not_negative', 'caregiver_wallets', type_='check')

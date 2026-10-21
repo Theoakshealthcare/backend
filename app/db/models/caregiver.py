@@ -172,9 +172,9 @@ class CaregiverWallet(Base):
     # batches and no automatic code returns money to the balance; an admin lifts it (``unfreeze``). It lives on the wallet
     # because the wallet row is the lock every money move already takes.
     payouts_frozen_at = Column(DateTime, nullable=True)
+    payouts_frozen_reason = Column(Text, nullable=True)
     # What a refund take-back could not debit from the balance; the earnings release recovers it from future earnings first.
     owed_kobo = Column(BigInteger, nullable=False, default=0, server_default="0")
-    payouts_frozen_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     caregiver = relationship("Caregiver", backref="wallet")
@@ -199,7 +199,9 @@ class CaregiverTransaction(Base):
     __table_args__ = (
         # One earning and one compensation per booking, whatever the callers do: a double complete can never double-credit.
         # NULLs are distinct, so withdrawals (no booking) are not affected.
-        UniqueConstraint("booking_id", "type", name="uq_caregiver_transactions_booking_type"),
+        # ``refund_take_back`` is excluded: a booking can have several (one per refund, plus one per later recovery).
+        Index("uq_caregiver_transactions_booking_type", "booking_id", "type", unique=True,
+              postgresql_where=text("type <> 'refund_take_back'")),
         CheckConstraint("type IN ('earning','late_cancel_compensation','withdrawal','payout','refund_take_back')", name="ck_caregiver_transactions_type"),
         CheckConstraint("status IN ('pending','successful','failed','pending_clearance','held','voided','pending_approval','cancelled')",
                         name="ck_caregiver_transactions_status"),
@@ -208,7 +210,7 @@ class CaregiverTransaction(Base):
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
-    type = Column(String, nullable=False)  # earning | late_cancel_compensation | withdrawal | payout
+    type = Column(String, nullable=False)  # earning | late_cancel_compensation | withdrawal | payout | refund_take_back
     amount = Column(Integer, nullable=False)  # Store in kobo
     status = Column(String, nullable=False, default='pending')
     bank_name = Column(String, nullable=True)

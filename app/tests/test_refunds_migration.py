@@ -158,3 +158,20 @@ def test_ledger_accepts_refund_take_back_type(db):
 
 def test_patient_transaction_has_refund_id():
     assert "refund_id" in PatientTransaction.__table__.columns
+
+
+def test_several_take_back_rows_per_booking_but_one_earning(db, booking):
+    cg = make_caregiver(db)
+
+    def insert(kind):
+        db.execute(text("INSERT INTO caregiver_transactions (id, caregiver_id, booking_id, type, amount, status) "
+                        "VALUES (:i, :c, :b, :t, 100, 'successful')"),
+                   {"i": uuid.uuid4(), "c": cg.id, "b": booking.id, "t": kind})
+        db.commit()
+
+    insert("refund_take_back")
+    insert("refund_take_back")
+    insert("earning")
+    with pytest.raises(IntegrityError):
+        insert("earning")
+    db.rollback()
