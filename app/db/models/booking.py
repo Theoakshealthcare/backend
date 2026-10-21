@@ -30,6 +30,7 @@ class PaymentStatus(str, Enum):
     PAID = "paid"
     FAILED = "failed"
     REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
 
 
 class Booking(Base):
@@ -141,6 +142,7 @@ class Booking(Base):
     service_fee_kobo = Column(BigInteger, nullable=False)
     platform_fee_kobo = Column(BigInteger, nullable=False)
     paystack_reference = Column(String, nullable=True)
+    paystack_fee_kobo = Column(BigInteger, nullable=True)  # Paystack's fee, recorded at settlement; null for older bookings
     payment_failure_reason = Column(Text, nullable=True)  # Store payment failure details
     
     # Special Instructions

@@ -149,6 +149,11 @@ def test_prd_spot_checks():
     assert "admins.manage" not in p["finance"]
 
 
+def test_only_super_admin_can_approve_above_limit():
+    holders = {k for k, v in ROLE_PERMISSIONS.items() if "refunds.approve_above_limit" in v}
+    assert holders == {"super_admin"}
+
+
 @pytest.fixture
 def role_headers(db):
     # one admin per role; password=None skips bcrypt, nothing here signs in with a password
