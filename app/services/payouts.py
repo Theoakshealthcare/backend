@@ -183,7 +183,10 @@ def _reserve(db: Session, batch: PayoutBatch, caregiver_id: uuid.UUID, min_kobo:
     """Take a caregiver's whole available balance into a payout. The caller is inside a savepoint. Returns None when the
     caregiver is no longer eligible once the wallet is locked."""
     wallet = earnings.locked_wallet(db, caregiver_id)
-    amount = int(wallet.balance or 0)
+    # What a refund take-back could not take earlier is recovered first: whatever reaches the balance (a returned payout, a
+    # release before this feature) is paid out only net of the debt. Decrease-only; applied below, once the payout is certain.
+    owed_taken = min(int(wallet.balance or 0), int(wallet.owed_kobo or 0))
+    amount = int(wallet.balance or 0) - owed_taken
     if amount < min_kobo or amount <= 0:
         return None
     if _eligibility_problem(db, caregiver_id, now) is not None:  # includes the freeze, read under the wallet lock
@@ -207,7 +210,9 @@ def _reserve(db: Session, batch: PayoutBatch, caregiver_id: uuid.UUID, min_kobo:
     db.add(payout)
     db.flush()
     db.add(PayoutAttempt(payout_id=payout_id, attempt=1, reference=reference))
-    wallet.balance = int(wallet.balance) - amount  # the reservation: the money leaves the available balance now
+    if owed_taken > 0:
+        earnings.recover_owed(db, wallet, owed_taken, why=f"recovered at payout {payout_id}", now=now)
+    wallet.balance = int(wallet.balance) - amount - owed_taken  # the reservation: the money leaves the available balance now
     db.flush()  # the unique partial index and the not-negative check speak here
     return payout
 

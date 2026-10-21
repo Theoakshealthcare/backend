@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.admin import AdminUser
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
-from app.db.models.caregiver import TX_EARNING, CaregiverTransaction
+from app.db.models.caregiver import TX_EARNING, TX_REFUND_TAKE_BACK, TX_VOIDED, CaregiverTransaction
 from app.db.models.patient import Patient
 from app.db.models.refund import (
     ATTEMPT_FAILED, ATTEMPT_NEEDS_ATTENTION, ATTEMPT_PENDING, ATTEMPT_PROCESSED, ATTEMPT_PROCESSING, ATTEMPT_SENDING,
@@ -196,19 +196,27 @@ def take_back_preview_kobo(db: Session, refund: Refund, amount_kobo: int) -> int
         return 0
     earning = (db.query(CaregiverTransaction)
                .filter(CaregiverTransaction.booking_id == booking.id, CaregiverTransaction.type == TX_EARNING).first())
-    if earning is None:
+    if earning is None or earning.status == TX_VOIDED:
         return 0
+    # An earning not yet released may already have been lowered by an earlier take-back: the share stays a share of the
+    # ORIGINAL amount (what is left plus what earlier take-backs removed from it).
+    reduced = int(db.query(func.coalesce(func.sum(CaregiverTransaction.amount), 0))
+                  .filter(CaregiverTransaction.booking_id == booking.id, CaregiverTransaction.type == TX_REFUND_TAKE_BACK,
+                          CaregiverTransaction.status == TX_VOIDED).scalar() or 0)
+    original = int(earning.amount) + reduced
     earlier = int(db.query(func.coalesce(func.sum(Refund.take_back_kobo), 0))
                   .filter(Refund.booking_id == booking.id, Refund.id != refund.id,
                           Refund.status.in_(REFUND_COMMITTED_STATUSES)).scalar() or 0)
-    share = _round_half_up_ratio(int(earning.amount), amount_kobo, int(booking.total_amount_kobo))
-    return max(0, min(share, int(earning.amount) - earlier))
+    share = _round_half_up_ratio(original, amount_kobo, int(booking.total_amount_kobo))
+    return max(0, min(share, original - earlier))
 
 
 def _apply_take_back(db: Session, refund: Refund, booking: Booking, now: datetime) -> None:
-    """Take the caregiver's share back (wallet first, the rest owed). Runs only from ``_mark_succeeded``."""
-    earnings.apply_take_back(db, caregiver_id=booking.caregiver_id, booking_id=booking.id, refund_id=refund.id,
-                             amount_kobo=int(refund.take_back_kobo), now=now)
+    """Take back what the caregiver actually received (see ``earnings.apply_take_back``) and record the split on the refund.
+    Runs only from ``_mark_succeeded``."""
+    debited, owed = earnings.apply_take_back(db, booking_id=booking.id, refund_id=refund.id,
+                                             amount_kobo=int(refund.take_back_kobo), now=now)
+    refund.take_back_debited_kobo, refund.take_back_owed_kobo = debited, owed
 
 
 def _mark_succeeded(db: Session, refund: Refund, booking: Booking, now: datetime) -> None:

@@ -134,17 +134,14 @@ def test_take_back_never_touches_a_reserved_payout(db, fake_paystack):
     assert_never_over(db, cg, 1_000_000)
 
 
-def test_take_back_on_unreleased_earning_recovers_at_release(db):
+def test_take_back_on_unreleased_earning_lowers_it_before_release(db):
     now = datetime.utcnow()
     cg, b = visit(db, 0, earning_status="pending_clearance", available_at=now - timedelta(hours=1))
     refund_with_take_back(db, b, 2_200_000)
-    assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (0, 1_600_000)
+    assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (0, 0)  # no debt: the earning itself is lowered
     assert earnings.release_due(db, now=now) == 1
-    w = wallet(db, cg)
-    assert (w.balance, w.owed_kobo) == (EARNING - 1_600_000, 0)
-    (row,) = rows(db, cg)
-    assert row.amount == 1_600_000
-    assert_never_over(db, cg, EARNING)
+    assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (EARNING - 1_600_000, 0)
+    assert_never_over(db, cg, EARNING - 1_600_000)
 
 
 def test_late_cancel_compensation_is_never_taken_back(db):
@@ -166,22 +163,127 @@ def test_late_cancel_compensation_is_never_taken_back(db):
     assert rows(db, cg) == []
 
 
-def test_take_back_applies_only_on_success(db):
-    cg, b = visit(db, EARNING)
-    r = Refund(booking_id=b.id, patient_id=b.patient_id, reason_code="other", origin="system", suggested_amount_kobo=2_200_000,
-               status="pending_approval")
-    db.add(r)
+def sent_with_take_back(db, fake, *, earning_status="successful", balance=EARNING):
+    """A sent (processing) original-method refund of a completed visit that carries a 1,600,000 take-back."""
+    from app.tests.test_refunds_settle import sent
+    booking, refund, pid = sent(db, fake)
+    cg = payable(db, balance)
+    booking = db.get(type(booking), booking.id)
+    booking.status = BookingStatus.COMPLETED
+    booking.caregiver_id = cg.id
+    earning = CaregiverTransaction(caregiver_id=cg.id, type="earning", amount=EARNING, status=earning_status,
+                                   booking_id=booking.id)
+    db.add(earning)
+    refund = db.get(Refund, refund.id)
+    refund.take_back_from_caregiver, refund.take_back_kobo, refund.take_back_reason = True, 1_600_000, "fault"
     db.commit()
-    out = refunds.approve_refund(db, r.id, admin=super_admin(db), amount_kobo=2_200_000, take_back_from_caregiver=True,
-                                 take_back_reason="fault")  # original method: approved, not yet sent
-    assert out.status == "approved" and out.take_back_kobo == 1_600_000
-    assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (EARNING, 0) and rows(db, cg) == []
-    out.status = "failed"  # a failed refund is still open but has taken nothing
-    db.commit()
-    out.status = "closed"
-    db.commit()
+    return cg, booking, refund, earning, pid
+
+
+def test_take_back_applies_only_on_success(db, fake_paystack):
+    from app.tests.test_refunds_settle import apply
+    cg, booking, refund, earning, pid = sent_with_take_back(db, fake_paystack)
+    assert apply(db, booking, "failed", pid, TOTAL, reason="Insufficient balance") == "applied"
+    db.expire_all()
+    assert db.get(Refund, refund.id).status == "failed"
     assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (EARNING, 0) and rows(db, cg) == []
     assert_never_over(db, cg, EARNING)
+
+
+def test_processed_webhook_takes_back_once_and_records_the_split(db, fake_paystack):
+    from app.tests.test_refunds_settle import apply
+    cg, booking, refund, earning, pid = sent_with_take_back(db, fake_paystack, balance=1_000_000)
+    assert apply(db, booking, "processed", pid, TOTAL) == "applied"
+    apply(db, booking, "processed", pid, TOTAL)  # a duplicate event
+    db.expire_all()
+    r = db.get(Refund, refund.id)
+    assert (r.status, r.take_back_debited_kobo, r.take_back_owed_kobo) == ("succeeded", 1_000_000, 600_000)
+    assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (0, 600_000) and len(rows(db, cg)) == 1
+
+
+def test_earning_voided_after_approval_takes_nothing(db, fake_paystack):
+    from app.tests.test_refunds_settle import apply
+    cg, booking, refund, earning, pid = sent_with_take_back(db, fake_paystack, earning_status="voided", balance=0)
+    assert apply(db, booking, "processed", pid, TOTAL) == "applied"
+    db.expire_all()
+    r = db.get(Refund, refund.id)
+    assert (r.status, r.take_back_debited_kobo, r.take_back_owed_kobo) == ("succeeded", 0, 0)
+    assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (0, 0) and rows(db, cg) == []
+
+
+def test_held_earning_is_reduced_not_made_a_debt(db):
+    cg, b = visit(db, 0, earning_status="held")
+    r = refund_with_take_back(db, b, 2_200_000)
+    db.expire_all()
+    earning = db.query(CaregiverTransaction).filter_by(booking_id=b.id, type="earning").one()
+    assert (earning.status, earning.amount) == ("held", EARNING - 1_600_000)
+    assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (0, 0)
+    (row,) = rows(db, cg)  # a record that moves no money: voided, so it is neither a debit nor an earning
+    assert (row.status, row.amount) == ("voided", 1_600_000) and f"reduced unreleased earning {earning.id}" in row.status_reason
+    assert (r.take_back_debited_kobo, r.take_back_owed_kobo) == (0, 0)
+    bal = earnings.balances(db, cg.id)
+    assert bal.held_kobo == EARNING - 1_600_000
+    assert_never_over(db, cg, 0)
+
+
+def test_preview_is_zero_for_a_voided_earning_and_stable_after_a_reduction(db):
+    cg, b = visit(db, 0, earning_status="voided")
+    r = Refund(booking_id=b.id, patient_id=b.patient_id, reason_code="other", origin="system", status="pending_approval")
+    db.add(r)
+    db.commit()
+    assert refunds.take_back_preview_kobo(db, r, 2_200_000) == 0
+    cg2, b2 = visit(db, 0, earning_status="held")
+    refund_with_take_back(db, b2, 2_200_000)  # reduces the held earning to 1,600,000
+    r2 = Refund(booking_id=b2.id, patient_id=b2.patient_id, reason_code="other", origin="system", status="pending_approval")
+    db.add(r2)
+    db.commit()
+    assert refunds.take_back_preview_kobo(db, r2, 2_200_000) == 1_600_000  # still based on the original 3,200,000
+
+
+def test_owed_is_netted_when_a_payout_is_reserved(db, fake_paystack):
+    cg = payable(db, 0, fake=fake_paystack)
+    w = db.query(CaregiverWallet).filter_by(caregiver_id=cg.id).one()
+    w.balance, w.owed_kobo = 1_300_000, 600_000  # e.g. a failed payout just returned its money
+    db.commit()
+    batch = payouts.create_scheduled_batch(db, now=datetime(2026, 10, 12, 6, 10))
+    assert batch is not None
+    (p,) = payouts_of(db, cg)
+    assert p.amount_kobo == 700_000
+    w = wallet(db, cg)
+    assert (w.balance, w.owed_kobo) == (0, 0)
+    (row,) = rows(db, cg)
+    assert (row.amount, row.status) == (600_000, "successful") and f"recovered at payout {p.id}" == row.status_reason
+
+
+def test_owed_larger_than_the_balance_leaves_no_payout(db, fake_paystack):
+    cg = payable(db, 0, fake=fake_paystack)
+    w = db.query(CaregiverWallet).filter_by(caregiver_id=cg.id).one()
+    w.balance, w.owed_kobo = 1_000_000, 1_500_000
+    db.commit()
+    assert payouts.create_scheduled_batch(db, now=datetime(2026, 10, 12, 6, 10)) is None
+    w = wallet(db, cg)
+    assert (w.balance, w.owed_kobo) == (1_000_000, 1_500_000)  # nothing moved: the debt waits for later earnings
+
+
+def test_release_nets_owed_across_several_earnings_and_two_caregivers(db):
+    now = datetime.utcnow()
+    a, b = payable(db, 0), payable(db, 0)
+    for cg, owed in ((a, 1_000_000), (b, 0)):
+        w = db.query(CaregiverWallet).filter_by(caregiver_id=cg.id).one()
+        w.owed_kobo = owed
+    for cg in (a, b):
+        for amount in (400_000, 400_000, 400_000):
+            bk = make_booking(db, make_patient(db), cg, status=BookingStatus.COMPLETED, total_amount_kobo=TOTAL)
+            db.add(CaregiverTransaction(caregiver_id=cg.id, type="earning", amount=amount, status="pending_clearance",
+                                        booking_id=bk.id, available_at=now - timedelta(hours=1)))
+    db.commit()
+    assert earnings.release_due(db, now=now) == 6
+    wa, wb = wallet(db, a), wallet(db, b)
+    assert (wa.balance, wa.owed_kobo) == (200_000, 0)  # 1,200,000 earned, 1,000,000 recovered
+    assert (wb.balance, wb.owed_kobo) == (1_200_000, 0) and rows(db, b) == []
+    assert sum(r.amount for r in rows(db, a)) == 1_000_000
+    assert_never_over(db, a, 1_200_000)
+    assert_never_over(db, b, 1_200_000)
 
 
 def test_take_back_does_not_freeze_payouts(db):

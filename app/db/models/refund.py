@@ -52,6 +52,8 @@ class Refund(Base):
         CheckConstraint("amount_kobo IS NULL OR amount_kobo > 0", name="ck_refunds_amount_positive"),
         CheckConstraint("suggested_amount_kobo IS NULL OR suggested_amount_kobo >= 0", name="ck_refunds_suggested_not_negative"),
         CheckConstraint("take_back_kobo >= 0", name="ck_refunds_take_back_not_negative"),
+        CheckConstraint("take_back_debited_kobo >= 0 AND take_back_owed_kobo >= 0",
+                        name="ck_refunds_take_back_split_not_negative"),
         CheckConstraint(_in("status", REFUND_STATUSES), name="ck_refunds_status"),
         CheckConstraint(_in("reason_code", REFUND_REASON_CODES), name="ck_refunds_reason_code"),
         CheckConstraint(_in("origin", (REFUND_ORIGIN_SYSTEM, REFUND_ORIGIN_STAFF)), name="ck_refunds_origin"),
@@ -80,6 +82,9 @@ class Refund(Base):
     take_back_from_caregiver = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     take_back_kobo = Column(BigInteger, nullable=False, default=0, server_default="0")
     take_back_reason = Column(Text, nullable=True)
+    # How the take-back landed, set when the refund succeeds: debited from the available balance / recorded as owed.
+    take_back_debited_kobo = Column(BigInteger, nullable=True)
+    take_back_owed_kobo = Column(BigInteger, nullable=True)
     failure_reason = Column(Text, nullable=True)  # Paystack's text on the current attempt
     processed_at = Column(DateTime, nullable=True)  # money confirmed out
     note = Column(Text, nullable=True)
