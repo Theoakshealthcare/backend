@@ -175,3 +175,17 @@ def test_several_take_back_rows_per_booking_but_one_earning(db, booking):
     with pytest.raises(IntegrityError):
         insert("earning")
     db.rollback()
+
+
+def test_0015_event_check_matches_the_model_and_round_trips(scratch):  # noqa: F811
+    import importlib.util
+    from pathlib import Path
+    from app.db.models.whatsapp_booking import BOOKING_EVENTS
+    path = Path(__file__).parents[1] / "alembic" / "versions" / "0015_refund_bank_details_event.py"
+    spec = importlib.util.spec_from_file_location("mig0015", path)
+    mig = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mig)
+    assert set(mig.NEW_EVENTS) == set(BOOKING_EVENTS)
+    _run(scratch, command.upgrade, "0015_refund_bank_details")
+    _run(scratch, command.downgrade, THIS)
+    _run(scratch, command.upgrade, "0015_refund_bank_details")

@@ -284,13 +284,17 @@ class PaystackService:
                 "customer_email": data.get("customer", {}).get("email"),
                 "metadata": data.get("metadata", {})
             }
-        elif event in ("refund.processed", "refund.failed"):
+        elif event in ("refund.pending", "refund.processing", "refund.needs-attention", "refund.processed", "refund.failed"):
+            # Refunds v2: every refund status event goes to ``refunds.apply_refund_event``. The refund id is ``data.id``,
+            # ``refund_reference`` is null, and the amount can arrive as a string.
             return {
-                "event": "refund_processed" if event == "refund.processed" else "refund_failed",
+                "event": "refund_event",
+                "refund_status": event.split(".", 1)[1],
                 "refund_id": data.get("id"),
                 "reference": data.get("transaction_reference") or (data.get("transaction") or {}).get("reference"),
                 "amount_kobo": data.get("amount"),
                 "status": data.get("status"),
+                "reason": data.get("merchant_note") or data.get("customer_note"),
             }
         elif event in ("transfer.success", "transfer.failed", "transfer.reversed"):
             return {

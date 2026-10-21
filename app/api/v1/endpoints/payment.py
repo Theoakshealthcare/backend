@@ -10,7 +10,7 @@ from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.prescription import Prescription
 from app.db.session import SessionLocal
 from app.services.booking_payment import settle_booking_payment
-from app.services import payouts
+from app.services import payouts, refunds
 from app.services.patient_wallet import PatientWalletService
 from app.services.paystack import PaystackService
 
@@ -118,13 +118,14 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
             else:
                 db.rollback()
 
-        elif event in ("refund_processed", "refund_failed"):
-            wallet_service.process_refund_webhook(
-                event_data.get("refund_id"),
-                event == "refund_processed",
-                original_reference=event_data.get("reference"),
-                amount_kobo=event_data.get("amount_kobo"),
-            )
+        elif event == "refund_event":
+            # A refund Oakly sent (Refunds v2). Idempotent: Paystack retries, and reconcile may settle the same one. A
+            # refund that is not ours (no open refund on that booking) is logged and ignored.
+            result = refunds.apply_refund_event(
+                db, status=event_data["refund_status"], transaction_reference=event_data.get("reference"),
+                paystack_refund_id=event_data.get("refund_id"), amount_kobo=event_data.get("amount_kobo"),
+                reason=event_data.get("reason"))
+            logger.info(f"Refund {event_data['refund_status']}: {event_data.get('reference')} -> {result}")
 
         elif event == "refund_successful":
             logger.info(f"Refund successful for reference: {reference}")
