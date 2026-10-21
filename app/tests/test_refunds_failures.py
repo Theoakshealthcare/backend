@@ -639,3 +639,73 @@ def test_not_found_on_our_attempt_refuses_retry_and_switch_accepts_resolve_faile
     with pytest.raises(refunds.RefundConflict):
         refunds.switch_to_wallet(db, refund.id, admin=super_admin(db))
     assert refunds.close_refund(db, refund.id, admin=finance(db), reason="no record").status == "closed"
+
+
+# --- review round 2 ---------------------------------------------------------------------------------------------------
+@pytest.mark.parametrize("status", ["pending", "processing"])
+def test_a_404_on_our_id_still_checks_for_an_untied_refund(db, fake_paystack, status):
+    booking, refund, pid = reviewed(db, fake_paystack)
+    del fake_paystack.refunds[pid]
+    dashboard_refund(fake_paystack, booking, status)
+    with pytest.raises(refunds.RefundConflict) as e:
+        refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="failed", note="checked")
+    assert "another refund on this payment" in e.value.message
+    b2, r2, p2 = failed(db, fake_paystack)
+    del fake_paystack.refunds[p2]
+    dashboard_refund(fake_paystack, b2, status)
+    with pytest.raises(refunds.RefundConflict) as e:
+        refunds.close_refund(db, r2.id, admin=finance(db), reason="stop")
+    assert "another refund on this payment" in e.value.message
+    assert get(db, r2).status == "failed" and get(db, refund).status == "needs_review"
+
+
+def test_a_404_on_our_id_with_no_other_refund_still_allows_resolve_failed_and_close(db, fake_paystack):
+    booking, refund, pid = reviewed(db, fake_paystack)
+    del fake_paystack.refunds[pid]
+    assert refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="failed", note="gone").status == "failed"
+    assert refunds.close_refund(db, refund.id, admin=finance(db), reason="stop").status == "closed"
+
+
+def take_back_review(db, fake, confirmed):
+    """A completed visit (earning 3,200,000 of 4,400,000) whose 2,200,000 refund, with a take-back of 1,600,000, Paystack
+    processed for ``confirmed`` instead: in review."""
+    from app.tests.test_refunds_take_back import visit
+    cg, booking = visit(db, 0)
+    booking.channel, booking.paystack_reference = "whatsapp", booking.paystack_reference or f"ref-{booking.id}"
+    db.commit()
+    fake.initialize_transaction(None, "placeholder@example.com", TOTAL, booking.paystack_reference)
+    fake.paid.add(booking.paystack_reference)
+    refund = Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                    suggested_amount_kobo=2_200_000, amount_kobo=2_200_000, destination="original_method",
+                    status="approved", approved_at=datetime.utcnow(), take_back_from_caregiver=True,
+                    take_back_kobo=1_600_000, take_back_reason="Caregiver at fault")
+    db.add(refund)
+    db.commit()
+    assert refunds.dispatch_due(db) == 1
+    pid = attempts_of(db, refund)[0].paystack_refund_id
+    assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
+                                      paystack_refund_id=pid, amount_kobo=confirmed) == "review"
+    fake.settle_refund(pid, "processed")
+    fake.refunds[pid]["amount"] = confirmed
+    return cg, booking, refund
+
+
+def test_resolve_scales_the_take_back_to_the_confirmed_amount(db, fake_paystack):
+    cg, booking, refund = take_back_review(db, fake_paystack, 1_100_000)
+    out = refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="paid less",
+                                 amount_kobo=1_100_000)
+    assert (out.status, out.amount_kobo, out.take_back_kobo) == ("succeeded", 1_100_000, 800_000)
+    assert out.take_back_debited_kobo + out.take_back_owed_kobo == 800_000
+
+
+def test_resolve_never_takes_back_more_than_the_approver_agreed(db, fake_paystack, caplog):
+    cg, booking, refund = take_back_review(db, fake_paystack, 3_000_000)
+    db.add(Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                  suggested_amount_kobo=1_500_000, amount_kobo=1_500_000, destination="original_method", status="succeeded",
+                  processed_at=datetime.utcnow()))
+    db.commit()
+    with caplog.at_level("ERROR"):
+        out = refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="paid more",
+                                     amount_kobo=3_000_000)
+    assert (out.amount_kobo, out.take_back_kobo) == (3_000_000, 1_600_000)  # the cap is what was approved
+    assert "exceed" in caplog.text

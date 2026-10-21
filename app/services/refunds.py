@@ -885,8 +885,10 @@ def _ask(paystack: PaystackService, seen: _Seen, *, guard_untied: bool = False) 
             got = paystack.fetch_refund(seen.pid)
             if got.get("outcome") == "found":
                 own = _Said("found", _normal_status(got.get("status")), _kobo(got.get("amount_kobo")), seen.pid)
+            elif got.get("outcome") == "not_found":
+                own = _Said("not_found")  # still list the transaction's refunds below: another may be alive
             else:
-                return _Said("not_found" if got.get("outcome") == "not_found" else "unknown")
+                return _Said("unknown")
             if not guard_untied or own.status == "processed":
                 return own
         elif not seen.reference:
@@ -1186,6 +1188,10 @@ def resolve_refund(db: Session, refund_id: UUID, *, admin: AdminUser, outcome: s
             if refund.processed_at is None:
                 if said.amount_kobo is not None and said.amount_kobo != refund.amount_kobo:
                     refund.amount_kobo = said.amount_kobo  # the money that really left is the truth, not what we asked for
+                    if int(refund.take_back_kobo or 0) > 0:
+                        # Scaled to what was refunded, never above what the approver agreed to take back.
+                        refund.take_back_kobo = min(int(refund.take_back_kobo),
+                                                    take_back_preview_kobo(db, refund, said.amount_kobo))
                 if current is None:  # refunded on the Paystack dashboard: give it a row, so reconcile sees the id as taken
                     current = RefundAttempt(refund_id=refund.id, attempt=1, status=ATTEMPT_PROCESSED, created_at=now)
                     db.add(current)
