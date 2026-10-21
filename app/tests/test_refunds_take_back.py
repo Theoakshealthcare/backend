@@ -300,8 +300,33 @@ def test_apply_take_back_returns_the_split_and_does_not_commit(db):
     r = Refund(booking_id=b.id, patient_id=b.patient_id, reason_code="other", origin="system", status="approved")
     db.add(r)
     db.flush()
-    out = earnings.apply_take_back(db, caregiver_id=cg.id, booking_id=b.id, refund_id=r.id, amount_kobo=1_000_000,
+    out = earnings.apply_take_back(db, booking_id=b.id, refund_id=r.id, amount_kobo=1_000_000,
                                    now=datetime.utcnow())
     assert out == (400_000, 600_000)
     db.rollback()
     assert (wallet(db, cg).balance, wallet(db, cg).owed_kobo) == (400_000, 0)
+
+
+def test_retry_is_refused_while_the_caregiver_owes_a_refund(db, client, fake_paystack):
+    from app.tests.test_payouts import approved_payout, webhook
+    cg, p = approved_payout(db, fake_paystack)
+    payouts.dispatch_due(db)
+    webhook(client, fake_paystack, p.reference, "failed")
+    w = db.query(CaregiverWallet).filter_by(caregiver_id=cg.id).one()
+    w.owed_kobo = 1_600_000
+    db.commit()
+    balance_before = wallet(db, cg).balance
+    with pytest.raises(payouts.PayoutConflict, match=r"owes .*16,000 from a refund"):
+        payouts.retry_payout(db, p.id, admin_id=make_admin(db, password=None).id, reason="again")
+    w = wallet(db, cg)
+    assert (w.balance, w.owed_kobo) == (balance_before, 1_600_000)
+    (po,) = payouts_of(db, cg)
+    assert po.status == "failed" and po.attempts == 1
+
+
+def test_apply_take_back_lowering_an_earning_says_so_on_the_earning(db):
+    cg, b = visit(db, 0, earning_status="held")
+    r = refund_with_take_back(db, b, 2_200_000)
+    db.expire_all()
+    earning = db.query(CaregiverTransaction).filter_by(booking_id=b.id, type="earning").one()
+    assert f"reduced by 1600000 for refund {r.id}" in earning.status_reason

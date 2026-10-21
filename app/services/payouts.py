@@ -7,7 +7,10 @@ The flow, all integer kobo (``caregiver_wallets.balance`` is the AVAILABLE balan
    For every caregiver whose available balance is at least ``payout_min_naira`` and who has a verified bank account (a
    Paystack recipient), is not suspended or erased, is not in the 24 hour cool-down after changing bank account and has no
    live payout, it takes the **whole available balance out of the wallet** under the wallet lock and writes it as a
-   ``payout`` debit (``pending_approval``) plus one ``payouts`` row. The reservation is the debit: the balance and the
+   ``payout`` debit (``pending_approval``) plus one ``payouts`` row. What a refund take-back could not take earlier
+   (``caregiver_wallets.owed_kobo``) is netted off first: the debt is recovered from the balance before anything is reserved
+   (a ``refund_take_back`` row), which only DECREASES what the caregiver can be paid, so it fits the invariant below. A retry of
+   a failed payout is refused while a debt is owed, and the next payout run takes it first. The reservation is the debit: the balance and the
    ledger always agree, and the same money cannot be reserved twice.
 2. **Approve.** An admin approves the batch with a reason. Each payout is checked again (suspended since? account changed?);
    one that fails the check is cancelled and its money returned. The rest become ``processing``.
@@ -124,6 +127,10 @@ _SUCCESS, _FAILURES, _REVERSED = {"success"}, {"failed", "rejected", "blocked", 
 
 class PayoutNotFound(Exception):
     pass
+
+
+def _naira(kobo: int) -> str:
+    return f"\u20a6{kobo // 100:,}" if kobo % 100 == 0 else f"\u20a6{kobo / 100:,.2f}"
 
 
 class PayoutConflict(Exception):
@@ -491,6 +498,9 @@ def retry_payout(db: Session, payout_id: uuid.UUID, *, admin_id: uuid.UUID, reas
         problem = _eligibility_problem(db, payout.caregiver_id, now, snapshot=payout)
         if problem is not None:
             raise PayoutConflict(f"This payout cannot be retried: {problem}")
+        if int(wallet.owed_kobo or 0) > 0:  # a retry would pay the returned money again, ahead of the refund debt
+            raise PayoutConflict(f"This caregiver owes {_naira(int(wallet.owed_kobo))} from a refund. Cancel this payout "
+                                 "instead; the next payout run will take what is owed first")
         if int(wallet.balance or 0) < payout.amount_kobo:
             raise PayoutConflict("The caregiver's available balance is lower than this payout, so it cannot be sent again")
         before = _snapshot(payout)

@@ -140,17 +140,17 @@ def upgrade() -> None:
     op.add_column('patient_transactions', sa.Column('refund_id', sa.UUID(), nullable=True))
     op.create_foreign_key('fk_patient_transactions_refund_id', 'patient_transactions', 'refunds', ['refund_id'], ['id'])
 
-    op.execute(
-        f"INSERT INTO admin_role_permissions (role_id, permission) "
-        f"SELECT id, '{PERMISSION}' FROM admin_roles WHERE key = 'super_admin' ON CONFLICT DO NOTHING"
-    )
+    op.execute(sa.text(
+        "INSERT INTO admin_role_permissions (role_id, permission) "
+        "SELECT id, :p FROM admin_roles WHERE key = 'super_admin' ON CONFLICT DO NOTHING"
+    ).bindparams(p=PERMISSION))
 
 
 def downgrade() -> None:
     op.drop_constraint('ck_booking_events_event', 'booking_events', type_='check')
     op.execute("DELETE FROM booking_events WHERE event = 'refund_needs_bank_details'")
     op.create_check_constraint('ck_booking_events_event', 'booking_events', _events_check(OLD_EVENTS))
-    op.execute(f"DELETE FROM admin_role_permissions WHERE permission = '{PERMISSION}'")
+    op.execute(sa.text("DELETE FROM admin_role_permissions WHERE permission = :p").bindparams(p=PERMISSION))
     op.drop_constraint('fk_patient_transactions_refund_id', 'patient_transactions', type_='foreignkey')
     op.drop_column('patient_transactions', 'refund_id')
     op.drop_table('refund_attempts')

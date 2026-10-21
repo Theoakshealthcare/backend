@@ -262,7 +262,7 @@ def recover_owed(db: Session, wallet: CaregiverWallet, available_kobo: int, *, w
     return taken
 
 
-def apply_take_back(db: Session, *, caregiver_id: Optional[UUID] = None, booking_id: UUID, refund_id: UUID, amount_kobo: int,
+def apply_take_back(db: Session, *, booking_id: UUID, refund_id: UUID, amount_kobo: int,
                     now: datetime) -> Tuple[int, int]:
     """Take a refunded visit's share back from what the caregiver actually received. Returns ``(debited_kobo,
     owed_added_kobo)``. It re-reads the booking's ``earning`` row under its lock at success time (ledger rows before
@@ -291,6 +291,8 @@ def apply_take_back(db: Session, *, caregiver_id: Optional[UUID] = None, booking
     if earning.status in (TX_PENDING_CLEARANCE, TX_HELD):
         reduced = min(amount, int(earning.amount))
         earning.amount = int(earning.amount) - reduced
+        note = f"reduced by {reduced} for refund {refund_id}"
+        earning.status_reason = f"{earning.status_reason}; {note}" if earning.status_reason else note
         if reduced > 0:
             db.add(CaregiverTransaction(
                 caregiver_id=earning.caregiver_id, type=TX_REFUND_TAKE_BACK, amount=reduced, status=TX_VOIDED,

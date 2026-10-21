@@ -218,7 +218,8 @@ class CaregiverTransaction(Base):
     account_name = Column(String, nullable=True)
     reference = Column(String, nullable=True)
     narration = Column(String, nullable=True)
-    # Earnings only: the booking, what the share was taken of and at what percent (kept so the amount can be re-derived),
+    # Earnings only: the booking, what the share was taken of and at what percent (the amount can be re-derived from them unless a refund take-back lowered an
+    # unreleased earning: that is recorded on its status_reason and in a voided refund_take_back row),
     # when it becomes withdrawable and when it did, and who last held or voided it and why.
     booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=True)
     base_amount_kobo = Column(BigInteger, nullable=True)
