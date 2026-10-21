@@ -16,6 +16,12 @@ from app.tests.payout_helpers import assert_never_over, money_state, payable, pa
 from app.tests.fake_meta import fake_paystack  # noqa: F401
 from app.tests.refund_helpers import assert_refund_conserved
 
+
+@pytest.fixture(autouse=True)
+def _paystack(fake_paystack):
+    """A wallet approval asks Paystack whether another refund is moving on the payment, so every test here has a fake one."""
+    return fake_paystack
+
 TOTAL = 4_400_000
 EARNING = 3_200_000
 

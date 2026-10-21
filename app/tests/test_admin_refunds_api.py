@@ -349,6 +349,15 @@ def test_other_body_validation_422s(db, client, path, body):
     assert r.status_code == 422, r.text
 
 
+def test_a_bad_account_number_422_does_not_echo_the_digits_back(db, client):
+    boss = super_admin(db)
+    for bad in ("98765", "09876543210", "98765abcde"):
+        r = client.post(f"{URL}/{FAKE}/bank-details", json={"bank_code": "058", "account_number": bad},
+                        headers=auth_headers(boss))
+        assert r.status_code == 422 and bad not in r.text and "98765" not in r.text, r.text
+        assert any("account_number" in e["loc"] for e in r.json()["detail"])  # still says which field is wrong
+
+
 # --- service errors keep the {"detail": message} envelope --------------------------------------------------------------------
 def test_service_errors_map_to_status_codes(db, client, fake_paystack):
     fin, other, boss = finance(db), finance(db), super_admin(db)

@@ -33,6 +33,11 @@ class PaymentStatus(str, Enum):
     PARTIALLY_REFUNDED = "partially_refunded"
 
 
+# A payment was received and has not been undone by a failure: the states in which a booking is "already paid" (a repeated
+# charge.success, a verify or a charge.failed must not touch it). Refunds move PAID on to the other two.
+PAID_STATES = (PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
     __table_args__ = (

@@ -92,6 +92,7 @@ class Refund(Base):
     # refund): the console queue shows these. A refund that CAN change goes to needs_review instead.
     review_flagged_at = Column(DateTime, nullable=True)
     review_reason = Column(Text, nullable=True)
+    last_reconciled_at = Column(DateTime, nullable=True)  # when reconcile last asked Paystack about it (fair batching)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

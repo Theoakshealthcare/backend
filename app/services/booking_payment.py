@@ -28,7 +28,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models.booking import Booking, BookingStatus, PaymentStatus
+from app.db.models.booking import PAID_STATES, Booking, BookingStatus, PaymentStatus
 from app.services import booking_events
 from app.services.refunds import open_system_refund
 
@@ -64,7 +64,7 @@ def settle_booking_payment(
         db.rollback()
         return SettleOutcome.NOT_FOUND
 
-    if booking.payment_status == PaymentStatus.PAID:
+    if booking.payment_status in PAID_STATES:  # a refunded booking was paid too: resetting it would undo the refund's state
         db.rollback()
         return SettleOutcome.ALREADY_PAID
 
@@ -139,7 +139,7 @@ def verify_and_settle(db: Session, booking_id: uuid.UUID) -> Optional[SettleOutc
     from app.services.paystack import PaystackService  # lazy: the webhook path imports this module at startup
 
     booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().first()
-    if booking is None or booking.payment_status == PaymentStatus.PAID or not booking.paystack_reference:
+    if booking is None or booking.payment_status in PAID_STATES or not booking.paystack_reference:
         db.rollback()
         return None
     reference = booking.paystack_reference

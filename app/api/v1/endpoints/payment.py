@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-from app.db.models.booking import Booking, BookingStatus, PaymentStatus
+from app.db.models.booking import PAID_STATES, Booking, BookingStatus, PaymentStatus
 from app.db.models.prescription import Prescription
 from app.db.session import SessionLocal
 from app.services.booking_payment import settle_booking_payment
@@ -93,7 +93,7 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
                 .populate_existing()
                 .first()
             )
-            if booking and booking.payment_status != PaymentStatus.PAID:
+            if booking and booking.payment_status not in PAID_STATES:
                 booking.payment_status = PaymentStatus.FAILED
                 booking.status = BookingStatus.CANCELLED
                 booking.payment_failure_reason = event_data.get("gateway_response", "Payment failed")

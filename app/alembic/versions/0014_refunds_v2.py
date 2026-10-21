@@ -14,6 +14,8 @@ Create Date: 2026-10-21
 - ``patient_transactions.refund_id``: the refund a wallet credit came from.
 - ``refunds.review_flagged_at`` / ``review_reason``: a Paystack contradiction on a refund that cannot leave its status (it is
   finished, or the booking has another open refund) is flagged here so the console queue can show it (spec 4.3).
+- ``refunds.last_reconciled_at``: when reconcile last asked Paystack about the refund; the batch asks the least recently asked
+  first, so old refunds that stay unsettled cannot starve newer ones.
 - ``refund_attempts.paystack_refund_id`` is unique where set: one Paystack refund belongs to one attempt.
 - ``booking_events``: the ``refund_needs_bank_details`` event (the family is told Paystack needs their bank account).
 - ``admin_role_permissions``: ``refunds.approve_above_limit`` for the Super Admin only.
@@ -95,6 +97,7 @@ def upgrade() -> None:
         sa.Column('note', sa.Text(), nullable=True),
         sa.Column('review_flagged_at', sa.DateTime(), nullable=True),
         sa.Column('review_reason', sa.Text(), nullable=True),
+        sa.Column('last_reconciled_at', sa.DateTime(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(['booking_id'], ['bookings.id']),

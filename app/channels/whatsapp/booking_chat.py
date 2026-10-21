@@ -39,7 +39,7 @@ from app.channels.whatsapp.messages import (
 )
 from app.core.config import settings
 from app.core.security import decrypt, encrypt
-from app.db.models.booking import Booking, BookingStatus, PaymentStatus
+from app.db.models.booking import PAID_STATES, Booking, BookingStatus, PaymentStatus
 from app.db.models.booking_settings import BookingSettings
 from app.db.models.care import CareRecipient, CareRelationship
 from app.db.models.patient import Patient
@@ -554,7 +554,7 @@ def check_payment(ctx: Ctx) -> Result:
     if booking is None:
         return _to_idle(_menu(ctx, "flow_stale_body"))
     contact_id = ctx.contact.id
-    if booking.payment_status == PaymentStatus.PAID:
+    if booking.payment_status in PAID_STATES:
         return Result(after_commit=lambda db: check_payment_after_commit(db, contact_id, booking_id))
     if booking.status == BookingStatus.CANCELLED:
         if booking.cancel_reason == "unpaid_timeout":
@@ -579,7 +579,7 @@ def check_payment_after_commit(db: Session, contact_id: uuid.UUID, booking_id: u
     url = (quote.payload or {}).get("payment_url") if quote else None
 
     expired_unpaid = booking.status == BookingStatus.CANCELLED and booking.cancel_reason == "unpaid_timeout"
-    if booking.payment_status != PaymentStatus.PAID and (booking.status == BookingStatus.PENDING or expired_unpaid):
+    if booking.payment_status not in PAID_STATES and (booking.status == BookingStatus.PENDING or expired_unpaid):
         if booking.status == BookingStatus.PENDING and not url:
             age = datetime.utcnow() - booking.created_at
             if age < PAYMENT_INIT_GRACE:
@@ -596,7 +596,7 @@ def check_payment_after_commit(db: Session, contact_id: uuid.UUID, booking_id: u
         db.expire_all()
         booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().first()
 
-    if booking.payment_status == PaymentStatus.PAID:
+    if booking.payment_status in PAID_STATES:
         notifications.deliver_pending(db, booking_id=booking_id)  # payment_received goes out now, once
         return Result(state=State.IDLE, context={"quote_id": None, "booking_id": None})
     if booking.status == BookingStatus.CANCELLED:
@@ -619,7 +619,7 @@ def cancel_unpaid(ctx: Ctx) -> Result:
     booking = ctx.db.get(Booking, booking_id) if booking_id else None
     if booking is None:
         return _to_idle(_menu(ctx, "flow_stale_body"))
-    if booking.payment_status == PaymentStatus.PAID:
+    if booking.payment_status in PAID_STATES:
         return Result([_text(ctx, "pay_cancel_paid_body")], State.AWAITING_PAYMENT, context)
     contact_id = ctx.contact.id
     return Result(state=State.AWAITING_PAYMENT, context=context,
@@ -641,7 +641,7 @@ def _cancel_after_check(db: Session, contact_id: uuid.UUID, booking_id: uuid.UUI
     # Only the booking row is locked here (the conversation lock was released at the commit), so the lock order
     # conversation -> quote -> booking holds. The state is re-read under the lock: a webhook may have won.
     booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().with_for_update().first()
-    if booking.payment_status == PaymentStatus.PAID:
+    if booking.payment_status in PAID_STATES:
         db.rollback()
         notifications.deliver_pending(db, booking_id=booking_id)  # "payment received" (or the refund notice) now
         return Result(state=State.IDLE, context={"quote_id": None, "booking_id": None})

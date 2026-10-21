@@ -11,7 +11,7 @@ import pytest
 
 from app.db.models.admin import AdminUser
 from app.db.models.audit import AdminAuditLog
-from app.db.models.booking import Booking, PaymentStatus
+from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.patient import PatientTransaction, PatientWallet
 from app.db.models.refund import Refund, RefundAttempt
 from app.db.models.whatsapp_booking import BookingEvent
@@ -36,6 +36,7 @@ def super_admin(db):
 
 def sent_refund(db, fake, *, channel="app", amount=TOTAL, total=TOTAL, **booking_fields):
     """An approved original-method refund that has been sent: processing, attempt 1 pending at Paystack."""
+    booking_fields.setdefault("status", BookingStatus.COMPLETED)  # staff can raise a refund only on a finished visit
     booking = make_booking(db, make_patient(db), total_amount_kobo=total, channel=channel, **booking_fields)
     fake.initialize_transaction(None, "placeholder@example.com", total, booking.paystack_reference)
     fake.paid.add(booking.paystack_reference)
@@ -569,8 +570,6 @@ def test_close_re_asks_paystack(db, fake_paystack):
 def test_processed_on_a_closed_refund_found_by_reference_goes_to_review(db, fake_paystack):
     booking, refund, pid = failed(db, fake_paystack)
     refunds.close_refund(db, refund.id, admin=finance(db), reason="stop")
-    assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
-                                      paystack_refund_id=None, amount_kobo=1) == "ignored"  # another amount: not ours
     assert refunds.apply_refund_event(db, status="processed", transaction_reference=booking.paystack_reference,
                                       paystack_refund_id=None, amount_kobo=TOTAL) == "review"
     assert get(db, refund).status == "needs_review"

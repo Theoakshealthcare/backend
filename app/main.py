@@ -1,8 +1,11 @@
 import os
 os.makedirs("uploads/profile_images", exist_ok=True)
 from typing import Any
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 
@@ -15,6 +18,21 @@ app = FastAPI(
     description="Oaklycare Healthcare Provider API",
     version="1.0.0",
 )
+
+# FastAPI's 422 body echoes each rejected value back as ``input``. For these fields that would put a bank account number
+# into a response body (and the logs and traces that capture it), so the value is dropped from the error.
+NEVER_ECHO_FIELDS = {"account_number"}
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_without_secrets(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = []
+    for error in exc.errors():
+        if NEVER_ECHO_FIELDS.intersection(str(part) for part in error.get("loc", ())):
+            error = {k: v for k, v in error.items() if k not in ("input", "ctx")}
+        errors.append(error)
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+
 
 # Set up CORS
 if settings.BACKEND_CORS_ORIGINS:

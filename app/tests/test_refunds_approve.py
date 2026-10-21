@@ -12,7 +12,14 @@ from app.db.models.user import User
 from app.db.models.whatsapp_booking import BookingEvent
 from app.services import refunds
 from app.tests.factories import make_admin, make_booking, make_caregiver, make_patient
+from app.tests.fake_meta import fake_paystack  # noqa: F401  (fixture)
 from app.tests.refund_helpers import assert_refund_conserved
+
+
+@pytest.fixture(autouse=True)
+def _paystack(fake_paystack):
+    """A wallet approval asks Paystack whether another refund is moving on the payment, so every test here has a fake one."""
+    return fake_paystack
 
 BIG = 10_000_000  # N100,000
 

@@ -301,9 +301,10 @@ def test_a_second_paystack_refund_for_one_attempt_goes_to_review(db, fake_paysta
     assert r.status == "needs_review"
 
 
-def test_refund_event_with_no_open_refund_is_ignored(db, fake_paystack):
+def test_refund_event_for_an_unknown_transaction_or_without_money_is_ignored(db, fake_paystack):
+    """A processed refund on a known booking is NOT ignored any more (it gets a review row: test_refunds_final_review.py)."""
     booking = make_booking(db, make_patient(db), status=BookingStatus.CANCELLED)
-    assert apply(db, booking, "processed", "999", TOTAL) == "ignored"
+    assert apply(db, booking, "failed", "999", TOTAL) == "ignored"  # nothing moved, so there is nothing to count
     assert refunds.apply_refund_event(db, status="processed", transaction_reference="NOPE", paystack_refund_id=None,
                                       amount_kobo=1) == "ignored"
     b, = reload(db, booking)
