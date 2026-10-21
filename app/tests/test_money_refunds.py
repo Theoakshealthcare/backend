@@ -1,18 +1,18 @@
-"""Admin refund approval: one destination, no double approval, real admin check."""
+"""The legacy refund-request routes are retired (Refunds v2): they answer 410 and move no money. The admin check stays in front
+of the 410, and a patient can still read their old requests."""
 
-import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
-from decimal import Decimal
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.core.money import to_kobo
 from app.db.models.patient import PatientRefundRequest, PatientTransaction, PatientWallet
-from app.main import app as fastapi_app
 from app.services.paystack import PaystackService
 from app.tests.factories import auth_headers, make_admin, make_patient, make_user
+
+PATIENT_GONE = "Refunds are now handled by the Oakly team. Contact support to request one."
+ADMIN_MOVED = "This route has moved to /api/v1/admin/refunds."
+LIST_URL = "/api/v1/patient/admin/refund/requests"
 
 
 def _wallet(db, patient, balance="0"):
@@ -46,11 +46,17 @@ def _request(db, patient, tx, amount="1000"):
 
 
 def _url(req):
-    return f"/api/v1/patient/admin/refund/requests/{req.id}"
+    return f"{LIST_URL}/{req.id}"
+
+
+def _fresh(db, model, pk):
+    db.expire_all()
+    return db.get(model, pk)
 
 
 @pytest.fixture
 def paystack_refunds(monkeypatch):
+    """Every call the old code path would make to Paystack: it must stay empty."""
     calls = []
 
     def fake(self, reference, amount=None):
@@ -61,17 +67,13 @@ def paystack_refunds(monkeypatch):
     return calls
 
 
-def _fresh(db, model, pk):
-    db.expire_all()
-    return db.get(model, pk)
-
-
 def test_refund_endpoints_require_auth(db, client):
     patient = make_patient(db)
     tx = _tx(db, _wallet(db, patient), patient)
     req = _request(db, patient, tx)
     assert client.put(_url(req), json={"action": "approve"}).status_code == 401
-    assert client.get("/api/v1/patient/admin/refund/requests").status_code == 401
+    assert client.get(LIST_URL).status_code == 401
+    assert client.post("/api/v1/patient/wallet/refund/request", json={}).status_code == 401
 
 
 def test_non_admin_cannot_approve(db, client, paystack_refunds):
@@ -86,157 +88,56 @@ def test_non_admin_cannot_approve(db, client, paystack_refunds):
 
 def test_non_admin_cannot_list(db, client):
     patient = make_patient(db)
-    r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(patient.user))
-    assert r.status_code == 401
-
-
-def test_admin_with_refund_permission_can_list(db, client):
-    for roles in (["super_admin"], ["finance"]):
-        r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(make_admin(db, roles)))
-        assert r.status_code == 200, roles
+    assert client.get(LIST_URL, headers=auth_headers(patient.user)).status_code == 401
 
 
 def test_admin_without_refund_permission_is_forbidden(db, client):
-    r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(make_admin(db, ["support"])))
-    assert r.status_code == 403
+    assert client.get(LIST_URL, headers=auth_headers(make_admin(db, ["support"]))).status_code == 403
 
 
 def test_user_type_admin_is_not_an_admin(db, client):
     fake_admin = make_user(db, "admin")
-    r = client.get("/api/v1/patient/admin/refund/requests", headers=auth_headers(fake_admin))
-    assert r.status_code == 401
+    assert client.get(LIST_URL, headers=auth_headers(fake_admin)).status_code == 401
 
 
-def test_paystack_original_refunds_to_paystack_only(db, client, paystack_refunds):
-    admin = make_admin(db)
-    patient = make_patient(db)
-    wallet = _wallet(db, patient, "1000")
-    tx = _tx(db, wallet, patient, "1000", reference="DEP_x_1", type_="deposit")
-    req = _request(db, patient, tx, "1000")
-
-    r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
-    assert r.status_code == 200, r.text
-    assert paystack_refunds == [("DEP_x_1", 100000)]
-    w = _fresh(db, PatientWallet, wallet.id)
-    # the deposit is reversed out of the wallet and paid back to the card: never both
-    assert w.balance_kobo == 0 and w.total_refunded_kobo == 0
-    assert _fresh(db, PatientRefundRequest, req.id).status == "approved"
+def test_admin_list_is_410_pointing_at_the_new_route(db, client):
+    for roles in (["super_admin"], ["finance"]):
+        r = client.get(LIST_URL, headers=auth_headers(make_admin(db, roles)))
+        assert r.status_code == 410 and r.json() == {"detail": ADMIN_MOVED}, roles
 
 
-def test_wallet_original_refunds_to_wallet_only(db, client, paystack_refunds):
+def test_approve_and_reject_are_410_and_pay_nothing(db, client, paystack_refunds):
     admin = make_admin(db)
     patient = make_patient(db)
     wallet = _wallet(db, patient, "0")
-    tx = _tx(db, wallet, patient, "1000", reference=None)
-    req = _request(db, patient, tx, "400")
-
-    r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
-    assert r.status_code == 200, r.text
-    assert paystack_refunds == []
-    w = _fresh(db, PatientWallet, wallet.id)
-    assert w.balance_kobo == 40000 and w.total_refunded_kobo == 40000
-
-
-def test_paystack_failure_leaves_request_pending_and_pays_nothing(db, client, monkeypatch):
-    monkeypatch.setattr(
-        PaystackService, "initiate_refund",
-        lambda self, ref, amount=None: {"status": False, "message": "boom"},
-    )
-    admin = make_admin(db)
-    patient = make_patient(db)
-    wallet = _wallet(db, patient, "1000")
-    tx = _tx(db, wallet, patient, "1000", reference="DEP_x_2", type_="deposit")
+    tx = _tx(db, wallet, patient, "1000", reference="PAY_legacy")
     req = _request(db, patient, tx)
-
-    r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
-    assert r.status_code == 502
-    assert _fresh(db, PatientRefundRequest, req.id).status == "pending"
-    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000
-    # a definite rejection is compensated: the wallet debit is reversed, the refund tx is marked failed
-    assert [t.status for t in db.query(PatientTransaction).filter_by(type="refund")] in ([], ["failed"])
-
-
-def test_deposit_refund_blocked_when_wallet_already_spent(db, client, paystack_refunds):
-    admin = make_admin(db)
-    patient = make_patient(db)
-    wallet = _wallet(db, patient, "200")  # most of the deposit was spent
-    tx = _tx(db, wallet, patient, "1000", reference="DEP_x_4", type_="deposit")
-    req = _request(db, patient, tx, "1000")
-    r = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
-    assert r.status_code == 409
+    for action in ("approve", "reject"):
+        r = client.put(_url(req), json={"action": action}, headers=auth_headers(admin))
+        assert r.status_code == 410 and r.json() == {"detail": ADMIN_MOVED}
     assert paystack_refunds == []
     assert _fresh(db, PatientRefundRequest, req.id).status == "pending"
-
-
-def test_second_approval_is_rejected(db, client, paystack_refunds):
-    admin = make_admin(db)
-    patient = make_patient(db)
-    wallet = _wallet(db, patient, "0")
-    tx = _tx(db, wallet, patient, "1000")
-    req = _request(db, patient, tx, "1000")
-
-    assert client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin)).status_code == 200
-    r2 = client.put(_url(req), json={"action": "approve"}, headers=auth_headers(admin))
-    assert r2.status_code == 409
-    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 100000
-    assert db.query(PatientTransaction).filter_by(type="refund").count() == 1
-
-
-def test_unknown_request_is_404(db, client):
-    admin = make_admin(db)
-    r = client.put(f"/api/v1/patient/admin/refund/requests/{uuid.uuid4()}", json={"action": "approve"},
-                   headers=auth_headers(admin))
-    assert r.status_code == 404
-
-
-def test_reject_does_not_pay(db, client, paystack_refunds):
-    admin = make_admin(db)
-    patient = make_patient(db)
-    wallet = _wallet(db, patient, "0")
-    tx = _tx(db, wallet, patient, "1000")
-    req = _request(db, patient, tx)
-    r = client.put(_url(req), json={"action": "reject", "admin_notes": "no"}, headers=auth_headers(admin))
-    assert r.status_code == 200
-    assert _fresh(db, PatientRefundRequest, req.id).status == "rejected"
     assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 0
-    assert paystack_refunds == []
+    assert db.query(PatientTransaction).filter_by(type="refund").count() == 0
 
 
-def test_concurrent_double_approval_pays_once(db, monkeypatch):
-    calls = []
+def test_unknown_request_is_410_too(db, client):
+    r = client.put(f"{LIST_URL}/{uuid.uuid4()}", json={"action": "approve"}, headers=auth_headers(make_admin(db)))
+    assert r.status_code == 410
 
-    def slow(self, reference, amount=None):
-        calls.append(reference)
-        time.sleep(0.5)  # widen the race window
-        return {"status": True, "data": {"id": 1}}
 
-    monkeypatch.setattr(PaystackService, "initiate_refund", slow)
-    admin = make_admin(db)
+def test_patient_refund_request_is_410_and_creates_nothing(db, client):
     patient = make_patient(db)
-    wallet = _wallet(db, patient, "1000")
-    tx = _tx(db, wallet, patient, "1000", reference="DEP_x_3", type_="deposit")
-    req = _request(db, patient, tx)
-    headers = auth_headers(admin)
-
-    def approve():
-        c = TestClient(fastapi_app, raise_server_exceptions=False)
-        return c.put(_url(req), json={"action": "approve"}, headers=headers)
-
-    with ThreadPoolExecutor(2) as ex:
-        futures = [ex.submit(approve) for _ in range(2)]
-        codes = sorted(f.result(timeout=30).status_code for f in futures)
-    assert codes == [200, 409]
-    assert len(calls) == 1
+    tx = _tx(db, _wallet(db, patient), patient)
+    r = client.post("/api/v1/patient/wallet/refund/request", headers=auth_headers(patient.user),
+                    json={"transaction_id": str(tx.id), "amount": "100", "reason": "Service was not delivered"})
+    assert r.status_code == 410 and r.json() == {"detail": PATIENT_GONE}
+    assert db.query(PatientRefundRequest).count() == 0
 
 
-def test_cumulative_refunds_cannot_exceed_original_amount(db, client, paystack_refunds):
-    admin = make_admin(db)
+def test_patient_can_still_read_their_old_requests(db, client):
     patient = make_patient(db)
-    wallet = _wallet(db, patient, "0")
-    tx = _tx(db, wallet, patient, "1000")
-    first = _request(db, patient, tx, "800")
-    assert client.put(_url(first), json={"action": "approve"}, headers=auth_headers(admin)).status_code == 200
-    second = _request(db, patient, tx, "800")
-    r = client.put(_url(second), json={"action": "approve"}, headers=auth_headers(admin))
-    assert r.status_code == 409
-    assert _fresh(db, PatientWallet, wallet.id).balance_kobo == 80000
+    tx = _tx(db, _wallet(db, patient), patient)
+    req = _request(db, patient, tx, "250")
+    r = client.get("/api/v1/patient/wallet/refund/requests", headers=auth_headers(patient.user))
+    assert r.status_code == 200 and [x["id"] for x in r.json()] == [str(req.id)]
