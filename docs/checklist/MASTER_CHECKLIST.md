@@ -4,7 +4,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
-**Update (2026-10-21, A3 slice 3):** refunds v2 is BUILT and verified locally on `feat/refunds-v2` (migration `0014`, head `c1b9cdd` plus the docs commit), **not pushed, stacked on PR #18** (`oakly/feat/finance-audit-read`, migration `0013`), so merge #18 first. One refund queue; a person approves every refund (Finance up to the ₦50,000 cumulative limit, a Super Admin above it or for wallet credit); one destination; Paystack refunds with webhooks, reconcile and bank details; caregiver take-back; the legacy refund routes answer `410`. Verified by tests, 100 random sequences, forced races and live captures against a **fake** Paystack ([SOP](../sop/2026-10-21-refunds-v2.md), admin FE guide 12.12); a live Paystack run and the console screens are open.
+**Update (2026-10-21, A3 slice 3):** refunds v2 is BUILT and verified locally on `feat/refunds-v2` (migration `0014`, head `c1b9cdd` plus the docs commit), **not pushed**, based on `oakly/main` after PR #18 (migration `0013`) merged. One refund queue; a person approves every refund (Finance up to the ₦50,000 cumulative limit, a Super Admin above it or for wallet credit); one destination; Paystack refunds with webhooks, reconcile and bank details; caregiver take-back; the legacy refund routes answer `410`. Verified by tests, 100 random sequences, forced races and live captures against a **fake** Paystack ([SOP](../sop/2026-10-21-refunds-v2.md), admin FE guide 12.12); a live Paystack run and the console screens are open.
 
 **Update (2026-10-19):** Finance may approve and cancel payout batches and payouts (`payouts.execute`); retry, resolve, force and unfreeze stay Super Admin only ([SOP](../sop/2026-10-19-finance-approves-payouts.md)). The slice-2 screens are merged: admin payouts console and caregiver bank-account screen (Theoakshealthcare/oaklycare-caregiver-mobile #1–#3). The console's per-role action gating follows in its own PR. Finance also reads the audit log (`audit.read`, migration `0013`, [SOP](../sop/2026-10-19-finance-audit-read.md)).
 
@@ -17,7 +17,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 **Snapshot (2026-10-21):** 
 - **Items:** 209 done (`[x]`), 156 open (`[ ]`), counted over every task line (the 2026-10-12 count was 175 and 135).
 - **Sections done:** 8 (Phase C, code complete, device run pending), 11 (tech debt), 12 (account deletion), 13 (pricing audit).
-- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 merged on the backend; slice 2's screens are merged; slice 3 refunds v2 is built on `feat/refunds-v2`, not pushed, stacked on #18; a live Paystack run remains for payouts and refunds), 10 (W1–W3b done).
+- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 merged on the backend; slice 2's screens are merged; slice 3 refunds v2 is built on `feat/refunds-v2`, not pushed; a live Paystack run remains for payouts and refunds), 10 (W1–W3b done).
 - **Sections planned or not started:** 1 and 2 (open items are mostly the owner's secret rotation and the remaining hardening list), 3–5, plus A2 screens, A3–A5, W4 and W5.
 
 **Baseline:** the full review of all three repos on 2026-09-24 (it predates this file).
@@ -155,7 +155,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **Private document storage:** signed URLs, migrate existing files, remove the public `/uploads` access (AD-FR-15–18)
 - [ ] **Bookings:** list and detail, unmatched queue, assign/reassign, admin cancel, status correction (AD-FR-19–25). API merged 2026-10-06 (A2, #26); console screens not built
 - [ ] **Payments:** payment list, webhook exceptions, daily reconciliation (AD-FR-28–31)
-- [x] **Refunds v2:** exactly one destination per refund, approval limits, refund webhooks, notifications (AD-FR-32–36). Built and verified locally 2026-10-21, `feat/refunds-v2` (`c1b9cdd`), not pushed, stacked on #18; API only (console screens, a live Paystack run and app-patient notifications open)
+- [x] **Refunds v2:** exactly one destination per refund, approval limits, refund webhooks, notifications (AD-FR-32–36). Built and verified locally 2026-10-21, `feat/refunds-v2` not pushed; API only (console screens, a live Paystack run and app-patient notifications open)
 - [ ] **Caregiver pay:** earnings credited on completion and ledger done (A3 slice 1); scheduled Paystack Transfer payout batches with admin approval done in code, tested against a fake Paystack (A3 slice 2, 2026-10-12, not yet run against live Paystack); ledger adjustments (AD-FR-42) open
 - [ ] **People:** search, masked view, suspend, consent records (AD-FR-45–48)
 - [ ] **Pricing:** (APIs `/booking-settings` and `/admin/booking-policy` exist; console screens are A4) versioned price books with preview and publish; service areas; Nigerian form options (AD-FR-51–56)
@@ -239,7 +239,7 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] 8. FE guide section 12 from live captures 079 to 118 (`capture_admin_flow.py --section bookings`), `--check` clean
   - [x] 9. Opus review of the lock, permission and clinical paths: clean, 2 findings fixed with tests
   - [ ] 10. **A2 console screens:** list, detail with timeline, unmatched queue, action dialogs (backend done)
-- [ ] **A3** Money. Slice 1 (caregiver earnings, API only) done 2026-10-07, [SOP](../sop/2026-10-07-caregiver-earnings.md), migration `0011_caregiver_earnings`. Slice 2 (caregiver payouts, API only) built 2026-10-12, [SOP](../sop/2026-10-12-caregiver-payouts.md), migration `0012_caregiver_payouts`, awaiting money review. Slice 3 (refunds v2, API only) built 2026-10-21, [SOP](../sop/2026-10-21-refunds-v2.md), migration `0014_refunds_v2`, `feat/refunds-v2` (`c1b9cdd`), not pushed, stacked on #18
+- [ ] **A3** Money. Slice 1 (caregiver earnings, API only) done 2026-10-07, [SOP](../sop/2026-10-07-caregiver-earnings.md), migration `0011_caregiver_earnings`. Slice 2 (caregiver payouts, API only) built 2026-10-12, [SOP](../sop/2026-10-12-caregiver-payouts.md), migration `0012_caregiver_payouts`, awaiting money review. Slice 3 (refunds v2, API only) built 2026-10-21, [SOP](../sop/2026-10-21-refunds-v2.md), migration `0014_refunds_v2`, `feat/refunds-v2`, not pushed
   - [x] Slice 1: earnings credited on completion (80% of the service fee, snapshotted on the booking, held 24 hours, admin-editable in `booking_policies`)
   - [x] Slice 1: caregiver ledger rows (`caregiver_transactions`: pending clearance, held, voided, released), unique per booking and type
   - [x] Slice 1: `GET /caregiver/wallet` adds `available_balance`, `pending_balance`, `held_balance`
@@ -273,7 +273,7 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] Slice 2: console screens for batches and payouts and the caregiver app's bank-account screen. Merged 2026-10-19, Theoakshealthcare/oaklycare-caregiver-mobile #1–#3
   - [x] Finance can approve and cancel payouts (2026-10-19, owner decision): approve batch, cancel batch, cancel payout on `payouts.execute` (already in Finance's role since `0003`, so no migration); retry, resolve, unfreeze stay `ledger.adjust`. Admin FE guide re-captured live (payouts captures 183 to 302). [SOP](../sop/2026-10-19-finance-approves-payouts.md)
   - [ ] Console: gate Approve/Cancel on `payouts.execute` and Retry/Resolve/Unfreeze on `ledger.adjust` (follows this backend change)
-  - [x] Slice 3 (refunds v2, 2026-10-21, `feat/refunds-v2`, head `c1b9cdd`, **not pushed, stacked on #18**): refunds queue, replacing the `refund_required` flag as the work list. Tasks (plan `docs/plans/2026-10-21-refunds-v2-plan.md`):
+  - [x] Slice 3 (refunds v2, 2026-10-21, `feat/refunds-v2`, **not pushed**): refunds queue, replacing the `refund_required` flag as the work list. Tasks (plan `docs/plans/2026-10-21-refunds-v2-plan.md`):
     - [x] T1: migration `0014_refunds_v2` (`refunds`, `refund_attempts`, `partially_refunded`, `owed_kobo`, `refund_take_back`, `refunds.approve_above_limit`), models, one open refund per booking
     - [x] T2: Paystack edge: create / fetch / list / retry-with-customer-details, fake refund endpoints, Paystack fee recorded at settlement
     - [x] T3: a refund is queued from every cancel path (admin, WhatsApp booker, drop-out decisions, late payment) with the policy's suggested amount
