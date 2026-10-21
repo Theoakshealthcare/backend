@@ -14,8 +14,9 @@ Lock order, as everywhere in the money code: booking, refund, refund attempts, c
 """
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import Request
@@ -34,7 +35,7 @@ from app.db.models.refund import (
     REFUND_SUCCEEDED, Refund, RefundAttempt,
 )
 from app.db.models.user import User
-from app.services import booking_events, booking_policy, earnings, patient_wallet
+from app.services import bank_accounts, booking_events, booking_policy, earnings, patient_wallet
 from app.services.audit import AuditService
 from app.services.booking_cancellation import TIER_LATE, TIER_STANDARD, CancelPolicy, _fee
 from app.services.paystack import PaystackService
@@ -252,6 +253,17 @@ def _check_requester(refund: Refund, admin: AdminUser) -> None:
         raise RefundForbidden("You raised this refund, so someone else must approve it.")
 
 
+def _check_wallet_owner(db: Session, booking: Booking) -> None:
+    """Only an app booker has a wallet to credit: their own patient with an active account. A WhatsApp (or admin-made)
+    booking has no app wallet owner."""
+    owner_active = (db.query(User.is_active).join(Patient, Patient.user_id == User.id)
+                    .filter(Patient.id == booking.patient_id).scalar()) if booking.channel == "app" else None
+    if owner_active is None:
+        raise RefundInvalid("Wallet credit is only for app users. Refund this one to the original payment method.")
+    if not owner_active:
+        raise RefundInvalid("This account is closed, so it cannot be credited. Refund to the original payment method.")
+
+
 def approve_refund(db: Session, refund_id: UUID, *, admin: AdminUser, amount_kobo: Optional[int],
                    destination: str = REFUND_DEST_ORIGINAL, take_back_from_caregiver: bool = False,
                    take_back_reason: Optional[str] = None, note: Optional[str] = None,
@@ -295,13 +307,7 @@ def _approve(db: Session, refund_id: UUID, admin: AdminUser, amount_kobo: Option
     if destination == REFUND_DEST_WALLET:
         if not can_above:
             raise RefundForbidden("Only a Super Admin can refund to the Oakly wallet.")
-        # An app booker is their own patient with an account. A WhatsApp (or admin-made) booking has no app wallet owner.
-        owner_active = (db.query(User.is_active).join(Patient, Patient.user_id == User.id)
-                        .filter(Patient.id == booking.patient_id).scalar()) if booking.channel == "app" else None
-        if owner_active is None:
-            raise RefundInvalid("Wallet credit is only for app users. Refund this one to the original payment method.")
-        if not owner_active:
-            raise RefundInvalid("This account is closed, so it cannot be credited. Refund to the original payment method.")
+        _check_wallet_owner(db, booking)
 
     take_back_kobo = 0
     if take_back:
@@ -788,3 +794,362 @@ def _reconcile_one(db: Session, paystack: PaystackService, now: datetime, refund
                                  "Paystack holds more than one refund that could be this attempt. Check the Paystack "
                                  "dashboard before resolving it.")
     return _review_unsettled(db, refund_id, attempt_id, NO_RECORD_REASON) if overdue else 0
+
+
+# --- failure actions (spec 6.5, 4.3) ---------------------------------------------------------------------------------
+# Every action here reads the refund WITHOUT locks, asks Paystack (still no lock), then locks booking -> refund -> attempts and
+# checks nothing moved since the read; if it did, the answer Paystack gave may no longer apply, so it is a 409.
+PAYSTACK_UNREACHABLE = "We couldn't reach Paystack to confirm the last attempt failed. Try again shortly."
+MOVED = "This refund changed while Paystack was being asked. Look at it again."
+APPROVE_ABOVE_LIMIT = "refunds.approve_above_limit"
+
+
+@dataclass(frozen=True)
+class _Seen:
+    """What an unlocked read of a refund showed; the locked re-read must match ``fingerprint``."""
+    fingerprint: tuple
+    status: str
+    destination: Optional[str]
+    amount_kobo: Optional[int]
+    processed: bool
+    flagged: bool
+    reference: Optional[str]
+    attempt_id: Optional[UUID]
+    attempt_status: Optional[str]
+    pid: Optional[str]
+    taken: frozenset  # Paystack refund ids already tied to one of this booking's attempts
+
+
+def _fingerprint(refund: Refund, attempts: List[RefundAttempt]) -> tuple:
+    last = attempts[-1] if attempts else None
+    return (refund.status, refund.amount_kobo, refund.processed_at, len(attempts), last.id if last else None,
+            last.status if last else None, last.paystack_refund_id if last else None)
+
+
+def _see(db: Session, refund_id: UUID) -> _Seen:
+    """Read the refund and its attempts with no lock, then end the transaction (nothing is held while Paystack is asked)."""
+    refund = db.query(Refund).filter(Refund.id == refund_id).one_or_none()
+    if refund is None:
+        db.rollback()
+        raise RefundNotFound("Refund not found")
+    attempts = db.query(RefundAttempt).filter(RefundAttempt.refund_id == refund_id).order_by(RefundAttempt.attempt).all()
+    reference = db.query(Booking.paystack_reference).filter(Booking.id == refund.booking_id).scalar()
+    taken = frozenset(p for (p,) in db.query(RefundAttempt.paystack_refund_id).join(Refund, Refund.id == RefundAttempt.refund_id)
+                      .filter(Refund.booking_id == refund.booking_id, RefundAttempt.paystack_refund_id.isnot(None)))
+    last = attempts[-1] if attempts else None
+    seen = _Seen(fingerprint=_fingerprint(refund, attempts), status=refund.status, destination=refund.destination,
+                 amount_kobo=refund.amount_kobo, processed=refund.processed_at is not None,
+                 flagged=refund.review_flagged_at is not None, reference=reference, attempt_id=last.id if last else None,
+                 attempt_status=last.status if last else None, pid=last.paystack_refund_id if last else None, taken=taken)
+    db.rollback()
+    return seen
+
+
+@dataclass(frozen=True)
+class _Said:
+    """Paystack's word on the refund. kind: found | not_found (a 404 on the id we hold) | none (no Paystack refund could be this
+    one) | ambiguous (more than one could be) | unknown (could not be reached)."""
+    kind: str
+    status: Optional[str] = None
+    amount_kobo: Optional[int] = None
+    pid: Optional[str] = None
+
+
+def _ask(paystack: PaystackService, seen: _Seen) -> _Said:
+    """Ask Paystack about the current attempt: by its refund id, or (no id yet: a refused send, a refund made on the dashboard)
+    by listing the transaction's refunds for the one that is not tied to any attempt and has our amount. Holds no lock."""
+    try:
+        if seen.pid:
+            got = paystack.fetch_refund(seen.pid)
+            if got.get("outcome") == "found":
+                return _Said("found", _normal_status(got.get("status")), _kobo(got.get("amount_kobo")), seen.pid)
+            return _Said("not_found" if got.get("outcome") == "not_found" else "unknown")
+        if not seen.reference:
+            return _Said("none")
+        listed = paystack.list_refunds(seen.reference)
+    except Exception:
+        logger.exception("asking Paystack about a refund failed unexpectedly")
+        return _Said("unknown")
+    if listed.get("outcome") != "found":
+        return _Said("unknown")
+    candidates = [r for r in listed.get("refunds", []) if r["paystack_refund_id"] not in seen.taken
+                  and _kobo(r.get("amount_kobo")) == int(seen.amount_kobo or 0)]
+    if not candidates:
+        return _Said("none")
+    if len(candidates) > 1:
+        return _Said("ambiguous")
+    only = candidates[0]
+    return _Said("found", _normal_status(only.get("status")), _kobo(only.get("amount_kobo")), only["paystack_refund_id"])
+
+
+def _confirm_failed(db: Session, paystack: PaystackService, refund_id: UUID, seen: _Seen) -> _Said:
+    """The check both retry and switch-to-wallet need: Paystack itself says the current attempt FAILED (or there is no Paystack
+    refund at all for it: a send Paystack refused). Anything else refuses; ``processed`` settles it instead (a refund we had as
+    failed that Paystack paid is a contradiction, so it goes to review) and still refuses. Never proceeds on silence."""
+    if seen.status != REFUND_FAILED:
+        raise RefundConflict("Only a failed refund can be retried or switched to the wallet")
+    said = _ask(paystack, seen)
+    if said.kind == "unknown":
+        raise RefundPaystackUnavailable(PAYSTACK_UNREACHABLE)
+    if said.kind == "found" and said.status == "processed":
+        apply_refund_event(db, status="processed", transaction_reference=seen.reference, paystack_refund_id=said.pid,
+                           amount_kobo=said.amount_kobo, attempt_id=seen.attempt_id, paystack=paystack)
+        raise RefundConflict("Paystack reports this refund as processed, so nothing was done. It now needs review: check the "
+                             "Paystack dashboard, then a Super Admin resolves it.")
+    if said.kind == "found" and said.status == "failed":
+        return said
+    if said.kind == "none" and (seen.attempt_id is None or seen.attempt_status == ATTEMPT_FAILED):
+        return said
+    if said.kind == "found":
+        raise RefundConflict(f"Paystack says this refund is {said.status}, not failed, so nothing was done. Wait for Paystack's "
+                             "answer.")
+    raise RefundConflict("Paystack has no clear record of the last attempt failing, so nothing was done. Check the Paystack "
+                         "dashboard; a Super Admin can resolve it.")
+
+
+def _lock_unmoved(db: Session, refund_id: UUID, seen: _Seen):
+    """Lock booking, refund, attempts; 409 if anything moved since the unlocked read."""
+    family = _lock_family(db, refund_id)
+    if family is None:
+        raise RefundNotFound("Refund not found")
+    booking, refund, attempts = family
+    if _fingerprint(refund, attempts) != seen.fingerprint:
+        raise RefundConflict(MOVED)
+    return booking, refund, attempts
+
+
+def _adopt(attempts: List[RefundAttempt], said: _Said) -> None:
+    """Record the Paystack refund id learned from a listing on the attempt it belongs to (reconcile's ``taken`` set)."""
+    if attempts and said.pid and not attempts[-1].paystack_refund_id:
+        attempts[-1].paystack_refund_id = said.pid
+
+
+def retry_refund(db: Session, refund_id: UUID, *, admin: AdminUser, paystack: Optional[PaystackService] = None,
+                 request: Optional[Request] = None) -> Refund:
+    """Send a failed refund again (spec 6.5): Paystack is asked about the current attempt first and must say it failed; the
+    refund goes back to ``approved`` and the send job makes attempt N+1 (attempt N stays as history). Commits."""
+    paystack = paystack or PaystackService()
+    try:
+        seen = _see(db, refund_id)
+        said = _confirm_failed(db, paystack, refund_id, seen)
+        booking, refund, attempts = _lock_unmoved(db, refund_id, seen)
+        _adopt(attempts, said)
+        refund.status, refund.failure_reason = REFUND_APPROVED, None
+        db.flush()
+        AuditService(db).record(
+            admin_user_id=admin.id, action="refund.retry", entity_type="refund", entity_id=refund.id,
+            before={"status": REFUND_FAILED, "attempt": len(attempts)},
+            after={"booking_id": str(booking.id), "status": refund.status, "next_attempt": len(attempts) + 1},
+            request=request)
+        db.commit()
+        return refund
+    except BaseException:
+        db.rollback()
+        raise
+
+
+def submit_bank_details(db: Session, refund_id: UUID, *, admin: AdminUser, bank_code: str, account_number: str,
+                        paystack: Optional[PaystackService] = None, request: Optional[Request] = None) -> Refund:
+    """Give Paystack the family's bank account for a refund in ``needs_attention`` (spec 6.5). The account name is resolved
+    first so the admin sees whose account it is. The full account number goes to Paystack and nowhere else: the database and
+    the audit row get the bank code, the last 4 digits and the resolved name only. Commits."""
+    paystack = paystack or PaystackService()
+    account_number, bank_code = (account_number or "").strip(), (bank_code or "").strip()
+    try:
+        if not bank_accounts.ACCOUNT_NUMBER.match(account_number):
+            raise RefundInvalid("An account number has 10 digits.")
+        seen = _see(db, refund_id)
+        if seen.status != REFUND_NEEDS_ATTENTION:
+            raise RefundConflict("This refund is not waiting for bank details")
+        if not seen.pid:
+            raise RefundConflict("Paystack has no refund on record for this attempt, so bank details cannot be sent for it")
+        try:
+            known = bank_accounts.list_banks(paystack)
+        except bank_accounts.BankUnavailable:
+            raise RefundPaystackUnavailable("We couldn't load the list of banks from Paystack. Try again shortly.")
+        if not any(b["code"] == bank_code for b in known):
+            raise RefundInvalid("Choose a bank from the list.")
+        resolved = paystack.resolve_account(account_number, bank_code)
+        if not resolved.get("status"):
+            if resolved.get("ambiguous"):
+                raise RefundPaystackUnavailable("We couldn't reach Paystack to check the account. Try again shortly.")
+            raise RefundInvalid("We could not find that account. Check the account number and the bank.")
+        account_name = str(resolved["account_name"])[:200]
+        try:
+            sent = paystack.retry_refund_with_customer_details(seen.pid, account_number, bank_code)
+        except Exception:
+            logger.exception("refund %s: sending bank details to Paystack failed unexpectedly", refund_id)
+            sent = {"outcome": "unknown"}
+        if sent.get("outcome") == "unknown":
+            raise RefundPaystackUnavailable("We couldn't confirm that Paystack took the bank details. Check the refund shortly "
+                                            "before sending them again.")
+        if sent.get("outcome") != "accepted":
+            logger.warning("refund %s: Paystack refused the bank details: %s", refund_id, sent.get("message"))
+            raise RefundConflict("Paystack did not accept the bank details for this refund. Look at it again.")
+        # The details are with Paystack. From here the state is only recorded; a webhook may already have moved it on.
+        family = _lock_family(db, refund_id)
+        if family is None:
+            raise RefundNotFound("Refund not found")
+        booking, refund, attempts = family
+        attempt = next((a for a in attempts if a.id == seen.attempt_id), None)
+        if attempt is None:
+            raise RefundConflict(MOVED)
+        now = datetime.utcnow()
+        before = {"status": refund.status, "attempt": attempt.attempt}
+        attempt.bank_details_submitted_at = now
+        if refund.status == REFUND_NEEDS_ATTENTION and attempt is attempts[-1] and attempt.status == ATTEMPT_NEEDS_ATTENTION:
+            attempt.status, refund.status = ATTEMPT_PROCESSING, REFUND_PROCESSING
+        line = f"Bank details sent to Paystack: bank {bank_code}, account ending {account_number[-4:]}, {account_name}."
+        refund.note = f"{refund.note}\n{line}" if refund.note else line
+        db.flush()
+        AuditService(db).record(
+            admin_user_id=admin.id, action="refund.bank_details", entity_type="refund", entity_id=refund.id, before=before,
+            after={"booking_id": str(booking.id), "status": refund.status, "attempt": attempt.attempt, "bank_code": bank_code,
+                   "account_last4": account_number[-4:], "account_name": account_name},
+            request=request)
+        db.commit()
+        return refund
+    except BaseException:
+        db.rollback()
+        raise
+
+
+def switch_to_wallet(db: Session, refund_id: UUID, *, admin: AdminUser, paystack: Optional[PaystackService] = None,
+                     request: Optional[Request] = None) -> Refund:
+    """Pay a failed refund to the patient's Oakly wallet instead (Super Admin, app bookers only; spec 6.5). Paystack must have
+    confirmed the failure, re-read under the locks. The success routine runs once and the wallet is credited last. If Paystack
+    pays the original refund after all, the event finds a succeeded refund whose attempt is not processed and puts it in
+    ``needs_review`` (nothing is reversed by itself). Commits."""
+    if APPROVE_ABOVE_LIMIT not in admin.permissions:
+        raise RefundForbidden("Only a Super Admin can refund to the Oakly wallet.")
+    paystack = paystack or PaystackService()
+    try:
+        seen = _see(db, refund_id)
+        said = _confirm_failed(db, paystack, refund_id, seen)
+        booking, refund, attempts = _lock_unmoved(db, refund_id, seen)
+        _check_wallet_owner(db, booking)
+        _adopt(attempts, said)
+        now = datetime.utcnow()
+        before = {"status": REFUND_FAILED, "destination": refund.destination}
+        refund.destination = REFUND_DEST_WALLET
+        refund.failure_reason = None
+        _mark_succeeded(db, refund, booking, now)
+        patient_wallet.credit_refund_locked(db, booking.patient_id, int(refund.amount_kobo), refund.id)  # the last lock
+        AuditService(db).record(
+            admin_user_id=admin.id, action="refund.switch_to_wallet", entity_type="refund", entity_id=refund.id, before=before,
+            after={"booking_id": str(booking.id), "status": refund.status, "destination": refund.destination,
+                   "amount_kobo": refund.amount_kobo}, request=request)
+        db.commit()
+        return refund
+    except BaseException:
+        db.rollback()
+        raise
+
+
+def close_refund(db: Session, refund_id: UUID, *, admin: AdminUser, reason: str, request: Optional[Request] = None) -> Refund:
+    """Give up on a failed refund (spec 4.3): terminal, the money stays with Oakly, and the booking can have a new refund. A
+    Paystack ``processed`` that arrives later finds a closed refund and goes to review. Commits."""
+    try:
+        reason = (reason or "").strip()
+        if not reason:
+            raise RefundInvalid("Give a reason for closing this refund")
+        booking, refund = _lock(db, refund_id)
+        if refund.status != REFUND_FAILED:
+            raise RefundConflict("Only a failed refund can be closed")
+        refund.status = REFUND_CLOSED
+        line = f"Closed: {reason}"
+        refund.note = f"{refund.note}\n{line}" if refund.note else line
+        db.flush()
+        AuditService(db).record(
+            admin_user_id=admin.id, action="refund.close", entity_type="refund", entity_id=refund.id,
+            before={"status": REFUND_FAILED},
+            after={"booking_id": str(booking.id), "status": refund.status, "amount_kobo": refund.amount_kobo},
+            reason=reason, request=request)
+        db.commit()
+        return refund
+    except BaseException:
+        db.rollback()
+        raise
+
+
+def resolve_refund(db: Session, refund_id: UUID, *, admin: AdminUser, outcome: str, note: str,
+                   paystack: Optional[PaystackService] = None, request: Optional[Request] = None) -> Refund:
+    """A Super Admin settles a refund in ``needs_review`` (spec 4.3), after checking the Paystack dashboard. Paystack is asked
+    again here (events are dropped while a refund is in review) and the answer must agree with the outcome:
+
+    - ``succeeded``: Paystack must show it processed, for our amount. The success routine runs unless it already ran
+      (``processed_at`` set: it was succeeded, e.g. by a wallet credit, then contradicted), in which case only the review is
+      cleared and nothing is applied twice.
+    - ``failed``: Paystack must not show it processed or still moving (no record is accepted: the admin checked). The refund
+      becomes ``failed`` so retry, switch or close follow. A refund whose success effects already ran is NEVER reversed here:
+      the money has left, so that is refused (409) and left to a person on the Paystack dashboard.
+
+    Also resolves a flagged refund that kept a finished status (the booking has another open refund). Commits."""
+    if APPROVE_ABOVE_LIMIT not in admin.permissions:
+        raise RefundForbidden("Only a Super Admin can resolve a refund that is in review.")
+    paystack = paystack or PaystackService()
+    try:
+        outcome = (outcome or "").strip()
+        note = (note or "").strip()
+        if outcome not in ("succeeded", "failed"):
+            raise RefundInvalid("The outcome must be succeeded or failed")
+        if not note:
+            raise RefundInvalid("Write a note saying what you checked on the Paystack dashboard")
+        seen = _see(db, refund_id)
+        if seen.status != REFUND_NEEDS_REVIEW and not seen.flagged:
+            raise RefundConflict("This refund is not waiting for review")
+        if outcome == "failed" and seen.processed:
+            raise RefundConflict("Money has already left for this refund (it was processed or credited), so it cannot be marked "
+                                 "failed here. Reversing it is a manual matter on the Paystack dashboard.")
+        said = _ask(paystack, seen)
+        if said.kind == "unknown":
+            raise RefundPaystackUnavailable("We couldn't reach Paystack to check this refund. Try again shortly.")
+        if outcome == "failed":
+            if said.kind == "ambiguous":
+                raise RefundConflict("Paystack holds more than one refund that could be this one. Check the Paystack dashboard.")
+            if said.kind == "found" and said.status != "failed":
+                raise RefundConflict(f"Paystack shows this refund as {said.status}, not failed. Check the Paystack dashboard.")
+        elif not seen.processed:
+            if said.kind != "found" or said.status != "processed":
+                raise RefundConflict("Paystack does not show this refund as processed"
+                                     + (f" (it says {said.status})" if said.kind == "found" else "")
+                                     + ", so it cannot be marked succeeded. Check the Paystack dashboard.")
+            if said.amount_kobo != seen.amount_kobo:
+                raise RefundConflict("Paystack processed a different amount from this refund's, so it cannot be marked "
+                                     "succeeded. Check the Paystack dashboard.")
+        booking, refund, attempts = _lock_unmoved(db, refund_id, seen)
+        now = datetime.utcnow()
+        before = {"status": refund.status, "review_reason": refund.review_reason}
+        current = attempts[-1] if attempts else None
+        if outcome == "succeeded":
+            if refund.processed_at is None:
+                if refund.status == REFUND_CLOSED and int(refund.amount_kobo) > refundable_kobo(db, booking):
+                    raise RefundConflict("Another refund has been made on this booking since, so this one cannot be marked "
+                                         "succeeded without paying out more than was paid in.")
+                if current is None:  # refunded on the Paystack dashboard: give it a row, so reconcile sees the id as taken
+                    current = RefundAttempt(refund_id=refund.id, attempt=1, status=ATTEMPT_PROCESSED, created_at=now)
+                    db.add(current)
+                _adopt([current], said)
+                current.status, current.failure_reason = ATTEMPT_PROCESSED, None
+                refund.failure_reason = None
+                _mark_succeeded(db, refund, booking, now)
+            refund.status = REFUND_SUCCEEDED
+        else:
+            if refund.status == REFUND_NEEDS_REVIEW:
+                why = f"Marked failed after review: {note}"[:500]
+                if current is not None:
+                    _adopt(attempts, said)
+                    current.status, current.failure_reason = ATTEMPT_FAILED, why
+                refund.status, refund.failure_reason = REFUND_FAILED, why
+        refund.review_flagged_at = refund.review_reason = None
+        db.flush()
+        AuditService(db).record(
+            admin_user_id=admin.id, action="refund.resolve", entity_type="refund", entity_id=refund.id, before=before,
+            after={"booking_id": str(booking.id), "status": refund.status, "outcome": outcome,
+                   "paystack": {"kind": said.kind, "status": said.status, "amount_kobo": said.amount_kobo}},
+            reason=note, request=request)
+        db.commit()
+        return refund
+    except BaseException:
+        db.rollback()
+        raise
