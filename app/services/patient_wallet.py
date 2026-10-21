@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db.models.patient import Patient
 from app.db.models.user import User
@@ -755,3 +756,27 @@ class PatientWalletService:
             self.db.commit()
             return True
         return self._compensate_refund(tx_id, to_request_status="failed")
+
+
+def credit_refund_locked(db: Session, patient_id: uuid.UUID, amount_kobo: int, refund_id: uuid.UUID) -> PatientTransaction:
+    """Credit a refund to the patient's Oakly wallet inside the caller's transaction. Never commits.
+
+    Locks the wallet row itself (``FOR UPDATE`` + ``populate_existing``, so a cached copy is never used), creating it first
+    when the patient has none. The create is ``INSERT .. ON CONFLICT DO NOTHING`` so two concurrent first credits cannot
+    both create it, and nothing is committed mid-transaction. Lock order: this is the LAST lock, after booking and refund.
+    """
+    if amount_kobo <= 0:
+        raise ValueError("a wallet credit must be positive")
+    db.execute(pg_insert(PatientWallet).values(id=uuid.uuid4(), patient_id=patient_id, balance_kobo=0,
+                                               total_deposited_kobo=0, total_spent_kobo=0, total_refunded_kobo=0,
+                                               is_active=True, created_at=datetime.utcnow(), updated_at=datetime.utcnow())
+               .on_conflict_do_nothing(index_elements=[PatientWallet.patient_id]))
+    wallet = (db.query(PatientWallet).filter(PatientWallet.patient_id == patient_id)
+              .with_for_update().populate_existing().one())
+    wallet.balance_kobo = int(wallet.balance_kobo) + amount_kobo
+    wallet.total_refunded_kobo = int(wallet.total_refunded_kobo) + amount_kobo
+    txn = PatientTransaction(patient_id=patient_id, wallet_id=wallet.id, type="refund", status="successful",
+                             amount_kobo=amount_kobo, refund_id=refund_id, description="Refund to your Oakly wallet")
+    db.add(txn)
+    db.flush()
+    return txn
