@@ -24,7 +24,7 @@ Lock order: booking, then transaction row, then wallet. The credit functions tak
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from fastapi import Request
@@ -39,6 +39,7 @@ from app.db.models.caregiver import (
     TX_HELD,
     TX_LATE_CANCEL,
     TX_PENDING_CLEARANCE,
+    TX_REFUND_TAKE_BACK,
     TX_SUCCESSFUL,
     TX_VOIDED,
     CaregiverTransaction,
@@ -216,18 +217,32 @@ def release_due(db: Session, now: Optional[datetime] = None, limit: int = RELEAS
             db.rollback()
             return released
         try:
-            per_caregiver: Dict[UUID, int] = {}
+            by_caregiver: Dict[UUID, list] = {}
             for tx in rows:
                 tx.status = TX_SUCCESSFUL
                 tx.released_at = now
-                per_caregiver[tx.caregiver_id] = per_caregiver.get(tx.caregiver_id, 0) + int(tx.amount)
+                by_caregiver.setdefault(tx.caregiver_id, []).append(tx)
             db.flush()
-            # Wallet rows in a fixed order (two workers never wait on each other in a cycle), each credited once with an
-            # atomic increment under its row lock.
-            for caregiver_id in sorted(per_caregiver, key=str):
-                _locked_wallet(db, caregiver_id)
+            # Wallet rows in a fixed order (two workers never wait on each other in a cycle), each credited once under its
+            # row lock. What a refund take-back still owes is netted off each released earning first, so the caregiver is
+            # only ever credited LESS than the earning (never more), and the part kept is written as a take-back row.
+            for caregiver_id in sorted(by_caregiver, key=str):
+                wallet = _locked_wallet(db, caregiver_id)
+                owed = int(wallet.owed_kobo or 0)
+                credit = 0
+                for tx in by_caregiver[caregiver_id]:
+                    amount = int(tx.amount)
+                    taken = min(amount, owed)
+                    if taken > 0:
+                        owed -= taken
+                        db.add(CaregiverTransaction(
+                            caregiver_id=caregiver_id, type=TX_REFUND_TAKE_BACK, amount=taken, status=TX_SUCCESSFUL,
+                            booking_id=None, released_at=now, reference=tx.reference,
+                            narration="Refund recovered from an earning",
+                            status_reason=f"recovered from release of {tx.id}"))
+                    credit += amount - taken
                 db.execute(update(CaregiverWallet).where(CaregiverWallet.caregiver_id == caregiver_id)
-                           .values(balance=func.coalesce(CaregiverWallet.balance, 0) + per_caregiver[caregiver_id])
+                           .values(balance=func.coalesce(CaregiverWallet.balance, 0) + credit, owed_kobo=owed)
                            .execution_options(synchronize_session=False))
             db.commit()
         except Exception:
@@ -236,6 +251,34 @@ def release_due(db: Session, now: Optional[datetime] = None, limit: int = RELEAS
         released += len(rows)
         if len(rows) < limit:
             return released
+
+
+def apply_take_back(db: Session, *, caregiver_id: UUID, booking_id: UUID, refund_id: UUID, amount_kobo: int,
+                    now: datetime) -> Tuple[int, int]:
+    """Take a refunded visit's share back from the caregiver. Returns ``(debited_kobo, owed_added_kobo)``.
+
+    It DEBITS what the available balance holds, up to ``amount_kobo``, and records the rest as ``owed_kobo``, which
+    ``release_due`` recovers from the caregiver's later earnings. It can only lower what the caregiver can be paid: it never
+    credits, never takes the balance below zero, and never touches a payout (a reservation already left the balance). It does
+    not freeze payouts: this is a known debt, not a contradiction. The caller holds the booking and refund locks and owns
+    the transaction (nothing is committed here); the caregiver wallet is locked here, before the patient wallet."""
+    amount = int(amount_kobo)
+    if amount <= 0:
+        return 0, 0
+    wallet = locked_wallet(db, caregiver_id)
+    debited = min(max(int(wallet.balance or 0), 0), amount)
+    owed_added = amount - debited
+    if debited > 0:
+        db.add(CaregiverTransaction(
+            caregiver_id=caregiver_id, type=TX_REFUND_TAKE_BACK, amount=debited, status=TX_SUCCESSFUL, booking_id=booking_id,
+            released_at=now, narration="Refund taken back from a visit's earning", status_reason=f"refund {refund_id}"))
+    db.execute(update(CaregiverWallet).where(CaregiverWallet.caregiver_id == caregiver_id)
+               .values(balance=func.coalesce(CaregiverWallet.balance, 0) - debited,
+                       owed_kobo=func.coalesce(CaregiverWallet.owed_kobo, 0) + owed_added)
+               .execution_options(synchronize_session=False))
+    db.flush()
+    logger.info("refund %s take-back: %s kobo debited, %s kobo owed", refund_id, debited, owed_added)
+    return debited, owed_added
 
 
 # --- admin: hold, release the hold, void ---------------------------------------------------------------------------

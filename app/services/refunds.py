@@ -34,7 +34,7 @@ from app.db.models.refund import (
     REFUND_SUCCEEDED, Refund, RefundAttempt,
 )
 from app.db.models.user import User
-from app.services import booking_events, booking_policy, patient_wallet
+from app.services import booking_events, booking_policy, earnings, patient_wallet
 from app.services.audit import AuditService
 from app.services.booking_cancellation import TIER_LATE, TIER_STANDARD, CancelPolicy, _fee
 from app.services.paystack import PaystackService
@@ -206,8 +206,9 @@ def take_back_preview_kobo(db: Session, refund: Refund, amount_kobo: int) -> int
 
 
 def _apply_take_back(db: Session, refund: Refund, booking: Booking, now: datetime) -> None:
-    """Placeholder for ``earnings.apply_take_back`` (Task 6). Refuses rather than silently skip a take-back."""
-    raise NotImplementedError("caregiver take-back is not implemented yet")
+    """Take the caregiver's share back (wallet first, the rest owed). Runs only from ``_mark_succeeded``."""
+    earnings.apply_take_back(db, caregiver_id=booking.caregiver_id, booking_id=booking.id, refund_id=refund.id,
+                             amount_kobo=int(refund.take_back_kobo), now=now)
 
 
 def _mark_succeeded(db: Session, refund: Refund, booking: Booking, now: datetime) -> None:

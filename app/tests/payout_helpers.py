@@ -96,12 +96,23 @@ def cancelled_unsent_kobo(db, cg, before: dict) -> int:
     return sum(amount for payout_id, amount in before["unsent"].items() if db.get(Payout, payout_id).status == "cancelled")
 
 
+def taken_back_kobo(db, cg) -> int:
+    """What refund take-backs have already debited from the caregiver (the ``refund_take_back`` ledger rows)."""
+    from sqlalchemy import func
+    db.expire_all()
+    return int(db.query(func.coalesce(func.sum(CaregiverTransaction.amount), 0))
+               .filter_by(caregiver_id=cg.id, type="refund_take_back", status="successful").scalar())
+
+
 def assert_never_over(db, cg, earned_kobo: int) -> dict:
     """THE INVARIANT: what Paystack has paid (less any shortfall that is on record), plus the available balance, plus what is
-    reserved, never exceeds what the caregiver has earned. Money paid twice must always be a recorded shortfall."""
+    reserved, never exceeds what the caregiver has earned less what refunds have already taken back. What a take-back could not
+    take yet is ``owed_kobo``: it is not yet recovered, so it does not lower ``earned`` (it is recovered from later earnings)."""
     state = money_state(db, cg)
     total = state["paid"] - state["shortfall"] + state["available"] + state["reserved"]
-    assert total <= earned_kobo, f"more money than the caregiver earned ({total} > {earned_kobo}): {state}"
+    entitled = earned_kobo - taken_back_kobo(db, cg)
+    assert state["available"] >= 0, f"negative balance: {state}"
+    assert total <= entitled, f"more money than the caregiver earned ({total} > {entitled}): {state}"
     return state
 
 
