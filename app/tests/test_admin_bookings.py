@@ -550,7 +550,9 @@ def test_confirm_address_clears_the_hold_and_starts_dispatch(client, db, ops):
     assert db.query(BookingNotification).filter_by(booking_id=b.id, caregiver_id=cg.id).count() == 1
     (row,) = audit_rows(db, b, "booking.confirm_address")
     assert row.reason == "Called the patient"
-    assert row.before["latitude"] == 6.5244 and row.after["latitude"] == LAT
+    # the audit trail is readable by Finance (audit.read), so it never carries the patient's coordinates
+    assert row.after["location_set"] is True and "latitude" not in row.before | row.after and "longitude" not in row.before | row.after
+    assert str(LAT) not in str(row.before) + str(row.after)
 
 
 def test_confirm_address_on_an_unpaid_booking_only_clears_the_hold(client, db, ops):

@@ -802,8 +802,7 @@ class AdminBookingService:
             why = _why_not_confirm_address(booking)
             if why:
                 raise Conflict(why)
-            before = {**_snapshot(booking), "latitude": booking.patient_latitude,
-                      "longitude": booking.patient_longitude}
+            before = {**_snapshot(booking), "location_set": booking.patient_latitude is not None}
             booking.patient_latitude = body.latitude
             booking.patient_longitude = body.longitude
             if body.address:
@@ -818,7 +817,9 @@ class AdminBookingService:
             self.audit.record(
                 admin_user_id=admin.id, action="booking.confirm_address", entity_type="booking",
                 entity_id=booking.id, before=before,
-                after={**_snapshot(booking), "latitude": body.latitude, "longitude": body.longitude},
+                # The coordinates are the patient's home location: they stay on the booking, not in the audit trail, which
+                # Finance can read (audit.read) without holding bookings.address.
+                after={**_snapshot(booking), "location_set": True},
                 reason=body.reason, request=request)
             self._finish(booking)
         except Exception:

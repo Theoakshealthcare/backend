@@ -143,7 +143,10 @@ def test_prd_spot_checks():
     assert p["read_only_analyst"] == {"dashboard.read"}
     assert "clinical.read" in p["clinical_reviewer"] and "clinical.read" not in p["operations"]
     assert "admins.manage" not in set().union(*(v for k, v in p.items() if k != "super_admin"))
-    assert "audit.read" not in set().union(*(v for k, v in p.items() if k != "super_admin"))
+    # Finance reads the audit trail of the payouts it approves (owner decision 2026-10-19); nobody else but the Super Admin does
+    assert "audit.read" in p["finance"]
+    assert "audit.read" not in set().union(*(v for k, v in p.items() if k not in ("super_admin", "finance")))
+    assert "admins.manage" not in p["finance"]
 
 
 @pytest.fixture
@@ -181,3 +184,18 @@ def test_shared_route_matrix(client, role_headers, route):
             assert r.status_code not in (401, 403), (role, r.status_code, r.text)  # 404: nothing there
         else:
             assert r.status_code == 403, (role, r.status_code, r.text)
+
+
+def test_finance_reads_the_audit_log_but_cannot_manage_admins(db, client):
+    finance = auth_headers(make_admin(db, ["finance"], password=None))
+    boss = make_admin(db, ["super_admin"], password=None)
+    r = client.get(f"{API}/admin/audit", headers=finance)
+    assert r.status_code == 200 and set(r.json()) == {"items", "total", "limit", "offset"}
+    # read-only: the audit route has no write verbs, and admin management stays closed to Finance
+    assert client.post(f"{API}/admin/audit", headers=finance, json={}).status_code == 405
+    assert client.get(f"{API}/admin/admins", headers=finance).status_code == 403
+    assert client.post(f"{API}/admin/admins", headers=finance, json={"email": "x@example.com", "full_name": "X", "roles": ["super_admin"]}).status_code == 403
+    assert client.patch(f"{API}/admin/admins/{boss.id}", headers=finance, json={"roles": []}).status_code == 403
+    # no other role gained it
+    for role in ("operations", "verification", "support", "clinical_reviewer", "read_only_analyst"):
+        assert client.get(f"{API}/admin/audit", headers=auth_headers(make_admin(db, [role], password=None))).status_code == 403

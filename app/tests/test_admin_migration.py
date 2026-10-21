@@ -80,7 +80,10 @@ def test_roles_and_permissions_are_seeded(scratch):
     seeded = {}
     for key, perm in rows:
         seeded.setdefault(key, set()).add(perm)
-    assert seeded == {k: set(v) for k, v in ROLE_PERMISSIONS.items()}
+    # Later revisions only add to this seed (0013 gives Finance audit.read); this revision's own seed is the original table.
+    expected = {k: set(v) for k, v in ROLE_PERMISSIONS.items()}
+    expected["finance"].discard("audit.read")
+    assert seeded == expected
 
 
 def test_downgrade_keeps_audit_rows_and_clears_admin_references(scratch):

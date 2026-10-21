@@ -81,7 +81,7 @@ ROLE_PERMISSIONS: Dict[str, FrozenSet[str]] = {
     FINANCE: frozenset({
         "dashboard.read", "caregivers.read", "bookings.read", "payments.read",
         "payments.reconcile", "refunds.request", "refunds.approve", "payouts.execute",
-        "ledger.adjust_request", "people.read", "pricing.request", "exports.pii",
+        "ledger.adjust_request", "people.read", "pricing.request", "exports.pii", "audit.read",
     }),
     SUPPORT: frozenset({
         "dashboard.read", "caregivers.read", "bookings.read", "bookings.cancel_request",

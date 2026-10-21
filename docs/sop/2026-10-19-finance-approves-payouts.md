@@ -43,4 +43,4 @@ Revert the commit; no schema change. After deploy, a Finance admin's existing to
 
 ## Follow-ups
 - Admin console: show Approve/Cancel on `payouts.execute` and Retry/Resolve/Unfreeze on `ledger.adjust` (separate PR in the monorepo).
-- Finance can now move money out; the audit viewer (`audit.read`) is Super Admin only, so Finance cannot see its own trail. Decide whether it should.
+- ~~Finance cannot see its own trail~~ Done the same day: Finance reads the audit log, see [the finance-audit-read SOP](2026-10-19-finance-audit-read.md).

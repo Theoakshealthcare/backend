@@ -4,7 +4,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
-**Update (2026-10-19):** Finance may approve and cancel payout batches and payouts (`payouts.execute`); retry, resolve, force and unfreeze stay Super Admin only ([SOP](../sop/2026-10-19-finance-approves-payouts.md)). The slice-2 screens are merged: admin payouts console and caregiver bank-account screen (Theoakshealthcare/oaklycare-caregiver-mobile #1–#3). The console's per-role action gating follows in its own PR.
+**Update (2026-10-19):** Finance may approve and cancel payout batches and payouts (`payouts.execute`); retry, resolve, force and unfreeze stay Super Admin only ([SOP](../sop/2026-10-19-finance-approves-payouts.md)). The slice-2 screens are merged: admin payouts console and caregiver bank-account screen (Theoakshealthcare/oaklycare-caregiver-mobile #1–#3). The console's per-role action gating follows in its own PR. Finance also reads the audit log (`audit.read`, migration `0013`, [SOP](../sop/2026-10-19-finance-audit-read.md)).
 
 **Update (2026-10-12, A3 slice 2):** caregiver payouts are MERGED (Theoakshealthcare/backend#14, b88bdf0, migration `0012`, with the money reviews' double-payment fixes folded in and the dispute handling replaced by one invariant, 2026-10-12): weekly, admin-approved Paystack Transfer batches replace self-withdrawal. Verified by tests and live captures against a **fake** Paystack; a live Paystack run, and Paystack OTP disabled for API transfers, are still open. Refunds v2 and ledger adjustments are next.
 
