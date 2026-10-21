@@ -159,3 +159,13 @@ def test_verify_path_records_paystack_fee(db, monkeypatch, fake_paystack):
     db.expire_all()
     db.refresh(booking)
     assert booking.paystack_fee_kobo == 66000
+
+
+# --- an unreadable 4xx is unknown, never refused ---------------------------------------------------------------------
+
+
+def test_unreadable_4xx_refund_reply_is_unknown(monkeypatch):
+    for status in (400, 403, 404, 422):
+        monkeypatch.setattr(PaystackService, "_call", lambda self, *a, _s=status, **kw: (_s, None))  # e.g. a proxy's HTML page
+        assert PaystackService().create_refund(REF, 100)["outcome"] == "unknown"
+        assert PaystackService().retry_refund_with_customer_details("1", "0123456789", "9")["outcome"] == "unknown"

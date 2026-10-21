@@ -398,7 +398,7 @@ class FakePaystack:
             return self._transfer(payload)
         if method == "GET" and "/transfer/verify/" in path:
             return self._verify_transfer(path.rsplit("/", 1)[1])
-        if "/refund" in path:
+        if path.startswith("/refund"):
             return self._refund_route(method, path, query, payload)
         return 404, {"status": False, "message": "not found"}
 
@@ -466,7 +466,7 @@ class FakePaystack:
             return 500, {"status": False, "message": "Internal server error"}
         if self.refund_error == "422":
             return 422, {"status": False, "message": "Refund could not be processed"}
-        tail = path.split("/refund", 1)[1]
+        tail = path[len("/refund"):]
         if method == "POST" and tail == "":
             return self._create_refund(payload)
         if method == "GET" and tail == "":

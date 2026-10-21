@@ -452,7 +452,9 @@ class PaystackService:
                 and data.get("id") is not None:
             return {"outcome": "accepted", "paystack_refund_id": str(data["id"]), "status": data.get("status"),
                     "message": message}
-        if code is not None and 400 <= code < 500 and code != 429:
+        # Only a 4xx whose body Paystack itself sent (a parsed JSON object) is a refusal: a proxy's HTML 4xx may never have
+        # reached Paystack, or may have, so it is unknown.
+        if code is not None and 400 <= code < 500 and code != 429 and isinstance(body, dict):
             return {"outcome": "refused", "paystack_refund_id": None, "status": None, "message": message or default}
         return {"outcome": "unknown", "paystack_refund_id": None, "status": None, "message": message or default}
 
