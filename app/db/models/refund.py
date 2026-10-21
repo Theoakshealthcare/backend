@@ -130,3 +130,11 @@ class RefundAttempt(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     refund = relationship("Refund", back_populates="attempts")
+
+
+def counted_refund_clause(model=Refund):
+    """SQL condition for "this refund's amount counts against what the booking paid": a committed status, OR any other status
+    with an attempt Paystack processed (a closed or rejected refund that Paystack paid after all: the money has left)."""
+    from sqlalchemy import exists, or_
+    return or_(model.status.in_(REFUND_COMMITTED_STATUSES),
+               exists().where(RefundAttempt.refund_id == model.id, RefundAttempt.status == ATTEMPT_PROCESSED))

@@ -32,7 +32,7 @@ from app.db.models.refund import (
     ATTEMPT_UNKNOWN, REFUND_APPROVED, REFUND_CLOSED, REFUND_COMMITTED_STATUSES, REFUND_DEST_ORIGINAL, REFUND_DEST_WALLET,
     REFUND_FAILED, REFUND_NEEDS_ATTENTION, REFUND_NEEDS_REVIEW, REFUND_OPEN_STATUSES, REFUND_ORIGIN_STAFF,
     REFUND_ORIGIN_SYSTEM, REFUND_PENDING_APPROVAL, REFUND_PROCESSING, REFUND_REASON_CODES, REFUND_REJECTED,
-    REFUND_SUCCEEDED, Refund, RefundAttempt,
+    REFUND_SUCCEEDED, Refund, RefundAttempt, counted_refund_clause,
 )
 from app.db.models.user import User
 from app.services import bank_accounts, booking_events, booking_policy, earnings, patient_wallet
@@ -83,17 +83,17 @@ class RefundPaystackUnavailable(RefundError):
 
 
 def refundable_kobo(db: Session, booking: Booking) -> int:
-    """What can still be refunded: the amount paid less every refund already committed (approved or further on)."""
+    """What can still be refunded: the amount paid less every refund already committed (approved or further on) and every
+    refund Paystack processed whatever its status (``counted_refund_clause``)."""
     committed = (db.query(func.coalesce(func.sum(Refund.amount_kobo), 0))
-                 .filter(Refund.booking_id == booking.id, Refund.status.in_(REFUND_COMMITTED_STATUSES)).scalar())
+                 .filter(Refund.booking_id == booking.id, counted_refund_clause()).scalar())
     return max(0, int(booking.total_amount_kobo) - int(committed or 0))
 
 
 def _committed_others_kobo(db: Session, booking: Booking, refund: Refund) -> int:
     """Σ amount of this booking's OTHER refunds that are committed (the cumulative base for the limit, RF-D12)."""
     return int(db.query(func.coalesce(func.sum(Refund.amount_kobo), 0))
-               .filter(Refund.booking_id == booking.id, Refund.id != refund.id,
-                       Refund.status.in_(REFUND_COMMITTED_STATUSES)).scalar() or 0)
+               .filter(Refund.booking_id == booking.id, Refund.id != refund.id, counted_refund_clause()).scalar() or 0)
 
 
 def suggested_amount_kobo(booking: Booking, reason_code: str, entered_kobo: Optional[int]) -> Optional[int]:
@@ -616,6 +616,10 @@ def _settle_locked(db: Session, booking: Booking, refund: Refund, attempts: List
             return "applied"
         if state == REFUND_SUCCEEDED and current.status == ATTEMPT_PROCESSED:
             return "duplicate"
+        if current.status == ATTEMPT_PROCESSED and refund.review_flagged_at is not None:
+            return "duplicate"  # a repeat of a processed we already recorded and flagged
+        adopt()
+        current.status = ATTEMPT_PROCESSED  # the money left through this attempt: counted from now on, whatever the refund's status
         return _flag_review(db, refund, f"Paystack processed this refund while it was {state}.")
     if status == "failed":
         if state in (REFUND_PROCESSING, REFUND_NEEDS_ATTENTION):
@@ -694,20 +698,23 @@ def _commit_paystack_money(db: Session, refund: Refund, pid: Optional[str], amou
     _flag_review(db, refund, why)
 
 
-def _record_outside_refund(db: Session, booking: Booking, pid: Optional[str], amount_kobo: int, now: datetime) -> Refund:
+def _record_outside_refund(db: Session, booking: Booking, pid: Optional[str], amount_kobo: int, now: datetime,
+                           status: str = REFUND_NEEDS_REVIEW) -> Refund:
     """Paystack refunded part of a payment and Oakly has no refund row for it (a refund made on the Paystack dashboard, or
-    whose row we lost): give the money a ``needs_review`` row so it counts as committed and a Super Admin resolves it."""
+    whose row we lost): give the money a ``needs_review`` row so it counts as committed and a Super Admin resolves it. With
+    another open refund on the booking the row is ``closed`` (not open, so no index clash); its processed attempt makes it
+    count (``counted_refund_clause``) and a flagged closed refund is acknowledged through resolve."""
     why = f"Paystack refunded this payment outside Oakly ({amount_kobo} kobo). Check the Paystack dashboard."
     refund = Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin=REFUND_ORIGIN_SYSTEM,
                     suggested_amount_kobo=amount_kobo, amount_kobo=amount_kobo, destination=REFUND_DEST_ORIGINAL,
-                    status=REFUND_NEEDS_REVIEW, review_flagged_at=now, review_reason=why, failure_reason=why)
+                    status=status, review_flagged_at=now, review_reason=why, failure_reason=why)
     db.add(refund)
     db.flush()
     db.add(RefundAttempt(refund_id=refund.id, attempt=1, status=ATTEMPT_PROCESSED, paystack_refund_id=pid, created_at=now))
     logger.error("booking %s: %s", booking.id, why)
     db.flush()
     committed = int(db.query(func.coalesce(func.sum(Refund.amount_kobo), 0))
-                    .filter(Refund.booking_id == booking.id, Refund.status.in_(REFUND_COMMITTED_STATUSES)).scalar() or 0)
+                    .filter(Refund.booking_id == booking.id, counted_refund_clause()).scalar() or 0)
     if committed > int(booking.total_amount_kobo):
         logger.error("booking %s: refunds now total %s kobo, more than the %s kobo it paid", booking.id, committed,
                      booking.total_amount_kobo)
@@ -771,6 +778,19 @@ def apply_refund_event(db: Session, *, status: str, transaction_reference: Optio
             db.rollback()
             return result
         attempts = _lock_attempts(db, refund.id)
+        if (refund_id is None and status == "processed" and pid and amount_kobo and amount_kobo > 0
+                and pid not in _tied_pids(db, booking.id)):
+            cur = attempts[-1] if attempts else None
+            adoptable = (cur is not None and not cur.paystack_refund_id
+                         and refund.status in (REFUND_PROCESSING, REFUND_NEEDS_ATTENTION))
+            if not adoptable:
+                # Money left outside Oakly while the booking has an open refund: it gets its own (closed, so not open) row,
+                # so it is counted and survives the open refund being resolved. The open refund is still flagged below.
+                _record_outside_refund(db, booking, pid, amount_kobo, now, status=REFUND_CLOSED)
+                _flag_review(db, refund, f"Paystack processed refund {pid} for {amount_kobo} kobo on this payment outside "
+                                         "Oakly. It has its own closed refund row; check the Paystack dashboard.")
+                db.commit()
+                return "review"
         pinned = attempt_id or found_attempt_id
         target = next((a for a in attempts if a.id == pinned), None) if pinned else None
         result = _settle_locked(db, booking, refund, attempts, target, status, pid, amount_kobo, reason,
@@ -936,7 +956,7 @@ def _see(db: Session, refund_id: UUID) -> _Seen:
                  approved_by=refund.approved_by_admin_id, requested_by=refund.requested_by_admin_id,
                  own_pids=frozenset(a.paystack_refund_id for a in attempts if a.paystack_refund_id),
                  processed_attempt_id=paid.id if paid else None, processed_pid=paid.paystack_refund_id if paid else None,
-                 cumulative_kobo=int(refund.amount_kobo or 0) + int(db.query(func.coalesce(func.sum(Refund.amount_kobo), 0)).filter(Refund.booking_id == refund.booking_id, Refund.id != refund.id, Refund.status.in_(REFUND_COMMITTED_STATUSES)).scalar() or 0))
+                 cumulative_kobo=int(refund.amount_kobo or 0) + int(db.query(func.coalesce(func.sum(Refund.amount_kobo), 0)).filter(Refund.booking_id == refund.booking_id, Refund.id != refund.id, counted_refund_clause()).scalar() or 0))
     db.rollback()
     return seen
 
@@ -1284,7 +1304,15 @@ def resolve_refund(db: Session, refund_id: UUID, *, admin: AdminUser, outcome: s
             # The money left through an attempt we recorded as processed (maybe not the current one): that is the one to ask
             # about, and the one the success is written on.
             seen = replace(seen, attempt_id=seen.processed_attempt_id, pid=seen.processed_pid)
-        said = _ask(paystack, seen, guard_untied=outcome == "failed", amount_kobo=amount_kobo)
+        earlier_pid = None
+        if outcome == "succeeded" and seen.processed_attempt_id is None and not seen.processed:
+            # An older attempt may have been paid while the event was dropped (the refund was already in review): then
+            # that is the payment to record, and the current attempt's failure is beside the point.
+            probe = _ask(paystack, seen, guard_untied=True, amount_kobo=amount_kobo)
+            if probe.kind == "paid_earlier":
+                earlier_pid = probe.pid
+        said = (_Said("found", "processed", probe.amount_kobo, earlier_pid) if earlier_pid
+                else _ask(paystack, seen, guard_untied=outcome == "failed", amount_kobo=amount_kobo))
         if said.kind == "unknown":
             raise RefundPaystackUnavailable("We couldn't reach Paystack to check this refund. Try again shortly.")
         if said.kind == "other":
@@ -1308,6 +1336,8 @@ def resolve_refund(db: Session, refund_id: UUID, *, admin: AdminUser, outcome: s
         now = datetime.utcnow()
         before = {"status": refund.status, "review_reason": refund.review_reason}
         current = next((a for a in attempts if a.id == seen.attempt_id), attempts[-1] if attempts else None)
+        if earlier_pid:
+            current = next((a for a in attempts if a.paystack_refund_id == earlier_pid), current)
         if outcome == "succeeded":
             if refund.processed_at is None:
                 if said.amount_kobo is not None and said.amount_kobo != refund.amount_kobo:

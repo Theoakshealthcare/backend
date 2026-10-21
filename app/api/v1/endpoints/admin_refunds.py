@@ -19,7 +19,7 @@ from app.core.money import kobo_to_naira, to_kobo
 from app.db.models.admin import AdminUser
 from app.db.models.booking import Booking, BookingStatus
 from app.db.models.refund import (
-    REFUND_COMMITTED_STATUSES, REFUND_FAILED, REFUND_NEEDS_ATTENTION, REFUND_NEEDS_REVIEW, REFUND_OPEN_STATUSES,
+    REFUND_FAILED, counted_refund_clause, REFUND_NEEDS_ATTENTION, REFUND_NEEDS_REVIEW, REFUND_OPEN_STATUSES,
     REFUND_ORIGIN_STAFF, REFUND_PENDING_APPROVAL, REFUND_TERMINAL_STATUSES, Refund, RefundAttempt,
 )
 from app.schemas.admin_refunds import (
@@ -117,7 +117,7 @@ def _rows_query(db: Session):
     other = aliased(Refund)
     others = (db.query(func.coalesce(func.sum(other.amount_kobo), 0))
               .filter(other.booking_id == Refund.booking_id, other.id != Refund.id,
-                      other.status.in_(REFUND_COMMITTED_STATUSES)).correlate(Refund).scalar_subquery())
+                      counted_refund_clause(other)).correlate(Refund).scalar_subquery())
     query = (db.query(Refund, Booking.booking_code, Booking.channel, Booking.total_amount_kobo, others.label("others_kobo"))
              .join(Booking, Booking.id == Refund.booking_id))
     return query, others

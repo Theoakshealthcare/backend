@@ -81,14 +81,54 @@ def test_a_dashboard_refund_cannot_be_over_refunded_through_a_later_wallet_appro
     assert committed(db, booking) == TOTAL
 
 
-def test_a_second_outside_refund_while_one_is_in_review_is_noted_not_lost(db, fake_paystack):
+def test_a_second_outside_refund_while_one_is_in_review_gets_its_own_counted_row(db, fake_paystack):
     booking = paid_booking(db, fake_paystack)
     first = dashboard_refund(fake_paystack, booking, "processed", 1_000_000)
     second = dashboard_refund(fake_paystack, booking, "processed", 500_000)
     event(db, booking, "processed", first, 1_000_000)
     assert event(db, booking, "processed", second, 500_000) == "review"
-    [refund] = refunds_of(db, booking)  # the one-open-refund index is not violated
-    assert second in refund.review_reason and refund.status == "needs_review"
+    rows = refunds_of(db, booking)
+    assert sorted((r.status, r.amount_kobo) for r in rows) == [("closed", 500_000), ("needs_review", 1_000_000)]
+    assert refunds.refundable_kobo(db, booking) == TOTAL - 1_500_000  # the index is not violated, both are counted
+    assert event(db, booking, "processed", second, 500_000) in ("review", "duplicate")  # a redelivery makes no new row
+    assert len(refunds_of(db, booking)) == 2
+
+
+def test_an_outside_refund_with_an_open_refund_is_counted_survives_resolve_and_is_acknowledged_by_resolve(db, fake_paystack):
+    booking = paid_booking(db, fake_paystack)
+    open_one = pending_refund(db, booking, 500_000)
+    pid = dashboard_refund(fake_paystack, booking, "processed", 1_000_000)
+    assert event(db, booking, "processed", pid, 1_000_000) == "review"
+    [outside] = [r for r in refunds_of(db, booking) if r.id != open_one.id]
+    assert (outside.status, outside.amount_kobo, outside.origin, outside.reason_code) == ("closed", 1_000_000, "system", "other")
+    assert outside.review_flagged_at is not None and "outside Oakly" in outside.review_reason
+    assert [(a.paystack_refund_id, a.status) for a in attempts_of(db, outside)] == [(pid, "processed")]
+    assert refunds.refundable_kobo(db, booking) == TOTAL - 1_000_000
+    with pytest.raises(refunds.RefundConflict):  # Paystack shows it processed: it cannot be called failed
+        refunds.resolve_refund(db, outside.id, admin=super_admin(db), outcome="failed", note="no")
+    refunds.resolve_refund(db, open_one.id, admin=super_admin(db), outcome="failed", note="never sent")
+    o = get(db, outside)
+    assert o.status == "closed" and o.review_flagged_at is not None  # resolving the open one did not wipe it
+    assert refunds.refundable_kobo(db, booking) == TOTAL - 1_000_000
+    out = refunds.resolve_refund(db, outside.id, admin=super_admin(db), outcome="succeeded", note="seen on the dashboard")
+    assert out.status == "succeeded" and out.processed_at is not None and out.review_flagged_at is None
+    assert get(db, booking).payment_status == PaymentStatus.PARTIALLY_REFUNDED
+    assert refunds.refundable_kobo(db, booking) == TOTAL - 1_000_000  # counted once
+
+
+def test_a_closed_refund_paid_by_paystack_plus_an_open_refund_cannot_be_over_refunded_to_the_wallet(db, fake_paystack):
+    booking, refund, pid = failed(db, fake_paystack)  # a TOTAL refund whose attempt failed, then is closed
+    refunds.close_refund(db, refund.id, admin=finance(db), reason="stop")
+    open_one = refunds.request_refund(db, booking_id=booking.id, amount_kobo=100, reason_code="complaint", note=None,
+                                      admin=finance(db))
+    fake_paystack.refunds[pid]["status"] = "processed"  # Paystack paid it after all
+    event(db, booking, "processed", pid, TOTAL)
+    assert get(db, refund).status == "closed" and attempts_of(db, refund)[0].status == "processed"
+    assert refunds.refundable_kobo(db, booking) == 0
+    for amount in (TOTAL, 100):
+        with pytest.raises(refunds.RefundInvalid):
+            refunds.approve_refund(db, open_one.id, admin=super_admin(db), amount_kobo=amount, destination="wallet")
+    assert db.query(PatientTransaction).filter_by(refund_id=open_one.id).count() == 0
 
 
 # --- I1 (b): a rejected or closed refund that Paystack paid --------------------------------------------------------------
@@ -196,6 +236,11 @@ def test_resolve_failed_asks_paystack_about_every_attempt_of_the_refund(db, fake
     with pytest.raises(refunds.RefundConflict):
         refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="failed", note="checked")
     assert get(db, refund).status == "needs_review"
+    # the money did leave through attempt 1, so the person can record that
+    out = refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="succeeded", note="attempt 1 paid")
+    assert out.status == "succeeded" and out.processed_at is not None
+    assert [a.status for a in attempts_of(db, refund)] == ["processed", "failed"]
+    assert get(db, booking).payment_status == PaymentStatus.REFUNDED
 
 
 def test_retry_finds_an_earlier_attempt_processed_at_paystack_and_flags_instead(db, fake_paystack):
@@ -214,11 +259,11 @@ def test_retry_finds_an_earlier_attempt_processed_at_paystack_and_flags_instead(
 
 
 # --- I3: a refund in review that was never sent can be resolved ----------------------------------------------------------
-def test_a_pending_refund_flagged_by_a_dashboard_refund_can_be_resolved_as_succeeded(db, fake_paystack):
+def test_a_pending_refund_flagged_by_an_event_without_an_id_can_be_resolved_as_succeeded(db, fake_paystack):
     booking = paid_booking(db, fake_paystack)
     refund = pending_refund(db, booking, TOTAL)
     pid = dashboard_refund(fake_paystack, booking, "processed", 1_000_000)
-    assert event(db, booking, "processed", pid, 1_000_000) == "review"
+    assert event(db, booking, "processed", None, 1_000_000) == "review"  # no refund id in the event: matched by reference
     r = get(db, refund)
     assert r.status == "needs_review" and r.amount_kobo is None
     with pytest.raises(refunds.RefundConflict):  # without the amount Oakly cannot tell which Paystack refund is meant
@@ -228,6 +273,18 @@ def test_a_pending_refund_flagged_by_a_dashboard_refund_can_be_resolved_as_succe
     assert (out.status, out.amount_kobo) == ("succeeded", 1_000_000)
     assert [(a.paystack_refund_id, a.status) for a in attempts_of(db, refund)] == [(pid, "processed")]
     assert get(db, booking).payment_status == PaymentStatus.PARTIALLY_REFUNDED
+
+
+def test_a_pending_refund_flagged_by_a_dashboard_refund_with_an_id_is_resolved_as_failed_and_the_money_has_its_own_row(
+        db, fake_paystack):
+    booking = paid_booking(db, fake_paystack)
+    refund = pending_refund(db, booking, TOTAL)
+    pid = dashboard_refund(fake_paystack, booking, "processed", 1_000_000)
+    assert event(db, booking, "processed", pid, 1_000_000) == "review"
+    assert get(db, refund).status == "needs_review"
+    refunds.resolve_refund(db, refund.id, admin=super_admin(db), outcome="failed", note="never sent")
+    refunds.close_refund(db, refund.id, admin=finance(db), reason="not needed")
+    assert refunds.refundable_kobo(db, booking) == TOTAL - 1_000_000  # the outside money is still counted
 
 
 def test_a_never_sent_refund_in_review_can_be_failed_then_closed_but_not_retried(db, fake_paystack):
