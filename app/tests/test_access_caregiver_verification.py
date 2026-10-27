@@ -19,17 +19,17 @@ def test_client_cannot_set_document_status_beyond_in_progress(db, client, claime
     assert post(client, caregiver.user, "document", claimed).status_code == 200
     db.refresh(caregiver)
     assert caregiver.identity_verification_status == "in_progress"
-    # the submitted payload is kept as evidence only
-    assert caregiver.document_verification_result["status"] == claimed
+    assert not hasattr(caregiver, "document_verification_result")  # the payload is not stored anywhere
 
 
 @pytest.mark.parametrize("claimed", ["verified", "failed"])
-def test_client_cannot_set_face_status_beyond_in_progress(db, client, claimed):
+def test_client_cannot_set_the_identity_status_with_a_face_result(db, client, claimed):
     caregiver = make_caregiver(db, approved=False)
+    before = caregiver.identity_verification_status
     assert post(client, caregiver.user, "face", claimed).status_code == 200
     db.refresh(caregiver)
-    assert caregiver.face_verification_status == "in_progress"
-    assert caregiver.face_verification_result["status"] == claimed
+    assert caregiver.identity_verification_status == before
+    assert caregiver.profile_completion_step >= 3
 
 
 def test_resubmitting_cannot_overwrite_an_admin_decision(db, client):

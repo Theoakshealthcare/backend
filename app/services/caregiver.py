@@ -168,20 +168,13 @@ class CaregiverService:
         if not caregiver:
             raise ValueError("Caregiver not found")
 
-        # The client is not trusted: the submitted payload is stored as evidence only, and the
-        # most the client can do is move the status to "in_progress". "verified" / "failed" are
-        # admin decisions (and are never overwritten by a resubmission).
-        def next_status(current: Optional[str]) -> str:
-            return current if current in ("verified", "failed") else "in_progress"
-
-        if verification_type == "document":
-            caregiver.identity_verification_status = next_status(caregiver.identity_verification_status)
-            caregiver.document_verification_result = result
-        elif verification_type == "face":
-            caregiver.face_verification_status = next_status(caregiver.face_verification_status)
-            caregiver.face_verification_result = result
-        else:
+        # The client is not trusted: the submitted payload is NOT stored (the columns that held it were dropped with the
+        # Prembly migration), and the most the client can do is move the status to "in_progress". "verified" / "failed" are
+        # never overwritten by a resubmission. The whole endpoint goes away in K2.
+        if verification_type not in ("document", "face"):
             raise ValueError("Invalid verification type")
+        if verification_type == "document" and caregiver.identity_verification_status not in ("verified", "failed"):
+            caregiver.identity_verification_status = "in_progress"
 
         caregiver.profile_completion_step = max(caregiver.profile_completion_step, 3)
         caregiver.updated_at = datetime.utcnow()

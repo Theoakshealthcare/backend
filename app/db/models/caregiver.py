@@ -11,7 +11,14 @@ from app.db.base import Base
 
 class Caregiver(Base):
     __tablename__ = "caregivers"
-    
+    __table_args__ = (
+        # needs_review is set by the KYC decision engine; failed only by an admin (doc 7.2).
+        CheckConstraint(
+            "identity_verification_status IN ('pending','in_progress','needs_review','verified','failed')",
+            name="ck_caregivers_identity_verification_status",
+        ),
+    )
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
     
@@ -35,7 +42,7 @@ class Caregiver(Base):
     
     # Verification Status
     profile_completion_step = Column(Integer, default=0)  # 0-3 for tracking progress
-    identity_verification_status = Column(String, default='pending')  # pending, in_progress, verified, failed
+    identity_verification_status = Column(String, default='pending')  # pending, in_progress, needs_review, verified, failed (see identity_verification.py)
     background_check_status = Column(String, default='pending')
     profile_status = Column(String, default='incomplete')  # incomplete, under_review, changes_requested, approved, rejected, suspended
     # background_check_status: pending, in_progress, cleared, failed (set only by an admin decision)
@@ -51,21 +58,15 @@ class Caregiver(Base):
     background_check_decided_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
     background_check_decided_at = Column(DateTime, nullable=True)
     
-    # Third-party Integration IDs
-    onfido_applicant_id = Column(String, nullable=True)
-    onfido_check_id = Column(String, nullable=True)
-    
     # Consent and Legal
     terms_accepted = Column(Boolean, default=False)
     privacy_policy_accepted = Column(Boolean, default=False)
     background_check_consent = Column(Boolean, default=False)
     consent_date = Column(DateTime, nullable=True)
     
-    # Prembly Verification Results
-    document_verification_result = Column(JSON, nullable=True)
-    face_verification_result = Column(JSON, nullable=True)
-    face_verification_status = Column(String, nullable=True)
-    
+    # Identity verification attempts and results live in identity_verifications (Prembly); nothing the provider returned
+    # about the person is stored on this row.
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -93,8 +94,6 @@ class CaregiverDocument(Base):
     mime_type = Column(String, nullable=True)
     verification_status = Column(String, default='pending')  # pending, verified, rejected
     
-    # Onfido document data
-    onfido_document_id = Column(String, nullable=True)
     extraction_data = Column(JSON, nullable=True)  # OCR extracted data
     
     uploaded_at = Column(DateTime, default=datetime.utcnow)

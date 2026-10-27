@@ -31,6 +31,7 @@ from app.db.models.caregiver import (
     CaregiverWallet,
 )
 from app.db.models.consent import Consent
+from app.db.models.identity_verification import IdentityVerification, KycWebhookEvent
 from app.db.models.payout import CaregiverBankEvent, Payout
 from app.db.models.patient import (
     Patient, PatientFamilyMember, PatientRefundRequest, PatientTransaction, PatientWallet,
@@ -292,10 +293,9 @@ class AccountErasureService:
     def _wipe_caregiver(self, cg: Caregiver, email: str) -> None:
         cg.full_name, cg.email, cg.phone_number = ERASED_NAME, email, None
         for field in ("date_of_birth", "gender", "state", "address", "emergency_contact_phone",
-                      "emergency_contact_name", "emergency_contact_address", "onfido_applicant_id",
-                      "onfido_check_id", "document_verification_result", "face_verification_result",
-                      "face_verification_status"):
+                      "emergency_contact_name", "emergency_contact_address"):
             setattr(cg, field, None)
+        self._wipe_identity_verifications(cg)
         for doc in self.db.query(CaregiverDocument).filter(CaregiverDocument.caregiver_id == cg.id):
             doc.document_name, doc.file_path, doc.extraction_data = "erased", "erased", None
         for cert in self.db.query(CaregiverCertification).filter(CaregiverCertification.caregiver_id == cg.id):
@@ -320,6 +320,22 @@ class AccountErasureService:
             payout.account_name, payout.recipient_code = ERASED_NAME, "erased"
         self.db.query(CaregiverBankEvent).filter(CaregiverBankEvent.caregiver_id == cg.id).update(
             {"before": None, "after": None, "ip": None, "user_agent": None}, synchronize_session=False)
+
+    def _wipe_identity_verifications(self, cg: Caregiver) -> None:
+        """KYC (doc 10.3): the status, scores, timestamps and Oakly's own opaque reference stay as the audit and fraud trail;
+        what could identify the person to the provider or link them to another account goes: the provider's session and
+        reference and the keyed NIN/BVN fingerprint. The webhook ledger's session ids go with them, including a ledger row
+        that never matched an attempt (an orphan) but carries one of the caregiver's session ids."""
+        attempts = self.db.query(IdentityVerification).filter(IdentityVerification.caregiver_id == cg.id).all()
+        session_ids = [a.provider_session_id for a in attempts if a.provider_session_id]
+        for attempt in attempts:
+            attempt.provider_session_id = attempt.provider_reference = attempt.id_fingerprint = None
+        ledger = KycWebhookEvent.verification_id.in_([a.id for a in attempts]) if attempts else None
+        if session_ids:
+            ledger = KycWebhookEvent.provider_session_id.in_(session_ids) if ledger is None else or_(
+                ledger, KycWebhookEvent.provider_session_id.in_(session_ids))
+        if ledger is not None:
+            self.db.query(KycWebhookEvent).filter(ledger).update({"provider_session_id": None}, synchronize_session=False)
 
     def _wipe_patient(self, patient: Patient, email: str) -> None:
         self._wipe_finished_bookings(patient)
@@ -401,6 +417,15 @@ class AccountErasureService:
         for consent_type in ERASURE_CONSENT_TYPES:
             self.db.add(Consent(
                 subject_user_id=user.id, granted_by_user_id=user.id, type=consent_type,
+                decision="withdrawn", policy_version=settings.WHATSAPP_POLICY_VERSION,
+                channel=ERASURE_CHANNEL, evidence_ref=f"erasure:{user.id}",
+            ))
+        # Only for a person who gave it (a caregiver who started identity verification); everyone else has nothing to withdraw.
+        granted = self.db.query(Consent.id).filter(
+            Consent.subject_user_id == user.id, Consent.type == "identity_verification", Consent.decision == "granted").first()
+        if granted is not None:
+            self.db.add(Consent(
+                subject_user_id=user.id, granted_by_user_id=user.id, type="identity_verification",
                 decision="withdrawn", policy_version=settings.WHATSAPP_POLICY_VERSION,
                 channel=ERASURE_CHANNEL, evidence_ref=f"erasure:{user.id}",
             ))

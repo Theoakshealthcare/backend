@@ -54,9 +54,7 @@ def test_delete_requires_auth(client):
 def test_fresh_caregiver_is_erased(db, client):
     cg = make_caregiver(db, date_of_birth=datetime(1990, 1, 1).date(), address="5 Some Road",
                         emergency_contact_name="Next Of Kin", emergency_contact_phone="+2348000000000",
-                        emergency_contact_address="6 Other Road",
-                        document_verification_result={"id": "x"}, face_verification_result={"ok": True},
-                        face_verification_status="verified", onfido_applicant_id="app-1")
+                        emergency_contact_address="6 Other Road")
     user_id, old_email = cg.user_id, cg.user.email
     cg.user.profile_image_url = None
     db.commit()
@@ -73,8 +71,7 @@ def test_fresh_caregiver_is_erased(db, client):
     cg = db.scalar(select(Caregiver).where(Caregiver.user_id == user_id))
     assert cg.full_name == "Deleted user" and cg.email == user.email and cg.phone_number is None
     for field in ("date_of_birth", "address", "emergency_contact_name", "emergency_contact_phone",
-                  "emergency_contact_address", "document_verification_result", "face_verification_result",
-                  "face_verification_status", "onfido_applicant_id"):
+                  "emergency_contact_address"):
         assert getattr(cg, field) is None, field
 
 
@@ -531,7 +528,7 @@ def test_caregiver_compliance_records_are_kept(db, client):
     cg = make_caregiver(db, background_check_evidence={"notes": "cleared", "provider_reference": "R1"},
                         rejection_reason="earlier note", changes_requested={"items": ["x"]})
     db.add(CaregiverDocument(caregiver_id=cg.id, document_type="id_document", document_name="id.png",
-                             file_path="/p/id.png", onfido_document_id="onf-1", extraction_data={"n": 1}))
+                             file_path="/p/id.png", extraction_data={"n": 1}))
     db.commit()
     assert client.delete(URL, headers=auth_headers(cg.user)).status_code == 200
     db.expire_all()
@@ -539,7 +536,7 @@ def test_caregiver_compliance_records_are_kept(db, client):
     assert cg.background_check_evidence == {"notes": "cleared", "provider_reference": "R1"}
     assert cg.rejection_reason == "earlier note" and cg.changes_requested == {"items": ["x"]}
     doc = db.query(CaregiverDocument).one()
-    assert doc.onfido_document_id == "onf-1" and doc.extraction_data is None
+    assert doc.extraction_data is None
 
 
 def test_a_concurrent_accept_cannot_slip_past_the_erasure_check(db):

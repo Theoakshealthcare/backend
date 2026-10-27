@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
 
-CONSENT_TYPES = ("terms", "health_processing", "marketing", "share_with_family")
+CONSENT_TYPES = ("terms", "health_processing", "marketing", "share_with_family", "identity_verification")
 
 
 class Consent(Base):
