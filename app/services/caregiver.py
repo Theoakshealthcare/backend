@@ -170,10 +170,11 @@ class CaregiverService:
 
         # The client is not trusted: the submitted payload is NOT stored (the columns that held it were dropped with the
         # Prembly migration), and the most the client can do is move the status to "in_progress". "verified" / "failed" are
-        # never overwritten by a resubmission. The whole endpoint goes away in K2.
+        # never overwritten by a resubmission, and neither is a ``needs_review`` waiting for a person. The whole endpoint goes away in K2.
         if verification_type not in ("document", "face"):
             raise ValueError("Invalid verification type")
-        if verification_type == "document" and caregiver.identity_verification_status not in ("verified", "failed"):
+        if verification_type == "document" and caregiver.identity_verification_status not in (
+                "verified", "failed", "needs_review"):
             caregiver.identity_verification_status = "in_progress"
 
         caregiver.profile_completion_step = max(caregiver.profile_completion_step, 3)

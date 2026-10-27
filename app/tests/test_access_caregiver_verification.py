@@ -39,6 +39,13 @@ def test_resubmitting_cannot_overwrite_an_admin_decision(db, client):
     assert caregiver.identity_verification_status == "verified"
 
 
+def test_resubmitting_cannot_pull_a_caregiver_out_of_review(db, client):
+    caregiver = make_caregiver(db, approved=False, identity_verification_status="needs_review")
+    assert post(client, caregiver.user, "document", "verified").status_code == 200
+    db.refresh(caregiver)
+    assert caregiver.identity_verification_status == "needs_review"
+
+
 def test_requires_token_and_caregiver_role(db, client):
     patient = make_patient(db)
     caregiver = make_caregiver(db)

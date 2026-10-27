@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     KYC_SESSION_TTL_HOURS: int = 24
     KYC_FACE_THRESHOLD: int = 85  # a placeholder until the K0 spike tunes it
     KYC_FACE_FLOOR: int = 70
+    KYC_POLICY_VERSION: str = "kyc-2026-10"  # the consent text version recorded with identity_verification consents
     
     # Paystack Configuration
     PAYSTACK_SECRET_KEY: str = ""

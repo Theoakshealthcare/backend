@@ -791,6 +791,19 @@ def test_erasure_removes_what_identifies_the_caregiver_to_the_kyc_provider(db, c
     assert db.scalar(select(IdentityVerificationEvent)) is not None  # the trail holds no PII and is append-only
 
 
+def test_erasure_expires_an_attempt_still_in_flight(db, client):
+    from app.db.models.identity_verification import IdentityVerification
+
+    cg = make_caregiver(db, approved=False)
+    active = IdentityVerification(caregiver_id=cg.id, attempt_no=1, status="awaiting_result", provider_session_id="sdk_session_live")
+    db.add(active)
+    db.commit()
+    assert client.delete(URL, headers=auth_headers(cg.user)).status_code == 200
+    db.expire_all()
+    a = db.get(IdentityVerification, active.id)
+    assert a.status == "expired" and a.completed_at is not None and a.provider_session_id is None
+
+
 def test_erasure_withdraws_the_identity_consent_only_if_it_was_given(db, client):
     given = make_caregiver(db, approved=False)
     db.add(Consent(subject_user_id=given.user_id, granted_by_user_id=given.user_id, type="identity_verification",
@@ -801,6 +814,7 @@ def test_erasure_withdraws_the_identity_consent_only_if_it_was_given(db, client)
     assert client.delete(URL, headers=auth_headers(never.user)).status_code == 200
     rows = db.scalars(select(Consent).where(Consent.type == "identity_verification")).all()
     assert sorted((r.subject_user_id == given.user_id, r.decision) for r in rows) == [(True, "granted"), (True, "withdrawn")]
+    assert {r.policy_version for r in rows if r.decision == "withdrawn"} == {"kyc-2026-10"}
 
 
 def test_erasing_a_caregiver_with_no_kyc_history_still_works(db, client):

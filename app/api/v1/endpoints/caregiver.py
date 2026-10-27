@@ -259,7 +259,7 @@ def receive_verification_result(
         )
     try:
         caregiver_service.process_verification_result(current_user.id, payload.type, payload.result)
-        return {"message": "Verification result received and stored."}
+        return {"message": "Verification result received."}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

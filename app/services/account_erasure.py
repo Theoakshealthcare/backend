@@ -31,7 +31,9 @@ from app.db.models.caregiver import (
     CaregiverWallet,
 )
 from app.db.models.consent import Consent
-from app.db.models.identity_verification import IdentityVerification, KycWebhookEvent
+from app.db.models.identity_verification import (
+    VERIFICATION_ACTIVE_STATUSES, VERIFICATION_EXPIRED, IdentityVerification, KycWebhookEvent,
+)
 from app.db.models.payout import CaregiverBankEvent, Payout
 from app.db.models.patient import (
     Patient, PatientFamilyMember, PatientRefundRequest, PatientTransaction, PatientWallet,
@@ -323,13 +325,17 @@ class AccountErasureService:
 
     def _wipe_identity_verifications(self, cg: Caregiver) -> None:
         """KYC (doc 10.3): the status, scores, timestamps and Oakly's own opaque reference stay as the audit and fraud trail;
-        what could identify the person to the provider or link them to another account goes: the provider's session and
-        reference and the keyed NIN/BVN fingerprint. The webhook ledger's session ids go with them, including a ledger row
+        what lets the provider's records or another account be tied to this person goes: the provider's session and reference
+        and the keyed NIN/BVN fingerprint. (Oakly's own ``reference``, which Prembly also holds, stays: doc 10.3.)
+        An attempt still in flight is expired, so a late webhook or reconcile run meets a terminal attempt and is ignored. The webhook ledger's session ids go with them, including a ledger row
         that never matched an attempt (an orphan) but carries one of the caregiver's session ids."""
         attempts = self.db.query(IdentityVerification).filter(IdentityVerification.caregiver_id == cg.id).all()
         session_ids = [a.provider_session_id for a in attempts if a.provider_session_id]
+        now = datetime.utcnow()
         for attempt in attempts:
             attempt.provider_session_id = attempt.provider_reference = attempt.id_fingerprint = None
+            if attempt.status in VERIFICATION_ACTIVE_STATUSES:
+                attempt.status, attempt.completed_at = VERIFICATION_EXPIRED, now  # not counted as a failed attempt
         ledger = KycWebhookEvent.verification_id.in_([a.id for a in attempts]) if attempts else None
         if session_ids:
             ledger = KycWebhookEvent.provider_session_id.in_(session_ids) if ledger is None else or_(
@@ -426,6 +432,6 @@ class AccountErasureService:
         if granted is not None:
             self.db.add(Consent(
                 subject_user_id=user.id, granted_by_user_id=user.id, type="identity_verification",
-                decision="withdrawn", policy_version=settings.WHATSAPP_POLICY_VERSION,
+                decision="withdrawn", policy_version=settings.KYC_POLICY_VERSION,
                 channel=ERASURE_CHANNEL, evidence_ref=f"erasure:{user.id}",
             ))
