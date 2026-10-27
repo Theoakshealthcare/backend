@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/daf248ef-b2fa-4db9-b44b-b4f8ac5ce2e0/client",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "booking_id": "daf248ef-b2fa-4db9-b44b-b4f8ac5ce2e0",
+      "patient_id": "d98a0396-f046-4266-b10f-5f7f2e6825d5",
+      "full_name": "Placeholder Relative",
+      "profile_image_url": null,
+      "booking_for": "mother",
+      "age": 82,
+      "gender": "female",
+      "emergency_contact": {
+        "name": "Placeholder Booker",
+        "phone": "+2340000718103",
+        "relationship": "Booked this visit"
+      },
+      "medical_history": null,
+      "latest_vitals": null
+    }
+  },
+  "note": "Booked by a family member for someone else: the recipient's name, age and sex; no medical history, photo or vitals (they belong to the booker); the booker is the family contact."
+}

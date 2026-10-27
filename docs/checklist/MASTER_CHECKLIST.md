@@ -193,7 +193,7 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
   - [x] On-my-way window; drop-out button only for WhatsApp bookings more than 2 h out. 2026-10-07, #11
   - [x] Expo SDK 57 patch bumps. 2026-10-06, #5
 - [ ] **Remaining screens from the [gap analysis](../plans/2026-10-06-caregiver-design-gap-analysis.md)** (backend #25 is the analysis only; none built)
-  - [ ] Client profile
+  - [x] Client profile: `GET /caregiver/bookings/{booking_id}/client` (assigned caregiver, live visit only, one 404 otherwise; Opus-reviewed; FE guide with captures), `feat/caregiver-client-profile` stacked on the vitals fix, [SOP](../sop/2026-10-27-caregiver-client-profile.md). App screen in the monorepo (stacked on the Vitals tab). Not yet merged. Care plan section awaits care plans; vitals per relative awaits `care_recipient_id` on vitals
   - [x] Vitals backend fix: caregivers got a 500 on every `/vitals` call (`'active'` is not a booking status). Fixed with 12 new tests, `fix/vitals-caregiver-access`, [SOP](../sop/2026-10-27-vitals-caregiver-access-fix.md). Not yet merged
   - [ ] Vitals tab: manual entry, charts, report (app built on `feat/caregiver-vitals`, SOP in the monorepo `docs/sop/2026-10-27-caregiver-vitals-tab.md`; needs the fix above deployed; Critical/Normal chips, insights, device pass pending)
   - [ ] FallGuard incident log and questionnaire

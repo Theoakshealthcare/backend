@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/d4b9d398-613a-4a5c-8481-d6323cd45c8b/client",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Client not found"
+    }
+  },
+  "note": "Another caregiver's booking: the same 404 as for a booking that does not exist."
+}
