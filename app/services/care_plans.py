@@ -212,8 +212,7 @@ def list_assigned(db: Session, caregiver: Caregiver, status: str, q: Optional[st
         match.append(CarePlan.care_recipient_id.in_(recipient_ids))
     if not match:
         return {"items": []}
-    plans = (db.query(CarePlan).filter(or_(*match), CarePlan.status == status)
-             .order_by(CarePlan.updated_at.desc()).limit(LIST_LIMIT).all())
+    plans = db.query(CarePlan).filter(or_(*match), CarePlan.status == status).order_by(CarePlan.updated_at.desc()).all()
     needle = (q or "").strip().lower()
     items = []
     for plan in plans:
@@ -226,7 +225,7 @@ def list_assigned(db: Session, caregiver: Caregiver, status: str, q: Optional[st
             "diagnosis": unseal(plan.diagnosis_encrypted, plan.id, "care_plans.diagnosis_encrypted") or "",
             "risk_level": plan.risk_level, "status": plan.status, "start_date": plan.start_date,
         })
-    return {"items": items}
+    return {"items": items[:LIST_LIMIT]}  # the name filter runs before the cap
 
 
 def list_candidates(db: Session, caregiver: Caregiver) -> Dict[str, Any]:
@@ -439,6 +438,11 @@ def update_goal(db: Session, caregiver: Caregiver, goal: CarePlanGoal, payload: 
     try:
         plan = _lock_editable(db, goal.plan_id, payload.expected_version)
         goal = db.query(CarePlanGoal).filter(CarePlanGoal.id == goal.id).populate_existing().with_for_update().one()
+        if goal.status == "discontinued" and payload.status in ("active", "achieved"):
+            live = db.query(CarePlanGoal.id).filter(CarePlanGoal.plan_id == plan.id,
+                                                    CarePlanGoal.status != "discontinued").count()
+            if live >= MAX_GOALS:
+                raise InvalidPlan(f"a plan can have at most {MAX_GOALS} goals")
         changed: List[str] = []
         if "title" in sent:
             goal.title_encrypted = seal(payload.title)

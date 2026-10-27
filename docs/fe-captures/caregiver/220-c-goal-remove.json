@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/caregiver/care-plan-goals/83cdce91-d092-4adb-aa0a-cb795fc3c15d?expected_version=4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "goal": {
+        "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+        "title": "Placeholder goal two",
+        "target": "Placeholder target two",
+        "frequency": "weekly",
+        "status": "discontinued"
+      },
+      "plan_version": 5
+    }
+  },
+  "note": "Removing marks the goal `discontinued`; it stays in the plan's `goals`."
+}

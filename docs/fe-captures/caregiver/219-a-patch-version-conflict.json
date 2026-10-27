@@ -1,0 +1,80 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/caregiver/care-plans/b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 1,
+      "risk_level": "low"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "version_conflict",
+        "message": "Someone just changed this plan. Reload it and try again.",
+        "plan": {
+          "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+          "version": 2,
+          "status": "active",
+          "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+          "client": {
+            "full_name": "Placeholder Client",
+            "age": 71,
+            "gender": "female"
+          },
+          "diagnosis": "Placeholder diagnosis",
+          "risk_level": "medium",
+          "start_date": "2026-10-28",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "review_due_on": "2026-11-11",
+          "template": null,
+          "author": {
+            "name": "Placeholder Nurse",
+            "kind": "caregiver"
+          },
+          "allergies": [
+            "Placeholder allergen",
+            "Placeholder allergen two"
+          ],
+          "special_instructions": [
+            "Placeholder instruction"
+          ],
+          "goals": [
+            {
+              "id": "2d2b2dc7-e951-4655-830a-96050f25f4a9",
+              "title": "Placeholder goal",
+              "target": "Placeholder target",
+              "frequency": "daily",
+              "status": "active"
+            }
+          ],
+          "tasks": [
+            {
+              "id": "5ab63e26-15c2-43d3-a811-d37620020c0a",
+              "title": "Placeholder task",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                3,
+                5
+              ]
+            }
+          ],
+          "capabilities": {
+            "can_edit_plan": true
+          },
+          "created_at": "2026-10-27T22:30:57.133041",
+          "updated_at": "2026-10-27T22:30:57.362633"
+        }
+      }
+    }
+  },
+  "note": "The version was already bumped by the call above. The body carries the current plan."
+}

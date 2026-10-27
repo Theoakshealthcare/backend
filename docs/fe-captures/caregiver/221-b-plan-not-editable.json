@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/caregiver/care-plans/b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 6,
+      "risk_level": "low"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "plan_not_editable",
+        "message": "This care plan is completed or archived and can no longer be changed."
+      }
+    }
+  }
+}

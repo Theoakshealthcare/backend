@@ -1,0 +1,207 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bookings/a0857ea0-9c60-48ed-85ec-c2714487f1f1/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "template_id": "aaa0ff22-39db-41fe-8623-9ec0bce4d7bd",
+      "diagnosis": "Placeholder diagnosis two"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "id": "df2b0e55-f1d2-491c-9012-925327dbf16b",
+      "version": 1,
+      "status": "active",
+      "booking_id": "a0857ea0-9c60-48ed-85ec-c2714487f1f1",
+      "client": {
+        "full_name": "Placeholder Relative",
+        "age": 82,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis two",
+      "risk_level": "high",
+      "start_date": "2026-10-27",
+      "duration_days": 30,
+      "review_every_days": 14,
+      "review_due_on": "2026-11-10",
+      "template": {
+        "id": "aaa0ff22-39db-41fe-8623-9ec0bce4d7bd",
+        "name": "Stroke Recovery",
+        "version": 1
+      },
+      "author": {
+        "name": "Placeholder Nurse",
+        "kind": "caregiver"
+      },
+      "allergies": [],
+      "special_instructions": [
+        "Follow the therapist's exercise sheet",
+        "Report new weakness, slurred speech or confusion at once"
+      ],
+      "goals": [
+        {
+          "id": "74a63552-683a-418b-983f-2bdd8c75b063",
+          "title": "Safe mobility and transfers",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        },
+        {
+          "id": "ae21ae3e-cc4b-4be8-939c-f500eb2e5619",
+          "title": "Daily range-of-motion practice",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        },
+        {
+          "id": "d9a5b25f-f390-437a-857d-55e27cfef307",
+          "title": "Support speech and swallowing exercises as taught by the therapist",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        },
+        {
+          "id": "66ecdc2a-ae61-4ba8-bc7d-e3beef908e41",
+          "title": "Prevent falls",
+          "target": null,
+          "frequency": "ongoing",
+          "status": "active"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "63f127f0-8bed-4228-80eb-117e92f66cb2",
+          "title": "Check and record BP and pulse",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "b830541d-bbc5-4f12-8cb0-06c7505789e8",
+          "title": "Check and record BP and pulse",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "bc8abd05-52b1-4dd3-957e-647143c08a95",
+          "title": "Assisted washing and dressing",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "4d74d564-ed40-41c2-be79-e145e1160a82",
+          "title": "Prescribed exercises with the therapist's sheet",
+          "time_slot": "afternoon",
+          "time_of_day": "13:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "9dc230f6-0915-4b83-b245-bc7f17a258c7",
+          "title": "Safe-swallow check at meals",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "a9cf87f5-a246-42fc-890f-bd8cc4bf1f99",
+          "title": "Safe-swallow check at meals",
+          "time_slot": "afternoon",
+          "time_of_day": "13:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "61bbfb1a-911d-4f11-8cea-594aae35850c",
+          "title": "Safe-swallow check at meals",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "b258015b-3c77-4b3b-8fef-683c6a5a251d",
+          "title": "Skin and pressure-point check",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      ],
+      "capabilities": {
+        "can_edit_plan": true
+      },
+      "created_at": "2026-10-27T22:30:57.242576",
+      "updated_at": "2026-10-27T22:30:57.242578"
+    }
+  },
+  "note": "Create from a template for a client booked by someone else (WhatsApp): the plan belongs to the care recipient. Nothing sent but `diagnosis`, so goals, tasks, instructions, risk, duration and review come from the template."
+}

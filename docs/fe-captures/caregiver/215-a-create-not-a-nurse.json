@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bookings/deafd784-4f22-495f-b86b-d9f65a43466a/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "low"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "not_a_nurse",
+        "message": "Only nurses can create or change a care plan."
+      }
+    }
+  }
+}

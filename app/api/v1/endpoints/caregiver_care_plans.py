@@ -10,6 +10,8 @@ from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_caregiver, get_db
@@ -33,7 +35,23 @@ def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
 
 
-router = APIRouter(dependencies=[Depends(_no_store)])
+class ScrubbedValidationRoute(APIRoute):
+    """FastAPI's 422 echoes the rejected value (`input`). On care plan routes that value is health text, so the error names
+    the field and the rule, never the value."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def scrubbed(request):
+            try:
+                return await handler(request)
+            except RequestValidationError as exc:
+                raise RequestValidationError([{k: v for k, v in e.items() if k != "input"} for e in exc.errors()]) from None
+
+        return scrubbed
+
+
+router = APIRouter(dependencies=[Depends(_no_store)], route_class=ScrubbedValidationRoute)
 
 NO_ACCESS = {404: {"description": "No access of any kind (not your booking, not live, no such plan or client). "
                                   "One answer for all of these."}}

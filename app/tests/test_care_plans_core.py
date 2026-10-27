@@ -175,6 +175,43 @@ def test_field_limits_are_422_and_never_echo_the_value(db, client, over):
     r = create_plan(client, nurse, booking, **over)
     assert r.status_code == 422, r.text
     assert db.query(CarePlan).count() == 0
+    assert all("input" not in e for e in r.json()["detail"])
+
+
+def test_a_422_never_echoes_the_rejected_health_text(db, client):
+    nurse = make_nurse(db)
+    _, booking = self_visit(db, nurse)
+    too_long = "Placeholder secret diagnosis " * 20
+    r = create_plan(client, nurse, booking, diagnosis=too_long, allergies=["x" * 1001], goals=[{"title": too_long, "frequency": "x"}])
+    assert r.status_code == 422
+    assert "Placeholder secret" not in r.text and "xxxxxxxx" not in r.text
+    assert {tuple(e["loc"]) for e in r.json()["detail"]} >= {("body", "diagnosis"), ("body", "allergies", 0)}
+
+
+def test_a_model_level_422_does_not_echo_the_whole_body(db, client):
+    nurse, _, _, plan = _created(client, db)
+    r = client.patch(_plan_url(plan["id"]), headers=h(nurse), json={
+        "expected_version": plan["version"], "risk_level": None, "allergies": ["Placeholder penicillin"]})
+    assert r.status_code == 422 and "Placeholder penicillin" not in r.text and "input" not in r.text
+
+
+def test_reactivating_a_discontinued_goal_respects_the_goal_limit(db, client):
+    nurse, _, _, plan = _created(client, db, goals=[{"title": f"g{i}", "frequency": "daily"} for i in range(30)])
+    first = plan["goals"][0]["id"]
+    gone = client.delete(f"{BASE}/care-plan-goals/{first}?expected_version={plan['version']}", headers=h(nurse)).json()
+    extra = client.post(f"{_plan_url(plan['id'])}/goals", headers=h(nurse), json={"title": "x", "frequency": "daily"}).json()
+    back = client.patch(f"{BASE}/care-plan-goals/{first}", headers=h(nurse),
+                        json={"expected_version": extra["plan_version"], "status": "active"})
+    assert back.status_code == 422 and back.json()["detail"]["code"] == "invalid_care_plan"
+    assert gone["goal"]["status"] == "discontinued"
+
+
+def test_the_assigned_list_search_matches_every_plan_before_the_cap_is_applied(db, client):
+    nurse = make_nurse(db)
+    for _ in range(3):
+        _, booking = self_visit(db, nurse)
+        create_plan(client, nurse, booking)
+    assert len(client.get(f"{BASE}/care-plans?q=placeholder", headers=h(nurse)).json()["items"]) == 3
 
 
 # --- read -----------------------------------------------------------------------------------------------------------

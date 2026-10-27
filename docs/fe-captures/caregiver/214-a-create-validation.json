@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bookings/f552c098-3b49-468d-b25f-426dcf56adf3/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "diagnosis": "",
+      "risk_level": "high"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "body",
+            "diagnosis"
+          ],
+          "msg": "String should have at least 1 character",
+          "ctx": {
+            "min_length": 1
+          }
+        }
+      ]
+    }
+  },
+  "note": "A field limit: the standard 422 shape (no value is echoed)."
+}

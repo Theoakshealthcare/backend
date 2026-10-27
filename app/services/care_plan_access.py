@@ -172,7 +172,7 @@ def _latest_family_consent_granted(db: Session, recipient_id: UUID) -> bool:
     latest = (
         db.query(Consent.decision)
         .filter(Consent.subject_recipient_id == recipient_id, Consent.type == "share_with_family")
-        .order_by(Consent.created_at.desc())
+        .order_by(Consent.created_at.desc(), Consent.id.desc())
         .first()
     )
     return latest is not None and latest[0] == "granted"
