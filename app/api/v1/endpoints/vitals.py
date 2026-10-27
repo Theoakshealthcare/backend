@@ -14,6 +14,7 @@ from app.schemas.patient_vital import PatientVitalCreate, PatientVitalUpdate, Pa
 from app.services.patient_vital import PatientVitalService
 from app.services.gemini import GeminiService, gemini_service
 from app.services.patient_caregiver_access import PatientCaregiverAccessService
+from app.services.vitals_access import caregiver_can_access_vitals
 from app.schemas.patient_caregiver_access import (
     PatientCaregiverAccessGrant, PatientCaregiverAccessRevoke, PatientCaregiverAccessResponse
 )
@@ -38,17 +39,7 @@ def can_access_vitals(current_user: User, patient_id: UUID, db: Session) -> bool
         caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
         if not caregiver:
             return False
-        # Check for active booking
-        from app.db.models.booking import Booking
-        active = db.query(Booking).filter(
-            Booking.patient_id == patient_id,
-            Booking.caregiver_id == caregiver.id,
-            Booking.status.in_(["active", "in_progress"])
-        ).first()
-        # Check for explicit access
-        access_service = PatientCaregiverAccessService(db)
-        has_explicit = access_service.has_access(patient_id, caregiver.id)
-        return bool(active) or has_explicit
+        return caregiver_can_access_vitals(db, caregiver.id, patient_id)
     return False
 
 # --- Create Vital ---

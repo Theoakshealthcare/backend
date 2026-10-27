@@ -196,7 +196,8 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
   - [x] Expo SDK 57 patch bumps. 2026-10-06, #5
 - [ ] **Remaining screens from the [gap analysis](../plans/2026-10-06-caregiver-design-gap-analysis.md)** (backend #25 is the analysis only; none built)
   - [ ] Client profile
-  - [ ] Vitals tab: manual entry, charts, report
+  - [x] Vitals backend fix: caregivers got a 500 on every `/vitals` call (`'active'` is not a booking status). Fixed with 12 new tests, `fix/vitals-caregiver-access`, [SOP](../sop/2026-10-27-vitals-caregiver-access-fix.md). Not yet merged
+  - [ ] Vitals tab: manual entry, charts, report (app built on `feat/caregiver-vitals`, SOP in the monorepo `docs/sop/2026-10-27-caregiver-vitals-tab.md`; needs the fix above deployed; Critical/Normal chips, insights, device pass pending)
   - [ ] FallGuard incident log and questionnaire
   - [ ] Care plans: nurse-level create/edit, others tick tasks, templates in admin, family read-only via W4
   - [ ] Chat relay via WhatsApp
