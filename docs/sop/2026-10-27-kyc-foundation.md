@@ -63,7 +63,7 @@ Config names: `PREMBLY_BASE_URL` (default `https://api.prembly.com`), `PREMBLY_S
 
 - New and adapted tests (client, models, migration, erasure, the old result endpoint): 165 passed in the targeted run.
 - Migration: single head; upgrade from `0014`; downgrade restores the old schema, maps data and re-arms the consents trigger; round trip; `test_migrations.py` (empty to head matches the models, down to base, up again) passes.
-- Full local CI parity (poetry env, versions from the lock): see the ledger `ledgers/LEDGER-kyc-k1.md` for the final numbers.
+- Full local CI parity with the project's poetry env: `poetry check --lock` ok, `ruff check --select E9,F63,F7,F82 .` clean, `scripts.ci_smoke` OK (154 operations), both `render_fe_guide --check` exit 0, full pytest **2,773 passed, 1 skipped, 1 failed**. The one failure, `test_caregiver_client_profile.py::test_latest_vitals_is_an_empty_list_...`, is an existing flake unrelated to K1: it asserts `"84" not in str(body)` and the body holds random UUIDs that can contain "84". The file passes on rerun (27/27). Worth fixing separately (assert on the vitals field, not the whole body).
 - One read-only Opus review of the migration, models and erasure: no blockers. Fixed in K1: the legacy result endpoint could pull a caregiver out of `needs_review` (now guarded, tested); erasure left in-flight attempts active (now expired, tested); the identity-consent withdrawal uses a new `KYC_POLICY_VERSION` (`kyc-2026-10`), not the WhatsApp version. The rest are in Follow-ups.
 - **Not verified:** anything against real Prembly (sandbox or live). Until K0 and K8 the client and fake are built from the public docs.
 
