@@ -112,8 +112,16 @@ def _admin_from_token(db: Session, token: str) -> AdminUser:
     """Resolve an admin access token to an active admin whose session is still live."""
     try:
         payload = decode_admin_token(token, "access")
+    except AdminTokenError:
+        raise _admin_unauthorized()
+    return _admin_from_claims(db, payload)
+
+
+def _admin_from_claims(db: Session, payload: dict) -> AdminUser:
+    """The active admin whose live session a verified admin access token's claims name."""
+    try:
         admin_id, session_id = UUID(payload["sub"]), UUID(payload["sid"])
-    except (AdminTokenError, KeyError, ValueError):
+    except (KeyError, ValueError):
         raise _admin_unauthorized()
     admin = db.get(AdminUser, admin_id)
     if admin is None or admin.status != "active":
@@ -192,27 +200,23 @@ def get_user_or_admin(permission: str) -> Callable[..., Union[User, AdminUser]]:
     """For the few routes shared by app users and the console (booking detail, document download,
     prescription reads): an app-user token, or an admin token holding ``permission``.
 
-    The two token kinds are told apart by the ``aud`` claim and each is verified by its own
-    decoder, so an admin token never authenticates as a user (or the reverse).
+    Nothing is read from the token before it is verified. The admin decoder goes first (signature,
+    expiry, ``aud="admin"`` and type, all required); only a token it refuses is offered to the app-user
+    decoder, which in turn refuses any token carrying an audience. Each decoder uses its own key, so a
+    token valid for one kind can never authenticate as the other.
     """
 
     def dependency(
         db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
     ) -> Union[User, AdminUser]:
         try:
-            claims = jwt.decode(token, options={"verify_signature": False})
-        except jwt.PyJWTError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        if claims.get("aud") is not None:
-            admin = _admin_from_token(db, token)
-            if not admin.has_permission(permission):
-                raise _forbidden((permission,))
-            return admin
-        return _user_from_token(db, token)
+            claims = decode_admin_token(token, "access")
+        except AdminTokenError:
+            return _user_from_token(db, token)
+        admin = _admin_from_claims(db, claims)
+        if not admin.has_permission(permission):
+            raise _forbidden((permission,))
+        return admin
 
     dependency.required_permissions = (permission,)  # type: ignore[attr-defined]
     return dependency
