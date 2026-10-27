@@ -199,7 +199,17 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
   - [x] Vitals backend fix: caregivers got a 500 on every `/vitals` call (`'active'` is not a booking status). Fixed with 12 new tests, `fix/vitals-caregiver-access`, [SOP](../sop/2026-10-27-vitals-caregiver-access-fix.md). Not yet merged
   - [ ] Vitals tab: manual entry, charts, report (app built on `feat/caregiver-vitals`, SOP in the monorepo `docs/sop/2026-10-27-caregiver-vitals-tab.md`; needs the fix above deployed; Critical/Normal chips, insights, device pass pending)
   - [ ] FallGuard incident log and questionnaire
-  - [ ] Care plans: nurse-level create/edit, others tick tasks, templates in admin, family read-only via W4
+  - [ ] **Care plans** (design and slice plan: [2026-10-27-caregiver-care-plans-design.md](../plans/2026-10-27-caregiver-care-plans-design.md); owner decisions of 2026-10-27: nurses and a Clinical Reviewer create/edit, other caregivers view and tick tasks, no family view in v1, seeded templates, medications record-only, plan follows the client and is visible only while assigned, Fernet at rest). Four backend slices and three app slices, one PR each, none merged yet
+    - [ ] Design doc, builder check, seeded template drafts and slice plan: written 2026-10-27 on branch `docs/care-plans-design` (docs only, not merged)
+    - [ ] Owner confirms the design's assumptions A1-A11 (section 12 of the doc), and a clinician reviews the seeded templates and the medication "not clinical advice" copy before go-live
+    - [ ] **B1 Foundation** (`feat/care-plans-core`, migration `0015`): subject and access rule shared with the client profile; `can_author_care_plans` on `GET /caregiver/home`; `care_plan_templates` + 5 seeds, `care_plans`, `care_plan_goals`, `care_plan_tasks`, `care_plan_events`; templates list/preview, assigned list, candidates, visit summary, create (blank or from a template), get, patch (allergies, special instructions, complete/archive), goals add/edit/remove; erasure hook; `reencrypt_health_data` column list; Opus review; SOP, FE guide from captures
+    - [ ] **B2 Ticks, notes, progress** (`feat/care-plans-tasks`, migration `0016`): `care_plan_task_completions`, `care_plan_observations`; task add/edit/remove, day view, tick (today, in-progress visit), observations, progress (visit-day denominator); erasure and re-encrypt extended; Opus review; SOP, FE guide
+    - [ ] **B3 Medications** (`feat/care-plans-medications`, migration `0017`): `care_plan_medications`; add, edit, stop (never delete); erasure and re-encrypt extended; Opus review; SOP, FE guide
+    - [ ] **B4 Admin API** (`feat/care-plans-admin`, migration `0018`, data only): `careplans.read/write/templates`, Clinical Reviewer grants, admin list/detail/create/edit/section writes/note, template sign-off, audit rows; Opus review; admin FE guide section
+    - [ ] **M1 App: hub, create, details, goals** (monorepo `feat/caregiver-care-plans-hub`, after B1): Home card (nurse only), Assigned/Templates tabs, template preview and client picker, create form, details accordions, add goal, Edit Plan, client-profile "Care plan" row
+    - [ ] **M2 App: ticks, notes, progress** (monorepo, after B2): day tabs and ticks, add task, observations and special notes, View Progress, "add notes before clock-out" prompt
+    - [ ] **M3 App: medications** (monorepo, after B3): list, add form, "not clinical advice" banner
+    - [ ] Device pass for the care plan screens (with the rest of the caregiver app)
   - [ ] Chat relay via WhatsApp
   - [ ] Masked calling (no recording)
   - [ ] Change password (needs a backend endpoint)
@@ -376,6 +386,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (Care plans, after v1) Family read-only view through W4; admin console screens for plans and templates, and template create/edit; medication reminders and a per-dose record (clinical sign-off); creating a `CareRecipient` for app bookings that have none (today they get no plan); merging the plan's allergies with the patient record's; per-recipient vitals (same subject problem); retention period for plans ([design](../plans/2026-10-27-caregiver-care-plans-design.md) section 15)
 - [ ] (WhatsApp) Business-scoped user ids (`contacts[].user_id`, `messages[].from_user_id`, `statuses[].recipient_user_id`, `NG.<digits>`) are accepted and ignored, not stored. Decide whether to store them (a stable id if Meta stops sending phone numbers) before relying on them ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md))
 - [ ] (WhatsApp) Rotate the webhook verify token (`WHATSAPP_VERIFY_TOKEN`): the current one was printed once in a live access log before the redaction filter existed (owner, at the next Meta test)
 - [x] (A0) `get_user_or_admin` decoded the token unverified to read `aud` (Semgrep): now verified admin-first, then app-user, 2026-10-27 ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md))
