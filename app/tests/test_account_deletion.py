@@ -736,3 +736,73 @@ def test_a_deposit_or_refund_request_in_flight_cannot_land_after_the_erasure(db,
     db.expire_all()
     assert db.query(PatientTransaction).filter(PatientTransaction.status == "pending").count() == 0
     assert db.query(PatientRefundRequest).count() == 0
+
+
+# --- caregiver KYC (Prembly) ----------------------------------------------------------------
+def _kyc_history(db, cg):
+    from app.db.models.identity_verification import IdentityVerification, IdentityVerificationEvent, KycWebhookEvent
+
+    passed = IdentityVerification(
+        caregiver_id=cg.id, attempt_no=2, status="passed", provider_session_id="sdk_session_mine", provider_reference="PREM-REF-1",
+        id_fingerprint="f" * 64, id_type="nin", face_confidence=93, liveness_confidence=90, face_threshold=85, name_match=True,
+        dob_match=True, decided_via="provider", reason_codes=[])
+    failed = IdentityVerification(caregiver_id=cg.id, attempt_no=1, status="failed", provider_session_id="sdk_session_first",
+                                  reason_codes=["face_mismatch"])
+    db.add_all([passed, failed])
+    db.flush()
+    other_user = make_caregiver(db, approved=False)
+    theirs = IdentityVerification(caregiver_id=other_user.id, attempt_no=1, status="passed", provider_session_id="sdk_session_other",
+                                  provider_reference="PREM-REF-OTHER", id_fingerprint="a" * 64)
+    db.add(theirs)
+    db.flush()
+    db.add_all([
+        KycWebhookEvent(token="t-matched", signature_ok=True, provider_session_id="sdk_session_mine", verification_id=passed.id),
+        KycWebhookEvent(token="t-orphan", signature_ok=True, provider_session_id="sdk_session_first"),  # never matched an attempt
+        KycWebhookEvent(token="t-theirs", signature_ok=True, provider_session_id="sdk_session_other", verification_id=theirs.id),
+        IdentityVerificationEvent(verification_id=passed.id, caregiver_id=cg.id, actor="provider", from_status="awaiting_result",
+                                  to_status="passed"),
+    ])
+    db.commit()
+    return passed.id, failed.id, theirs.id
+
+
+def test_erasure_removes_what_identifies_the_caregiver_to_the_kyc_provider(db, client):
+    from app.db.models.identity_verification import IdentityVerification, IdentityVerificationEvent, KycWebhookEvent
+
+    cg = make_caregiver(db, approved=False)
+    passed_id, failed_id, theirs_id = _kyc_history(db, cg)
+    assert client.delete(URL, headers=auth_headers(cg.user)).status_code == 200
+    db.expire_all()
+
+    for attempt_id in (passed_id, failed_id):
+        a = db.get(IdentityVerification, attempt_id)
+        assert a.provider_session_id is None and a.provider_reference is None and a.id_fingerprint is None
+    passed = db.get(IdentityVerification, passed_id)
+    # the audit and fraud trail stays: status, scores, timestamps, Oakly's own reference
+    assert passed.status == "passed" and passed.attempt_no == 2 and passed.id_type == "nin" and passed.reference is not None
+    assert float(passed.face_confidence) == 93 and passed.name_match is True and passed.decided_via == "provider"
+    assert db.get(IdentityVerification, failed_id).reason_codes == ["face_mismatch"]
+    ledger = {e.token: e.provider_session_id for e in db.scalars(select(KycWebhookEvent))}
+    assert ledger["t-matched"] is None and ledger["t-orphan"] is None  # including the row that never matched an attempt
+    assert ledger["t-theirs"] == "sdk_session_other"  # another caregiver's rows are untouched
+    other = db.get(IdentityVerification, theirs_id)
+    assert other.provider_session_id == "sdk_session_other" and other.provider_reference == "PREM-REF-OTHER"
+    assert other.id_fingerprint == "a" * 64
+    assert db.scalar(select(IdentityVerificationEvent)) is not None  # the trail holds no PII and is append-only
+
+
+def test_erasure_withdraws_the_identity_consent_only_if_it_was_given(db, client):
+    given = make_caregiver(db, approved=False)
+    db.add(Consent(subject_user_id=given.user_id, granted_by_user_id=given.user_id, type="identity_verification",
+                   decision="granted", policy_version="kyc-2026-10", channel="caregiver_app"))
+    db.commit()
+    never = make_caregiver(db, approved=False)
+    assert client.delete(URL, headers=auth_headers(given.user)).status_code == 200
+    assert client.delete(URL, headers=auth_headers(never.user)).status_code == 200
+    rows = db.scalars(select(Consent).where(Consent.type == "identity_verification")).all()
+    assert sorted((r.subject_user_id == given.user_id, r.decision) for r in rows) == [(True, "granted"), (True, "withdrawn")]
+
+
+def test_erasing_a_caregiver_with_no_kyc_history_still_works(db, client):
+    cg = make_caregiver(db, approved=False)
+    assert client.delete(URL, headers=auth_headers(cg.user)).status_code == 200
