@@ -21,6 +21,8 @@ from app.services.vitals_access import caregiver_can_access_vitals
 
 LIVE_STATUSES = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
 MAX_MEDICAL_RECORDS = 50
+BOOKER_LABEL = "Booked this visit"
+UNKNOWN_CLIENT_NAME = "Client"
 
 
 class ClientNotAvailable(Exception):
@@ -40,7 +42,7 @@ def _emergency_contact(patient: Patient, booking: Booking, is_self: bool) -> Opt
                    "relationship": patient.emergency_contact_relationship}
     else:
         # Whoever booked is the family contact; the patient record's own emergency contact is theirs.
-        contact = {"name": patient.full_name, "phone": patient.phone_number, "relationship": booking.booking_for}
+        contact = {"name": patient.full_name, "phone": patient.phone_number, "relationship": BOOKER_LABEL}
     return contact if contact["name"] or contact["phone"] else None
 
 
@@ -68,7 +70,7 @@ def _medical_history(db: Session, patient: Patient) -> Optional[Dict[str, Any]]:
 def _latest_vitals(db: Session, patient_id: UUID) -> List[Dict[str, Any]]:
     rows = (
         db.query(PatientVital)
-        .filter(PatientVital.patient_id == patient_id)
+        .filter(PatientVital.patient_id == patient_id, PatientVital.recorded_at.isnot(None))
         .distinct(PatientVital.vital_type)
         .order_by(PatientVital.vital_type, PatientVital.recorded_at.desc())
         .all()
@@ -92,19 +94,26 @@ def build_client_profile(db: Session, caregiver: Caregiver, booking_id: UUID) ->
     if patient is None or not patient.is_active:  # an erased patient is anonymised and inactive
         raise ClientNotAvailable()
 
-    is_self = booking.booking_for == "myself"
+    # The patient app sends "Myself", the WhatsApp channel "myself": same thing.
+    is_self = (booking.booking_for or "").strip().lower() == "myself"
     recipient = None if is_self or booking.care_recipient_id is None else db.get(CareRecipient, booking.care_recipient_id)
     subject = patient if is_self else recipient  # whose name, age and sex these are (None: not known)
+    # For a visit booked for someone else the patient row is the booker. With no recipient on file (an app
+    # booking) the client's name is not known: never show the booker's name as the client's.
+    full_name = subject.full_name if subject is not None else (patient.full_name if is_self else UNKNOWN_CLIENT_NAME)
+    # Vitals are filed under the booker's patient id, so they cannot be told apart per relative: only shown
+    # for a visit booked for oneself.
+    vitals_allowed = is_self and caregiver_can_access_vitals(db, caregiver.id, patient.id)
 
     return {
         "booking_id": booking.id,
         "patient_id": patient.id,
-        "full_name": subject.full_name if subject is not None else patient.full_name,
+        "full_name": full_name,
         "profile_image_url": (patient.user.profile_image_url if patient.user else None) if is_self else None,
         "booking_for": booking.booking_for,
         "age": age_in_years(subject.date_of_birth) if subject is not None else None,
         "gender": subject.gender if subject is not None else None,
         "emergency_contact": _emergency_contact(patient, booking, is_self),
         "medical_history": _medical_history(db, patient) if is_self else None,
-        "latest_vitals": _latest_vitals(db, patient.id) if caregiver_can_access_vitals(db, caregiver.id, patient.id) else None,
+        "latest_vitals": _latest_vitals(db, patient.id) if vitals_allowed else None,
     }

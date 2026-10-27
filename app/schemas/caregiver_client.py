@@ -51,6 +51,6 @@ class CaregiverClientProfile(BaseModel):
     gender: Optional[str] = None
     emergency_contact: Optional[ClientEmergencyContact] = None
     medical_history: Optional[ClientMedicalHistory] = None
-    # null: vitals are not available to this caregiver right now (the vitals rule: an in-progress visit or
-    # a patient grant). []: available, none recorded yet.
+    # null: not available (the vitals rule: an in-progress visit or a patient grant, and only for a visit booked
+    # for oneself, because readings are filed under the booker). []: available, none recorded yet.
     latest_vitals: Optional[List[ClientVital]] = None

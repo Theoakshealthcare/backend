@@ -284,7 +284,47 @@ def test_a_visit_booked_for_someone_else_shows_that_person_not_the_booker(db, cl
     for secret in ("Booker allergy", "Booker meds", "A+", "Booker Kin", "+2348000000666", "3 Recipient Road"):
         assert secret not in r.text
     # Whoever booked is the family contact.
-    assert body["emergency_contact"] == {"name": "Bola Booker", "phone": "+2348000000777", "relationship": "mother"}
+    assert body["emergency_contact"] == {"name": "Bola Booker", "phone": "+2348000000777",
+                                         "relationship": "Booked this visit"}
+    # Readings are filed under the booker, so they are not shown as the client's.
+    assert body["latest_vitals"] is None
+
+
+def test_the_patient_apps_capitalised_Myself_is_a_booking_for_oneself(db, client):
+    patient, caregiver = _patient(db, blood_group="O+"), make_caregiver(db)
+    booking = _booking(db, patient, caregiver, BookingStatus.IN_PROGRESS, booking_for="Myself")
+    body = _get(client, booking, caregiver).json()
+    assert body["age"] == 70 and body["medical_history"]["blood_group"] == "O+"
+    assert body["emergency_contact"]["name"] == "Next of Kin" and body["latest_vitals"] == []
+
+
+def test_an_app_booking_for_a_relative_never_shows_the_booker_as_the_client(db, client):
+    booker = _patient(db, full_name="Bola Booker", allergies="Booker allergy", blood_group="A+")
+    caregiver = make_caregiver(db)
+    _vital(db, booker, caregiver, "blood_pressure", "150/95", "mmHg", 1)
+    booking = _booking(db, booker, caregiver, BookingStatus.IN_PROGRESS, booking_for="My Mother")
+    r = _get(client, booking, caregiver)
+    body = r.json()
+    assert body["full_name"] == "Client" and body["age"] is None and body["gender"] is None
+    assert body["profile_image_url"] is None and body["medical_history"] is None
+    assert body["latest_vitals"] is None and "150/95" not in r.text
+    assert "Booker allergy" not in r.text
+    assert body["emergency_contact"]["name"] == "Bola Booker"  # the family contact
+
+
+def test_a_vital_with_no_recorded_time_does_not_break_the_profile(db, client):
+    patient, caregiver = _patient(db), make_caregiver(db)
+    _vital(db, patient, caregiver, "heart_rate", "84", "bpm", 1)
+    broken = PatientVital(patient_id=patient.id, recorded_by_user_id=caregiver.user_id, vital_type="heart_rate",
+                          unit="bpm")
+    broken.value = "99"
+    db.add(broken)
+    db.commit()
+    broken.recorded_at = None  # what PUT /vitals/{id} with {"recorded_at": null} leaves behind
+    db.commit()
+    booking = _booking(db, patient, caregiver, BookingStatus.IN_PROGRESS)
+    r = _get(client, booking, caregiver)
+    assert r.status_code == 200 and [v["value"] for v in r.json()["latest_vitals"]] == ["84"]
 
 
 def test_a_visit_booked_for_oneself_through_whatsapp_uses_the_patient_record(db, client):
