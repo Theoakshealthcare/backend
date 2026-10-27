@@ -52,6 +52,13 @@ def wamid() -> str:
     return "wamid." + uuid.uuid4().hex
 
 
+def bsuid(wa_id: str) -> str:
+    """A placeholder Meta business-scoped user id: ``NG.`` plus digits, stable per ``wa_id``. Real payloads
+    carry one next to every phone number (``contacts[].user_id``, ``messages[].from_user_id``,
+    ``statuses[].recipient_user_id``); we do not store them yet."""
+    return "NG." + str(int(hashlib.sha256(wa_id.encode()).hexdigest(), 16))[:20]
+
+
 def _envelope(value: dict, phone_number_id: str = TEST_PHONE_NUMBER_ID) -> dict:
     return {
         "object": "whatsapp_business_account",
@@ -65,8 +72,8 @@ def _envelope(value: dict, phone_number_id: str = TEST_PHONE_NUMBER_ID) -> dict:
 
 def _message_value(wa_id: str, name: str, message: dict) -> dict:
     return {
-        "contacts": [{"profile": {"name": name}, "wa_id": wa_id}],
-        "messages": [{"from": wa_id, "id": message.pop("id", None) or wamid(),
+        "contacts": [{"profile": {"name": name}, "wa_id": wa_id, "user_id": bsuid(wa_id)}],
+        "messages": [{"from": wa_id, "from_user_id": bsuid(wa_id), "id": message.pop("id", None) or wamid(),
                       "timestamp": "1760000000", **message}],
     }
 
@@ -132,7 +139,7 @@ def template_button_payload(wa_id: str, payload: str, text: str = "Book again", 
 def status_payload(wa_id: str, message_id: str, status: str, *, errors: Optional[list] = None,
                    category: Optional[str] = None) -> dict:
     entry: dict[str, Any] = {"id": message_id, "status": status, "timestamp": "1760000001",
-                             "recipient_id": wa_id}
+                             "recipient_id": wa_id, "recipient_user_id": bsuid(wa_id)}
     if category:
         entry["pricing"] = {"billable": True, "pricing_model": "CBP", "category": category}
     if errors:

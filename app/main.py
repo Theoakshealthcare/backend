@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.log_filters import install_access_log_redaction
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -18,6 +19,9 @@ app = FastAPI(
     description="Oaklycare Healthcare Provider API",
     version="1.0.0",
 )
+
+# uvicorn's access log prints query strings; keep the WhatsApp webhook's hub.verify_token out of it
+install_access_log_redaction()
 
 # FastAPI's 422 body echoes each rejected value back as ``input``. For these fields that would put a bank account number
 # into a response body (and the logs and traces that capture it), so the value is dropped from the error.

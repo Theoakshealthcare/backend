@@ -4,7 +4,9 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
-**Update (2026-10-21, A3 slice 3):** refunds v2 is BUILT and verified locally on `feat/refunds-v2` (migration `0014`, head `c1b9cdd` plus the docs commit), **not pushed**, based on `oakly/main` after PR #18 (migration `0013`) merged. One refund queue; a person approves every refund (Finance up to the ₦50,000 cumulative limit, a Super Admin above it or for wallet credit); one destination; Paystack refunds with webhooks, reconcile and bank details; caregiver take-back; the legacy refund routes answer `410`. Verified by tests, 100 random sequences, forced races and live captures against a **fake** Paystack ([SOP](../sop/2026-10-21-refunds-v2.md), admin FE guide 12.12); a live Paystack run and the console screens are open.
+**Update (2026-10-27, follow-ups):** WhatsApp and JWT follow-ups ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md), branch `fix/whatsapp-jwt-followups`, PR pending): the fake Meta carries the business-scoped user ids real payloads have, uvicorn's access log no longer prints the webhook's `hub.verify_token`, the 413 constant is no longer deprecated, and `get_user_or_admin` verifies a token before choosing its decoder (the Semgrep-flagged unverified peek is gone). The live Meta test of 2026-10-19 proved the pipeline end to end, but **WhatsApp delivery is still blocked by Meta business verification** (started 2026-10-27, takes days).
+
+**Update (2026-10-27, A3 slice 3):** refunds v2 is **MERGED** as Theoakshealthcare/backend#19 (`f4b2f80`, 2026-10-27, migration `0014`), on top of PR #18 (migration `0013`). One refund queue; a person approves every refund (Finance up to the ₦50,000 cumulative limit, a Super Admin above it or for wallet credit); one destination; Paystack refunds with webhooks, reconcile and bank details; caregiver take-back; the legacy refund routes answer `410`. Verified by tests, 100 random sequences, forced races and live captures against a **fake** Paystack ([SOP](../sop/2026-10-21-refunds-v2.md), admin FE guide 12.12); a live Paystack run and the console screens are open.
 
 **Update (2026-10-19):** Finance may approve and cancel payout batches and payouts (`payouts.execute`); retry, resolve, force and unfreeze stay Super Admin only ([SOP](../sop/2026-10-19-finance-approves-payouts.md)). The slice-2 screens are merged: admin payouts console and caregiver bank-account screen (Theoakshealthcare/oaklycare-caregiver-mobile #1–#3). The console's per-role action gating follows in its own PR. Finance also reads the audit log (`audit.read`, migration `0013`, [SOP](../sop/2026-10-19-finance-audit-read.md)).
 
@@ -14,10 +16,10 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Update (2026-10-07):** Backend PRs #1–#32 and caregiver monorepo PRs #1–#11 are merged. Done since the last roll-up: admin A0 (#21) and A1 console (monorepo #6); tech debt (#23); WhatsApp W1–W3 (#22, #24, #27), default multipliers and geocoding (#28), drop-out re-dispatch with two-tier fees and the booking policy (#30), caregiver cancel window (#32); A2 bookings ops API (#26, backend only); account deletion as anonymisation (#29); pricing settings audit (#31); caregiver app account, wallet, notifications and directions screens (monorepo #7–#11). Migrations `0001`–`0010` are on `main`. Still open: A2 console screens, A3–A5, W4–W5, the remaining caregiver app screens (section 8), and the owner and device items.
 
-**Snapshot (2026-10-21):** 
-- **Items:** 209 done (`[x]`), 156 open (`[ ]`), counted over every task line (the 2026-10-12 count was 175 and 135).
-- **Sections done:** 8 (Phase C, code complete, device run pending), 11 (tech debt), 12 (account deletion), 13 (pricing audit).
-- **Sections in progress:** 0, 6, 7, 9 (A0, A1, the A2 API, A3 slices 1 and 2 merged on the backend; slice 2's screens are merged; slice 3 refunds v2 is built on `feat/refunds-v2`, not pushed; a live Paystack run remains for payouts and refunds), 10 (W1–W3b done).
+**Snapshot (2026-10-27):** 
+- **Items:** 210 done (`[x]`), 158 open (`[ ]`), counted over every task line (the 2026-10-21 count was 209 and 156).
+- **Sections done:** 11 (tech debt), 12 (account deletion), 13 (pricing audit). Section 8 (Phase C) has C0–C4 and the post-C4 fixes merged, but its remaining screens are not built and the device run is pending, so it is in progress, not done.
+- **Sections in progress:** 0, 6, 7, 8, 9 (A0, A1, the A2 API, A3 slices 1, 2 and 3 merged on the backend; slice 2's screens are merged; slice 3's console screens and a live Paystack run remain for payouts and refunds), 10 (W1–W3b done; the live Meta check proved the pipeline but delivery waits on Meta business verification).
 - **Sections planned or not started:** 1 and 2 (open items are mostly the owner's secret rotation and the remaining hardening list), 3–5, plus A2 screens, A3–A5, W4 and W5.
 
 **Baseline:** the full review of all three repos on 2026-09-24 (it predates this file).
@@ -155,7 +157,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **Private document storage:** signed URLs, migrate existing files, remove the public `/uploads` access (AD-FR-15–18)
 - [ ] **Bookings:** list and detail, unmatched queue, assign/reassign, admin cancel, status correction (AD-FR-19–25). API merged 2026-10-06 (A2, #26); console screens not built
 - [ ] **Payments:** payment list, webhook exceptions, daily reconciliation (AD-FR-28–31)
-- [x] **Refunds v2:** exactly one destination per refund, approval limits, refund webhooks, notifications (AD-FR-32–36). Built and verified locally 2026-10-21, `feat/refunds-v2` not pushed; API only (console screens, a live Paystack run and app-patient notifications open)
+- [x] **Refunds v2:** exactly one destination per refund, approval limits, refund webhooks, notifications (AD-FR-32–36). Built and verified locally 2026-10-21, merged 2026-10-27 (#19, `f4b2f80`); API only (console screens, a live Paystack run and app-patient notifications open)
 - [ ] **Caregiver pay:** earnings credited on completion and ledger done (A3 slice 1); scheduled Paystack Transfer payout batches with admin approval done in code, tested against a fake Paystack (A3 slice 2, 2026-10-12, not yet run against live Paystack); ledger adjustments (AD-FR-42) open
 - [ ] **People:** search, masked view, suspend, consent records (AD-FR-45–48)
 - [ ] **Pricing:** (APIs `/booking-settings` and `/admin/booking-policy` exist; console screens are A4) versioned price books with preview and publish; service areas; Nigerian form options (AD-FR-51–56)
@@ -168,7 +170,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **v1.1:** partial refunds, scheduled payouts, city pricing, prescription ops, quality card, charts, live map
 - [ ] **v2:** clinicians and MDCN checks, pharmacy partners (AD-FR-79–80, 72)
 
-## 8. Phase C: Caregiver app (supply side) — ✅ code complete (device verification pending)
+## 8. Phase C: Caregiver app (supply side) — 🟡 in progress (C0–C4 and the post-C4 fixes merged; remaining screens not built; device verification pending)
 Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: nurses and caregivers sign up, get approved, go available, receive offers by push, accept, and run the visit.
 - [x] **C0 Monorepo scaffold**: pnpm workspace, `packages/api-client`, CI. Merged 2026-10-06, caregiver#1
 - [x] **C1 Expo SDK 57 upgrade and cleanup**: continuous native generation, unused dependencies removed, `expo-secure-store`, typecheck/lint/test in CI. Merged 2026-10-06, caregiver#2. ⚠️ The iOS Simulator run is pending a newer Xcode (26.2 can't build SDK 57).
@@ -239,7 +241,7 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] 8. FE guide section 12 from live captures 079 to 118 (`capture_admin_flow.py --section bookings`), `--check` clean
   - [x] 9. Opus review of the lock, permission and clinical paths: clean, 2 findings fixed with tests
   - [ ] 10. **A2 console screens:** list, detail with timeline, unmatched queue, action dialogs (backend done)
-- [ ] **A3** Money. Slice 1 (caregiver earnings, API only) done 2026-10-07, [SOP](../sop/2026-10-07-caregiver-earnings.md), migration `0011_caregiver_earnings`. Slice 2 (caregiver payouts, API only) built 2026-10-12, [SOP](../sop/2026-10-12-caregiver-payouts.md), migration `0012_caregiver_payouts`, awaiting money review. Slice 3 (refunds v2, API only) built 2026-10-21, [SOP](../sop/2026-10-21-refunds-v2.md), migration `0014_refunds_v2`, `feat/refunds-v2`, not pushed
+- [ ] **A3** Money. Slice 1 (caregiver earnings, API only) done 2026-10-07, [SOP](../sop/2026-10-07-caregiver-earnings.md), migration `0011_caregiver_earnings`. Slice 2 (caregiver payouts, API only) merged 2026-10-12 (#14), [SOP](../sop/2026-10-12-caregiver-payouts.md), migration `0012_caregiver_payouts`. Slice 3 (refunds v2, API only) merged 2026-10-27 (#19, `f4b2f80`), [SOP](../sop/2026-10-21-refunds-v2.md), migration `0014_refunds_v2`
   - [x] Slice 1: earnings credited on completion (80% of the service fee, snapshotted on the booking, held 24 hours, admin-editable in `booking_policies`)
   - [x] Slice 1: caregiver ledger rows (`caregiver_transactions`: pending clearance, held, voided, released), unique per booking and type
   - [x] Slice 1: `GET /caregiver/wallet` adds `available_balance`, `pending_balance`, `held_balance`
@@ -273,7 +275,7 @@ Plan: [`docs/plans/2026-10-06-admin-console.md`](../plans/2026-10-06-admin-conso
   - [x] Slice 2: console screens for batches and payouts and the caregiver app's bank-account screen. Merged 2026-10-19, Theoakshealthcare/oaklycare-caregiver-mobile #1–#3
   - [x] Finance can approve and cancel payouts (2026-10-19, owner decision): approve batch, cancel batch, cancel payout on `payouts.execute` (already in Finance's role since `0003`, so no migration); retry, resolve, unfreeze stay `ledger.adjust`. Admin FE guide re-captured live (payouts captures 183 to 302). [SOP](../sop/2026-10-19-finance-approves-payouts.md)
   - [ ] Console: gate Approve/Cancel on `payouts.execute` and Retry/Resolve/Unfreeze on `ledger.adjust` (follows this backend change)
-  - [x] Slice 3 (refunds v2, 2026-10-21, `feat/refunds-v2`, **not pushed**): refunds queue, replacing the `refund_required` flag as the work list. Tasks (plan `docs/plans/2026-10-21-refunds-v2-plan.md`):
+  - [x] Slice 3 (refunds v2, built 2026-10-21, merged 2026-10-27 as #19, `f4b2f80`): refunds queue, replacing the `refund_required` flag as the work list. Tasks (plan `docs/plans/2026-10-21-refunds-v2-plan.md`):
     - [x] T1: migration `0014_refunds_v2` (`refunds`, `refund_attempts`, `partially_refunded`, `owed_kobo`, `refund_take_back`, `refunds.approve_above_limit`), models, one open refund per booking
     - [x] T2: Paystack edge: create / fetch / list / retry-with-customer-details, fake refund endpoints, Paystack fee recorded at settlement
     - [x] T3: a refund is queued from every cancel path (admin, WhatsApp booker, drop-out decisions, late payment) with the policy's suggested amount
@@ -303,7 +305,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
   - [x] `MetaCloudClient`: timeout, retry on 429/5xx and connect errors, metadata recorded
   - [x] Pure conversation engine: first contact, button consent, STOP / STOP DATA / START, menu, two-miss handover, emergency screen (English + Pidgin), clinical-advice guard
   - [x] Fake Meta (`app/tests/fake_meta.py`) and the Docker end-to-end script
-  - [ ] **Owner:** real-Meta check with a developer test number and a tunnel ([steps in the SOP](../sop/2026-10-06-whatsapp-foundations.md#local-testing-with-a-meta-developer-test-number--tunnel))
+  - [ ] **Owner:** real-Meta check with a developer test number and a tunnel ([steps in the SOP](../sop/2026-10-06-whatsapp-foundations.md#local-testing-with-a-meta-developer-test-number--tunnel)). Partly done 2026-10-19: handshake, signed POST, dedupe, queue, engine and the consent reply send all ran live; **delivery of the reply is blocked** (Meta error 131031 "Business Account locked") until Meta business verification completes (started 2026-10-27). Left open until a message is delivered and the script in the SOP passes
   - [ ] Deferred to W2: consent Flow (checkboxes) replaces the buttons; one-time-code linking of an existing app account; idle expiry (WA-FR-12)
 - [x] **W2** Booking in chat: booking Flow and encrypted data endpoint, location, locked quote, Paystack link, templates. 2026-10-06, #24, migration `0005_whatsapp_booking`, [SOP](../sop/2026-10-06-whatsapp-booking.md). Verified locally and by `scripts/whatsapp_local_e2e.py` on the Docker stack against a fake Meta and a fake Paystack; not run against real Meta.
   - [x] Booking Flow JSON (`app/channels/whatsapp/flows/booking.json`, version 6.3) with a structure test; six screens (who, new recipient, service with per-hour price, date and slots, duration/condition/instructions, address and city)
@@ -373,6 +375,9 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (WhatsApp) Business-scoped user ids (`contacts[].user_id`, `messages[].from_user_id`, `statuses[].recipient_user_id`, `NG.<digits>`) are accepted and ignored, not stored. Decide whether to store them (a stable id if Meta stops sending phone numbers) before relying on them ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md))
+- [ ] (WhatsApp) Rotate the webhook verify token (`WHATSAPP_VERIFY_TOKEN`): the current one was printed once in a live access log before the redaction filter existed (owner, at the next Meta test)
+- [x] (A0) `get_user_or_admin` decoded the token unverified to read `aud` (Semgrep): now verified admin-first, then app-user, 2026-10-27 ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md))
 - [x] (Admin auth tests) Per-IP limiter tests flaked when a burst crossed a minute boundary: fixed 2026-10-12 with the shared `pinned_ip_window` fixture on all seven 429 tests ([SOP](../sop/2026-10-06-admin-auth.md#test-fix-per-ip-limit-flake-at-a-minute-boundary-2026-10-12))
 - [x] (A3 payouts) Manual resolve for a transfer left in `otp` or one the reconcile job cannot settle: done as `POST /admin/payouts/{id}/resolve` (Paystack checked first)
 - [ ] (A3 payouts) Erasure with a balance between 0 and 5,000.00 NGN, and reversals after erasure: need a one-off payout or manual handling
@@ -420,7 +425,7 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [ ] (A0) Admin access to the live-tracking WebSocket (admins used to reach it with an app token; the A2 booking detail does not show live tracking yet)
 - [x] (A0) Per-IP limits and audit `ip` honour `TRUSTED_PROXIES`; set it to the reverse proxy's address when one is deployed
 - [ ] (A0) Admin `POST /prescription/create` is user-only now (an admin used to pass the patient-ownership check); prescription operations move to the console in v1.1
-- [ ] (Verification) Real Meta (WhatsApp) and real Paystack have not been exercised; everything runs against fakes and local e2e
+- [ ] (Verification) Real Paystack has not been exercised; everything runs against fakes and local e2e. Real Meta was exercised on 2026-10-19 up to the send (pipeline proven live), but no message has been delivered yet: blocked by Meta business verification (started 2026-10-27)
 - [ ] (Verification) Xcode upgrade so a dev build of the caregiver app works; push and background location are untested on a device
 - [ ] (Owner) Content: the WhatsApp support number
 - [ ] (Owner) EAS project, plus APNs/FCM credentials, for real push

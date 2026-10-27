@@ -160,6 +160,17 @@ def test_an_admin_token_whose_session_was_revoked_is_401(db, probe_client):
     assert probe_client.get("/probe", headers=headers).status_code == 401
 
 
+def test_a_disabled_admin_is_401_and_an_inactive_user_is_403(db, probe_client):
+    admin = make_admin(db, status="disabled")
+    assert probe_client.get("/probe", headers=auth_headers(admin)).status_code == 401
+    patient = make_patient(db)
+    headers = auth_headers(patient.user)
+    patient.user.is_active = False
+    db.commit()
+    r = probe_client.get("/probe", headers=headers)
+    assert r.status_code == 403 and r.json()["detail"] == "Inactive user"
+
+
 # --- no unverified decode ----------------------------------------------------------------------
 
 
