@@ -24,10 +24,9 @@ def _constraint(eng, name) -> str:
         return conn.execute(text("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = :n"), {"n": name}).scalar()
 
 
-def test_0015_follows_0014_and_is_the_head():
-    scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_revision(THIS).down_revision == PREVIOUS
-    assert scripts.get_heads() == [THIS]
+def test_0015_follows_0014():
+    # "Single head" is asserted for the whole history by test_migrations.py; 0015 is no longer the head once 0016 exists.
+    assert ScriptDirectory.from_config(Config("alembic.ini")).get_revision(THIS).down_revision == PREVIOUS
 
 
 def test_upgrade_creates_the_tables_and_drops_the_columns(scratch):  # noqa: F811

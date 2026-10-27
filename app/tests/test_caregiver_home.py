@@ -17,7 +17,7 @@ from app.tests.factories import (
 
 URL = "/api/v1/caregiver/home"
 HOME_KEYS = {"profile_status", "is_available", "location_updated_at", "today_visits", "upcoming_visits",
-             "open_offers", "wallet_balance_naira", "currency"}
+             "open_offers", "wallet_balance_naira", "currency", "can_author_care_plans"}
 
 
 def offer(db, booking, cg, **kw):
@@ -62,6 +62,7 @@ def test_a_brand_new_caregiver_gets_empty_but_complete_data(db, client):
         "open_offers": [],
         "wallet_balance_naira": 0.0,
         "currency": "NGN",
+        "can_author_care_plans": False,
     }
 
 

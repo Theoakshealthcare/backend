@@ -12,6 +12,7 @@ from app.core.money import kobo_to_naira
 from app.db.models.booking import Booking, BookingNotification, BookingStatus, CaregiverLocation, PaymentStatus
 from app.db.models.caregiver import Caregiver, CaregiverWallet
 from app.db.models.patient import Patient
+from app.services.care_plan_access import is_care_plan_author
 
 HOME_LIST_LIMIT = 50
 ACTIVE_STATUSES = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
@@ -150,5 +151,6 @@ def build_home(db: Session, caregiver: Caregiver, now: Optional[datetime] = None
         "upcoming_visits": [_visit(b, p) for b, p in upcoming],
         "open_offers": offers,
         "wallet_balance_naira": float(kobo_to_naira(wallet.balance or 0)) if wallet else 0.0,
+        "can_author_care_plans": is_care_plan_author(db, caregiver),
         "currency": "NGN",
     }
