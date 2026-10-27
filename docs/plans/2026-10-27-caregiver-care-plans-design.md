@@ -17,13 +17,13 @@
 | # | Decision |
 |---|---|
 | D1 | Caregivers with the `nurse` skill, and a Clinical Reviewer (admin role), create and edit plans. Other caregivers view and tick tasks. |
-| D2 | No family view in v1 (later through the W4 web companion). |
+| D2 | No family view in v1 (later through the W4 web companion). The data is made family-ready now (section 4.4). |
 | D3 | 4-5 templates are seeded in a table now. Admin screens for templates come later. |
 | D4 | Medications are record-only, with a clear "not clinical advice" note, no dose alerts, no reminders. |
 | D5 | A plan belongs to the client and persists across visits and caregivers. A caregiver sees it only while assigned, by the same rule as the client profile (backend #22, monorepo #9). |
 | D6 | Notes, medications and allergies are encrypted at rest like vitals (Fernet). Call recording stays off. |
 
-**Non-goals (v1):** family or patient access; dose or interaction checks, medication reminders or adherence tracking; admin console screens for plans or templates (the admin **API** is in scope, section 6.2); FallGuard or vitals thresholds ("Critical" chips); push notifications about plan changes; per-visit care schedules (the "Care Schedule" row in frame `8.20.26` is read from the booking, not stored on the plan); photos or attachments; export or PDF.
+**Non-goals (v1):** family or patient access (no endpoint, no screen; only the data groundwork in 4.4); dose or interaction checks, medication reminders or adherence tracking; admin console screens for plans or templates (the admin **API** is in scope, section 6.2); FallGuard or vitals thresholds ("Critical" chips); push notifications about plan changes; per-visit care schedules (the "Care Schedule" row in frame `8.20.26` is read from the booking, not stored on the plan); photos or attachments; export or PDF.
 
 ## 2. The code today (builder check)
 
@@ -111,15 +111,15 @@ Known weakness (same as vitals, `docs/sop/2026-10-27-caregiver-client-profile.md
 
 Indexes: **partial unique** `(patient_id) WHERE status='active' AND patient_id IS NOT NULL` and the same for `care_recipient_id` (one active plan per client; a race gives an `IntegrityError` mapped to `409 care_plan_exists`); `(created_by_caregiver_id)`; `(status, updated_at DESC)` for the admin list.
 
-**`care_plan_goals`**: `id`, `plan_id` fk, `title_encrypted` not null, `target_encrypted` null, `frequency` CHECK `daily`/`weekly`/`ongoing`/`one_time`, `status` CHECK `active`/`achieved`/`discontinued` default `active`, `sort_order` int, `created_at`, `updated_at`. Index `(plan_id, sort_order)`.
+**`care_plan_goals`**: `id`, `plan_id` fk, `title_encrypted` not null, `target_encrypted` null, `frequency` CHECK `daily`/`weekly`/`ongoing`/`one_time`, `status` CHECK `active`/`achieved`/`discontinued` default `active`, `sort_order` int, `family_visible` bool not null default false, `created_at`, `updated_at`. Index `(plan_id, sort_order)`.
 
-**`care_plan_tasks`**: `id`, `plan_id` fk, `title_encrypted` not null, `time_slot` CHECK `morning`/`afternoon`/`evening`/`night`, `time_of_day` time null (display, e.g. 08:00), `days_of_week` smallint[] not null (1 = Mon .. 7 = Sun; "Daily" = all seven), `is_active` bool default true, `sort_order`, `created_at`, `updated_at`. Index `(plan_id, is_active)`.
+**`care_plan_tasks`**: `id`, `plan_id` fk, `title_encrypted` not null, `time_slot` CHECK `morning`/`afternoon`/`evening`/`night`, `time_of_day` time null (display, e.g. 08:00), `days_of_week` smallint[] not null (1 = Mon .. 7 = Sun; "Daily" = all seven), `is_active` bool default true, `sort_order`, `family_visible` bool not null default false, `created_at`, `updated_at`. Index `(plan_id, is_active)`.
 
 **`care_plan_task_completions`**: `id`, `task_id` fk, `for_date` date, `completed_by_caregiver_id` fk, `booking_id` fk, `completed_at`. `UNIQUE (task_id, for_date)` (two caregivers racing on the same tick get one row, the second call is a no-op). Unticking deletes the row and writes an event.
 
 **`care_plan_medications`** (record only, D4): `id`, `plan_id` fk, `detail_encrypted` not null (encrypted JSON: `name`, `strength`, `dose_amount`, `dose_unit`, `route`, `reason`, `prescribed_by`, `note`), `frequency` CHECK `once_daily`/`twice_daily`/`three_times_daily`/`four_times_daily`/`weekly`/`as_needed`/`other`, `times_of_day` text[] (`"08:00"`), `start_date` date, `end_date` date null, `status` CHECK `active`/`stopped`, `stopped_at`, `created_at`, `updated_at`. A medication is **stopped, never deleted**: the history of what a client was on matters more than a tidy list.
 
-**`care_plan_observations`** (append-only): `id`, `plan_id` fk, `booking_id` fk null, `author_caregiver_id` / `author_admin_id` (exactly one), `category` CHECK `observation`/`special_note`, `body_encrypted` text null (null only after erasure), `created_at`. Index `(plan_id, created_at DESC)`. No edit or delete endpoint: a correction is a new note. **No database trigger** (unlike `admin_audit_log`), because erasure must blank `body_encrypted`; append-only is enforced in the service layer and tested.
+**`care_plan_observations`** (append-only): `id`, `plan_id` fk, `booking_id` fk null, `author_caregiver_id` / `author_admin_id` (exactly one), `category` CHECK `observation`/`special_note`, `body_encrypted` text null (null only after erasure), `family_visible` bool not null default false, `created_at`. Index `(plan_id, created_at DESC)`. No edit or delete endpoint: a correction is a new note. **No database trigger** (unlike `admin_audit_log`), because erasure must blank `body_encrypted`; append-only is enforced in the service layer and tested.
 
 **`care_plan_events`** (append-only history): `id`, `plan_id` fk, `actor_type` CHECK `caregiver`/`admin`/`system`, `actor_id` uuid, `action` text (`plan.create`, `plan.update`, `plan.status`, `template.use`, `goal.add|update|remove`, `task.add|update|remove|untick`, `med.add|update|stop`, `observation.add`), `detail` json (**field names, ids and counts only, never health text**), `created_at`. Index `(plan_id, created_at)`. This answers "who changed this plan and when" without copying health data into a second table.
 
@@ -174,7 +174,7 @@ For routes keyed by plan id the access is derived the other way: the plan's subj
 | Caregiver, no nurse skill, live booking | no (403 `not_a_nurse`) | yes | no (403 `not_a_nurse`) | `in_progress` only | `in_progress` only (**A4**) |
 | Suspended caregiver | by role | `in_progress` booking only | by role, `in_progress` only | `in_progress` | `in_progress` |
 | Caregiver with no live booking for that client | by role | **404** | **404** | **404** | **404** |
-| Patient / family (any token) | no | no endpoint exists; a patient token on a caregiver route is 403 | no | no | no |
+| Patient / family (any token) | no | no endpoint exists in v1; a patient token on a caregiver route is 403 (groundwork for later: 4.4) | no | no | no |
 | Admin: Clinical Reviewer / Super Admin | via admin API | `careplans.read` (audited) | `careplans.write` (audited) | no | admin may add a note (`careplans.write`) |
 | Admin: Operations, Support, Finance, Verification, Analyst | no | no | no | no | no |
 
@@ -189,6 +189,44 @@ Tick dates: only **today** in `HOME_TIMEZONE`; no ticking the past or future (**
 - Every care plan response carries `Cache-Control: no-store` (health data, as `caregiver_clients.py:41`).
 - Writes to a plan or its children take `expected_version`; a stale value is `409 version_conflict` with the current plan, so two authors cannot silently overwrite each other. Ticks and observations do not need it (they never overwrite).
 - No health text in logs, events or error messages. Validation errors name the field, not the value.
+
+### 4.4 Family view: groundwork only (out of v1)
+
+The owner's decision: no family view in v1, but the data and the access check are built now, so it can be switched on later without migrating existing rows. **Nothing in this section is exposed by any v1 endpoint.**
+
+**The flag.** `family_visible boolean not null default false` on `care_plan_goals`, `care_plan_tasks` and `care_plan_observations` (3.3; "notes" are observations, both categories). Default false means every item stays private until someone deliberately shares it. No v1 request body carries the flag, so v1 cannot set it by accident. The plan header (diagnosis, risk level, dates) and medications have no flag: they are not family-visible until a later decision adds one.
+
+**The access rule** (written and tested in B1, called by nothing yet). `resolve_family_access(db, user, plan_id)` allows a person only when **all** hold:
+
+1. a `care_relationships` row links their user to the plan's subject (`contact_user_id = user.id`, `recipient_id` = the plan's `care_recipient_id`), role `family` or `guardian`;
+2. that row has `clinical_access = true`;
+3. the latest `share_with_family` consent for the subject is `granted` (the `consents` table is append-only; the latest row per subject and type wins);
+4. the subject is active and the plan is not erased.
+
+It returns **only items with `family_visible = true`**, never the fields in the next list, and refuses with one 404 like the caregiver routes.
+
+**What the code supports today** (checked):
+
+| Question | Answer |
+|---|---|
+| Several relatives per person? | Yes. `uq_care_relationships_user_recipient` is unique per (user, recipient), so any number of relatives can link to one care recipient (`care.py:38-40`). |
+| A permission field? | One coarse boolean, `clinical_access` (default false, `care.py:47`), set true today only for the `self` row (`channels/whatsapp/identity.py:53-54`). No per-relative scope ("goals only", "no notes"). |
+| A consent field? | A `share_with_family` consent type exists (`consent.py:9`, constraint in migration `0004`); nothing reads or writes it yet. |
+| Plans keyed by `patient_id` | Relationships point at `care_recipients`, not patients. WhatsApp users have a `self` recipient row; an app-only patient has none, so the rule for these plans is settled when the family view is built (**A12**). |
+
+So several relatives is supported; a per-relative permission is not: every linked relative with `clinical_access` and consent sees the same shared items.
+
+**Never family-visible by default (flag for clinical sign-off, with the template review in section 7).** Even if a later release adds share controls, these stay with the care team unless a clinician allows each one explicitly:
+
+- internal observations and special notes written for the care team (behaviour, mood, concerns, family dynamics, safeguarding), unless that single item is shared;
+- diagnosis, risk level, medications (name, dose, reason, prescriber) and allergies, until a separate decision;
+- who wrote or ticked an item and when (staff identity and timing);
+- the event history (`care_plan_events`), progress percentages, and template review status;
+- anything about other people (another relative, another client).
+
+Sharing health data with relatives needs the client's own consent, which `share_with_family` models; the compliance owner should confirm the wording.
+
+**Delivery surface.** The W4 web companion (not built) is the intended first place a relative would see shared items, behind its magic-link and step-up authentication (`PRD-whatsapp-patient-channel.md` WA-FR-43 and WA-FR-44: clinical data only after step-up, never in chat). Nothing is designed here for it beyond the data rules above.
 
 ## 5. Behaviour decisions the design does not draw
 
@@ -429,6 +467,7 @@ Fixed type tokens only (`theme.ts`, no raw `fontSize`), the existing success-scr
 | A8 | Progress counts only days with a visit | The number will look low if counted over all days |
 | A9 | Plans are kept while the client exists; retention period to be decided | Compliance |
 | A10 | Seeded templates go live as `pending` review, shown with a "not yet clinically reviewed" line | Alternative: hide until approved (the Templates tab would be empty at launch) |
+| A12 | Family access reuses `clinical_access` plus the `share_with_family` consent; a per-relative scope and the rule for app-only (`patient_id`) subjects are decided when the family view is built | The access function is the one place to change |
 | A11 | The plan's allergies and the patient record's allergies stay separate and both are shown | Merging needs a data rule |
 
 ## 13. Test strategy
@@ -442,6 +481,7 @@ pytest with the existing factories; one file per slice plus a migration test (th
 - **Plan rules:** one active plan per subject including a concurrent create; copy-not-reference from a template; completed plan read-only; `version_conflict`; field limits; soft-removed items disappear from reads but keep completions.
 - **Tasks:** day matching by `days_of_week`, tick idempotent, two callers racing, untick writes an event, today-only in `Africa/Lagos` around midnight, not ticked outside `in_progress`.
 - **Progress:** visit-day denominator, a task added mid-plan, no visit yet.
+- **Family groundwork (B1/B2):** `family_visible` defaults false and no v1 request body can set it; `resolve_family_access` allows only a linked family/guardian with `clinical_access` and a granted `share_with_family` consent, refuses a withdrawn consent, an unlinked user and another client's relative, supports two relatives of one client, and returns only flagged items; no v1 route calls it.
 - **Erasure:** a full plan, then erasure, nothing readable remains.
 - **Leak test:** the response keys are an exact closed list (as the profile test does with `SECRET_BITS`): no address, phone, email, booking condition.
 - **OpenAPI:** the monorepo `api:sync` drift check passes; mobile tests (Vitest/RTL, existing setup) cover each screen's empty, loading, error, 404 and capability-hidden states.
@@ -453,8 +493,8 @@ Owner feedback (2026-10-21): slices that were too big took too long. Four backen
 
 | Slice | Scope | Migration | Endpoints | Sensitive | Size | Opus |
 |---|---|---|---|---|---|---|
-| **B1 Foundation** (`feat/care-plans-core`) | Subject and access resolver; nurse test and Home field; `care_plan_templates` + 5 seeds; `care_plans`, `care_plan_goals`, `care_plan_tasks` (definitions, because create and "Use template" copy them), `care_plan_events`; templates list/preview, assigned list, candidates, visit summary, create (with goals and tasks), get, patch (incl. allergies, special instructions, complete/archive), goals add/edit/remove; erasure hook; reencrypt list; SOP, FE guide section from captures, checklist | `0015_care_plans_core` | 1 (Home field), 2, 3, 4, 5, 6, 7, 8, 9, 10-12 | patient health data, access control | M: 11 routes plus the Home field, about 900 lines of code, about 1,100 lines of tests | yes |
-| **B2 Ticks, notes, progress** (`feat/care-plans-tasks`) | `care_plan_task_completions`, `care_plan_observations`; task add/edit/remove, day view, tick, observations, progress; erasure and reencrypt extended | `0016_care_plan_ticks_and_notes` | 16-23 | health data | M: 8 routes, about 700 + 900 tests | yes |
+| **B1 Foundation** (`feat/care-plans-core`) | Subject and access resolver; nurse test and Home field; `care_plan_templates` + 5 seeds; `care_plans`, `care_plan_goals`, `care_plan_tasks` (definitions, because create and "Use template" copy them), `care_plan_events`; templates list/preview, assigned list, candidates, visit summary, create (with goals and tasks), get, patch (incl. allergies, special instructions, complete/archive), goals add/edit/remove; `family_visible` (default false) on goals and tasks and the tested `resolve_family_access` check over `CareRelationship` and consent (4.4), not exposed; erasure hook; reencrypt list; SOP, FE guide section from captures, checklist | `0015_care_plans_core` | 1 (Home field), 2, 3, 4, 5, 6, 7, 8, 9, 10-12 | patient health data, access control | M: 11 routes plus the Home field, about 900 lines of code, about 1,100 lines of tests | yes |
+| **B2 Ticks, notes, progress** (`feat/care-plans-tasks`) | `care_plan_task_completions`, `care_plan_observations`; task add/edit/remove, day view, tick, observations (with `family_visible`, default false), progress; erasure and reencrypt extended | `0016_care_plan_ticks_and_notes` | 16-23 | health data | M: 8 routes, about 700 + 900 tests | yes |
 | **B3 Medications** (`feat/care-plans-medications`) | `care_plan_medications`; add, edit, stop; the "not clinical advice" copy lives in the app and in the OpenAPI description; erasure and reencrypt extended | `0017_care_plan_medications` | 13-15 | health data (medicines) | S: 3 routes, about 300 + 450 tests | yes (short) |
 | **B4 Admin API** (`feat/care-plans-admin`) | `careplans.read/write/templates`, Clinical Reviewer grants, admin list/detail/create/edit/section writes/note, template review; audit rows; admin FE guide section | `0018_care_plan_admin_permissions` (data only) | 9 admin routes | auth + health data | S-M: about 500 + 600 tests (mostly reuses B1-B3 services) | yes |
 | **M1 Hub, create, details, goals** (monorepo `feat/caregiver-care-plans-hub`) | Home card, hub, preview, picker, create, details accordions, add goal, edit plan, client-profile row | none | calls B1 | screens only | M | no (Sonnet review) |
@@ -469,4 +509,4 @@ Owner feedback (2026-10-21): slices that were too big took too long. Four backen
 
 ## 15. Follow-ups after v1
 
-Family read-only view through W4; admin console screens for plans and templates; template create/edit; medication reminders and a per-dose record (needs clinical sign-off); a care plan summary in the visit-complete flow; merging allergy sources; per-recipient vitals (shares the subject problem); creating a `CareRecipient` for app bookings; plan change push to the other caregivers; export or print for the family; a retention policy.
+Family read-only view through W4 (the flag and access check already exist, 4.4; it needs the companion, share controls and the clinician's list); admin console screens for plans and templates; template create/edit; medication reminders and a per-dose record (needs clinical sign-off); a care plan summary in the visit-complete flow; merging allergy sources; per-recipient vitals (shares the subject problem); creating a `CareRecipient` for app bookings; plan change push to the other caregivers; export or print for the family; a retention policy.
