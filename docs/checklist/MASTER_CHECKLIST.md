@@ -20,6 +20,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - **Items:** 210 done (`[x]`), 158 open (`[ ]`), counted over every task line (the 2026-10-21 count was 209 and 156).
 - **Sections done:** 11 (tech debt), 12 (account deletion), 13 (pricing audit). Section 8 (Phase C) has C0–C4 and the post-C4 fixes merged, but its remaining screens are not built and the device run is pending, so it is in progress, not done.
 - **Sections in progress:** 0, 6, 7, 8, 9 (A0, A1, the A2 API, A3 slices 1, 2 and 3 merged on the backend; slice 2's screens are merged; slice 3's console screens and a live Paystack run remain for payouts and refunds), 10 (W1–W3b done; the live Meta check proved the pipeline but delivery waits on Meta business verification).
+- **KYC (2026-10-27, design only):** section 14 adds 14 open items (counts above not recounted; they exclude these).
 - **Sections planned or not started:** 1 and 2 (open items are mostly the owner's secret rotation and the remaining hardening list), 3–5, plus A2 screens, A3–A5, W4 and W5.
 
 **Baseline:** the full review of all three repos on 2026-09-24 (it predates this file).
@@ -61,7 +62,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 ## 2. Backend security & money fixes — 🟡 in progress (most fixes merged; remaining items below)
 - [x] ⚠️ Authenticate the booking WebSockets (they currently use hardcoded demo users) — `security/access-control`, 2026-10-05
 - [x] ⚠️ Require auth and ownership checks on the prescription endpoints — `security/access-control`, 2026-10-05
-- [ ] ⚠️ Admin approval for caregiver identity; stop accepting the verification result from the client
+- [ ] ⚠️ Admin approval for caregiver identity; stop accepting the verification result from the client. Designed 2026-10-27: the provider's signed webhook, confirmed by an authenticated pull, is the only source of `verified`; the client route answers 410 (section 14, slices K2–K4, [design](../plans/2026-10-27-caregiver-kyc-design.md)). Note: the route is already non-authoritative in code (`process_verification_result` only moves to `in_progress`), but it still stores arbitrary client JSON
 - [x] ⚠️ Make the caregiver document uploads private (they're under the public `/uploads` mount) — 2026-10-05, `security/access-control` (no legacy files to migrate)
 - [x] ⚠️ Reject refresh tokens used as access tokens (check the `type` claim) — `security/access-control`, 2026-10-05
 - [x] ⚠️ Validate that withdrawal amounts are positive, and lock the wallet row — 2026-10-05, `security/money`
@@ -100,7 +101,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Service calls: throw on failure, or check `.success`; unwrap `.data`
 - [ ] Bookings status filter; register the `BookingDetails`, chat and notes screens
 - [ ] Real Home: earnings, wallet, availability, job requests
-- [ ] Identity verification against the real backend flow
+- [ ] Identity verification against the real backend flow (now section 14, KYC with Prembly)
 
 ## 5. Cross-repo — ⚪ planned
 - [ ] Shared package: UI kit, theme, auth store, API client (about 30 files are duplicated today)
@@ -203,7 +204,7 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
   - [ ] Chat relay via WhatsApp
   - [ ] Masked calling (no recording)
   - [ ] Change password (needs a backend endpoint)
-  - [ ] KYC: ID and face
+  - [ ] KYC: ID and face (Prembly; section 14 below, slices K0–K8, [design](../plans/2026-10-27-caregiver-kyc-design.md))
   - [ ] Learn
   - [ ] Refer and earn
   - [ ] Complaints
@@ -369,6 +370,23 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] `DELETE` always refused (`409`); stale `PUT` refused (`409`); concurrent writers serialised
 - [x] Both `GET`s need an admin with `bookings.read` (no client calls them)
 - [x] Admin FE guide section 13 captured live (132 to 149)
+
+## 14. Caregiver KYC (identity verification with Prembly) — ⚪ designed 2026-10-27, nothing built
+Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/2026-10-27-caregiver-kyc-design.md). Owner decisions 2026-10-27: Prembly; mandatory before approval with the admin override kept; failures to the review queue, never auto-reject; store only the provider reference and result (no images); the provider's signed webhook is the source of truth. Order and parallelism are in design section 14. Nothing below is ticked.
+- [ ] **K0** Spike and provider setup: owner gets a Prembly account, a dashboard widget, sandbox keys and a funded wallet; spike the RN SDK on Expo 57 in a dev build; capture a real webhook and session body; settle the open questions Q1–Q10 and decide widget vs own-camera fallback
+  - [ ] ⚠️ Confirm how the webhook is signed (the docs say HMAC with the *public* key) and whether `metadata` is echoed
+  - [ ] Confirm the exact session-retrieval call and the face confidence scale
+- [ ] **K1** Foundation (migration `0015_caregiver_kyc`): `identity_verifications`, `kyc_webhook_events`, `identity_verification_events`; CHECK on `identity_verification_status` (adds `needs_review`); drop the Onfido columns and the client-JSON columns; `consents` type `identity_verification`; `app/services/prembly.py`; `FakePrembly`; delete `onfido.py` and `ONFIDO_*`; erasure update
+- [ ] **K2** Caregiver API: `GET /identity-verification`, `POST .../sessions` (consent recorded, attempt cap, one active attempt), `client-event` (non-authoritative), `defer`; `POST .../result` answers 410; FE guide section
+- [ ] ⚠️ **K3** Webhook ingest and confirm (Opus review): `POST /api/v1/kyc/prembly/webhook`, HMAC over the raw body, capped body, `token` dedupe, ARQ job, authenticated pull before anything is applied
+- [ ] ⚠️ **K4** Decision engine (Opus review): outcome mapping, name and DOB match, duplicate-identity fingerprint, attempts and expiry, reconcile cron, provider-outage and empty-wallet handling, caregiver notifications, never overwriting an admin decision
+- [ ] **K5** Admin API: provider summary in the identity block, `identity=needs_review` queue filter and count, `identity-decision` closes the attempt, `identity-reset`; FE guide admin section
+- [ ] **K6** Admin console (monorepo): queue filter and badge, identity card with the provider summary, reset action
+- [ ] **K7a** Caregiver app screens and states (monorepo): identity route after Step 2, intro and consent, checking, verified, try again, under review, unavailable, expired, error; `setupRouteFor` and gate tests
+- [ ] **K7b** Caregiver app widget integration (monorepo): `react-native-webview` and the Prembly package in a new dev build, camera permissions, client events
+- [ ] **K8** Live sandbox pass on a device, one live-key check by the owner, FE guide rows marked verified live, SOP, reconcile this section
+- [ ] Owner: a Data Processing Agreement and processing location from Prembly; counsel check of the NDPA lawful basis and the consent wording; retention after erasure (proposed 12 months of status + timestamp + reference); keep or drop the NIN/BVN fingerprint
+- [ ] Owner: a person and channel for the "Prembly wallet low or empty" alert (an empty wallet fails every verification at once)
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
