@@ -161,9 +161,11 @@ class CaregiverApprovalService:
             ],
             "identity": {
                 "status": cg.identity_verification_status,
-                "document_verification_result": cg.document_verification_result,
-                "face_verification_status": cg.face_verification_status,
-                "face_verification_result": cg.face_verification_result,
+                # The provider results moved to identity_verifications; K5 reshapes this block. The keys stay (null) so the
+                # response shape the admin console reads does not change in between.
+                "document_verification_result": None,
+                "face_verification_status": None,
+                "face_verification_result": None,
             },
             "background_check": {
                 "status": cg.background_check_status,

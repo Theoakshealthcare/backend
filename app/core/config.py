@@ -66,10 +66,20 @@ class Settings(BaseSettings):
     OTP_EXPIRE_MINUTES: int = 10
     OTP_LENGTH: int = 5
 
-    # Onfido Configuration
-    ONFIDO_API_KEY: str = ""
-    ONFIDO_WEBHOOK_TOKEN: Optional[str] = None
-    ONFIDO_REGION: str = "US"  # US, EU, CA
+    # Caregiver KYC (Prembly), docs/plans/2026-10-27-caregiver-kyc-design.md section 9.3. The widget key is public (the API hands it
+    # to the app so it can rotate without a release); the secret, org id, webhook and fingerprint keys live only in server env.
+    PREMBLY_BASE_URL: str = "https://api.prembly.com"
+    PREMBLY_SECRET_KEY: str = ""
+    PREMBLY_ORG_ID: str = ""
+    PREMBLY_WIDGET_ID: str = ""
+    PREMBLY_WIDGET_KEY: str = ""
+    PREMBLY_WEBHOOK_KEY: str = ""
+    KYC_FINGERPRINT_KEY: str = ""
+    KYC_MAX_ATTEMPTS: int = 3
+    KYC_SESSION_TTL_HOURS: int = 24
+    KYC_FACE_THRESHOLD: int = 85  # a placeholder until the K0 spike tunes it
+    KYC_FACE_FLOOR: int = 70
+    KYC_POLICY_VERSION: str = "kyc-2026-10"  # the consent text version recorded with identity_verification consents
     
     # Paystack Configuration
     PAYSTACK_SECRET_KEY: str = ""
