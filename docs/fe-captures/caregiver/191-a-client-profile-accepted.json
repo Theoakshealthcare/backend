@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/febe381c-c843-4896-a7b2-cccc769c30ed/client",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "booking_id": "febe381c-c843-4896-a7b2-cccc769c30ed",
+      "patient_id": "6d2b4e32-c879-49c5-85fe-0a7ae43a1758",
+      "full_name": "Placeholder Patient Two",
+      "profile_image_url": null,
+      "booking_for": "myself",
+      "age": null,
+      "gender": "male",
+      "emergency_contact": null,
+      "medical_history": null,
+      "latest_vitals": null
+    }
+  },
+  "note": "Booking only accepted: latest_vitals is null (vitals need an in-progress visit or a patient grant)."
+}

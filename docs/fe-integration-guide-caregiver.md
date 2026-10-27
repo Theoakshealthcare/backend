@@ -1556,6 +1556,124 @@ _capture `150-a-whatsapp-booking-detail.json` (long object trimmed to the keys s
 
 **Not live:** the allowed path for a WhatsApp booking (more than the lead out, response `status: "pending"`) was not recaptured here; its behaviour is covered by `app/tests/test_caregiver_cancel_window.py` and `test_dropout_redispatch.py`.
 
+### Client profile: `GET /caregiver/bookings/{booking_id}/client`
+
+Who the visit is for, while the visit is live. Read-only; the app's "Client profile" screen. **Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `190` to `195` come from `app/tests/test_capture_client_profile.py`. The data is placeholder.
+
+**Who may call it:** the caregiver assigned to the booking, while its status is `accepted`, `en_route` or `in_progress` (a suspended caregiver only while `in_progress`). Everyone else, including a caregiver who was only offered the job, another caregiver, a finished or cancelled visit and a booking that does not exist, gets **the same** `404`. It never says which of those it was. Show "Client details aren't available" on a `404`; do not retry.
+
+Response `200` (`Cache-Control: no-store`; the app must not store it):
+
+<!-- capture: 190-a-client-profile-in-progress.json response.body -->
+```json
+{
+  "booking_id": "d4b9d398-613a-4a5c-8481-d6323cd45c8b",
+  "patient_id": "e5a808eb-e659-4cd2-9935-26fb9d318d93",
+  "full_name": "Placeholder Patient",
+  "profile_image_url": null,
+  "booking_for": "myself",
+  "age": 70,
+  "gender": "female",
+  "emergency_contact": {
+    "name": "Placeholder Kin",
+    "phone": "+2340000718102",
+    "relationship": "Daughter"
+  },
+  "medical_history": {
+    "blood_group": "O+",
+    "allergies": "Placeholder allergy",
+    "medical_conditions": "Placeholder condition",
+    "medications": "Placeholder medication",
+    "records": [
+      {
+        "record_type": "diagnosis",
+        "title": "Placeholder diagnosis",
+        "description": "Placeholder note",
+        "severity": "medium",
+        "date_recorded": "2019-05-01"
+      }
+    ]
+  },
+  "latest_vitals": [
+    {
+      "vital_type": "heart_rate",
+      "value": "84",
+      "unit": "bpm",
+      "recorded_at": "2026-10-27T14:44:53.446889"
+    },
+    {
+      "vital_type": "blood_pressure",
+      "value": "138/85",
+      "unit": "mmHg",
+      "recorded_at": "2026-10-27T14:41:53.464295"
+    }
+  ]
+}
+```
+_capture `190-a-client-profile-in-progress.json`_
+
+- **`latest_vitals`** is the newest reading of each type, newest first, with **no status** (nothing here rates a reading). It is `null` when vitals are not available now (the same rule as `/vitals`: an in-progress visit with the patient, or a grant from the patient) and only for a visit booked for oneself; `[]` means available, none recorded. Present-but-null is the trap: `null` is "not available", not "none".
+
+<!-- capture: 191-a-client-profile-accepted.json response.body -->
+```json
+{
+  "booking_id": "febe381c-c843-4896-a7b2-cccc769c30ed",
+  "patient_id": "6d2b4e32-c879-49c5-85fe-0a7ae43a1758",
+  "full_name": "Placeholder Patient Two",
+  "profile_image_url": null,
+  "booking_for": "myself",
+  "age": null,
+  "gender": "male",
+  "emergency_contact": null,
+  "medical_history": null,
+  "latest_vitals": null
+}
+```
+_capture `191-a-client-profile-accepted.json`_
+
+- **Booked for someone else** (`booking_for` is not `myself`; the patient app sends `Myself` with a capital, treat them as equal): `full_name`, `age` and `gender` are the **person being visited**, or `"Client"` with `age` and `gender` null when the booking has no recipient on file. `medical_history`, `profile_image_url` and `latest_vitals` are `null`, because the patient record is the person who booked. `emergency_contact` is the person who booked (`relationship` is `"Booked this visit"`).
+
+<!-- capture: 192-a-client-profile-for-someone-else.json response.body -->
+```json
+{
+  "booking_id": "daf248ef-b2fa-4db9-b44b-b4f8ac5ce2e0",
+  "patient_id": "d98a0396-f046-4266-b10f-5f7f2e6825d5",
+  "full_name": "Placeholder Relative",
+  "profile_image_url": null,
+  "booking_for": "mother",
+  "age": 82,
+  "gender": "female",
+  "emergency_contact": {
+    "name": "Placeholder Booker",
+    "phone": "+2340000718103",
+    "relationship": "Booked this visit"
+  },
+  "medical_history": null,
+  "latest_vitals": null
+}
+```
+_capture `192-a-client-profile-for-someone-else.json`_
+
+- `age`, `gender`, `emergency_contact` and `medical_history` are `null` when nothing is stored. There is **no** care plan, address, coordinates, phone number or booking condition in this response (care plans are not built; the rest is on the booking itself).
+
+Errors:
+- `404` `{"detail": "Client not found"}` for every case above: another caregiver _(capture `193-a-client-profile-other-caregiver.json`)_, a completed visit _(`194-a-client-profile-completed.json`)_.
+- `403` `{"detail": "Access denied. Caregiver account required."}` for a patient token _(`195-a-client-profile-patient-token.json`)_; `401` with no token.
+
+<!-- capture: 193-a-client-profile-other-caregiver.json response.body -->
+```json
+{
+  "detail": "Client not found"
+}
+```
+
+<!-- capture: 195-a-client-profile-patient-token.json response.body -->
+```json
+{
+  "detail": "Access denied. Caregiver account required."
+}
+```
+
 ## 8. The visit code (start requires it)
 
 What it is, for the app: a 4-digit code made when the caregiver accepts. The **patient** sees it in their app (and, later, over WhatsApp) and reads it out when the caregiver arrives. The caregiver types it to start the visit. The caregiver never sees the code.
@@ -2495,6 +2613,8 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Paid booking creation through the patient API | **No** | Needs live Paystack. **Booking rows were seeded in the DB** |
 | Cancel refused on a WhatsApp booking inside the policy lead (`409`), booking unchanged, `channel` on the booking detail and list | Yes | `150`-`153` (booking seeded in the DB with `channel = whatsapp`, one hour before the start) |
 | Cancel refused en route and in progress; allowed more than the lead out (booking reopens as `pending`); lead taken from the policy | **[not live]** | `app/tests/test_caregiver_cancel_window.py` |
+| Client profile: 200 for in progress, accepted (vitals `null`) and booked-for-someone-else; the same 404 for another caregiver and a completed visit; 403 for a patient token | Yes (test harness: real app and Postgres, not the compose stack) | `190`-`195` |
+| Client profile for a suspended caregiver, an erased patient, a patient grant, `Myself` capitalised | **[not live]** | `app/tests/test_caregiver_client_profile.py` |
 | Payment settlement starting dispatch | Yes | Signed webhook sent to the real route |
 | Wave 1 offers, unavailable caregiver skipped | Yes | `dispatch-5-who-was-offered` |
 | Wave 2 (+10 min), escalation to `unmatched` (30 min) | No | Automated tests only |
