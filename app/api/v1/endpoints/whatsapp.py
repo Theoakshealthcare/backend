@@ -26,7 +26,7 @@ async def _read_capped_body(request: Request) -> bytes:
     """The raw body, or a 413 as soon as it passes the cap: a declared Content-Length is checked up front
     and the stream is counted as it arrives, so a chunked body (no Content-Length) cannot push the whole
     thing into memory before anyone looks at the size."""
-    too_large = HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
+    too_large = HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Payload too large")
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
         raise too_large

@@ -4,10 +4,11 @@ import json
 
 import pytest
 
+from app.channels.whatsapp.ingest import parse_webhook
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation, WhatsAppMessage
 from app.tests.factories_whatsapp import make_contact, make_wa_id
 from app.tests.fake_meta import (
-    TEST_APP_SECRET, TEST_VERIFY_TOKEN, body_bytes, button_payload, fake_meta, inbound_queue,  # noqa: F401
+    TEST_APP_SECRET, TEST_VERIFY_TOKEN, body_bytes, bsuid, button_payload, fake_meta, inbound_queue,  # noqa: F401
     media_payload,
     sign, signed_headers, status_payload, text_payload,
 )
@@ -232,6 +233,34 @@ def test_a_batch_with_a_message_and_a_status_handles_both(client, db, fake_meta,
     assert [j["meta_message_id"] for j in inbound_queue.jobs] == ["wamid.MIX"]
     db.expire_all()
     assert db.query(WhatsAppMessage).filter_by(meta_message_id="wamid.OUT1").one().status == "delivered"
+
+
+# --- business-scoped user ids (BSUIDs) ------------------------------------------------------
+def test_business_scoped_user_ids_are_accepted_and_ignored(client, db, fake_meta, inbound_queue):
+    """Real Meta payloads carry ``user_id`` / ``from_user_id`` / ``recipient_user_id`` (``NG.<digits>``) next
+    to every phone number. We do not store them yet (follow-up): the webhook must accept the payload,
+    handle the message and the status as usual, and persist or queue none of the ids."""
+    wa_id = make_wa_id()
+    id_ = bsuid(wa_id)
+    assert id_.startswith("NG.") and id_[3:].isdigit()
+    message = text_payload(wa_id, "Hi", message_id="wamid.B1")
+    value = message["entry"][0]["changes"][0]["value"]
+    assert value["contacts"][0]["user_id"] == id_ and value["messages"][0]["from_user_id"] == id_
+
+    assert post(client, message).status_code == 200
+    status = status_payload(wa_id, "wamid.B1", "delivered")
+    assert status["entry"][0]["changes"][0]["value"]["statuses"][0]["recipient_user_id"] == id_
+    assert post(client, status).status_code == 200
+    parsed = parse_webhook(status, expected_phone_number_id="")
+    assert [(u.meta_message_id, u.status) for u in parsed.statuses] == [("wamid.B1", "delivered")]
+
+    assert [j["meta_message_id"] for j in inbound_queue.jobs] == ["wamid.B1"]
+    assert id_ not in json.dumps(inbound_queue.jobs, default=str)
+    row = db.query(WhatsAppMessage).one()
+    assert (row.type, row.status) == ("text", "received")  # a callback never rewrites an inbound row
+    stored = [str(v) for r in (db.query(WhatsAppContact).all() + db.query(WhatsAppConversation).all()
+                               + db.query(WhatsAppMessage).all()) for v in vars(r).values()]
+    assert not any(id_ in v for v in stored)
 
 
 # --- review fixes ----------------------------------------------------------------------------
