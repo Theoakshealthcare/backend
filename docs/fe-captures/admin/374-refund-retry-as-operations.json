@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/c84b25c8-21ba-43d5-ae74-9ff05236f286/retry",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: refunds.approve"
+    }
+  }
+}

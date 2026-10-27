@@ -10,7 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 BookingStatusName = Literal["pending", "accepted", "en_route", "in_progress", "completed", "cancelled", "declined"]
-PaymentStatusName = Literal["pending", "paid", "failed", "refunded"]
+PaymentStatusName = Literal["pending", "paid", "failed", "partially_refunded", "refunded"]
 DispatchStateName = Literal["dispatching", "matched", "unmatched"]
 ChannelName = Literal["app", "whatsapp", "admin"]
 ServiceTypeName = Literal["nurse", "doctor", "physiotherapist", "caregiver", "nutritionist"]

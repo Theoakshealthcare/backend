@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/admin/refund/requests",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 410,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "This route has moved to /api/v1/admin/refunds."
+    }
+  }
+}

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_permission
 from app.db.models.admin import AdminUser
-from app.core.money import kobo_to_naira
 from app.db.models.user import User
 from app.db.models.patient import Patient
 from app.schemas.patient import (
@@ -20,21 +19,12 @@ from app.schemas.patient import (
     PatientDepositResponse,
     PatientPaymentRequest,
     PatientPaymentResponse,
-    PatientRefundRequestCreate,
-    PatientRefundRequestResponse,
     PatientRefundRequestOut,
     PaymentVerificationRequest,
-    PaymentVerificationResponse,
-    PaystackWebhookEvent
+    PaymentVerificationResponse
 )
-from app.services.patient_wallet import (
-    PatientWalletService,
-    RefundConflict,
-    RefundGatewayError,
-    RefundNotFound,
-)
+from app.services.patient_wallet import PatientWalletService
 from app.services.paystack import PaystackService
-from app.db.models.patient import PatientRefundRequest
 
 
 router = APIRouter()
@@ -257,34 +247,14 @@ def download_wallet_statement(
         )
 
 
-@router.post("/wallet/refund/request", response_model=PatientRefundRequestResponse)
-def request_refund(
-    refund_request: PatientRefundRequestCreate,
-    current_user: User = Depends(get_current_user),
-    wallet_service: PatientWalletService = Depends(get_patient_wallet_service),
-    db: Session = Depends(get_db),
-):
-    """Request a refund for a transaction"""
-    if current_user.user_type != "patient":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Patient account required."
-        )
-    
-    patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient profile not found."
-        )
-    
-    try:
-        return wallet_service.request_refund(patient.id, refund_request)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+PATIENT_REFUND_GONE = "Refunds are now handled by the Oakly team. Contact support to request one."
+ADMIN_REFUND_MOVED = "This route has moved to /api/v1/admin/refunds."
+
+
+@router.post("/wallet/refund/request", status_code=status.HTTP_410_GONE)
+def request_refund(current_user: User = Depends(get_current_user)):
+    """Retired (Refunds v2): a refund is raised by Oakly staff or by a cancellation, never by the patient."""
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=PATIENT_REFUND_GONE)
 
 
 @router.get("/wallet/refund/requests", response_model=List[PatientRefundRequestOut])
@@ -324,74 +294,13 @@ def get_refund_requests(
     ]
 
 
-# Admin endpoints for refund management
-@router.get("/admin/refund/requests")
-def get_all_refund_requests(
-    status_filter: Optional[str] = Query(None, description="Filter by status: pending, approved, rejected"),
-    current_user: AdminUser = Depends(require_permission("refunds.approve")),
-    db: Session = Depends(get_db),
-):
-    """Get all refund requests (Admin only)"""
-    query = db.query(PatientRefundRequest)
-    
-    if status_filter:
-        if status_filter not in ["pending", "approved", "rejected"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid status. Must be: pending, approved, or rejected"
-            )
-        query = query.filter(PatientRefundRequest.status == status_filter)
-    
-    requests = query.order_by(PatientRefundRequest.created_at.desc()).all()
-    
-    return [
-        {
-            "id": str(req.id),
-            "patient_id": str(req.patient_id),
-            "transaction_id": str(req.transaction_id),
-            "amount": kobo_to_naira(req.amount_kobo),
-            "reason": req.reason,
-            "status": req.status,
-            "admin_notes": req.admin_notes,
-            "created_at": req.created_at,
-            "processed_at": req.processed_at
-        }
-        for req in requests
-    ]
+# Admin endpoints for refund management: retired, they moved to /admin/refunds (the permission check stays, so a caller
+# without a token still gets 401 and without the permission 403).
+@router.get("/admin/refund/requests", status_code=status.HTTP_410_GONE)
+def get_all_refund_requests(current_user: AdminUser = Depends(require_permission("refunds.approve"))):
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=ADMIN_REFUND_MOVED)
 
 
-@router.put("/admin/refund/requests/{request_id}")
-def process_refund_request(
-    request_id: UUID,
-    action_data: Dict[str, Any],  # {"action": "approve/reject", "admin_notes": "..."}
-    current_user: AdminUser = Depends(require_permission("refunds.approve")),
-    wallet_service: PatientWalletService = Depends(get_patient_wallet_service),
-):
-    """Process refund request (Admin only)"""
-    action = action_data.get("action")
-    admin_notes = action_data.get("admin_notes")
-    
-    if action not in ["approve", "reject"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Action must be either 'approve' or 'reject'"
-        )
-    
-    try:
-        wallet_service.process_refund_approval(
-            request_id,
-            current_user.id,
-            action,
-            admin_notes
-        )
-    except RefundNotFound:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Refund request not found")
-    except RefundConflict as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except RefundGatewayError as e:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
-
-    return {
-        "status": "success",
-        "message": f"Refund request {action}d successfully"
-    }
+@router.put("/admin/refund/requests/{request_id}", status_code=status.HTTP_410_GONE)
+def process_refund_request(request_id: UUID, current_user: AdminUser = Depends(require_permission("refunds.approve"))):
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=ADMIN_REFUND_MOVED)

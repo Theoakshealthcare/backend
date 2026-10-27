@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/login/mobile",
+    "auth": null,
+    "body": {
+      "email_or_phone": "patient-df90cc7a-cba871c@example.com",
+      "password": "<PLACEHOLDER_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "access_token": "<ACCESS_TOKEN_JWT>",
+      "refresh_token": "<REFRESH_TOKEN>",
+      "token_type": "bearer"
+    }
+  }
+}

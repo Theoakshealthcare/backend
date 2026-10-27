@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/d5d5e833-3ab2-476d-9471-93b2d7efd831/correct-status",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "status": "completed",
+      "reason": "Caregiver forgot to check out"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "d5d5e833-3ab2-476d-9471-93b2d7efd831",
+      "booking_code": "A18FA979",
+      "status": "completed",
+      "payment_status": "paid",
+      "dispatch_state": "matched",
+      "caregiver_id": "0f9ff5a0-3896-4920-904d-7c461879af55",
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "refund_amount_kobo": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  },
+  "note": "The real completion path: it credits the caregiver's pending earning. SEEDED: patients, caregivers and paid bookings are inserted directly. Everything is placeholder data."
+}

@@ -165,6 +165,7 @@ class PatientTransaction(Base):
     refund_reason = Column(Text, nullable=True)
     admin_approved = Column(Boolean, default=False)
     admin_id = Column(UUID(as_uuid=True), nullable=True)  # Admin who approved refund
+    refund_id = Column(UUID(as_uuid=True), ForeignKey("refunds.id"), nullable=True)  # the refund a wallet credit came from
     approved_at = Column(DateTime, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)

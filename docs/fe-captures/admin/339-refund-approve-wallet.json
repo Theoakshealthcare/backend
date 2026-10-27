@@ -1,0 +1,64 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/87c46e35-d6bf-4a04-a686-4a0f766febe1/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "destination": "wallet"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "87c46e35-d6bf-4a04-a686-4a0f766febe1",
+      "booking_id": "2f1fa0f8-ac3f-40e6-992a-da12d9fb98f4",
+      "booking_code": "33E5AA67",
+      "status": "succeeded",
+      "reason_code": "admin_cancelled",
+      "origin": "system",
+      "suggested_amount_naira": 55000.0,
+      "amount_naira": 55000.0,
+      "destination": "wallet",
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": null,
+      "rejected_reason": null,
+      "requested_by": null,
+      "approved_by": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-10-21T14:29:06.156855",
+      "approved_at": "2026-10-21T14:29:06.697764",
+      "processed_at": "2026-10-21T14:29:06.697764",
+      "max_approvable_naira": 55000.0,
+      "available_actions": [],
+      "booking": {
+        "code": "33E5AA67",
+        "status": "cancelled",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": false,
+        "caregiver_arrived": false,
+        "completed": false,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 55000.0,
+        "refundable_naira": 0.0
+      },
+      "suggestion_why": "Set by the admin who cancelled the booking.",
+      "attempts": [],
+      "take_back_reason": null,
+      "take_back_preview_naira": null,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "Super Admin only. The patient's Oakly wallet is credited in the same transaction, so the refund is already succeeded."
+}

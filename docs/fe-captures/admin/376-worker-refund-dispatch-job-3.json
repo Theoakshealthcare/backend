@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "refund_dispatch_job -> app.services.refunds.dispatch_due(SessionLocal()), run in a one-off worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "refunds_sent": 1,
+      "refund_requests_seen_by_the_fake": [
+        {
+          "transaction": "BKG_6011C269_21868ea4",
+          "amount_kobo": 5500000
+        }
+      ]
+    }
+  },
+  "note": "SIMULATION of the schedule: in production the ARQ cron runs this every minute. FAKE PAYSTACK: Retry attempt 2 of the WhatsApp booker's refund went out."
+}

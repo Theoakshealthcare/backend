@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "booking_id": "0f511a01-411a-4f5c-b4e2-22b22a67ec07",
+      "amount_naira": 1000,
+      "reason_code": "other"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: refunds.request"
+    }
+  }
+}

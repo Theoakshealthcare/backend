@@ -55,6 +55,7 @@ BOOKER_EVENTS = (
     "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "refund_flagged", "refund_processed",  # W3
     "caregiver_reassigned",  # W3, from the admin console (A2)
     "caregiver_dropped_replacing", "dropout_choice_needed", "dropout_handed_over",  # a caregiver dropped out
+    "refund_needs_bank_details",  # Refunds v2: Paystack needs the family's bank account to pay the refund
 )
 CAREGIVER_EVENTS = ("caregiver_booking_cancelled",)
 BOOKING_EVENTS = BOOKER_EVENTS + CAREGIVER_EVENTS

@@ -102,11 +102,10 @@ class NotificationService:
         self._emit(booking, "visit_code_issued", key)
 
     def cancelled_by_admin(self, booking: Booking, *, caregiver_pushed: bool = False) -> None:
-        """An admin cancelled. The booker is told, and told about the refund as its own message when one was chosen
-        (``booking.refund_required``). ``caregiver_pushed``: the caller already pushes the caregiver itself."""
+        """An admin cancelled. The booker is told it is cancelled; the refund is announced later, when it is actually sent
+        to Paystack (refunds.dispatch_due), because nobody has approved it yet. ``caregiver_pushed``: the caller already
+        pushes the caregiver itself."""
         self._emit(booking, "booking_cancelled_by_admin")
-        if booking.refund_required:
-            self._emit(booking, "refund_flagged")
         if not caregiver_pushed:
             self._tell_caregiver_it_is_off(booking)
 

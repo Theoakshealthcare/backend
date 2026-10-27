@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/bbaf23f5-3fed-46bc-b474-25599b045e7c/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "succeeded",
+      "note": "Checked the Paystack dashboard: processed"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Paystack processed a different amount from this refund's. To record what Paystack confirmed, resolve again with that amount (5400000 kobo)."
+    }
+  },
+  "note": "The answer names the amount Paystack confirmed, to resolve again with."
+}

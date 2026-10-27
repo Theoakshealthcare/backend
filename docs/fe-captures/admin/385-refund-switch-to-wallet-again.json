@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/d5ae4305-5c38-46b0-a95e-253dde1f0424/switch-to-wallet",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Only a failed refund can be retried, switched to the wallet or closed"
+    }
+  }
+}

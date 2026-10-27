@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/bbaf23f5-3fed-46bc-b474-25599b045e7c/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "outcome": "failed",
+      "note": "Placeholder: trying to mark it failed"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Paystack shows this refund as processed, not failed. Check the Paystack dashboard."
+    }
+  }
+}

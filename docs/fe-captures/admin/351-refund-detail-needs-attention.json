@@ -1,0 +1,74 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds/7903c1f2-5fbd-4628-aab9-b5ce9e83a600",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "7903c1f2-5fbd-4628-aab9-b5ce9e83a600",
+      "booking_id": "4ec47135-8b9b-46cc-83d5-92f12d18b440",
+      "booking_code": "780212EB",
+      "status": "needs_attention",
+      "reason_code": "admin_cancelled",
+      "origin": "system",
+      "suggested_amount_naira": 55000.0,
+      "amount_naira": 20000.0,
+      "destination": "original_method",
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": "Approving 20,000.00 NGN now; the rest can be raised later",
+      "rejected_reason": null,
+      "requested_by": null,
+      "approved_by": "e935f884-e2d3-41bc-9cd9-8237111d16c8",
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-10-21T14:29:06.129551",
+      "approved_at": "2026-10-21T14:29:06.424294",
+      "processed_at": null,
+      "max_approvable_naira": 50000.0,
+      "available_actions": [],
+      "booking": {
+        "code": "780212EB",
+        "status": "cancelled",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": false,
+        "caregiver_arrived": false,
+        "completed": false,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 20000.0,
+        "refundable_naira": 35000.0
+      },
+      "suggestion_why": "Set by the admin who cancelled the booking.",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "needs_attention",
+          "failure_reason": null,
+          "paystack_refund_id": "1001",
+          "bank_code": null,
+          "account_last4": null,
+          "account_name": null,
+          "bank_details_submitted_at": null,
+          "created_at": "2026-10-21T14:29:10.145603"
+        }
+      ],
+      "take_back_reason": null,
+      "take_back_preview_naira": 0.0,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "Finance approved it, so 'bank_details' is NOT in its available_actions: someone else must enter the account."
+}

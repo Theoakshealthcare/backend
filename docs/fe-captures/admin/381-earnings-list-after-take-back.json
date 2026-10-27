@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/earnings?booking_id=d5d5e833-3ab2-476d-9471-93b2d7efd831",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "dae288ab-f93d-4f36-beb3-b8b31bf01b56",
+          "type": "earning",
+          "status": "successful",
+          "amount_kobo": 4000000,
+          "base_amount_kobo": 5000000,
+          "share_percent": 80,
+          "caregiver_id": "0f9ff5a0-3896-4920-904d-7c461879af55",
+          "caregiver_name": "Placeholder Nurse Refunds",
+          "booking_id": "d5d5e833-3ab2-476d-9471-93b2d7efd831",
+          "booking_code": "A18FA979",
+          "available_at": "2026-10-21T14:28:11.082815",
+          "released_at": "2026-10-21T14:29:14.111646",
+          "status_reason": null,
+          "status_changed_by": null,
+          "status_changed_at": null,
+          "created_at": "2026-10-21T14:29:11.073527"
+        }
+      ],
+      "total": 1
+    }
+  }
+}

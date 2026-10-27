@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/7903c1f2-5fbd-4628-aab9-b5ce9e83a600/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "This refund is no longer waiting for approval"
+    }
+  }
+}

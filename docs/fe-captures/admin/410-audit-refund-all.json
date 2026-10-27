@@ -1,0 +1,120 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=refund&limit=4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "56417836-0730-4600-bc53-1bdf40c29b3e",
+          "admin_user_id": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+          "admin_email": "boss-cba871ref@example.com",
+          "action": "refund.resolve",
+          "entity_type": "refund",
+          "entity_id": "1888dd86-81b2-407f-a6f2-84f3dcaef0e7",
+          "before": {
+            "status": "needs_review",
+            "review_reason": "Paystack has no record of this refund, but it may have been sent. Check the Paystack dashboard before resolving it."
+          },
+          "after": {
+            "booking_id": "9fd6a940-e5d7-4d98-9385-b499f1a1b71f",
+            "status": "failed",
+            "outcome": "failed",
+            "paystack": {
+              "kind": "none",
+              "status": null,
+              "amount_kobo": null
+            }
+          },
+          "reason": "Checked the Paystack dashboard: no refund for this payment",
+          "ip": "172.24.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-21T14:29:31.391467"
+        },
+        {
+          "id": "4bc16631-1ae2-4ca2-8dc5-033707f87a19",
+          "admin_user_id": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+          "admin_email": "boss-cba871ref@example.com",
+          "action": "refund.approve",
+          "entity_type": "refund",
+          "entity_id": "1888dd86-81b2-407f-a6f2-84f3dcaef0e7",
+          "before": {
+            "status": "pending_approval",
+            "suggested_amount_kobo": 5500000
+          },
+          "after": {
+            "booking_id": "9fd6a940-e5d7-4d98-9385-b499f1a1b71f",
+            "status": "approved",
+            "amount_kobo": 5500000,
+            "destination": "original_method",
+            "take_back_from_caregiver": false,
+            "take_back_kobo": 0,
+            "limit_kobo": 5000000,
+            "cumulative_kobo": 5500000,
+            "above_limit": true
+          },
+          "reason": null,
+          "ip": "172.24.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-21T14:29:21.830120"
+        },
+        {
+          "id": "5ff58f56-9ad6-4424-8f9b-b60b5ec78e28",
+          "admin_user_id": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+          "admin_email": "boss-cba871ref@example.com",
+          "action": "refund.resolve",
+          "entity_type": "refund",
+          "entity_id": "bbaf23f5-3fed-46bc-b474-25599b045e7c",
+          "before": {
+            "status": "needs_review",
+            "review_reason": "Paystack reported processed for 5400000 kobo, but this refund is 5500000 kobo."
+          },
+          "after": {
+            "booking_id": "1639d024-269b-495c-bd4e-e5837707bf18",
+            "status": "succeeded",
+            "outcome": "succeeded",
+            "paystack": {
+              "kind": "found",
+              "status": "processed",
+              "amount_kobo": 5400000
+            }
+          },
+          "reason": "Checked the Paystack dashboard: 54,000.00 NGN processed",
+          "ip": "172.24.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-21T14:29:21.802858"
+        },
+        {
+          "id": "0f5931b6-c3f0-4f66-902a-f0b6adf8d958",
+          "admin_user_id": "e935f884-e2d3-41bc-9cd9-8237111d16c8",
+          "admin_email": "fin-cba871ref@example.com",
+          "action": "refund.close",
+          "entity_type": "refund",
+          "entity_id": "7b91df8d-aef5-494a-9ced-d7065740ac17",
+          "before": {
+            "status": "failed"
+          },
+          "after": {
+            "booking_id": "e7f372fa-bb32-4c40-8f6e-56f139e06768",
+            "status": "closed",
+            "amount_kobo": 5500000
+          },
+          "reason": "The family asked us to stop; they will use their credit instead",
+          "ip": "172.24.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-21T14:29:21.670892"
+        }
+      ],
+      "total": 19,
+      "limit": 4,
+      "offset": 0
+    }
+  }
+}

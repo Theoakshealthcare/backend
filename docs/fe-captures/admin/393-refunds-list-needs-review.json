@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds?status=needs_review",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "bbaf23f5-3fed-46bc-b474-25599b045e7c",
+          "booking_id": "1639d024-269b-495c-bd4e-e5837707bf18",
+          "booking_code": "4AE4BD30",
+          "status": "needs_review",
+          "reason_code": "admin_cancelled",
+          "origin": "system",
+          "suggested_amount_naira": 55000.0,
+          "amount_naira": 55000.0,
+          "destination": "original_method",
+          "take_back_from_caregiver": false,
+          "take_back_naira": 0.0,
+          "failure_reason": "Paystack reported processed for 5400000 kobo, but this refund is 5500000 kobo.",
+          "note": null,
+          "rejected_reason": null,
+          "requested_by": null,
+          "approved_by": "bc3ef2da-1b83-46df-936e-2e65fa83438e",
+          "review_flagged_at": "2026-10-21T14:29:21.705900",
+          "review_reason": "Paystack reported processed for 5400000 kobo, but this refund is 5500000 kobo.",
+          "created_at": "2026-10-21T14:29:06.197649",
+          "approved_at": "2026-10-21T14:29:15.158719",
+          "processed_at": null,
+          "max_approvable_naira": 50000.0,
+          "available_actions": []
+        }
+      ],
+      "total": 1,
+      "limit": 50,
+      "offset": 0
+    }
+  }
+}

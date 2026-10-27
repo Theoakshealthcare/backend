@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/4ec47135-8b9b-46cc-83d5-92f12d18b440/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason_code": "no_supply",
+      "reason": "No caregiver could take the visit",
+      "refund": "full"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "4ec47135-8b9b-46cc-83d5-92f12d18b440",
+      "booking_code": "780212EB",
+      "status": "cancelled",
+      "payment_status": "paid",
+      "dispatch_state": "dispatching",
+      "caregiver_id": null,
+      "needs_address_check": false,
+      "refund_required": true,
+      "refund_required_reason": "admin_cancelled_full",
+      "refund_amount_kobo": 5500000,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  },
+  "note": "No money moves here. Cancelling a PAID booking with a refund choice also queues a refund (pending_approval) for Finance: see the refunds list."
+}

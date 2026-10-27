@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/650d0029-531c-4d1c-90b5-11acc207b626/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "take_back_from_caregiver": true,
+      "take_back_reason": "Placeholder"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "The caregiver's share can only be taken back for a completed visit"
+    }
+  }
+}

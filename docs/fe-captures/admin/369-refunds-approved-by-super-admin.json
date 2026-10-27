@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/<id>/approve (four times, as the Super Admin)",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {},
+    "body": {
+      "approved": [
+        "the WhatsApp booker's",
+        "the one that will fail and go to the wallet",
+        "the one that will fail and be closed",
+        "the one with a different amount"
+      ]
+    }
+  },
+  "note": "Four more 55,000.00 NGN refunds approved by the Super Admin (the responses have the same shape as the earlier approvals)."
+}

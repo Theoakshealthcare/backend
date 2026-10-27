@@ -1,0 +1,65 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds/0f709552-4a5c-478d-9f26-6bf0f8837d00",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "0f709552-4a5c-478d-9f26-6bf0f8837d00",
+      "booking_id": "d5d5e833-3ab2-476d-9471-93b2d7efd831",
+      "booking_code": "A18FA979",
+      "status": "pending_approval",
+      "reason_code": "complaint",
+      "origin": "staff",
+      "suggested_amount_naira": 20000.0,
+      "amount_naira": null,
+      "destination": null,
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": "Placeholder: the family says the visit was cut short",
+      "rejected_reason": null,
+      "requested_by": "e935f884-e2d3-41bc-9cd9-8237111d16c8",
+      "approved_by": null,
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-10-21T14:29:14.542361",
+      "approved_at": null,
+      "processed_at": null,
+      "max_approvable_naira": 50000.0,
+      "available_actions": [
+        "approve",
+        "reject"
+      ],
+      "booking": {
+        "code": "A18FA979",
+        "status": "completed",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": true,
+        "caregiver_arrived": true,
+        "completed": true,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 0.0,
+        "refundable_naira": 55000.0
+      },
+      "suggestion_why": "The amount entered when this refund was raised.",
+      "attempts": [],
+      "take_back_reason": null,
+      "take_back_preview_naira": 14545.45,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "take_back_preview_naira is the caregiver's share of this refund. The console shows it before the approver chooses."
+}

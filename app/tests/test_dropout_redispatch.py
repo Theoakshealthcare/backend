@@ -152,13 +152,14 @@ def test_the_dropout_is_recorded_against_the_caregiver(db, chat):
     assert dropout.dropout_count(db, caregiver.id) == 1
 
 
-def test_an_app_booking_is_unchanged_but_the_dropout_is_still_recorded(db, chat):
+def test_an_app_booking_is_cancelled_and_refunded_and_the_dropout_is_still_recorded(db, chat):
     patient, caregiver = make_patient(db), make_caregiver(db)
     booking = make_booking(db, patient, caregiver, status=BookingStatus.ACCEPTED, visit_code="1234")
     act(db, booking, caregiver, "cancel")
     b = reload(db, booking)
     assert b.status == BookingStatus.CANCELLED and b.caregiver_id == caregiver.id and b.dropout_state is None
-    assert not b.refund_required and events_of(db, b) == []
+    # RF-D8: a paid app booking dropped by its caregiver is queued for a full refund (it used to be left unrefunded).
+    assert b.refund_required and events_of(db, b) == []
     assert dropout.dropout_count(db, caregiver.id) == 1
 
 

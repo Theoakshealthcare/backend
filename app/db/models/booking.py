@@ -30,6 +30,12 @@ class PaymentStatus(str, Enum):
     PAID = "paid"
     FAILED = "failed"
     REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
+
+
+# A payment was received and has not been undone by a failure: the states in which a booking is "already paid" (a repeated
+# charge.success, a verify or a charge.failed must not touch it). Refunds move PAID on to the other two.
+PAID_STATES = (PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED)
 
 
 class Booking(Base):
@@ -141,6 +147,7 @@ class Booking(Base):
     service_fee_kobo = Column(BigInteger, nullable=False)
     platform_fee_kobo = Column(BigInteger, nullable=False)
     paystack_reference = Column(String, nullable=True)
+    paystack_fee_kobo = Column(BigInteger, nullable=True)  # Paystack's fee, recorded at settlement; null for older bookings
     payment_failure_reason = Column(Text, nullable=True)  # Store payment failure details
     
     # Special Instructions

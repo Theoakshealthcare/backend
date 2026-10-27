@@ -47,6 +47,7 @@ ALL_PERMISSIONS: FrozenSet[str] = frozenset({
     "payments.reconcile",
     "refunds.request",
     "refunds.approve",
+    "refunds.approve_above_limit",
     "payouts.execute",
     "ledger.adjust",
     "ledger.adjust_request",

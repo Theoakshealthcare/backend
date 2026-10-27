@@ -36,7 +36,7 @@ def names(db, booking):
 
 
 # --- cancel ------------------------------------------------------------------------------------------------
-def test_a_full_refund_cancel_tells_the_booker_twice_over_and_the_caregiver_once(client, db, ops, chat, expo):
+def test_a_full_refund_cancel_tells_the_booker_it_is_cancelled_once_and_the_caregiver_once(client, db, ops, chat, expo):
     booking, caregiver = accepted_booking(db, chat)
     db.add(PushToken(user_id=caregiver.user_id, token="ExponentPushToken[adm-cg]", platform="ios"))
     db.commit()
@@ -47,9 +47,8 @@ def test_a_full_refund_cancel_tells_the_booker_twice_over_and_the_caregiver_once
     assert (b.refund_required_reason, b.refund_amount_kobo) == ("admin_cancelled_full", b.total_amount_kobo)
     assert "caregiver_booking_cancelled" not in names(db, booking)  # A2 already pushes the caregiver itself
     texts = sorted(body_text(m) for m in deliver(db, chat))
-    assert texts == sorted([
-        f"Update on booking {b.booking_code}: Our team has cancelled this visit. Reply here if you need help.",
-        f"Your refund of ₦44,000 for booking {b.booking_code} is being processed. Reply here if you have questions."])
+    assert texts == [  # the refund is announced when it is sent to Paystack, after a person approves it
+        f"Update on booking {b.booking_code}: Our team has cancelled this visit. Reply here if you need help."]
     assert [m["data"]["type"] for m in expo.messages] == ["job_cancelled"]  # one push, not two
 
 
@@ -60,7 +59,7 @@ def test_a_partial_refund_stores_the_amount_not_a_string_in_the_reason(client, d
     b = fresh(db, booking)
     assert (b.refund_required_reason, b.refund_amount_kobo) == ("admin_cancelled_partial", 1_000_000)
     texts = [body_text(m) for m in deliver(db, chat)]
-    assert any("Your refund of ₦10,000" in t for t in texts)
+    assert not any("refund" in t.lower() for t in texts)  # nothing is promised before a person approves it
 
 
 def test_a_cancel_without_a_refund_only_says_it_is_cancelled(client, db, ops, chat):

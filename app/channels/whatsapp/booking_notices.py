@@ -10,6 +10,7 @@ time, money, and the visit code. The condition, address and special instructions
 """
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Optional, Tuple
 
@@ -22,6 +23,7 @@ from app.channels.whatsapp.templates import choose
 from app.core.security import decrypt
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.caregiver import Caregiver
+from app.db.models.refund import Refund
 from app.db.models.whatsapp_booking import BookingEvent
 from app.services.notification_service import code_fingerprint
 
@@ -36,13 +38,14 @@ TEMPLATE_FOR = {
     "caregiver_reassigned": "booking_update",
     "refund_flagged": "refund_update",
     "refund_processed": "refund_update",
+    "refund_needs_bank_details": "refund_update",
     "caregiver_dropped_replacing": "dropout_replacing",
     "dropout_choice_needed": "dropout_choice",
     "dropout_handed_over": "booking_update",
 }
 JOURNEY_EVENTS = ("caregiver_assigned", "visit_code_issued", "caregiver_en_route", "visit_started", "visit_completed",
                   "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "caregiver_reassigned",
-                  "refund_flagged", "refund_processed",
+                  "refund_flagged", "refund_processed", "refund_needs_bank_details",
                   "caregiver_dropped_replacing", "dropout_choice_needed", "dropout_handed_over")
 
 _HAS_CAREGIVER = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
@@ -67,6 +70,23 @@ def _experience(years: Optional[int]) -> str:
 def refund_amount_kobo(booking: Booking) -> int:
     """What the refund is for: the amount the policy decided, else everything that was paid."""
     return booking.refund_amount_kobo if booking.refund_amount_kobo is not None else booking.total_amount_kobo
+
+
+REFUND_NOTICES = {"refund_flagged": "being processed", "refund_processed": "complete",
+                  "refund_needs_bank_details": "waiting for your bank details. Our team will contact you"}
+# A refund notice keyed ``<refund id>:<status>`` is dropped once the refund has moved on to a state that makes it untrue.
+_STALE_FOR = {"refund_flagged": ("succeeded", "failed", "rejected", "closed", "needs_review"),
+              "refund_needs_bank_details": ("processing", "succeeded", "failed", "rejected", "closed", "needs_review")}
+
+
+def _refund_for(db: Session, event: BookingEvent) -> Optional[Refund]:
+    """The refund a v2 refund notice is about (its dedupe key is ``<refund id>:<status>``), or None for an older notice."""
+    head, _, _ = (event.dedupe_key or "").partition(":")
+    try:
+        refund_id = uuid.UUID(head)
+    except ValueError:
+        return None
+    return db.query(Refund).filter(Refund.id == refund_id, Refund.booking_id == event.booking_id).first()
 
 
 def _caregiver_for(db: Session, event: BookingEvent, booking: Booking) -> Optional[Caregiver]:
@@ -149,11 +169,17 @@ def build(db: Session, event: BookingEvent, booking: Booking, now: datetime, *, 
                 "contact you here.")}
         else:
             params = {"booking_code": code}
-    elif name in ("refund_flagged", "refund_processed"):
-        if name == "refund_flagged" and not booking.refund_required:
-            return None, "stale"
-        params = {"amount": rules.naira(refund_amount_kobo(booking)), "booking_code": code,
-                  "status": "being processed" if name == "refund_flagged" else "complete"}
+    elif name in REFUND_NOTICES:
+        refund = _refund_for(db, event)
+        if refund is None:  # the older, flag-based notice: the booking carries the facts
+            if name == "refund_flagged" and not booking.refund_required:
+                return None, "stale"
+            amount = refund_amount_kobo(booking)
+        else:  # Refunds v2: the refund itself carries the amount, and says whether this is still news
+            if refund.status in _STALE_FOR.get(name, ()):
+                return None, "stale"
+            amount = refund.amount_kobo if refund.amount_kobo is not None else refund_amount_kobo(booking)
+        params = {"amount": rules.naira(amount), "booking_code": code, "status": REFUND_NOTICES[name]}
     else:
         raise ValueError(f"not a journey event: {name}")
     return choose(template_for(name), params, in_window=in_window), None

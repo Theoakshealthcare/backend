@@ -1,0 +1,47 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds?booking_id=e559a2e8-c4a0-489f-a091-9cb3ab147178&status=all",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "d7b74acb-16af-4965-b6b3-5de7e7995b5b",
+          "booking_id": "e559a2e8-c4a0-489f-a091-9cb3ab147178",
+          "booking_code": "22D0E98F",
+          "status": "pending_approval",
+          "reason_code": "admin_cancelled",
+          "origin": "system",
+          "suggested_amount_naira": 12000.0,
+          "amount_naira": null,
+          "destination": null,
+          "take_back_from_caregiver": false,
+          "take_back_naira": 0.0,
+          "failure_reason": null,
+          "note": null,
+          "rejected_reason": null,
+          "requested_by": null,
+          "approved_by": null,
+          "review_flagged_at": null,
+          "review_reason": null,
+          "created_at": "2026-10-21T14:29:06.229633",
+          "approved_at": null,
+          "processed_at": null,
+          "max_approvable_naira": 50000.0,
+          "available_actions": []
+        }
+      ],
+      "total": 1,
+      "limit": 50,
+      "offset": 0
+    }
+  },
+  "note": "Operations holds refunds.request, which is enough to read the queue."
+}

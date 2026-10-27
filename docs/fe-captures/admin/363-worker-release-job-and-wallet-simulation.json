@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "earnings_release_job (app.services.earnings.release_due), then UPDATE caregiver_wallets SET balance = 100000",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "released": 1,
+      "wallet_balance_kobo_after": 100000
+    }
+  },
+  "note": "SIMULATION: the 24-hour clearing time was skipped so the earning is released into the caregiver's wallet, and the wallet was then set to 1,000.00 NGN to stand for a caregiver who has already been paid out most of it. The refund can then take back only what is left; the rest becomes owed."
+}

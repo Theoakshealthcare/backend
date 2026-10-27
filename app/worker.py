@@ -24,6 +24,7 @@ from app.services.dispatch import dispatch_tick
 from app.services.dropout import tick as dropout_tick
 from app.services.earnings import release_due as release_due_earnings
 from app.services.payouts import create_scheduled_batch, dispatch_due as dispatch_payouts, reconcile as reconcile_payouts
+from app.services.refunds import dispatch_due as dispatch_refunds, reconcile as reconcile_refunds
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,23 @@ async def payout_reconcile_job(ctx: dict) -> int:
     return settled
 
 
+async def refund_dispatch_job(ctx: dict) -> int:
+    """Send approved refunds to Paystack (one refund each). A refund is claimed and committed before the call, so a retry of
+    this job never sends one twice."""
+    sent = await asyncio.to_thread(_run_with_session, dispatch_refunds)
+    if sent:
+        logger.info("refund_dispatch: sent %d refund(s)", sent)
+    return sent
+
+
+async def refund_reconcile_job(ctx: dict) -> int:
+    """Ask Paystack about refunds that have had no webhook for a while and settle them (or flag them for review)."""
+    settled = await asyncio.to_thread(_run_with_session, reconcile_refunds)
+    if settled:
+        logger.info("refund_reconcile: acted on %d refund(s)", settled)
+    return settled
+
+
 async def whatsapp_events_job(ctx: dict) -> dict:
     """Booking messages that are due (payment received, link expiring, booking cancelled unpaid) and the sweep of
     drafts nobody finished. Runs every 15 seconds; claims make overlapping runs safe."""
@@ -139,7 +157,8 @@ def json_deserializer(data: bytes) -> Any:
 
 class WorkerSettings:
     functions = [expire_unpaid_bookings_job, dispatch_tick_job, dropout_tick_job, earnings_release_job,
-                 payout_batch_job, payout_dispatch_job, payout_reconcile_job, whatsapp_events_job,
+                 payout_batch_job, payout_dispatch_job, payout_reconcile_job, refund_dispatch_job, refund_reconcile_job,
+                 whatsapp_events_job,
                  func(process_whatsapp_inbound_job, keep_result=0)]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
@@ -153,6 +172,8 @@ class WorkerSettings:
         cron(payout_batch_job, hour=6, minute=0, second=10),  # 06:00:10 UTC every day; it acts only on a payout day
         cron(payout_dispatch_job, second=50),
         cron(payout_reconcile_job, minute={7, 22, 37, 52}, second=30),
+        cron(refund_dispatch_job, second=40),
+        cron(refund_reconcile_job, minute={7, 22, 37, 52}, second=45),
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)

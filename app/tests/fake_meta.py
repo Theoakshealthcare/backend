@@ -359,8 +359,8 @@ class FakePaystack:
         self.paid: set[str] = set()
         self.fail_init: Optional[str] = None  # the error message to return from initialize
         # payouts
-        self.banks = [{"name": "Placeholder Bank", "code": "058", "slug": "placeholder-bank"},
-                      {"name": "Sample Microfinance Bank", "code": "090", "slug": "sample-mfb"}]
+        self.banks = [{"id": 9, "name": "Placeholder Bank", "code": "058", "slug": "placeholder-bank"},
+                      {"id": 17, "name": "Sample Microfinance Bank", "code": "090", "slug": "sample-mfb"}]
         self.accounts: dict[tuple, str] = {}  # (account_number, bank_code) -> the name to resolve; others get a default
         self.unresolvable: set[tuple] = set()  # (account_number, bank_code) pairs Paystack cannot resolve
         self.recipients: dict[str, dict] = {}  # recipient_code -> the request
@@ -370,6 +370,11 @@ class FakePaystack:
         self.transfer_error: Optional[tuple] = None  # (http status, message) every transfer call answers with
         self.offline = False  # no answer at all (a timeout)
         self.requests: list[tuple] = []  # (method, path, query, body) of every call, in order
+        # refunds
+        self.refunds: dict[str, dict] = {}  # paystack refund id -> {id, transaction_reference, amount, status, ...}
+        self.refund_error: Optional[str] = None  # "timeout" | "500" | "422": what every refund call answers with
+        self.fee_kobo: Optional[int] = None  # the Paystack fee the verify call reports (None: no ``fees`` field)
+        self._refund_seq = 1000
 
     def handle(self, method: str, path: str, body: bytes, query: Optional[dict] = None) -> tuple[int, dict]:
         query = query or {}
@@ -393,6 +398,8 @@ class FakePaystack:
             return self._transfer(payload)
         if method == "GET" and "/transfer/verify/" in path:
             return self._verify_transfer(path.rsplit("/", 1)[1])
+        if path.startswith("/refund"):
+            return self._refund_route(method, path, query, payload)
         return 404, {"status": False, "message": "not found"}
 
     def call(self, method: str, path: str, params: Optional[dict] = None, json_body: Optional[dict] = None):
@@ -411,7 +418,8 @@ class FakePaystack:
         if (number, bank_code) in self.unresolvable or len(number) != 10 or not any(b["code"] == bank_code for b in self.banks):
             return 422, {"status": False, "message": "Could not resolve account name. Check parameters or try again."}
         return 200, {"status": True, "message": "Account number resolved",
-                     "data": {"account_number": number, "account_name": self.account_name(number, bank_code), "bank_id": 9}}
+                     "data": {"account_number": number, "account_name": self.account_name(number, bank_code),
+                              "bank_id": next(b["id"] for b in self.banks if b["code"] == bank_code)}}
 
     def _recipient(self, payload: dict) -> tuple[int, dict]:
         code = "RCP_" + uuid.uuid5(uuid.NAMESPACE_URL, f"{payload.get('account_number')}/{payload.get('bank_code')}").hex[:12]
@@ -451,6 +459,72 @@ class FakePaystack:
             "amount": record["amount"], "currency": "NGN", "reason": record.get("reason"), "reference": reference,
             "status": outcome, "transfer_code": record["transfer_code"], "recipient": {"recipient_code": record["recipient"]}}}
 
+    # --- refunds -------------------------------------------------------------------------------------
+    def _refund_route(self, method: str, path: str, query: dict, payload: dict) -> tuple[int, dict]:
+        if self.refund_error == "timeout":
+            raise TimeoutError("fake Paystack refund timeout")
+        if self.refund_error == "500":
+            return 500, {"status": False, "message": "Internal server error"}
+        if self.refund_error == "422":
+            return 422, {"status": False, "message": "Refund could not be processed"}
+        tail = path[len("/refund"):]
+        if method == "POST" and tail == "":
+            return self._create_refund(payload)
+        if method == "GET" and tail == "":
+            reference = str(query.get("transaction", ""))
+            return 200, {"status": True, "message": "Refunds retrieved", "data": [
+                self._refund_body(r) for r in self.refunds.values() if r["transaction_reference"] == reference]}
+        if method == "GET" and tail.startswith("/") and tail.count("/") == 1:
+            record = self.refunds.get(tail[1:])
+            if record is None:
+                return 404, {"status": False, "message": "Refund not found"}
+            return 200, {"status": True, "message": "Refund retrieved", "data": self._refund_body(record)}
+        if method == "POST" and tail.startswith("/retry_with_customer_details/"):
+            return self._retry_refund(tail.rsplit("/", 1)[1], payload)
+        return 404, {"status": False, "message": "not found"}
+
+    @staticmethod
+    def _refund_body(record: dict) -> dict:
+        return {"id": int(record["id"]), "amount": record["amount"], "currency": "NGN", "status": record["status"],
+                "transaction": {"reference": record["transaction_reference"]}, "domain": "test", "integration": 412829}
+
+    def _create_refund(self, payload: dict) -> tuple[int, dict]:
+        reference = payload.get("transaction", "")
+        original = next((p for p in self.initialised if p["reference"] == reference), None)
+        if original is None or reference not in self.paid:
+            return 400, {"status": False, "message": "Transaction not found or not successful"}
+        amount = int(payload.get("amount") or original["amount"])
+        if amount <= 0 or amount > original["amount"]:
+            return 400, {"status": False, "message": "Amount is greater than the transaction amount"}
+        self._refund_seq += 1
+        record = {"id": str(self._refund_seq), "transaction_reference": reference, "amount": amount, "status": "pending"}
+        self.refunds[record["id"]] = record
+        return 200, {"status": True, "message": "Refund has been queued for processing", "data": self._refund_body(record)}
+
+    def _retry_refund(self, refund_id: str, payload: dict) -> tuple[int, dict]:
+        record = self.refunds.get(refund_id)
+        if record is None:
+            return 404, {"status": False, "message": "Refund not found"}
+        if record["status"] != "needs-attention":
+            return 422, {"status": False, "message": "Refund is not in needs-attention status"}
+        details = payload.get("refund_account_details") or {}
+        if str(details.get("bank_id")) not in {str(b["id"]) for b in self.banks}:  # the numeric id, never the bank code
+            return 422, {"status": False, "message": "Invalid bank_id"}
+        record["status"] = "processing"
+        record["refund_account_details"] = payload.get("refund_account_details")
+        return 200, {"status": True, "message": "Refund retry has been queued for processing", "data": self._refund_body(record)}
+
+    def settle_refund(self, paystack_refund_id: str, status: str) -> dict:
+        """Move a refund to pending | processing | needs-attention | processed | failed and return the webhook body Paystack
+        would send (its documented shape: the refund id is ``data.id``, ``refund_reference`` is null, the amount is a string)."""
+        record = self.refunds[str(paystack_refund_id)]
+        record["status"] = status
+        return {"event": f"refund.{status}", "data": {
+            "status": status, "transaction_reference": record["transaction_reference"], "refund_reference": None,
+            "amount": str(record["amount"]), "currency": "NGN", "processor": "instant-transfer",
+            "customer": {"email": "placeholder@example.com"}, "integration": 412829, "domain": "test",
+            "id": int(record["id"])}}
+
     # --- booking payments ----------------------------------------------------------------------------
     def _initialize(self, payload: dict) -> dict:
         if self.fail_init:
@@ -470,7 +544,8 @@ class FakePaystack:
             "id": 1, "reference": reference, "amount": original["amount"], "currency": "NGN",
             "status": "success" if reference in self.paid else "abandoned", "channel": "card",
             "paid_at": "2026-10-06T10:00:00.000Z", "customer": {"email": original["email"]},
-            "authorization": {}, "metadata": original.get("metadata", {})}}
+            "authorization": {}, "metadata": original.get("metadata", {}),
+            **({"fees": self.fee_kobo} if self.fee_kobo is not None else {})}}
 
     # direct stand-ins for PaystackService methods (the tests never touch HTTP)
     def initialize_transaction(self, _service, email, amount_kobo, reference, callback_url=None, metadata=None):
@@ -489,7 +564,7 @@ class FakePaystack:
         return {"status": True, "data": {"id": d["id"], "reference": reference, "amount_kobo": d["amount"],
                                          "status": d["status"], "paid_at": d["paid_at"], "channel": d["channel"],
                                          "currency": "NGN", "customer": d["customer"], "authorization": {},
-                                         "metadata": d["metadata"]}}
+                                         "metadata": d["metadata"], "fees_kobo": d.get("fees")}}
 
 
 @pytest.fixture

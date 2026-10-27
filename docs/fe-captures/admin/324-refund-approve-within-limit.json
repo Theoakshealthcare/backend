@@ -1,0 +1,62 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/d7b74acb-16af-4965-b6b3-5de7e7995b5b/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "d7b74acb-16af-4965-b6b3-5de7e7995b5b",
+      "booking_id": "e559a2e8-c4a0-489f-a091-9cb3ab147178",
+      "booking_code": "22D0E98F",
+      "status": "approved",
+      "reason_code": "admin_cancelled",
+      "origin": "system",
+      "suggested_amount_naira": 12000.0,
+      "amount_naira": 12000.0,
+      "destination": "original_method",
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": null,
+      "rejected_reason": null,
+      "requested_by": null,
+      "approved_by": "e935f884-e2d3-41bc-9cd9-8237111d16c8",
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-10-21T14:29:06.229633",
+      "approved_at": "2026-10-21T14:29:06.464654",
+      "processed_at": null,
+      "max_approvable_naira": 50000.0,
+      "available_actions": [],
+      "booking": {
+        "code": "22D0E98F",
+        "status": "cancelled",
+        "channel": "app",
+        "cancel_fee_tier": null,
+        "cancel_fee_naira": null,
+        "caregiver_assigned": false,
+        "caregiver_arrived": false,
+        "completed": false,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": 825.0,
+        "refunded_naira": 12000.0,
+        "refundable_naira": 43000.0
+      },
+      "suggestion_why": "Set by the admin who cancelled the booking.",
+      "attempts": [],
+      "take_back_reason": null,
+      "take_back_preview_naira": 0.0,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "The 12,000.00 NGN partial refund from the admin cancel, approved as suggested."
+}

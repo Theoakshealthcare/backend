@@ -218,14 +218,14 @@ def test_caregiver_cancel_mid_visit_leaves_the_amount_to_a_person(db, chat):
     assert "Our team will contact you about any refund" in text and "₦" not in text
 
 
-def test_caregiver_cancel_leaves_an_app_booking_exactly_as_before(db, chat):
+def test_caregiver_cancel_of_a_paid_app_booking_queues_a_refund_and_tells_nobody_on_whatsapp(db, chat):  # RF-D8
     patient, caregiver = make_patient(db), make_caregiver(db)
     booking = make_booking(db, patient, caregiver, status=BookingStatus.ACCEPTED, visit_code="1234")
     act(db, booking, caregiver, "cancel")
     db.expire_all()
     booking = db.get(Booking, booking.id)
-    assert booking.status == BookingStatus.CANCELLED and not booking.refund_required
-    assert events_of(db, booking) == []
+    assert booking.status == BookingStatus.CANCELLED and booking.refund_required
+    assert events_of(db, booking) == []  # an app booker has no WhatsApp notice; the refund waits for a person to approve it
 
 
 def test_cancel_notice_outside_the_window_is_the_booking_update_template(db, chat):
@@ -247,7 +247,7 @@ def test_the_cancel_notice_still_reaches_someone_who_sent_stop(db, chat):
 
 
 # --- admin cancellation and refunds (the hooks the admin console calls) -----------------------------------------
-def test_admin_cancel_and_refund_events_are_worded_from_the_booking(db, chat):
+def test_admin_cancel_says_cancelled_and_does_not_guess_a_refund_status_but_complete_is_worded_from_the_booking(db, chat):
     booking, caregiver = accepted_booking(db, chat)
     deliver(db, chat)
     booking.status = BookingStatus.CANCELLED
@@ -258,8 +258,6 @@ def test_admin_cancel_and_refund_events_are_worded_from_the_booking(db, chat):
     texts = sorted(body_text(b) for b in deliver(db, chat))
     assert texts == sorted([
         f"Update on booking {booking.booking_code}: Our team has cancelled this visit. Reply here if you need help.",
-        f"Your refund of ₦35,200 for booking {booking.booking_code} is being processed. "
-        "Reply here if you have questions.",
         f"Your refund of ₦35,200 for booking {booking.booking_code} is complete. Reply here if you have questions."])
 
 

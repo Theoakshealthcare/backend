@@ -1,0 +1,47 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=refund&action=refund.bank_details&limit=1",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "51d5f814-8be9-4858-affa-b1917b3d91b5",
+          "admin_user_id": "be72d91d-f2fa-4fa3-a44b-c7c44a1b23a5",
+          "admin_email": "fin2-cba871ref@example.com",
+          "action": "refund.bank_details",
+          "entity_type": "refund",
+          "entity_id": "7903c1f2-5fbd-4628-aab9-b5ce9e83a600",
+          "before": {
+            "status": "needs_attention",
+            "attempt": 1
+          },
+          "after": {
+            "booking_id": "4ec47135-8b9b-46cc-83d5-92f12d18b440",
+            "status": "processing",
+            "attempt": 1,
+            "bank_code": "058",
+            "bank_id": "9",
+            "account_last4": "0077",
+            "account_name": "PLACEHOLDER ACCOUNT 0077"
+          },
+          "reason": null,
+          "ip": "172.24.0.1",
+          "user_agent": "python-httpx/0.28.1",
+          "created_at": "2026-10-21T14:29:10.954390"
+        }
+      ],
+      "total": 1,
+      "limit": 1,
+      "offset": 0
+    }
+  },
+  "note": "Only the bank code, the last four digits and the resolved name: never the full account number."
+}

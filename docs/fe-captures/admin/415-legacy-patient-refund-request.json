@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/patient/wallet/refund/request",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "transaction_id": "d53d014b-3cd6-44f8-a5d8-85b6bb623bb5",
+      "reason": "I want my money back"
+    }
+  },
+  "response": {
+    "status_code": 410,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Refunds are now handled by the Oakly team. Contact support to request one."
+    }
+  }
+}

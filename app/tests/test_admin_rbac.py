@@ -75,6 +75,19 @@ ADMIN_ONLY = {
     ("POST", f"{API}/admin/payouts/{{payout_id}}/resolve"): "ledger.adjust",
     ("POST", f"{API}/admin/payouts/caregivers/{{caregiver_id}}/unfreeze"): "ledger.adjust",
     ("POST", f"{API}/admin/payouts/batches/{{batch_id}}/cancel"): "payouts.execute",
+    ("POST", f"{API}/admin/refunds"): "refunds.request",
+    ("POST", f"{API}/admin/refunds/{{refund_id}}/approve"): "refunds.approve",
+    ("POST", f"{API}/admin/refunds/{{refund_id}}/reject"): "refunds.approve",
+    ("POST", f"{API}/admin/refunds/{{refund_id}}/retry"): "refunds.approve",
+    ("POST", f"{API}/admin/refunds/{{refund_id}}/bank-details"): "refunds.approve",
+    ("POST", f"{API}/admin/refunds/{{refund_id}}/close"): "refunds.approve",
+    ("POST", f"{API}/admin/refunds/{{refund_id}}/switch-to-wallet"): "refunds.approve_above_limit",
+    ("POST", f"{API}/admin/refunds/{{refund_id}}/resolve"): "refunds.approve_above_limit",
+}
+# Open to a holder of ANY of the listed permissions (the refunds queue and detail).
+ANY_OF = {
+    ("GET", f"{API}/admin/refunds"): ("refunds.request", "refunds.approve", "payments.read"),
+    ("GET", f"{API}/admin/refunds/{{refund_id}}"): ("refunds.request", "refunds.approve", "payments.read"),
 }
 # Shared with app users: a patient/caregiver token works as before, an admin token needs the permission.
 SHARED = {
@@ -106,7 +119,7 @@ def _fill(path: str) -> str:
 def test_every_admin_route_is_in_the_matrix():
     # A route that needs an admin token but is missing from ADMIN_ONLY (or the reverse) fails here, so
     # a new admin route cannot ship without being added to the permission matrix below.
-    assert _admin_bearer_operations() == set(ADMIN_ONLY) | {("GET", f"{API}/admin/me")}
+    assert _admin_bearer_operations() == set(ADMIN_ONLY) | set(ANY_OF) | {("GET", f"{API}/admin/me")}
 
 
 def test_every_path_under_admin_needs_an_admin_token_except_sign_in():
@@ -117,7 +130,7 @@ def test_every_path_under_admin_needs_an_admin_token_except_sign_in():
 
 
 def test_every_permission_used_exists_and_is_granted_to_super_admin():
-    used = set(ADMIN_ONLY.values()) | set(SHARED.values())
+    used = set(ADMIN_ONLY.values()) | set(SHARED.values()) | {p for ps in ANY_OF.values() for p in ps}
     assert used <= ALL_PERMISSIONS
     assert ROLE_PERMISSIONS["super_admin"] == ALL_PERMISSIONS
 
@@ -149,6 +162,11 @@ def test_prd_spot_checks():
     assert "admins.manage" not in p["finance"]
 
 
+def test_only_super_admin_can_approve_above_limit():
+    holders = {k for k, v in ROLE_PERMISSIONS.items() if "refunds.approve_above_limit" in v}
+    assert holders == {"super_admin"}
+
+
 @pytest.fixture
 def role_headers(db):
     # one admin per role; password=None skips bcrypt, nothing here signs in with a password
@@ -169,6 +187,22 @@ def test_admin_route_matrix(client, role_headers, route):
         else:
             assert r.status_code == 403, (role, r.status_code, r.text)
             assert permission in r.json()["detail"]
+
+
+@pytest.mark.parametrize("route", sorted(ANY_OF), ids=lambda r: f"{r[0]} {r[1]}")
+def test_any_of_route_matrix(client, role_headers, route):
+    method, template = route
+    permissions = ANY_OF[route]
+    url = _fill(template)
+
+    assert client.request(method, url).status_code == 401
+    for role in ROLES:
+        r = client.request(method, url, headers=role_headers[role])
+        if any(p in ROLE_PERMISSIONS[role] for p in permissions):
+            assert r.status_code not in (401, 403), (role, r.status_code, r.text)
+        else:
+            assert r.status_code == 403, (role, r.status_code, r.text)
+            assert all(p in r.json()["detail"] for p in permissions)
 
 
 @pytest.mark.parametrize("route", sorted(SHARED), ids=lambda r: f"{r[0]} {r[1]}")

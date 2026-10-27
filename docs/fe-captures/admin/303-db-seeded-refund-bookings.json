@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "INSERT INTO patients / caregivers / bookings ... (13 paid placeholder bookings of 5,500,000 kobo each)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "each_booking": {
+        "total_amount_kobo": 5500000,
+        "payment_status": "paid",
+        "paystack_fee_kobo": 82500,
+        "paystack": "the fake Paystack knows the charge, so it accepts a refund of it"
+      },
+      "channels": {
+        "whatsapp": 1,
+        "app": 12
+      }
+    }
+  },
+  "note": "SEEDED: patients, caregivers and paid bookings are inserted directly. Everything is placeholder data. The Finance limit in the booking policy is 50,000.00 NGN, so a full refund of one of these (55,000.00 NGN) is above it."
+}

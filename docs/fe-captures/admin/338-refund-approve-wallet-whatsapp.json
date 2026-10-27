@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/c84b25c8-21ba-43d5-ae74-9ff05236f286/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "destination": "wallet"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Wallet credit is only for app users. Refund this one to the original payment method."
+    }
+  },
+  "note": "A WhatsApp booker has no app wallet, so only the original payment method works."
+}

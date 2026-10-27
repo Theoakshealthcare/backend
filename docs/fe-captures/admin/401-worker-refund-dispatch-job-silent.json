@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "JOB",
+    "path": "refund_dispatch_job -> app.services.refunds.dispatch_due(SessionLocal()), run in a one-off worker container",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "refunds_sent": 1,
+      "refund_requests_seen_by_the_fake": [
+        {
+          "transaction": "BKG_924D189B_2852aa02",
+          "amount_kobo": 5500000
+        }
+      ]
+    }
+  },
+  "note": "SIMULATION of the schedule: in production the ARQ cron runs this every minute. FAKE PAYSTACK: Paystack never answered the POST /refund call (the fake dropped the connection). The refund is NOT sent again; it waits for reconcile."
+}

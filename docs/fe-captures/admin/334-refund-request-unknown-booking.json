@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "booking_id": "beec19f6-8d7d-49b9-9d70-0e3f16b7fe46",
+      "amount_naira": 1000,
+      "reason_code": "other"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Booking not found"
+    }
+  }
+}

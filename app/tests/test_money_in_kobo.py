@@ -162,7 +162,7 @@ def _hook(client, reference, kobo):
     return client.post(WEBHOOK, content=body, headers={"x-paystack-signature": sig})
 
 
-def test_wallet_deposit_payment_refund_in_kobo(db, client, monkeypatch):
+def test_wallet_deposit_payment_and_legacy_request_in_kobo(db, client, monkeypatch):
     sent = {}
 
     def fake_init(self, email, amount_kobo, reference, callback_url=None, metadata=None):
@@ -198,52 +198,18 @@ def test_wallet_deposit_payment_refund_in_kobo(db, client, monkeypatch):
 
     pay = db.query(PatientTransaction).filter_by(type="payment").one()
     assert pay.amount_kobo == 50025
-    r = client.post("/api/v1/patient/wallet/refund/request", headers=h, json={
-        "transaction_id": str(pay.id), "amount": "100.10", "reason": "Service was not delivered"})
-    assert r.status_code == 200, r.text
-    req = db.query(PatientRefundRequest).one()
-    assert req.amount_kobo == 10010
-
-    admin = make_admin(db)
-    r = client.put(f"/api/v1/patient/admin/refund/requests/{req.id}",
-                   json={"action": "approve"}, headers=auth_headers(admin))
-    assert r.status_code == 200, r.text
-    db.expire_all()
-    wallet = db.query(PatientWallet).one()
-    assert (wallet.balance_kobo, wallet.total_refunded_kobo) == (83441, 10010)
-
+    # A refund request made before Refunds v2 is still readable, in naira, from kobo (new ones are raised by Oakly staff).
+    db.add(PatientRefundRequest(id=uuid.uuid4(), patient_id=pay.patient_id, transaction_id=pay.id, amount_kobo=10010,
+                                reason="Service was not delivered", status="pending"))
+    db.commit()
     w = client.get("/api/v1/patient/wallet", headers=h).json()
-    assert Decimal(str(w["balance"])) == Decimal("834.41")
-    assert Decimal(str(w["total_refunded"])) == Decimal("100.10")
+    assert Decimal(str(w["balance"])) == Decimal("734.31")
+    assert Decimal(str(w["total_refunded"])) == Decimal("0.00")
 
     txs = client.get("/api/v1/patient/wallet/transactions", headers=h).json()
-    assert sorted(Decimal(str(t["amount"])) for t in txs) == [
-        Decimal("100.10"), Decimal("500.25"), Decimal("1234.56")]
+    assert sorted(Decimal(str(t["amount"])) for t in txs) == [Decimal("500.25"), Decimal("1234.56")]
     reqs = client.get("/api/v1/patient/wallet/refund/requests", headers=h).json()
     assert Decimal(str(reqs[0]["amount"])) == Decimal("100.10")
-
-
-def test_paystack_refund_called_with_kobo(db, client, monkeypatch):
-    calls = []
-    monkeypatch.setattr(PaystackService, "initiate_refund",
-                        lambda self, ref, amount_kobo=None: calls.append((ref, amount_kobo)) or
-                        {"status": True, "data": {"id": 1}})
-    patient = make_patient(db)
-    wallet = PatientWallet(patient_id=patient.id, balance_kobo=0)
-    db.add(wallet)
-    db.commit()
-    tx = PatientTransaction(id=uuid.uuid4(), patient_id=patient.id, wallet_id=wallet.id, type="payment",
-                            amount_kobo=123457, status="successful", paystack_reference="PAY_1")
-    db.add(tx)
-    db.commit()
-    req = PatientRefundRequest(id=uuid.uuid4(), patient_id=patient.id, transaction_id=tx.id,
-                               amount_kobo=100001, reason="Service was not delivered", status="pending")
-    db.add(req)
-    db.commit()
-    r = client.put(f"/api/v1/patient/admin/refund/requests/{req.id}", json={"action": "approve"},
-                   headers=auth_headers(make_admin(db)))
-    assert r.status_code == 200, r.text
-    assert calls == [("PAY_1", 100001)]
 
 
 def test_deposit_wrong_kobo_not_credited_and_exact_kobo_credited(db, client):

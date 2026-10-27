@@ -161,7 +161,10 @@ class CaregiverCertification(Base):
 
 class CaregiverWallet(Base):
     __tablename__ = "caregiver_wallets"
-    __table_args__ = (CheckConstraint("balance >= 0", name="ck_caregiver_wallets_balance_not_negative"),)
+    __table_args__ = (
+        CheckConstraint("balance >= 0", name="ck_caregiver_wallets_balance_not_negative"),
+        CheckConstraint("owed_kobo >= 0", name="ck_caregiver_wallets_owed_not_negative"),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False, unique=True)
     balance = Column(Integer, default=0)  # kobo; the AVAILABLE balance (paid out weekly). Pending earnings are not in it.
@@ -170,6 +173,8 @@ class CaregiverWallet(Base):
     # because the wallet row is the lock every money move already takes.
     payouts_frozen_at = Column(DateTime, nullable=True)
     payouts_frozen_reason = Column(Text, nullable=True)
+    # What a refund take-back could not debit from the balance; the earnings release recovers it from future earnings first.
+    owed_kobo = Column(BigInteger, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     caregiver = relationship("Caregiver", backref="wallet")
@@ -181,6 +186,7 @@ TX_EARNING = "earning"
 TX_LATE_CANCEL = "late_cancel_compensation"
 TX_WITHDRAWAL = "withdrawal"  # legacy self-withdrawals (the endpoint is gone); old rows stay
 TX_PAYOUT = "payout"          # a scheduled bank payout: see app/db/models/payout.py
+TX_REFUND_TAKE_BACK = "refund_take_back"  # a debit recovering a refunded booking's earning: see app/db/models/refund.py
 EARNING_TYPES = (TX_EARNING, TX_LATE_CANCEL)
 TX_PENDING_CLEARANCE, TX_HELD, TX_VOIDED, TX_SUCCESSFUL = "pending_clearance", "held", "voided", "successful"
 # A ``payout`` is pending_approval (reserved, awaiting an admin) -> pending (approved, transfer in flight) -> successful, or
@@ -193,8 +199,10 @@ class CaregiverTransaction(Base):
     __table_args__ = (
         # One earning and one compensation per booking, whatever the callers do: a double complete can never double-credit.
         # NULLs are distinct, so withdrawals (no booking) are not affected.
-        UniqueConstraint("booking_id", "type", name="uq_caregiver_transactions_booking_type"),
-        CheckConstraint("type IN ('earning','late_cancel_compensation','withdrawal','payout')", name="ck_caregiver_transactions_type"),
+        # ``refund_take_back`` is excluded: a booking can have several (one per refund, plus one per later recovery).
+        Index("uq_caregiver_transactions_booking_type", "booking_id", "type", unique=True,
+              postgresql_where=text("type <> 'refund_take_back'")),
+        CheckConstraint("type IN ('earning','late_cancel_compensation','withdrawal','payout','refund_take_back')", name="ck_caregiver_transactions_type"),
         CheckConstraint("status IN ('pending','successful','failed','pending_clearance','held','voided','pending_approval','cancelled')",
                         name="ck_caregiver_transactions_status"),
         Index("ix_caregiver_transactions_release", "available_at", postgresql_where=text("status = 'pending_clearance'")),
@@ -202,7 +210,7 @@ class CaregiverTransaction(Base):
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
-    type = Column(String, nullable=False)  # earning | late_cancel_compensation | withdrawal | payout
+    type = Column(String, nullable=False)  # earning | late_cancel_compensation | withdrawal | payout | refund_take_back
     amount = Column(Integer, nullable=False)  # Store in kobo
     status = Column(String, nullable=False, default='pending')
     bank_name = Column(String, nullable=True)
@@ -210,7 +218,8 @@ class CaregiverTransaction(Base):
     account_name = Column(String, nullable=True)
     reference = Column(String, nullable=True)
     narration = Column(String, nullable=True)
-    # Earnings only: the booking, what the share was taken of and at what percent (kept so the amount can be re-derived),
+    # Earnings only: the booking, what the share was taken of and at what percent (the amount can be re-derived from them unless a refund take-back lowered an
+    # unreleased earning: that is recorded on its status_reason and in a voided refund_take_back row),
     # when it becomes withdrawable and when it did, and who last held or voided it and why.
     booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=True)
     base_amount_kobo = Column(BigInteger, nullable=True)

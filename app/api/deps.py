@@ -170,6 +170,24 @@ def require_permission(*permissions: str) -> Callable[..., AdminUser]:
     return dependency
 
 
+def require_any_permission(*permissions: str) -> Callable[..., AdminUser]:
+    """Like ``require_permission`` but holding ONE of the listed permissions is enough (for reads that several roles share).
+    A missing or invalid token is 401; a valid admin holding none of them is 403."""
+    if not permissions:
+        raise ValueError("require_any_permission needs at least one permission")
+
+    def dependency(admin: AdminUser = Depends(get_current_admin_user)) -> AdminUser:
+        held = admin.permissions
+        if not any(p in held for p in permissions):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail=f"Access denied. Missing permission: one of {', '.join(permissions)}")
+        return admin
+
+    dependency.required_permissions = permissions  # type: ignore[attr-defined]
+    dependency.any_of = True  # type: ignore[attr-defined]
+    return dependency
+
+
 def get_user_or_admin(permission: str) -> Callable[..., Union[User, AdminUser]]:
     """For the few routes shared by app users and the console (booking detail, document download,
     prescription reads): an app-user token, or an admin token holding ``permission``.

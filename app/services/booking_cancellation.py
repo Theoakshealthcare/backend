@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.db.models.booking import Booking, BookingStatus, CaregiverLocation, PaymentStatus
 from app.services import booking_policy, earnings, onmyway
@@ -195,8 +195,16 @@ def cancel_by_booker(db: Session, booking_id: uuid.UUID, now: Optional[datetime]
     return Outcome("cancelled", decided)
 
 
+_REFUND_REASON = {"admin_cancelled_full": "admin_cancelled", "admin_cancelled_partial": "admin_cancelled"}
+
+
 def flag_refund(booking: Booking, reason: str, amount_kobo: Optional[int]) -> None:
-    """Put the booking in the admin refund queue. ``amount_kobo`` None means "a person decides the amount"."""
+    """Put the booking in the admin refund queue. ``amount_kobo`` None means "a person decides the amount".
+    Also creates the pending refund row in the caller's transaction (idempotent; nothing for an unpaid booking)."""
     booking.refund_required = True
     booking.refund_required_reason = reason
     booking.refund_amount_kobo = amount_kobo
+    db = object_session(booking)
+    if db is not None:
+        from app.services import refunds  # refunds imports this module for the tier maths
+        refunds.open_system_refund(db, booking, _REFUND_REASON.get(reason, reason), amount_kobo)

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/d7b74acb-16af-4965-b6b3-5de7e7995b5b/bank-details",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "bank_code": "058",
+      "account_number": "0000000077"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "This refund is not waiting for bank details"
+    }
+  }
+}

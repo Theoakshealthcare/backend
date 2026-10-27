@@ -444,12 +444,16 @@ class BookingService:
                 fix.latitude, fix.longitude, booking.patient_latitude, booking.patient_longitude)))
 
     def _after_caregiver_cancel(self, booking: Booking) -> None:
-        """WA-FR-37, for a visit that had already *started* (a drop-out before that never gets here: it is reopened for a
-        replacement, see app/services/dropout.py). A WhatsApp booking is flagged for a refund, a person decides the
-        amount, and the booker is told in the same transaction. App bookings are left exactly as they were."""
+        """WA-FR-37, for a visit that had already *started* (a drop-out before that never gets here from WhatsApp: it is
+        reopened for a replacement, see app/services/dropout.py). A paid booking is flagged for a refund and queued for
+        approval: a WhatsApp one with the amount left to a person when the visit had started, an app one in full (RF-D8, it
+        used to be left unrefunded). The WhatsApp booker is told in the same transaction."""
+        paid = booking.payment_status == PaymentStatus.PAID
         if booking.channel != "whatsapp":
+            if paid:
+                flag_refund(booking, "caregiver_cancelled", int(booking.total_amount_kobo))
             return
-        if booking.payment_status == PaymentStatus.PAID:
+        if paid:
             started = booking.actual_start_time is not None
             flag_refund(booking, "caregiver_cancelled", None if started else int(booking.total_amount_kobo))  # kept for safety
         NotificationService(self.db).cancelled_by_caregiver(booking)

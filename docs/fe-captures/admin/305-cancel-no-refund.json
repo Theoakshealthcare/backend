@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/bookings/99d43241-7752-4184-ac92-5ec3819d15c9/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason_code": "duplicate",
+      "reason": "Duplicate booking",
+      "refund": "none"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "99d43241-7752-4184-ac92-5ec3819d15c9",
+      "booking_code": "1688B04D",
+      "status": "cancelled",
+      "payment_status": "paid",
+      "dispatch_state": "dispatching",
+      "caregiver_id": null,
+      "needs_address_check": false,
+      "refund_required": false,
+      "refund_required_reason": null,
+      "refund_amount_kobo": null,
+      "no_show_flagged_at": null,
+      "notified_caregivers": 0
+    }
+  },
+  "note": "Cancelled with refund 'none': no refund row exists for this booking."
+}

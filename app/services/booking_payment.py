@@ -28,8 +28,9 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models.booking import Booking, BookingStatus, PaymentStatus
+from app.db.models.booking import PAID_STATES, Booking, BookingStatus, PaymentStatus
 from app.services import booking_events
+from app.services.refunds import open_system_refund
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,8 @@ def expected_kobo(booking: Booking) -> int:
 
 
 def settle_booking_payment(
-    db: Session, booking_id: uuid.UUID, paid_kobo: Optional[int], now: Optional[datetime] = None
+    db: Session, booking_id: uuid.UUID, paid_kobo: Optional[int], now: Optional[datetime] = None,
+    fees_kobo: Optional[int] = None,
 ) -> SettleOutcome:
     now = now or datetime.utcnow()
     booking = (
@@ -62,7 +64,7 @@ def settle_booking_payment(
         db.rollback()
         return SettleOutcome.NOT_FOUND
 
-    if booking.payment_status == PaymentStatus.PAID:
+    if booking.payment_status in PAID_STATES:  # a refunded booking was paid too: resetting it would undo the refund's state
         db.rollback()
         return SettleOutcome.ALREADY_PAID
 
@@ -77,6 +79,8 @@ def settle_booking_payment(
 
     booking.payment_status = PaymentStatus.PAID
     booking.payment_failure_reason = None
+    if isinstance(fees_kobo, int) and not isinstance(fees_kobo, bool) and fees_kobo >= 0:
+        booking.paystack_fee_kobo = fees_kobo  # Paystack's fee, kept for the refund cost-of-fees rule
     cancelled = booking.status == BookingStatus.CANCELLED
     if cancelled:
         lead = timedelta(minutes=settings.LATE_PAYMENT_REINSTATE_MIN_LEAD_MINUTES)
@@ -92,6 +96,7 @@ def settle_booking_payment(
             booking.refund_required_reason = (
                 "paid_after_expiry" if booking.cancel_reason == "unpaid_timeout" else "paid_after_cancellation"
             )
+            open_system_refund(db, booking, booking.refund_required_reason, int(booking.total_amount_kobo))
             booking_events.emit(db, booking, "payment_refund_pending")  # the booker is told a refund is coming
     held_for_address = False
     if not cancelled:
@@ -134,7 +139,7 @@ def verify_and_settle(db: Session, booking_id: uuid.UUID) -> Optional[SettleOutc
     from app.services.paystack import PaystackService  # lazy: the webhook path imports this module at startup
 
     booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().first()
-    if booking is None or booking.payment_status == PaymentStatus.PAID or not booking.paystack_reference:
+    if booking is None or booking.payment_status in PAID_STATES or not booking.paystack_reference:
         db.rollback()
         return None
     reference = booking.paystack_reference
@@ -146,6 +151,6 @@ def verify_and_settle(db: Session, booking_id: uuid.UUID) -> Optional[SettleOutc
     data = verified.get("data") or {}
     if not (verified.get("status") and data.get("status") == "success"):
         return None
-    outcome = settle_booking_payment(db, booking_id, data.get("amount_kobo"))
+    outcome = settle_booking_payment(db, booking_id, data.get("amount_kobo"), fees_kobo=data.get("fees_kobo"))
     logger.info("Booking %s verified with Paystack: %s", booking_id, outcome.value)
     return outcome

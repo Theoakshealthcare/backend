@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/0f709552-4a5c-478d-9f26-6bf0f8837d00/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "take_back_from_caregiver": true
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Give a reason for taking back the caregiver's share"
+    }
+  }
+}

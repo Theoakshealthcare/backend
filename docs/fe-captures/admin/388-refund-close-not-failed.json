@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/d7b74acb-16af-4965-b6b3-5de7e7995b5b/close",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Nothing to close"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Only a failed refund can be retried, switched to the wallet or closed"
+    }
+  }
+}

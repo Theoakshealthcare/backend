@@ -6,7 +6,8 @@
     "policy": 119,
     "pricing": 135,
     "earnings": 155,
-    "payouts": 183
+    "payouts": 183,
+    "refunds": 303
   },
   "captures": [
     {
@@ -1518,6 +1519,571 @@
       "file": "302-audit-payout-unfreeze.json",
       "label": "audit-payout-unfreeze",
       "status": 200
+    },
+    {
+      "file": "303-db-seeded-refund-bookings.json",
+      "label": "db-seeded-refund-bookings",
+      "status": null
+    },
+    {
+      "file": "304-cancel-big-lower.json",
+      "label": "cancel-big-lower",
+      "status": 200
+    },
+    {
+      "file": "305-cancel-no-refund.json",
+      "label": "cancel-no-refund",
+      "status": 200
+    },
+    {
+      "file": "306-cancel-partial.json",
+      "label": "cancel-partial",
+      "status": 200
+    },
+    {
+      "file": "307-refunds-list.json",
+      "label": "refunds-list",
+      "status": 200
+    },
+    {
+      "file": "308-refunds-list-filtered.json",
+      "label": "refunds-list-filtered",
+      "status": 200
+    },
+    {
+      "file": "309-refunds-list-by-booking.json",
+      "label": "refunds-list-by-booking",
+      "status": 200
+    },
+    {
+      "file": "310-refunds-list-bad-status.json",
+      "label": "refunds-list-bad-status",
+      "status": 422
+    },
+    {
+      "file": "311-refunds-list-as-clinical-reviewer.json",
+      "label": "refunds-list-as-clinical-reviewer",
+      "status": 403
+    },
+    {
+      "file": "312-refunds-list-no-token.json",
+      "label": "refunds-list-no-token",
+      "status": 401
+    },
+    {
+      "file": "313-refund-detail-system.json",
+      "label": "refund-detail-system",
+      "status": 200
+    },
+    {
+      "file": "314-refund-detail-as-super-admin.json",
+      "label": "refund-detail-as-super-admin",
+      "status": 200
+    },
+    {
+      "file": "315-refund-detail-unknown.json",
+      "label": "refund-detail-unknown",
+      "status": 404
+    },
+    {
+      "file": "316-refund-approve-as-support.json",
+      "label": "refund-approve-as-support",
+      "status": 403
+    },
+    {
+      "file": "317-refund-approve-above-limit-as-finance.json",
+      "label": "refund-approve-above-limit-as-finance",
+      "status": 403
+    },
+    {
+      "file": "318-refund-approve-too-much.json",
+      "label": "refund-approve-too-much",
+      "status": 422
+    },
+    {
+      "file": "319-refund-approve-bad-amount.json",
+      "label": "refund-approve-bad-amount",
+      "status": 422
+    },
+    {
+      "file": "320-refund-approve-wallet-as-finance.json",
+      "label": "refund-approve-wallet-as-finance",
+      "status": 403
+    },
+    {
+      "file": "321-refund-approve-lower-amount.json",
+      "label": "refund-approve-lower-amount",
+      "status": 200
+    },
+    {
+      "file": "322-refund-approve-again.json",
+      "label": "refund-approve-again",
+      "status": 409
+    },
+    {
+      "file": "323-refund-approve-super-admin-above-limit.json",
+      "label": "refund-approve-super-admin-above-limit",
+      "status": 200
+    },
+    {
+      "file": "324-refund-approve-within-limit.json",
+      "label": "refund-approve-within-limit",
+      "status": 200
+    },
+    {
+      "file": "325-refund-reject-no-reason.json",
+      "label": "refund-reject-no-reason",
+      "status": 422
+    },
+    {
+      "file": "326-refund-reject.json",
+      "label": "refund-reject",
+      "status": 200
+    },
+    {
+      "file": "327-refund-reject-again.json",
+      "label": "refund-reject-again",
+      "status": 409
+    },
+    {
+      "file": "328-refund-request.json",
+      "label": "refund-request",
+      "status": 201
+    },
+    {
+      "file": "329-refund-request-open-exists.json",
+      "label": "refund-request-open-exists",
+      "status": 409
+    },
+    {
+      "file": "330-refund-request-not-completed.json",
+      "label": "refund-request-not-completed",
+      "status": 422
+    },
+    {
+      "file": "331-refund-request-too-much.json",
+      "label": "refund-request-too-much",
+      "status": 422
+    },
+    {
+      "file": "332-refund-request-zero.json",
+      "label": "refund-request-zero",
+      "status": 422
+    },
+    {
+      "file": "333-refund-request-bad-reason.json",
+      "label": "refund-request-bad-reason",
+      "status": 422
+    },
+    {
+      "file": "334-refund-request-unknown-booking.json",
+      "label": "refund-request-unknown-booking",
+      "status": 404
+    },
+    {
+      "file": "335-refund-request-as-clinical-reviewer.json",
+      "label": "refund-request-as-clinical-reviewer",
+      "status": 403
+    },
+    {
+      "file": "336-refund-detail-staff.json",
+      "label": "refund-detail-staff",
+      "status": 200
+    },
+    {
+      "file": "337-refund-approve-take-back-not-completed.json",
+      "label": "refund-approve-take-back-not-completed",
+      "status": 422
+    },
+    {
+      "file": "338-refund-approve-wallet-whatsapp.json",
+      "label": "refund-approve-wallet-whatsapp",
+      "status": 422
+    },
+    {
+      "file": "339-refund-approve-wallet.json",
+      "label": "refund-approve-wallet",
+      "status": 200
+    },
+    {
+      "file": "340-booking-after-wallet-refund.json",
+      "label": "booking-after-wallet-refund",
+      "status": 200
+    },
+    {
+      "file": "341-worker-refund-dispatch-job.json",
+      "label": "worker-refund-dispatch-job",
+      "status": null
+    },
+    {
+      "file": "342-refund-detail-processing.json",
+      "label": "refund-detail-processing",
+      "status": 200
+    },
+    {
+      "file": "343-paystack-refund-processing-webhook.json",
+      "label": "paystack-refund-processing-webhook",
+      "status": 200
+    },
+    {
+      "file": "344-paystack-refund-processed-webhook.json",
+      "label": "paystack-refund-processed-webhook",
+      "status": 200
+    },
+    {
+      "file": "345-refund-detail-succeeded.json",
+      "label": "refund-detail-succeeded",
+      "status": 200
+    },
+    {
+      "file": "346-booking-after-full-refund.json",
+      "label": "booking-after-full-refund",
+      "status": 200
+    },
+    {
+      "file": "347-paystack-refund-processed-webhook-partial.json",
+      "label": "paystack-refund-processed-webhook-partial",
+      "status": 200
+    },
+    {
+      "file": "348-booking-after-partial-refund.json",
+      "label": "booking-after-partial-refund",
+      "status": 200
+    },
+    {
+      "file": "349-refunds-list-succeeded.json",
+      "label": "refunds-list-succeeded",
+      "status": 200
+    },
+    {
+      "file": "350-paystack-refund-needs-attention-webhook.json",
+      "label": "paystack-refund-needs-attention-webhook",
+      "status": 200
+    },
+    {
+      "file": "351-refund-detail-needs-attention.json",
+      "label": "refund-detail-needs-attention",
+      "status": 200
+    },
+    {
+      "file": "352-refund-detail-needs-attention-other-finance.json",
+      "label": "refund-detail-needs-attention-other-finance",
+      "status": 200
+    },
+    {
+      "file": "353-refund-bank-details-by-approver.json",
+      "label": "refund-bank-details-by-approver",
+      "status": 403
+    },
+    {
+      "file": "354-refund-bank-details-as-operations.json",
+      "label": "refund-bank-details-as-operations",
+      "status": 403
+    },
+    {
+      "file": "355-refund-bank-details-short-number.json",
+      "label": "refund-bank-details-short-number",
+      "status": 422
+    },
+    {
+      "file": "356-refund-bank-details-unknown-bank.json",
+      "label": "refund-bank-details-unknown-bank",
+      "status": 422
+    },
+    {
+      "file": "357-refund-bank-details-not-waiting.json",
+      "label": "refund-bank-details-not-waiting",
+      "status": 409
+    },
+    {
+      "file": "358-refund-bank-details.json",
+      "label": "refund-bank-details",
+      "status": 200
+    },
+    {
+      "file": "359-refund-detail-support-view.json",
+      "label": "refund-detail-support-view",
+      "status": 200
+    },
+    {
+      "file": "360-paystack-refund-processed-webhook-after-bank-details.json",
+      "label": "paystack-refund-processed-webhook-after-bank-details",
+      "status": 200
+    },
+    {
+      "file": "361-refund-detail-after-bank-details.json",
+      "label": "refund-detail-after-bank-details",
+      "status": 200
+    },
+    {
+      "file": "362-complete-visit-for-take-back.json",
+      "label": "complete-visit-for-take-back",
+      "status": 200
+    },
+    {
+      "file": "363-worker-release-job-and-wallet-simulation.json",
+      "label": "worker-release-job-and-wallet-simulation",
+      "status": null
+    },
+    {
+      "file": "364-refund-request-by-finance.json",
+      "label": "refund-request-by-finance",
+      "status": 201
+    },
+    {
+      "file": "365-refund-detail-take-back-preview.json",
+      "label": "refund-detail-take-back-preview",
+      "status": 200
+    },
+    {
+      "file": "366-refund-approve-own-request.json",
+      "label": "refund-approve-own-request",
+      "status": 403
+    },
+    {
+      "file": "367-refund-approve-take-back-no-reason.json",
+      "label": "refund-approve-take-back-no-reason",
+      "status": 422
+    },
+    {
+      "file": "368-refund-approve-with-take-back.json",
+      "label": "refund-approve-with-take-back",
+      "status": 200
+    },
+    {
+      "file": "369-refunds-approved-by-super-admin.json",
+      "label": "refunds-approved-by-super-admin",
+      "status": 200
+    },
+    {
+      "file": "370-worker-refund-dispatch-job-2.json",
+      "label": "worker-refund-dispatch-job-2",
+      "status": null
+    },
+    {
+      "file": "371-refund-retry-not-failed.json",
+      "label": "refund-retry-not-failed",
+      "status": 409
+    },
+    {
+      "file": "372-paystack-refund-failed-webhook.json",
+      "label": "paystack-refund-failed-webhook",
+      "status": 200
+    },
+    {
+      "file": "373-refund-detail-failed.json",
+      "label": "refund-detail-failed",
+      "status": 200
+    },
+    {
+      "file": "374-refund-retry-as-operations.json",
+      "label": "refund-retry-as-operations",
+      "status": 403
+    },
+    {
+      "file": "375-refund-retry.json",
+      "label": "refund-retry",
+      "status": 200
+    },
+    {
+      "file": "376-worker-refund-dispatch-job-3.json",
+      "label": "worker-refund-dispatch-job-3",
+      "status": null
+    },
+    {
+      "file": "377-paystack-refund-processed-webhook-retry.json",
+      "label": "paystack-refund-processed-webhook-retry",
+      "status": 200
+    },
+    {
+      "file": "378-refund-detail-after-retry.json",
+      "label": "refund-detail-after-retry",
+      "status": 200
+    },
+    {
+      "file": "379-paystack-refund-processed-webhook-take-back.json",
+      "label": "paystack-refund-processed-webhook-take-back",
+      "status": 200
+    },
+    {
+      "file": "380-refund-detail-take-back-applied.json",
+      "label": "refund-detail-take-back-applied",
+      "status": 200
+    },
+    {
+      "file": "381-earnings-list-after-take-back.json",
+      "label": "earnings-list-after-take-back",
+      "status": 200
+    },
+    {
+      "file": "382-paystack-refund-failed-webhook-wallet.json",
+      "label": "paystack-refund-failed-webhook-wallet",
+      "status": 200
+    },
+    {
+      "file": "383-refund-switch-to-wallet-as-finance.json",
+      "label": "refund-switch-to-wallet-as-finance",
+      "status": 403
+    },
+    {
+      "file": "384-refund-switch-to-wallet.json",
+      "label": "refund-switch-to-wallet",
+      "status": 200
+    },
+    {
+      "file": "385-refund-switch-to-wallet-again.json",
+      "label": "refund-switch-to-wallet-again",
+      "status": 409
+    },
+    {
+      "file": "386-paystack-refund-failed-webhook-close.json",
+      "label": "paystack-refund-failed-webhook-close",
+      "status": 200
+    },
+    {
+      "file": "387-refund-close-no-reason.json",
+      "label": "refund-close-no-reason",
+      "status": 422
+    },
+    {
+      "file": "388-refund-close-not-failed.json",
+      "label": "refund-close-not-failed",
+      "status": 409
+    },
+    {
+      "file": "389-refund-close.json",
+      "label": "refund-close",
+      "status": 200
+    },
+    {
+      "file": "390-fake-paystack-refund-amount-changed.json",
+      "label": "fake-paystack-refund-amount-changed",
+      "status": null
+    },
+    {
+      "file": "391-paystack-refund-processed-webhook-different-amount.json",
+      "label": "paystack-refund-processed-webhook-different-amount",
+      "status": 200
+    },
+    {
+      "file": "392-refund-detail-needs-review.json",
+      "label": "refund-detail-needs-review",
+      "status": 200
+    },
+    {
+      "file": "393-refunds-list-needs-review.json",
+      "label": "refunds-list-needs-review",
+      "status": 200
+    },
+    {
+      "file": "394-refund-resolve-as-finance.json",
+      "label": "refund-resolve-as-finance",
+      "status": 403
+    },
+    {
+      "file": "395-refund-resolve-no-note.json",
+      "label": "refund-resolve-no-note",
+      "status": 422
+    },
+    {
+      "file": "396-refund-resolve-not-in-review.json",
+      "label": "refund-resolve-not-in-review",
+      "status": 409
+    },
+    {
+      "file": "397-refund-resolve-failed-but-paystack-processed.json",
+      "label": "refund-resolve-failed-but-paystack-processed",
+      "status": 409
+    },
+    {
+      "file": "398-refund-resolve-different-amount.json",
+      "label": "refund-resolve-different-amount",
+      "status": 409
+    },
+    {
+      "file": "399-refund-resolve-succeeded.json",
+      "label": "refund-resolve-succeeded",
+      "status": 200
+    },
+    {
+      "file": "400-refund-approve-silent.json",
+      "label": "refund-approve-silent",
+      "status": 200
+    },
+    {
+      "file": "401-worker-refund-dispatch-job-silent.json",
+      "label": "worker-refund-dispatch-job-silent",
+      "status": null
+    },
+    {
+      "file": "402-refund-detail-unknown-send.json",
+      "label": "refund-detail-unknown-send",
+      "status": 200
+    },
+    {
+      "file": "403-worker-refund-reconcile-job-11-minutes.json",
+      "label": "worker-refund-reconcile-job-11-minutes",
+      "status": null
+    },
+    {
+      "file": "404-worker-refund-reconcile-job-31-minutes.json",
+      "label": "worker-refund-reconcile-job-31-minutes",
+      "status": null
+    },
+    {
+      "file": "405-refund-detail-no-record-review.json",
+      "label": "refund-detail-no-record-review",
+      "status": 200
+    },
+    {
+      "file": "406-refund-resolve-failed.json",
+      "label": "refund-resolve-failed",
+      "status": 200
+    },
+    {
+      "file": "407-audit-refund-approve.json",
+      "label": "audit-refund-approve",
+      "status": 200
+    },
+    {
+      "file": "408-audit-refund-bank-details.json",
+      "label": "audit-refund-bank-details",
+      "status": 200
+    },
+    {
+      "file": "409-audit-refund-resolve.json",
+      "label": "audit-refund-resolve",
+      "status": 200
+    },
+    {
+      "file": "410-audit-refund-all.json",
+      "label": "audit-refund-all",
+      "status": 200
+    },
+    {
+      "file": "411-legacy-admin-refund-list.json",
+      "label": "legacy-admin-refund-list",
+      "status": 410
+    },
+    {
+      "file": "412-legacy-admin-refund-decide.json",
+      "label": "legacy-admin-refund-decide",
+      "status": 410
+    },
+    {
+      "file": "413-legacy-admin-refund-list-as-operations.json",
+      "label": "legacy-admin-refund-list-as-operations",
+      "status": 403
+    },
+    {
+      "file": "414-patient-login.json",
+      "label": "patient-login",
+      "status": 200
+    },
+    {
+      "file": "415-legacy-patient-refund-request.json",
+      "label": "legacy-patient-refund-request",
+      "status": 410
     }
   ]
 }
