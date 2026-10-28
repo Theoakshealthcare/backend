@@ -172,21 +172,26 @@ def test_a_finished_session_the_webhook_never_delivered_is_bound_by_its_echoed_r
     assert (a.status, a.provider_session_id) == ("passed", "sdk_session_a")
 
 
-def test_without_an_echoed_ref_the_one_active_attempt_with_that_email_is_the_candidate(db, rec, fake_prembly):
+def test_an_email_match_alone_never_binds_a_session_nobody_named(db, rec, fake_prembly):
+    """Anyone with the public widget key can start a session under any e-mail; with no webhook and no hint naming it, only our own
+    echoed ref is strong enough to hand it to an attempt (otherwise a stranger's failed session would use up a victim's attempts)."""
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    run(db, rec)
-    assert fresh(db, a).status == "passed"
+    fake_prembly.script_clean_pass("sdk_session_a", caregiver)  # e-mail matches, no echoed ref
+    fake_prembly.script_session("sdk_session_b", email=caregiver.email, overall_result="failed", face_confidence=10)
+    stats = run(db, rec)
+    assert (stats.bound, stats.decided) == (0, 0)
+    assert fresh(db, a).status == "awaiting_result" and fresh(db, caregiver).identity_verification_status == "in_progress"
+    assert rec.notices == []
 
 
-def test_two_accounts_with_one_email_are_ambiguous_so_nothing_is_bound(db, rec, fake_prembly):
-    first = cg(db, email="shared@example.com")
-    second = cg(db, email="shared@example.com")
-    a1, a2 = attempt(db, first), attempt(db, second)
-    fake_prembly.script_clean_pass("sdk_session_a", first, email="shared@example.com")
+def test_a_session_echoing_another_attempts_ref_binds_only_to_that_attempt(db, rec, fake_prembly):
+    mine, theirs = cg(db), cg(db)
+    a1, a2 = attempt(db, mine), attempt(db, theirs)
+    fake_prembly.script_clean_pass("sdk_session_a", theirs, oakly_ref=str(a2.reference), email=mine.email)  # the e-mail says "mine"
     run(db, rec)
-    assert (fresh(db, a1).status, fresh(db, a2).status) == ("awaiting_result", "awaiting_result") and rec.notices == []
+    assert fresh(db, a1).status == "awaiting_result"  # the e-mail does not matter once a ref is echoed
+    assert fresh(db, a2).status == "passed" and fresh(db, mine).identity_verification_status == "in_progress"
 
 
 def test_an_undelivered_session_nobody_owns_is_left_alone(db, rec, fake_prembly):
@@ -258,10 +263,9 @@ def test_a_result_that_arrived_late_is_decided_before_the_attempt_would_expire(d
     assert (fresh(db, a).status, stats.expired) == ("passed", 0)
 
 
-def test_an_attempt_whose_fetch_kept_failing_is_closed_as_error_not_expired(db, rec, fake_prembly):
+def test_an_attempt_whose_session_prembly_cannot_find_is_closed_as_error_not_expired(db, rec, fake_prembly):
     caregiver = cg(db)
-    a = attempt(db, caregiver, age=timedelta(hours=25), provider_session_id="sdk_session_a")
-    fake_prembly.server_error()
+    a = attempt(db, caregiver, age=timedelta(hours=25), provider_session_id="sdk_session_ghost")
     stats = run(db, rec)
     assert (fresh(db, a).status, stats.errored, stats.expired) == ("error", 1, 0)
 
@@ -273,13 +277,46 @@ def test_expiry_never_closes_a_decided_attempt_or_one_that_was_just_decided(db, 
     assert fresh(db, done).status == "passed"
 
 
-def test_expiry_runs_even_when_the_provider_is_down_and_the_budget_is_gone(db, rec, fake_prembly):
+def test_expiry_never_throws_away_what_it_could_not_check(db, rec, fake_prembly):
+    """A billed result may be waiting at Prembly: an attempt is expired only when this run KNOWS there is none."""
+    caregiver = cg(db)
+    hinted = attempt(db, caregiver, age=timedelta(hours=25), provider_session_id="sdk_session_a")
+    fake_prembly.outage()
+    stats = run(db, rec)  # the provider is down: attempts stay as they are (design 7.3)
+    assert fresh(db, hinted).status == "awaiting_result" and stats.expired == 0
+    fake_prembly.recover()
+    fake_prembly.script_clean_pass("sdk_session_a", caregiver, overall_result="in_progress")
+    db.query(IdentityVerification).filter_by(id=hinted.id).update({"updated_at": NOW})  # inside the debounce: not pulled this run
+    db.commit()
+    run(db, rec)
+    assert fresh(db, hinted).status == "awaiting_result"
+
+
+def test_a_hinted_attempt_is_expired_once_prembly_answered_with_no_verdict(db, rec, fake_prembly):
+    caregiver = cg(db)
+    a = attempt(db, caregiver, age=timedelta(hours=25), provider_session_id="sdk_session_a")
+    fake_prembly.script_clean_pass("sdk_session_a", caregiver, overall_result="in_progress")
+    run(db, rec)
+    assert fresh(db, a).status == "expired"
+
+
+def test_an_attempt_with_no_session_id_is_not_expired_when_discovery_could_not_run(db, rec, fake_prembly):
     caregiver = cg(db)
     a = attempt(db, caregiver, age=timedelta(hours=25))
-    fake_prembly.outage()
     stats = run(db, rec, budget_seconds=0)
-    assert stats.out_of_time is True  # the budget stopped every provider call...
-    assert fresh(db, a).status == "expired" and fake_prembly.requests == []  # ...and expiry needs none
+    assert stats.out_of_time is True and fresh(db, a).status == "awaiting_result" and fake_prembly.requests == []
+
+
+def test_one_rows_trouble_does_not_stop_the_run(db, rec, fake_prembly, monkeypatch):
+    from app.services import kyc_reconcile
+
+    stale = attempt(db, cg(db), age=timedelta(hours=25))
+    boom = cg(db)
+    attempt(db, boom, provider_session_id="sdk_session_a")
+    fake_prembly.script_clean_pass("sdk_session_a", boom)
+    monkeypatch.setattr(kyc_reconcile, "settle_session", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db hiccup")))
+    stats = run(db, rec)
+    assert fresh(db, stale).status == "expired" and stats.expired == 1  # the later steps still ran
 
 
 # --- provider trouble ------------------------------------------------------------------------------------------------

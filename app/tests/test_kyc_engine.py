@@ -552,3 +552,46 @@ def test_the_full_flow_leaves_no_registry_data_in_any_table_or_log(db, rec, fake
     logged = " ".join(r.getMessage() + str(r.exc_info) + str(r.args) for r in caplog.records)
     assert not [x for x in (*SENTINELS, "SENTINELPHONE", "BELLO AMINA") if x.lower() in logged.lower()]
     assert all("SENTINEL" not in repr(n) for n in rec.notices)
+
+
+# --- review fixes ----------------------------------------------------------------------------------------------------
+def test_a_hint_that_lands_after_the_ownership_check_is_a_disagreement_not_a_crash(db, rec, fake_prembly, monkeypatch):
+    from app.services import kyc_events
+
+    other, mine = cg(db), cg(db)
+    attempt(db, other, provider_session_id="sdk_session_a")  # appears "after" _claim_session looked
+    a = attempt(db, mine)
+    fake_prembly.script_clean_pass("sdk_session_a", mine, oakly_ref=str(a.reference))
+    monkeypatch.setattr(kyc_events, "_claim_session", lambda *args: True)
+    result = run(db, rec, "sdk_session_a", a)
+    assert result.outcome == "disagreement" and fresh(db, a).status == "awaiting_result" and rec.notices == []
+
+
+def test_retries_of_one_failing_pull_count_as_one_provider_error(db, rec, fake_prembly):
+    from app.services.kyc_events import KycRetry
+
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_prembly.server_error()
+    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id="sdk_session_a", signature_ok=True)
+    db.add(event)
+    db.commit()
+    job = {"event_id": str(event.id), "oakly_ref": str(a.reference)}
+    for _ in range(4):
+        with pytest.raises(KycRetry):
+            process_event(db, job, hooks=rec.hooks(), final_try=False)
+    assert rec.availability.errors == 0  # ARQ's retries do not flag Prembly down on their own
+    process_event(db, job, hooks=rec.hooks(), final_try=True)
+    assert rec.availability.errors == 1
+
+
+def test_a_closed_ledger_row_is_never_restamped(db, rec, fake_prembly):
+    from app.services import kyc_events
+
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
+    event_id = uuid.UUID(run(db, rec, "sdk_session_a", a) and db.query(KycWebhookEvent).one().id.hex)
+    kyc_events._stamp(db, event_id, "ignored_terminal", None)
+    db.commit()
+    assert fresh(db, db.get(KycWebhookEvent, event_id)).outcome == "applied"

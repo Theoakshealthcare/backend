@@ -766,7 +766,7 @@ The app never sends a result; it reads the state. This is how the backend turns 
 | A clean failure with attempts left (face mismatch, liveness, unreadable ID, record not found) | `in_progress` | `failed` | "Try again" with `failure_hint` (capture `210`); the step stays 2 |
 | The third clean failure (capture `228`) | `needs_review` | `needs_review` | The step moves to 3: a person looks; the caregiver can continue |
 | Anything doubtful: name or date of birth differs from the profile, face score in the grey band, the same ID on another account, a watch-list hit, a result that could not be checked (capture `213`) | `needs_review` | `needs_review` | The step moves to 3: a person looks. The reason is never returned |
-| Nobody answered within 24 hours (capture `230`) | unchanged | `expired` | Not counted as an attempt; `can_start` is `true` again |
+| Nobody answered within 24 hours and Prembly has no result for it (capture `230`; during a Prembly outage the attempt simply stays as it is) | unchanged | `expired` | Not counted as an attempt; `can_start` is `true` again |
 | The provider's wallet is empty or its key is refused (capture `231`) | unchanged | unchanged | `provider_available` is `false` for 15 minutes; offer "Continue without for now" |
 
 **`failed` is never produced by the backend on its own.** Only our team sets it (after a review). A caregiver the team has decided (`verified` or `failed`) is never changed by a later provider result.

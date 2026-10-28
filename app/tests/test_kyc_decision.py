@@ -42,6 +42,8 @@ def run(evidence=None, profile=PROFILE, *, duplicate=False, disagreement=False, 
     ("Amina", "Amina Bello Yusuf", False),                     # one shared word is too weak
     ("Amina Bello", "Bello Bello", False),                     # a repeated word cannot be used twice
     ("Amina Bello", "Chinedu Okafor", False),
+    ("A B", "Amina Bello", False),                             # initials alone fit any name with those letters
+    ("A. Bello", "Amina Bello", False),                        # one full word is not enough
     ("", "Amina Bello", None),
     ("Amina Bello", None, None),
     ("  ", "Amina Bello", None),

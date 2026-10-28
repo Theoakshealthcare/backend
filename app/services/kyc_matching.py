@@ -21,7 +21,7 @@ from app.core.config import settings
 
 _NON_WORD = re.compile(r"[^a-z0-9]+")
 _DOB_FORMATS = ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%d %b %Y", "%d-%b-%Y", "%d %B %Y", "%Y/%m/%d")
-MIN_SHARED_NAME_TOKENS = 2  # one shared token ("Amina") is far too weak to call two names the same person
+MIN_SHARED_NAME_TOKENS = 2  # one shared word ("Amina") is far too weak to call two names the same person; initials do not count
 
 
 def name_tokens(name: Optional[str]) -> list[str]:
@@ -46,12 +46,14 @@ def names_match(profile_name: Optional[str], provider_name: Optional[str]) -> Op
     if len(short) < MIN_SHARED_NAME_TOKENS:
         return False
     remaining = list(long_)
+    full_words = 0
     for token in short:
         hit = next((i for i, other in enumerate(remaining) if _token_matches(token, other)), None)
         if hit is None:
             return False
+        full_words += len(token) > 1 and len(remaining[hit]) > 1
         remaining.pop(hit)  # each word of the longer name can be used once
-    return True
+    return full_words >= MIN_SHARED_NAME_TOKENS  # initials alone ("A B") never match: they fit any name with those letters
 
 
 def parse_dob(value: object) -> Optional[date]:

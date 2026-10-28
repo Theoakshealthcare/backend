@@ -99,7 +99,8 @@ def process_event(db: Session, job: dict, *, client: Optional[PremblyClient] = N
     try:
         session = (client or PremblyClient.from_settings()).get_session(session_id, include_payload=True)
     except PremblyError as exc:
-        hooks.on_pull_error(exc)
+        if final_try or not exc.retryable:  # one count per event: ARQ's retries of one failing pull must not flag Prembly down alone
+            hooks.on_pull_error(exc)
         return _on_pull_error(db, event_id, attempt_id, exc, final_try)
     except ValueError:  # the session id is not one we may put in a URL
         return _close(db, event_id, ERROR, attempt_id)
@@ -143,6 +144,11 @@ def confirm_and_record(db: Session, attempt_id: uuid.UUID, session: PremblySessi
     # Bound to this attempt by Prembly's own record, so it replaces the client's earlier hint (the caregiver may have opened the
     # widget again: the hint is only ever the latest thing the app reported).
     attempt.provider_session_id = session.session_id
+    try:
+        db.flush()  # a concurrent hint on the same session id surfaces HERE, not in an autoflush of some later query
+    except IntegrityError:
+        db.rollback()
+        return Recorded(DISAGREEMENT)
     if not observation.final:
         return Recorded(APPLIED, observation)  # bound only: Prembly has no verdict yet
     attempt.face_confidence, attempt.liveness_confidence = observation.face_confidence, observation.liveness_confidence
@@ -236,7 +242,7 @@ def _close(db: Session, event_id: uuid.UUID, outcome: str, verification_id: Opti
 
 
 def _stamp(db: Session, event_id: uuid.UUID, outcome: str, verification_id: Optional[uuid.UUID]) -> None:
-    db.query(KycWebhookEvent).filter(KycWebhookEvent.id == event_id).update(
+    db.query(KycWebhookEvent).filter(KycWebhookEvent.id == event_id, KycWebhookEvent.processed_at.is_(None)).update(
         {"outcome": outcome, "processed_at": datetime.utcnow(), "verification_id": verification_id}, synchronize_session=False)
 
 
