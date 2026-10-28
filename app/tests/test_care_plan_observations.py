@@ -160,3 +160,20 @@ def test_a_note_after_erasure_reads_as_empty_text(db, client):
     db.query(CarePlanObservation).filter_by(id=note["id"]).update({"body_encrypted": None})
     db.commit()
     assert client.get(_url(plan["id"]), headers=h(nurse)).json()["items"][0]["body"] == ""
+
+
+def test_notes_with_the_same_timestamp_are_not_skipped_when_the_id_cursor_is_used(db, client):
+    nurse, _, _, plan = started_plan(client, db)
+    ids = [_add(client, nurse, plan["id"], body=f"Placeholder note {n}").json()["id"] for n in range(4)]
+    same = datetime.utcnow() - timedelta(minutes=5)
+    db.query(CarePlanObservation).filter_by(plan_id=plan["id"]).update({"created_at": same})
+    db.commit()
+    seen, params = [], {"limit": 1}
+    for _ in range(6):
+        page = client.get(_url(plan["id"]), params=params, headers=h(nurse)).json()
+        seen += [i["id"] for i in page["items"]]
+        if page["next_before"] is None:
+            assert page["next_before_id"] is None
+            break
+        params = {"limit": 1, "before": page["next_before"], "before_id": page["next_before_id"]}
+    assert sorted(seen) == sorted(ids) and len(seen) == len(set(seen)) == 4

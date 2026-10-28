@@ -1,0 +1,65 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/tasks?date=2026-10-29",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "date": "2026-10-29",
+      "is_today": false,
+      "can_tick": false,
+      "slots": [
+        {
+          "slot": "morning",
+          "time_of_day": "08:00",
+          "tasks": [
+            {
+              "id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+              "title": "Placeholder morning task",
+              "time_of_day": "08:00",
+              "done": false,
+              "done_by": null,
+              "done_at": null
+            }
+          ]
+        },
+        {
+          "slot": "afternoon",
+          "time_of_day": null,
+          "tasks": [
+            {
+              "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+              "title": "Placeholder afternoon walk",
+              "time_of_day": null,
+              "done": false,
+              "done_by": null,
+              "done_at": null
+            }
+          ]
+        },
+        {
+          "slot": "evening",
+          "time_of_day": "18:00",
+          "tasks": [
+            {
+              "id": "21ee30ca-1e9d-407b-890d-b51a5b7f297c",
+              "title": "Placeholder evening task",
+              "time_of_day": "18:00",
+              "done": false,
+              "done_by": null,
+              "done_at": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "note": "Another day can be read but not ticked: `is_today` and `can_tick` are false."
+}

@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/care-plan-tasks/e20e9d6d-d108-495e-9f4f-53565c5f0a27/completion",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "date": "2026-10-28",
+      "done": true
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "task_not_scheduled",
+        "message": "This task is not scheduled for that day."
+      }
+    }
+  },
+  "note": "A task that is not due today (its days exclude today)."
+}

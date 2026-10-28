@@ -141,7 +141,9 @@ def list_care_plans(
     current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db),
 ) -> Any:
     """The Assigned Care Plan tab: plans for the clients of my live visits (accepted, on the way or in progress)."""
-    return svc.list_assigned(db, _caregiver(db, current_user), plan_status, q)
+    result = svc.list_assigned(db, _caregiver(db, current_user), plan_status, q)
+    tasks.add_progress_percent(db, result["items"])
+    return result
 
 
 @router.get("/care-plans/candidates", response_model=CandidateList, responses=NURSE_ONLY)
@@ -381,6 +383,7 @@ def list_observations(
     plan_id: UUID,
     before: Optional[datetime] = Query(None, description="Return notes older than this timestamp (the previous page's "
                                                          "`next_before`)."),
+    before_id: Optional[UUID] = Query(None, description="With `before`: the previous page's `next_before_id`."),
     limit: int = Query(notes.DEFAULT_LIMIT, ge=1, le=notes.MAX_LIMIT),
     category: Optional[ObservationCategory] = Query(None, description="Only this category."),
     current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db),
@@ -390,7 +393,7 @@ def list_observations(
     plan, _ = _plan_access(db, caregiver, plan_id)
     if before is not None and before.tzinfo is not None:
         before = before.astimezone(timezone.utc).replace(tzinfo=None)
-    return notes.list_observations(db, plan, before, limit, category)
+    return notes.list_observations(db, plan, before, before_id, limit, category)
 
 
 @router.post("/care-plans/{plan_id}/observations", response_model=ObservationOut, status_code=status.HTTP_201_CREATED,

@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/caregiver/care-plan-tasks/e20e9d6d-d108-495e-9f4f-53565c5f0a27",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 5,
+      "title": "x"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Care plan not found"
+    }
+  },
+  "note": "A removed task is the plain 404."
+}

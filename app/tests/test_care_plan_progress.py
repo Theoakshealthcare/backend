@@ -243,3 +243,40 @@ def test_the_response_is_a_closed_list(db, client):
     body = _progress(client, nurse, plan["id"]).json()
     assert set(body) == {"overall_percent", "scheduled", "completed", "visit_days", "day", "of_days", "review_due_on", "by_day",
                          "goals", "last_observation_at"}
+
+
+def test_a_visit_that_runs_past_midnight_makes_both_days_visit_days(db, client):
+    nurse, patient, booking, plan = started_plan(client, db)
+    start = _backdate(db, plan, 4)
+    booking.actual_start_time = datetime.utcnow()
+    night = _visit(db, patient, nurse, start + timedelta(days=1), hour=21)       # 22:00 in Lagos
+    night.actual_start_time = datetime.combine(start + timedelta(days=1), time(21, 0))
+    night.actual_end_time = datetime.combine(start + timedelta(days=2), time(5, 0))  # 06:00 the next day
+    db.commit()
+    days = [d["date"] for d in _progress(client, nurse, plan["id"]).json()["by_day"]]
+    assert days == [(start + timedelta(days=1)).isoformat(), (start + timedelta(days=2)).isoformat(), TODAY.isoformat()]
+
+
+def test_a_visit_never_closed_counts_for_at_most_a_day(db, client):
+    nurse, patient, booking, plan = started_plan(client, db)
+    start = _backdate(db, plan, 6)
+    booking.actual_start_time = datetime.utcnow()
+    forgotten = _visit(db, patient, nurse, start + timedelta(days=1), status=BookingStatus.IN_PROGRESS, hour=9)
+    forgotten.actual_start_time = datetime.combine(start + timedelta(days=1), time(9, 0))
+    db.commit()
+    days = [d["date"] for d in _progress(client, nurse, plan["id"]).json()["by_day"]]
+    # 24 hours from 09:00 UTC reaches the next Lagos day; it does not run on for the days after
+    assert days == [(start + timedelta(days=1)).isoformat(), (start + timedelta(days=2)).isoformat(), TODAY.isoformat()]
+
+
+def test_a_finished_plan_stops_counting_the_day_it_was_closed(db, client):
+    nurse, patient, booking, plan = started_plan(client, db)
+    start = _backdate(db, plan, 6)
+    booking.actual_start_time = datetime.utcnow()
+    _visit(db, patient, nurse, start + timedelta(days=1))
+    _visit(db, patient, nurse, start + timedelta(days=4))
+    db.get(CarePlan, plan["id"]).completed_at = datetime.combine(start + timedelta(days=2), time(12, 0))
+    db.get(CarePlan, plan["id"]).status = "completed"
+    db.commit()
+    body = _progress(client, nurse, plan["id"]).json()
+    assert [d["date"] for d in body["by_day"]] == [(start + timedelta(days=1)).isoformat()]

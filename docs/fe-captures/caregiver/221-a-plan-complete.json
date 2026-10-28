@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PATCH",
-    "path": "/api/v1/caregiver/care-plans/b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+    "path": "/api/v1/caregiver/care-plans/34fe9218-f4df-4bca-8261-44a82a0f50db",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "expected_version": 5,
@@ -15,10 +15,10 @@
       "cache-control": "no-store"
     },
     "body": {
-      "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+      "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
       "version": 6,
       "status": "completed",
-      "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+      "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
       "client": {
         "full_name": "Placeholder Client",
         "age": 71,
@@ -44,14 +44,14 @@
       ],
       "goals": [
         {
-          "id": "2d2b2dc7-e951-4655-830a-96050f25f4a9",
+          "id": "1fc54f86-fa3b-406e-980b-858831da1bd7",
           "title": "Placeholder goal",
           "target": "Placeholder target",
           "frequency": "daily",
           "status": "active"
         },
         {
-          "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+          "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
           "title": "Placeholder goal two",
           "target": "Placeholder target two",
           "frequency": "weekly",
@@ -60,7 +60,7 @@
       ],
       "tasks": [
         {
-          "id": "5ab63e26-15c2-43d3-a811-d37620020c0a",
+          "id": "b24a7f07-adf8-4417-a884-d6aeead43669",
           "title": "Placeholder task",
           "time_slot": "morning",
           "time_of_day": "08:00",
@@ -72,10 +72,12 @@
         }
       ],
       "capabilities": {
-        "can_edit_plan": false
+        "can_edit_plan": false,
+        "can_tick_tasks": false,
+        "can_add_observation": false
       },
-      "created_at": "2026-10-27T22:30:57.133041",
-      "updated_at": "2026-10-27T22:30:57.547458"
+      "created_at": "2026-10-28T10:10:50.058340",
+      "updated_at": "2026-10-28T10:10:50.411473"
     }
   },
   "note": "Completing makes the plan read-only and frees the client."

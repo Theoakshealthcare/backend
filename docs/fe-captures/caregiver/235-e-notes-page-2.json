@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/observations?limit=1&before=2026-10-28T10%3A10%3A52.834517&before_id=bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "ffd9a4e0-fa3b-41c8-aaca-e9bb778a70b9",
+          "category": "observation",
+          "body": "Placeholder observation: ate well.",
+          "author": {
+            "name": "Placeholder Nurse",
+            "kind": "caregiver"
+          },
+          "created_at": "2026-10-28T10:10:52.806793"
+        }
+      ],
+      "next_before": null,
+      "next_before_id": null
+    }
+  }
+}

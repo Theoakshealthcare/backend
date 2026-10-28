@@ -14,8 +14,8 @@
     "body": {
       "items": [
         {
-          "id": "df2b0e55-f1d2-491c-9012-925327dbf16b",
-          "booking_id": "a0857ea0-9c60-48ed-85ec-c2714487f1f1",
+          "id": "9cd68e75-9c03-4904-8ed5-a87ec20df0a5",
+          "booking_id": "b68e5c5e-2f8b-4ae4-9f90-31bd57fff574",
           "client": {
             "full_name": "Placeholder Relative",
             "age": 82,
@@ -24,7 +24,8 @@
           "diagnosis": "Placeholder diagnosis two",
           "risk_level": "high",
           "status": "active",
-          "start_date": "2026-10-27"
+          "start_date": "2026-10-28",
+          "progress_percent": null
         }
       ]
     }

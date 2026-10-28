@@ -439,7 +439,7 @@ def test_the_assigned_list_shows_plans_of_my_live_clients_and_searches_by_name(d
     assert r.status_code == 200
     assert r.json()["items"] == [{
         "id": plan["id"], "booking_id": str(booking.id), "client": plan["client"], "diagnosis": SECRET_DIAGNOSIS,
-        "risk_level": "high", "status": "active", "start_date": "2026-10-28"}]
+        "risk_level": "high", "status": "active", "start_date": "2026-10-28", "progress_percent": None}]
     assert client.get(f"{BASE}/care-plans?q=placeholder cl", headers=h(nurse)).json()["items"][0]["id"] == plan["id"]
     assert client.get(f"{BASE}/care-plans?q=nobody", headers=h(nurse)).json()["items"] == []
     assert client.get(f"{BASE}/care-plans?status=completed", headers=h(nurse)).json()["items"] == []

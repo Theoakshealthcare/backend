@@ -241,6 +241,8 @@ class CarePlanListItem(BaseModel):
     risk_level: RiskLevel
     status: Literal["active", "completed", "archived"]
     start_date: date
+    progress_percent: Optional[int] = Field(None, description="The plan's overall progress (see the progress call); null "
+                                                               "while there is nothing to measure.")
 
 
 class CarePlanList(BaseModel):
@@ -304,6 +306,8 @@ class ObservationOut(BaseModel):
 class ObservationList(BaseModel):
     items: List[ObservationOut]
     next_before: Optional[datetime] = Field(None, description="Pass as `before` for the next (older) page; null on the last.")
+    next_before_id: Optional[UUID] = Field(None, description="Pass as `before_id` together with `before` (it breaks ties "
+                                                              "between notes with the same timestamp); null on the last.")
 
 
 class ProgressDay(BaseModel):

@@ -247,17 +247,30 @@ def set_completion(db: Session, caregiver: Caregiver, access: PlanAccess, task: 
 
 # --- progress: route 23 -----------------------------------------------------------------------------------------------
 
+MAX_VISIT_SPAN = timedelta(hours=24)
+
+
 def visit_days(db: Session, plan: CarePlan, first: date, last: date) -> List[date]:
-    """Dates on which a visit for this plan's client started (any caregiver): a booking for the same subject that reached
-    ``in_progress`` or ``completed``, by ``actual_start_time`` in HOME_TIMEZONE (the scheduled date if it was never stamped)."""
-    query = db.query(func.coalesce(Booking.actual_start_time, Booking.scheduled_date)).filter(
-        Booking.status.in_((BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED)))
+    """Dates on which a visit for this plan's client was under way (any caregiver): a booking for the same subject that reached
+    ``in_progress`` or ``completed``, from ``actual_start_time`` to its end in HOME_TIMEZONE (the scheduled date if it was never
+    stamped). A visit that runs past midnight makes both days visit days, since ticks are allowed on both; a visit with no end
+    (still in progress, or never closed) is counted for at most 24 hours."""
+    query = db.query(func.coalesce(Booking.actual_start_time, Booking.scheduled_date), Booking.actual_end_time,
+                     Booking.status).filter(Booking.status.in_((BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED)))
     myself = func.lower(func.trim(Booking.booking_for)) == "myself"
     if plan.patient_id is not None:
         query = query.filter(Booking.patient_id == plan.patient_id, myself)
     else:
         query = query.filter(Booking.care_recipient_id == plan.care_recipient_id, ~myself)
-    days = {_local_date(started) for (started,) in query.all()}
+    days: Set[date] = set()
+    for started, ended, status in query.all():
+        stop = ended if status == BookingStatus.COMPLETED and ended is not None and ended >= started else (
+            datetime.utcnow() if status == BookingStatus.IN_PROGRESS else started)
+        stop = min(max(stop, started), started + MAX_VISIT_SPAN)
+        day = _local_date(started)
+        while day <= _local_date(stop):
+            days.add(day)
+            day += timedelta(days=1)
     return sorted(d for d in days if first <= d <= last)
 
 
@@ -267,6 +280,9 @@ def progress(db: Session, plan: CarePlan) -> Dict[str, Any]:
     sides. With nothing to measure yet, ``overall_percent`` is null."""
     today = base.local_today()
     window_end = min(today, plan_last_day(plan))
+    closed_at = min((m for m in (plan.completed_at, plan.archived_at) if m is not None), default=None)
+    if closed_at is not None:  # a finished plan stops counting the day it was closed
+        window_end = min(window_end, _local_date(closed_at))
     tasks = base._tasks(db, plan.id)
     days = visit_days(db, plan, plan.start_date, window_end) if window_end >= plan.start_date else []
     ticks: Set[Tuple[UUID, date]] = set()
@@ -289,3 +305,10 @@ def progress(db: Session, plan: CarePlan) -> Dict[str, Any]:
         "goals": {name: goal_counts.get(name, 0) for name in ("active", "achieved", "discontinued")},
         "last_observation_at": last_note,
     }
+
+
+def add_progress_percent(db: Session, items: List[Dict[str, Any]]) -> None:
+    """Fill ``progress_percent`` on the assigned list's items (the bar on each card)."""
+    plans = {p.id: p for p in db.query(CarePlan).filter(CarePlan.id.in_([i["id"] for i in items]))} if items else {}
+    for item in items:
+        item["progress_percent"] = progress(db, plans[item["id"]])["overall_percent"]

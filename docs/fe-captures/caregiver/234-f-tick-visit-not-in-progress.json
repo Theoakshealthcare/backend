@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/care-plan-tasks/47f653e2-e9e1-4c75-ad77-14d85aa53b7c/completion",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "date": "2026-10-28",
+      "done": true
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "visit_not_in_progress",
+        "message": "Available during an active visit."
+      }
+    }
+  }
+}

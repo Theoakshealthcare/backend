@@ -1,0 +1,53 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/progress",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "overall_percent": 55,
+      "scheduled": 11,
+      "completed": 6,
+      "visit_days": 4,
+      "day": 9,
+      "of_days": 30,
+      "review_due_on": "2026-11-03",
+      "by_day": [
+        {
+          "date": "2026-10-21",
+          "scheduled": 3,
+          "completed": 2
+        },
+        {
+          "date": "2026-10-22",
+          "scheduled": 3,
+          "completed": 2
+        },
+        {
+          "date": "2026-10-25",
+          "scheduled": 2,
+          "completed": 1
+        },
+        {
+          "date": "2026-10-28",
+          "scheduled": 3,
+          "completed": 1
+        }
+      ],
+      "goals": {
+        "active": 1,
+        "achieved": 0,
+        "discontinued": 0
+      },
+      "last_observation_at": "2026-10-28T10:10:52.834517"
+    }
+  },
+  "note": "Setup note: three earlier visit days were inserted directly (the API cannot tick a past day). Days with no visit do not count, whatever their weekday."
+}

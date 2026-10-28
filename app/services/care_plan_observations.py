@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.db.models.admin import AdminUser
@@ -62,15 +63,21 @@ def add_observation(db: Session, caregiver: Caregiver, access: PlanAccess, plan:
     return _out(obs, plan.id, {f"c:{caregiver.id}": caregiver.full_name})
 
 
-def list_observations(db: Session, plan: CarePlan, before: Optional[datetime], limit: int,
+def list_observations(db: Session, plan: CarePlan, before: Optional[datetime], before_id: Optional[UUID], limit: int,
                       category: Optional[str]) -> Dict[str, Any]:
-    """Newest first, keyset paged on ``created_at``: pass the previous page's ``next_before`` as ``before``."""
+    """Newest first, keyset paged on (``created_at``, ``id``): pass the previous page's ``next_before`` and
+    ``next_before_id`` back as ``before`` and ``before_id``. ``before`` alone pages on time (notes with exactly the same
+    timestamp as ``before`` are then skipped)."""
     query = db.query(CarePlanObservation).filter(CarePlanObservation.plan_id == plan.id)
     if category is not None:
         query = query.filter(CarePlanObservation.category == category)
-    if before is not None:
+    if before is not None and before_id is not None:
+        query = query.filter(or_(CarePlanObservation.created_at < before,
+                                 and_(CarePlanObservation.created_at == before, CarePlanObservation.id < before_id)))
+    elif before is not None:
         query = query.filter(CarePlanObservation.created_at < before)
     rows = query.order_by(CarePlanObservation.created_at.desc(), CarePlanObservation.id.desc()).limit(limit + 1).all()
     more, rows = len(rows) > limit, rows[:limit]
     names = _names(db, rows)
-    return {"items": [_out(r, plan.id, names) for r in rows], "next_before": rows[-1].created_at if more else None}
+    return {"items": [_out(r, plan.id, names) for r in rows], "next_before": rows[-1].created_at if more else None,
+            "next_before_id": rows[-1].id if more else None}

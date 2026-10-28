@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/tasks",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "title": "Placeholder afternoon task",
+      "time_slot": "afternoon",
+      "time_of_day": "13:00",
+      "days_of_week": [
+        1,
+        3,
+        5
+      ],
+      "expected_version": 1
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "task": {
+        "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+        "title": "Placeholder afternoon task",
+        "time_slot": "afternoon",
+        "time_of_day": "13:00",
+        "days_of_week": [
+          1,
+          3,
+          5
+        ]
+      },
+      "plan_version": 2
+    }
+  },
+  "note": "`expected_version` is optional when adding."
+}
