@@ -1,0 +1,748 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-plan-templates",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "46007536-27d3-47a8-b5cf-b0e8e08bc2b1",
+          "key": "cardiac_rehabilitation",
+          "name": "Cardiac Rehabilitation",
+          "summary": "Light activity, resting readings and low-salt meals while recovering from a heart event.",
+          "duration_days": 45,
+          "review_every_days": 14,
+          "default_risk_level": "high",
+          "clinical_review_status": "pending",
+          "version": 1,
+          "goals": [
+            {
+              "title": "Progressive light activity as cleared by the care team",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Resting BP and pulse recorded",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Low-salt, regular meals",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Report chest symptoms early",
+              "target": null,
+              "frequency": "ongoing"
+            }
+          ],
+          "tasks": [
+            {
+              "title": "Check and record BP and pulse",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Check and record BP and pulse",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Light activity as instructed",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Weigh and record weight",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Meal support",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Meal support",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Meal support",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            }
+          ],
+          "special_instructions": [
+            "Stop activity and call for help for chest pain, breathlessness or fainting",
+            "Follow the cardiac team's activity limits"
+          ],
+          "is_active": true,
+          "reviewed_by": null,
+          "reviewed_at": null
+        },
+        {
+          "id": "e885be91-42bd-4857-915f-b27696664f81",
+          "key": "diabetes_management",
+          "name": "Diabetes Management",
+          "summary": "Meals, readings, foot care and gentle activity for a client living with diabetes.",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "default_risk_level": "medium",
+          "clinical_review_status": "pending",
+          "version": 1,
+          "goals": [
+            {
+              "title": "Regular meals and fluids",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Blood glucose checked and recorded as prescribed",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Daily foot check",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Gentle daily activity",
+              "target": null,
+              "frequency": "daily"
+            }
+          ],
+          "tasks": [
+            {
+              "title": "Check and record blood glucose as the prescriber ordered",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Check and record blood glucose as the prescriber ordered",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Meal support, note what was eaten",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Meal support, note what was eaten",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Meal support, note what was eaten",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Foot and skin check",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "30-minute walk if able",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            }
+          ],
+          "special_instructions": [
+            "Record readings, do not interpret them",
+            "Report dizziness, sweating or unusual drowsiness at once"
+          ],
+          "is_active": true,
+          "reviewed_by": null,
+          "reviewed_at": null
+        },
+        {
+          "id": "48730689-02c0-41ab-9dcf-f7d43ba147d0",
+          "key": "elderly_daily_living_dementia",
+          "name": "Elderly Daily Living and Dementia Support",
+          "summary": "A calm daily routine with meals, fluids, safety and engagement for an older client or a client with dementia.",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "default_risk_level": "medium",
+          "clinical_review_status": "pending",
+          "version": 1,
+          "goals": [
+            {
+              "title": "Calm, predictable daily routine",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Safe home and fall prevention",
+              "target": null,
+              "frequency": "ongoing"
+            },
+            {
+              "title": "Regular meals, fluids and toileting",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Keep the client engaged",
+              "target": null,
+              "frequency": "daily"
+            }
+          ],
+          "tasks": [
+            {
+              "title": "Morning routine: wash, dress, breakfast",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Hydration prompts",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Hydration prompts",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Hydration prompts",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Gentle activity or conversation",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Evening routine and a calm bedtime",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Note mood and confusion",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            }
+          ],
+          "special_instructions": [
+            "Do not leave the client alone if wandering is a risk",
+            "Note any new confusion or change in behaviour"
+          ],
+          "is_active": true,
+          "reviewed_by": null,
+          "reviewed_at": null
+        },
+        {
+          "id": "bd0dd20a-b961-4afe-bd9a-2b1b9c35fc3a",
+          "key": "post_surgery_recovery",
+          "name": "Post-Surgery Recovery",
+          "summary": "Wound care, comfort, gentle movement and nutrition while healing after an operation.",
+          "duration_days": 21,
+          "review_every_days": 7,
+          "default_risk_level": "medium",
+          "clinical_review_status": "pending",
+          "version": 1,
+          "goals": [
+            {
+              "title": "Wound kept clean and dry as instructed",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Pain reported and recorded",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Gradual return to movement",
+              "target": null,
+              "frequency": "ongoing"
+            },
+            {
+              "title": "Adequate fluids and nutrition",
+              "target": null,
+              "frequency": "daily"
+            }
+          ],
+          "tasks": [
+            {
+              "title": "Wound check and record appearance",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Wound check and record appearance",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Assisted short walk",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Assisted short walk",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Hygiene and clean clothing",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Fluids and meal support",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Fluids and meal support",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Fluids and meal support",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            }
+          ],
+          "special_instructions": [
+            "Wound care exactly as the surgical team instructed",
+            "Report fever, spreading redness or discharge at once"
+          ],
+          "is_active": true,
+          "reviewed_by": null,
+          "reviewed_at": null
+        },
+        {
+          "id": "9c04f684-dc4d-401c-abc1-fac28a708df3",
+          "key": "stroke_recovery",
+          "name": "Stroke Recovery",
+          "summary": "Daily support after a stroke: safe movement, therapy exercises, swallowing and skin care.",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "default_risk_level": "high",
+          "clinical_review_status": "pending",
+          "version": 1,
+          "goals": [
+            {
+              "title": "Safe mobility and transfers",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Daily range-of-motion practice",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Support speech and swallowing exercises as taught by the therapist",
+              "target": null,
+              "frequency": "daily"
+            },
+            {
+              "title": "Prevent falls",
+              "target": null,
+              "frequency": "ongoing"
+            }
+          ],
+          "tasks": [
+            {
+              "title": "Check and record BP and pulse",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Check and record BP and pulse",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Assisted washing and dressing",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Prescribed exercises with the therapist's sheet",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Safe-swallow check at meals",
+              "time_slot": "morning",
+              "time_of_day": "08:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Safe-swallow check at meals",
+              "time_slot": "afternoon",
+              "time_of_day": "13:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Safe-swallow check at meals",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            {
+              "title": "Skin and pressure-point check",
+              "time_slot": "evening",
+              "time_of_day": "18:00",
+              "days_of_week": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ]
+            }
+          ],
+          "special_instructions": [
+            "Follow the therapist's exercise sheet",
+            "Report new weakness, slurred speech or confusion at once"
+          ],
+          "is_active": true,
+          "reviewed_by": null,
+          "reviewed_at": null
+        }
+      ]
+    }
+  },
+  "note": "Every template, active or not, with its full content. Trimmed in the guide."
+}

@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/care-plan-medications/98742aab-a8af-44b3-ab75-264ff132f693",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 11,
+      "dose_amount": "3"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "medication_stopped",
+        "message": "This medication was stopped. Record a new one instead of editing it."
+      }
+    }
+  },
+  "note": "A stopped medication cannot be edited: 409 `medication_stopped`."
+}

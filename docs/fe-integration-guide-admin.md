@@ -1,8 +1,8 @@
-# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy, pricing, earnings, payouts, refunds)
+# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy, pricing, earnings, payouts, refunds, care plans)
 
 | | |
 |---|---|
-| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers`. Pricing settings (section 13), branch `fix/booking-settings-audit`, no migration. Refunds (section 12.12), branch `feat/refunds-v2`, migration `0014_refunds_v2` |
+| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers`. Pricing settings (section 13), branch `fix/booking-settings-audit`, no migration. Refunds (section 12.12), branch `feat/refunds-v2`, migration `0014_refunds_v2`. Care plans (section 12.13), branch `feat/care-plans-admin`, migration `0019_care_plan_admin_permissions` (data only) |
 | **Audience** | `apps/admin` (the console): A1, A2 |
 | **Base URL** | `http://127.0.0.1:8000` for the local stack; every path below starts with `/api/v1` |
 | **Source of truth** | Every request and response body, status code and error string below was **copied from a real response** captured by `scripts/capture_admin_flow.py` against the running docker compose stack. The files are in [`docs/fe-captures/admin/`](fe-captures/admin/); each example names its file. Anything that could not be exercised live is marked **[not live]** with the reason. |
@@ -485,6 +485,9 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
 | `GET /admin/bookings...`, `POST /admin/bookings/{id}/...` | see section 12.1 |
 | `GET /admin/earnings`, `POST /admin/earnings/{id}/hold`, `.../release-hold`, `.../void` | see section 12.10 |
 | `GET /admin/payouts`, `GET /admin/payouts/batches`, `GET /admin/payouts/batches/{id}` | `payments.read` (section 12.11) |
+| `GET /admin/care-plans...`, `GET /admin/care-plan-templates` | `careplans.read` (Clinical Reviewer, Super Admin; section 12.13) |
+| `POST`/`PATCH`/`DELETE` on `/admin/care-plans...`, `/admin/care-plan-goals/...`, `/admin/care-plan-tasks/...`, `/admin/care-plan-medications/...` | `careplans.write` (section 12.13) |
+| `POST /admin/care-plan-templates/{id}/review` | `careplans.templates` (section 12.13) |
 | `POST /admin/payouts/batches/{id}/approve`, `POST /admin/payouts/batches/{id}/cancel`, `POST /admin/payouts/{id}/cancel` | `payouts.execute` (Finance, Super Admin; section 12.11) |
 | `POST /admin/payouts/{id}/retry`, `POST /admin/payouts/{id}/resolve`, `POST /admin/payouts/caregivers/{id}/unfreeze` | `ledger.adjust` (Super Admin only; section 12.11) |
 
@@ -5083,6 +5086,869 @@ _capture `407`: the approval with the limit in force and whether this one was ab
 ```
 
 _capture `408`: only the bank code, the last four digits and the resolved name are ever written down._
+
+## 12.13 Care plans (B4): `/api/v1/admin/care-plans`
+
+**What it is, in the console's terms.** A **care plan** is one client's record of care: a diagnosis, goals, daily tasks, medications, allergies and special instructions. Nurses write and tick plans in the caregiver app (caregiver guide, section 16). The **Clinical Reviewer** (and the Super Admin) can do the same from here, and also **sign off the five seeded templates**. There are **no console screens for this in v1**: the Clinical Reviewer authors through this API directly, so this section is the contract for whoever builds the screens later.
+
+**Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `500` to `513` come from `app/tests/test_capture_care_plans_admin.py`. The data is placeholder. **[seeded]** The admins (a Clinical Reviewer, a Support and a Finance admin), the patients, the relative and the nurse's visit are inserted straight into the database; the nurse's note (capture 509-b) and the caregiver's view of the plan (510) go through the real caregiver routes. The admin tokens are real session tokens issued by the harness (the sign-in itself is section 3). **[not live]** Nothing here was run against the compose stack or a browser.
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /admin/care-plans` | `careplans.read` | filters `status` (`active`, `completed`, `archived`), `q` (client name only); `limit` (1 to 200, default 50), `offset`; newest change first. `{items, total, limit, offset}` |
+| `POST /admin/care-plans` | `careplans.write` | create. **`201`** with the full plan |
+| `GET /admin/care-plans/{plan_id}` | `careplans.read` | the full plan at any status. **Audited** |
+| `PATCH /admin/care-plans/{plan_id}` | `careplans.write` | header, allergies, instructions, `status` to `completed` or `archived`. Needs `expected_version` |
+| `GET /admin/care-plans/{plan_id}/observations` | `careplans.read` | the notes, newest first, keyset paged. **Audited** |
+| `POST /admin/care-plans/{plan_id}/observations` | `careplans.write` | add a note. **`201`** |
+| `POST /admin/care-plans/{plan_id}/goals`, `PATCH /admin/care-plan-goals/{goal_id}`, `DELETE /admin/care-plan-goals/{goal_id}?expected_version=` | `careplans.write` | `{goal, plan_version}` |
+| `POST /admin/care-plans/{plan_id}/tasks`, `PATCH /admin/care-plan-tasks/{task_id}`, `DELETE /admin/care-plan-tasks/{task_id}?expected_version=` | `careplans.write` | `{task, plan_version}` |
+| `POST /admin/care-plans/{plan_id}/medications`, `PATCH /admin/care-plan-medications/{medication_id}`, `POST /admin/care-plan-medications/{medication_id}/stop` | `careplans.write` | `{medication, plan_version}` |
+| `GET /admin/care-plan-templates` | `careplans.read` | every template with content and review state |
+| `POST /admin/care-plan-templates/{template_id}/review` | `careplans.templates` | sign off or take back |
+
+Who holds the permissions: the **Clinical Reviewer** and the **Super Admin** hold all three; **no other role holds any** (Support gets `403`, captures 500-c, 501-f, 509-c, 511-f). There is no role with read but not write.
+
+**The write bodies are the caregiver ones** (caregiver guide, sections 16.5 to 16.24), unchanged: the same fields, limits (30 goals, 60 tasks, 40 active medications), `expected_version` rules and `409` shapes. Only create differs, and the responses (below). The medications **record-only notice** of caregiver guide 16.21 applies to any screen that shows medications.
+
+### The admin plan is not the caregiver plan (field-nesting traps)
+
+| | Caregiver `GET /caregiver/care-plans/{id}` | Admin `GET /admin/care-plans/{id}` |
+|---|---|---|
+| `booking_id` | the visit that gives access | **absent** (no visit) |
+| `capabilities` | `can_edit_plan`, `can_tick_tasks`, `can_add_observation` | **absent**: gate on the admin's `permissions` from `/admin/me` instead |
+| `subject` | absent | `{kind, id}`: `kind` is `patient` or `recipient`; `id` is the `patients` or `care_recipients` id |
+| `author.kind` | `caregiver` or `admin` | the same |
+| `client` | `{full_name, age, gender}` | the same, **full name, not masked** (see UX consequences) |
+
+Everything else (`diagnosis`, `risk_level`, `goals`, `medications`, `tasks`, `allergies`, `special_instructions`, `template`, `version`, dates) has the same name, type and nesting in both. The `plan` inside a `409` `version_conflict` is the **admin** shape on these routes.
+
+### Creating a plan
+
+Body: the caregiver create body (`diagnosis` and, unless a template supplies it, `risk_level`; optional `template_id`, `start_date`, `duration_days`, `review_every_days`, `goals`, `tasks`, `allergies`, `special_instructions`) plus **exactly one** of `patient_id` or `care_recipient_id`. Which one: a client who booked for themselves, or an app patient, is a `patient_id`; a relative that someone else booked visits for (WhatsApp) is a `care_recipient_id`. The list returns `subject` for every plan, so the id can be read back. There is **no client search route** in this slice: the console must get the id from the booking screens (section 12) or a person record.
+
+<!-- capture: 501-a-create.json request.body -->
+```json
+{
+  "patient_id": "5f880aa7-5ce0-42c6-9211-2cf9618b744d",
+  "diagnosis": "Placeholder diagnosis",
+  "risk_level": "high",
+  "start_date": "2026-10-28",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "goals": [
+    {
+      "title": "Placeholder goal",
+      "target": "Placeholder target",
+      "frequency": "daily"
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Placeholder task",
+      "time_slot": "morning",
+      "time_of_day": "08:00",
+      "days_of_week": [
+        1,
+        3,
+        5
+      ]
+    }
+  ],
+  "allergies": [
+    "Placeholder allergen"
+  ],
+  "special_instructions": [
+    "Placeholder instruction"
+  ]
+}
+```
+<!-- capture: 501-a-create.json response.body -->
+```json
+{
+  "id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+  "version": 1,
+  "status": "active",
+  "subject": {
+    "kind": "patient",
+    "id": "5f880aa7-5ce0-42c6-9211-2cf9618b744d"
+  },
+  "client": {
+    "full_name": "Placeholder Client One",
+    "age": 71,
+    "gender": "female"
+  },
+  "diagnosis": "Placeholder diagnosis",
+  "risk_level": "high",
+  "start_date": "2026-10-28",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "review_due_on": "2026-11-11",
+  "template": null,
+  "author": {
+    "name": "Placeholder Reviewer",
+    "kind": "admin"
+  },
+  "allergies": [
+    "Placeholder allergen"
+  ],
+  "special_instructions": [
+    "Placeholder instruction"
+  ],
+  "goals": [
+    {
+      "id": "a0d08167-194a-4380-955a-8fbf5664fa35",
+      "title": "Placeholder goal",
+      "target": "Placeholder target",
+      "frequency": "daily",
+      "status": "active"
+    }
+  ],
+  "medications": [],
+  "tasks": [
+    {
+      "id": "6f0f6818-7d39-45ac-8c46-f37009a1787d",
+      "title": "Placeholder task",
+      "time_slot": "morning",
+      "time_of_day": "08:00",
+      "days_of_week": [
+        1,
+        3,
+        5
+      ]
+    }
+  ],
+  "created_at": "2026-10-28T16:46:29.542389",
+  "updated_at": "2026-10-28T16:46:29.542394"
+}
+```
+
+From a template, for a relative (the template fills what the body leaves out; trimmed here):
+
+<!-- capture: 502-a-create-from-template-for-a-recipient.json response.body keys=id,version,status,subject,client,risk_level,duration_days,review_every_days,template,author -->
+```json
+{
+  "id": "3bf9e07a-f1e8-484e-a3af-766c3d2f9a7b",
+  "version": 1,
+  "status": "active",
+  "subject": {
+    "kind": "recipient",
+    "id": "9667032b-28ba-4ab3-934c-15841580d652"
+  },
+  "client": {
+    "full_name": "Placeholder Relative",
+    "age": 76,
+    "gender": "male"
+  },
+  "risk_level": "high",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "template": {
+    "id": "9c04f684-dc4d-401c-abc1-fac28a708df3",
+    "name": "Stroke Recovery",
+    "version": 1
+  },
+  "author": {
+    "name": "Placeholder Reviewer",
+    "kind": "admin"
+  }
+}
+```
+
+A client with an active plan already: `409`, with the existing plan's id so the console can open it:
+
+<!-- capture: 501-b-create-duplicate.json response.body -->
+```json
+{
+  "detail": {
+    "code": "care_plan_exists",
+    "message": "This client already has an active care plan.",
+    "plan_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec"
+  }
+}
+```
+
+No such client (also an erased patient, or the recipient row that stands for an erased person), and no such template:
+
+<!-- capture: 501-e-create-unknown-client.json response.body -->
+```json
+{
+  "detail": {
+    "code": "client_not_found",
+    "message": "No such client."
+  }
+}
+```
+<!-- capture: 502-b-create-unknown-template.json response.body -->
+```json
+{
+  "detail": {
+    "code": "template_not_found",
+    "message": "Care plan template not found."
+  }
+}
+```
+
+Both ids, or neither, is a `422` whose entry names the rule and **never echoes a value** (health text can be in the same body):
+
+<!-- capture: 501-c-create-both-ids.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, send exactly one of patient_id or care_recipient_id",
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+### Reading: the list, the plan, the notes
+
+<!-- capture: 503-a-list.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "3bf9e07a-f1e8-484e-a3af-766c3d2f9a7b",
+      "version": 1,
+      "status": "active",
+      "subject": {
+        "kind": "recipient",
+        "id": "9667032b-28ba-4ab3-934c-15841580d652"
+      },
+      "client": {
+        "full_name": "Placeholder Relative",
+        "age": 76,
+        "gender": "male"
+      },
+      "risk_level": "high",
+      "start_date": "2026-10-28",
+      "duration_days": 30,
+      "author": {
+        "name": "Placeholder Reviewer",
+        "kind": "admin"
+      },
+      "goal_count": 4,
+      "task_count": 8,
+      "medication_count": 0,
+      "updated_at": "2026-10-28T16:46:29.628468"
+    },
+    {
+      "id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+      "version": 1,
+      "status": "active",
+      "subject": {
+        "kind": "patient",
+        "id": "5f880aa7-5ce0-42c6-9211-2cf9618b744d"
+      },
+      "client": {
+        "full_name": "Placeholder Client One",
+        "age": 71,
+        "gender": "female"
+      },
+      "risk_level": "high",
+      "start_date": "2026-10-28",
+      "duration_days": 30,
+      "author": {
+        "name": "Placeholder Reviewer",
+        "kind": "admin"
+      },
+      "goal_count": 1,
+      "task_count": 1,
+      "medication_count": 0,
+      "updated_at": "2026-10-28T16:46:29.542394"
+    }
+  ],
+  "total": 2,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Rows carry no plan text** (no diagnosis, goals or allergies): only who, status, risk, counts and dates. `goal_count` excludes discontinued goals; `task_count` and `medication_count` count active ones. `q` matches the client's name, case-insensitively, as plain text (`%` and `_` are not wildcards). The diagnosis is encrypted, so it cannot be searched.
+
+The full plan:
+
+<!-- capture: 504-a-detail.json response.body -->
+```json
+{
+  "id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+  "version": 1,
+  "status": "active",
+  "subject": {
+    "kind": "patient",
+    "id": "5f880aa7-5ce0-42c6-9211-2cf9618b744d"
+  },
+  "client": {
+    "full_name": "Placeholder Client One",
+    "age": 71,
+    "gender": "female"
+  },
+  "diagnosis": "Placeholder diagnosis",
+  "risk_level": "high",
+  "start_date": "2026-10-28",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "review_due_on": "2026-11-11",
+  "template": null,
+  "author": {
+    "name": "Placeholder Reviewer",
+    "kind": "admin"
+  },
+  "allergies": [
+    "Placeholder allergen"
+  ],
+  "special_instructions": [
+    "Placeholder instruction"
+  ],
+  "goals": [
+    {
+      "id": "a0d08167-194a-4380-955a-8fbf5664fa35",
+      "title": "Placeholder goal",
+      "target": "Placeholder target",
+      "frequency": "daily",
+      "status": "active"
+    }
+  ],
+  "medications": [],
+  "tasks": [
+    {
+      "id": "6f0f6818-7d39-45ac-8c46-f37009a1787d",
+      "title": "Placeholder task",
+      "time_slot": "morning",
+      "time_of_day": "08:00",
+      "days_of_week": [
+        1,
+        3,
+        5
+      ]
+    }
+  ],
+  "created_at": "2026-10-28T16:46:29.542389",
+  "updated_at": "2026-10-28T16:46:29.542394"
+}
+```
+
+A plan that does not exist is **one `404` with the same body on every route in this section**, including the goal, task and medication routes:
+
+<!-- capture: 504-b-detail-unknown.json response.body -->
+```json
+{
+  "detail": "Care plan not found"
+}
+```
+
+The notes, newest first, from nurses and admins (`author.kind`). Paging is the caregiver one (caregiver guide 16.17): pass `next_before` and `next_before_id` back as `before` and `before_id`; `limit` 1 to 50, default 20; `category` filters.
+
+<!-- capture: 509-b-notes-list.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "8bb60d2b-a80e-4a45-8ade-280f72418fe9",
+      "category": "observation",
+      "body": "Placeholder visit note",
+      "author": {
+        "name": "Placeholder Nurse",
+        "kind": "caregiver"
+      },
+      "created_at": "2026-10-28T16:46:30.445388"
+    },
+    {
+      "id": "6d066d08-403c-4af5-bfcf-348bcfc6ebaf",
+      "category": "special_note",
+      "body": "Placeholder review note",
+      "author": {
+        "name": "Placeholder Reviewer",
+        "kind": "admin"
+      },
+      "created_at": "2026-10-28T16:46:30.128038"
+    }
+  ],
+  "next_before": null,
+  "next_before_id": null
+}
+```
+
+### Editing
+
+Every write bumps the plan's `version` by one (notes do not) and returns `plan_version`; send it as the next `expected_version`. A stale `expected_version` is `409` `version_conflict` and the body holds the **current plan** so the console can reload without another call.
+
+<!-- capture: 505-a-patch.json request.body -->
+```json
+{
+  "expected_version": 1,
+  "risk_level": "medium",
+  "allergies": [
+    "Placeholder allergen",
+    "Placeholder allergen two"
+  ]
+}
+```
+<!-- capture: 505-b-patch-stale.json response.body keys=detail -->
+```json
+{
+  "detail": {
+    "code": "version_conflict",
+    "message": "Someone just changed this plan. Reload it and try again.",
+    "plan": {
+      "id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+      "version": 2,
+      "status": "active",
+      "subject": {
+        "kind": "patient",
+        "id": "5f880aa7-5ce0-42c6-9211-2cf9618b744d"
+      },
+      "client": {
+        "full_name": "Placeholder Client One",
+        "age": 71,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "medium",
+      "start_date": "2026-10-28",
+      "duration_days": 30,
+      "review_every_days": 14,
+      "review_due_on": "2026-11-11",
+      "template": null,
+      "author": {
+        "name": "Placeholder Reviewer",
+        "kind": "admin"
+      },
+      "allergies": [
+        "Placeholder allergen",
+        "Placeholder allergen two"
+      ],
+      "special_instructions": [
+        "Placeholder instruction"
+      ],
+      "goals": [
+        {
+          "id": "a0d08167-194a-4380-955a-8fbf5664fa35",
+          "title": "Placeholder goal",
+          "target": "Placeholder target",
+          "frequency": "daily",
+          "status": "active"
+        }
+      ],
+      "medications": [],
+      "tasks": [
+        {
+          "id": "6f0f6818-7d39-45ac-8c46-f37009a1787d",
+          "title": "Placeholder task",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            3,
+            5
+          ]
+        }
+      ],
+      "created_at": "2026-10-28T16:46:29.542389",
+      "updated_at": "2026-10-28T16:46:29.774978"
+    }
+  }
+}
+```
+
+The goal, task and medication writes (captures 506, 507 and 508) answer exactly as in the caregiver guide. One example each:
+
+<!-- capture: 506-a-goal-add.json response.body -->
+```json
+{
+  "goal": {
+    "id": "b8baffd9-9d58-4012-a6a4-938e5c8e521b",
+    "title": "Placeholder goal two",
+    "target": null,
+    "frequency": "weekly",
+    "status": "active"
+  },
+  "plan_version": 3
+}
+```
+<!-- capture: 507-c-task-remove.json response.body -->
+```json
+{
+  "task": {
+    "id": "484cafdb-7efe-49d6-b19e-10c7ae567e23",
+    "title": "Placeholder task two",
+    "time_slot": "night",
+    "time_of_day": "18:00",
+    "days_of_week": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  "plan_version": 8
+}
+```
+<!-- capture: 508-c-medication-stop.json response.body -->
+```json
+{
+  "medication": {
+    "id": "98742aab-a8af-44b3-ab75-264ff132f693",
+    "name": "Placeholder medicine A",
+    "strength": "500 mg",
+    "dose_amount": "2",
+    "dose_unit": "tablet",
+    "route": "oral",
+    "reason": "Placeholder reason",
+    "prescribed_by": "Placeholder prescriber",
+    "note": null,
+    "frequency": "twice_daily",
+    "times_of_day": [
+      "08:00",
+      "20:00"
+    ],
+    "start_date": "2026-10-28",
+    "end_date": null,
+    "status": "stopped",
+    "stopped_at": "2026-10-28T16:46:30.082309"
+  },
+  "plan_version": 11
+}
+```
+
+A removed task is the plain `404`; a stopped medication cannot be edited (`409` `medication_stopped`); a plan that is `completed` or `archived` refuses every write with `409` `plan_not_editable` but stays readable:
+
+<!-- capture: 508-d-medication-edit-stopped.json response.body -->
+```json
+{
+  "detail": {
+    "code": "medication_stopped",
+    "message": "This medication was stopped. Record a new one instead of editing it."
+  }
+}
+```
+<!-- capture: 512-b-write-on-completed.json response.body -->
+```json
+{
+  "detail": {
+    "code": "plan_not_editable",
+    "message": "This care plan is completed or archived and can no longer be changed."
+  }
+}
+```
+
+Completing a plan (`PATCH` with `status: "completed"`) frees the client for a **new** active plan (capture 512-e, `201`). There is no way to reopen a plan.
+
+An admin note needs no visit (the plan must be active) and shows `author.kind: "admin"`:
+
+<!-- capture: 509-a-note-add.json response.body -->
+```json
+{
+  "id": "6d066d08-403c-4af5-bfcf-348bcfc6ebaf",
+  "category": "special_note",
+  "body": "Placeholder review note",
+  "author": {
+    "name": "Placeholder Reviewer",
+    "kind": "admin"
+  },
+  "created_at": "2026-10-28T16:46:30.128038"
+}
+```
+
+The caregiver app shows the admin-authored plan and the admin's edits to the nurse on the client's visit (capture 510; `author.kind` is `admin` there too).
+
+### Templates and the go-live gate
+
+<!-- capture: 511-a-templates.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "46007536-27d3-47a8-b5cf-b0e8e08bc2b1",
+    "key": "cardiac_rehabilitation",
+    "name": "Cardiac Rehabilitation",
+    "summary": "Light activity, resting readings and low-salt meals while recovering from a heart event.",
+    "duration_days": 45,
+    "review_every_days": 14,
+    "default_risk_level": "high",
+    "clinical_review_status": "pending",
+    "version": 1,
+    "goals": [
+      {
+        "title": "Progressive light activity as cleared by the care team",
+        "target": null,
+        "frequency": "daily"
+      },
+      {
+        "title": "Resting BP and pulse recorded",
+        "target": null,
+        "frequency": "daily"
+      },
+      {
+        "title": "Low-salt, regular meals",
+        "target": null,
+        "frequency": "daily"
+      },
+      {
+        "title": "Report chest symptoms early",
+        "target": null,
+        "frequency": "ongoing"
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Check and record BP and pulse",
+        "time_slot": "morning",
+        "time_of_day": "08:00",
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "title": "Check and record BP and pulse",
+        "time_slot": "evening",
+        "time_of_day": "18:00",
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "title": "Light activity as instructed",
+        "time_slot": "afternoon",
+        "time_of_day": "13:00",
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "title": "Weigh and record weight",
+        "time_slot": "morning",
+        "time_of_day": "08:00",
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "title": "Meal support",
+        "time_slot": "morning",
+        "time_of_day": "08:00",
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "title": "Meal support",
+        "time_slot": "afternoon",
+        "time_of_day": "13:00",
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "title": "Meal support",
+        "time_slot": "evening",
+        "time_of_day": "18:00",
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    ],
+    "special_instructions": [
+      "Stop activity and call for help for chest pain, breathlessness or fainting",
+      "Follow the cardiac team's activity limits"
+    ],
+    "is_active": true,
+    "reviewed_by": null,
+    "reviewed_at": null
+  }
+]
+```
+
+Every template, active or not (`is_active`), with its full goals, tasks and special instructions: a reviewer signs off what they have read. `clinical_review_status` is `pending` until someone approves; nurses see "Not yet clinically reviewed" while it is pending. **Go-live gate: every seeded template is reviewed or removed before real use.** Review:
+
+<!-- capture: 511-b-review-approve.json request.body -->
+```json
+{
+  "status": "approved"
+}
+```
+<!-- capture: 511-b-review-approve.json response.body keys=id,key,name,clinical_review_status,version,is_active,reviewed_by,reviewed_at -->
+```json
+{
+  "id": "9c04f684-dc4d-401c-abc1-fac28a708df3",
+  "key": "stroke_recovery",
+  "name": "Stroke Recovery",
+  "clinical_review_status": "approved",
+  "version": 1,
+  "is_active": true,
+  "reviewed_by": "Placeholder Reviewer",
+  "reviewed_at": "2026-10-28T16:46:30.508277"
+}
+```
+
+`status` is `approved` or `pending` (`pending` takes the sign-off back). **Every call is applied and audited, even when the status does not change**, and records the reviewer and the time again, so a second reviewer's sign-off is on record. There is no template edit or create in v1, so a sign-off never goes stale. An unknown id is `404` `template_not_found` (capture 511-e); any other status is `422`.
+
+### Every error the console must handle
+
+| Status | `detail` | When | Capture |
+|---|---|---|---|
+| `401` | `Not authenticated` | no admin token | 500-b |
+| `403` | `Access denied. Missing permission: careplans.read` (or `careplans.write`, `careplans.templates`) | any role but the Clinical Reviewer and Super Admin | 500-c, 501-f, 511-f |
+| `404` | `Care plan not found` (a plain string) | unknown plan, goal, task or medication id; a removed task | 504-b, 507-d |
+| `404` | `{"code": "client_not_found", "message": "No such client."}` | create for an unknown or erased client (an inactive patient, or an erased person's own recipient row) | 501-e |
+| `404` | `{"code": "template_not_found", "message": "Care plan template not found."}` | create from, or review of, an unknown template | 502-b, 511-e |
+| `409` | `{"code": "care_plan_exists", ..., "plan_id"}` | the client already has an active plan | 501-b |
+| `409` | `{"code": "version_conflict", ..., "plan"}` | stale `expected_version` | 505-b |
+| `409` | `{"code": "plan_not_editable", ...}` | write on a completed or archived plan | 512-b |
+| `409` | `{"code": "medication_stopped", ...}` | edit of a stopped medication | 508-d |
+| `422` | list (`loc`, `msg`, `type`; no `input`) | bad field, both or neither client id, a bad `status` filter, `limit` over 200 | 501-c, 501-d, 503-c, 508-e, 511-d |
+| `422` | `{"code": "invalid_care_plan", "message": ...}` | a limit (too many goals, tasks or active medications), end date before start, no `risk_level` and no template | Test only (`test_the_services_own_refusals_are_invalid_care_plan_422s`); not captured, the same codes as the caregiver guide |
+
+`detail` is a **string** for the permission and plain-404 errors, an **object** `{code, message, ...}` for the care plan refusals, and a **list** for validation. Branch on the status, then on `detail.code` when `detail` is an object.
+
+### The audit trail
+
+Every write is an `admin_audit_log` row with `entity_type` `care_plan` and `entity_id` the plan id (`care_plan_template` and the template id for a review), written in the **same transaction** as the change: `care_plan.plan.create`, `.plan.update`, `.plan.status`, `.template.use`, `.goal.add|update|remove`, `.task.add|update|remove`, `.med.add|update|stop`, `.observation.add`, and `care_plan_template.review`. **Opening a plan (`care_plan.view`) and reading its notes (`care_plan.observations_view`) are audited too**; the list and the template list are not. **So is any response that shows plan text without a write behind it**: a `409 version_conflict` (its body is the current plan) and a write that changed nothing (an empty `PATCH`, removing an already removed goal or task, stopping a stopped medication) each leave a `care_plan.view` row whose `after.via` is `version_conflict` or `unchanged_write`. The rows hold **field names, ids and counts only, never plan text**, because Finance can read the audit log:
+
+<!-- capture: 513-a-audit.json response.body path=items first=3 -->
+```json
+[
+  {
+    "id": "623021f7-bbf7-46d5-ae55-769cfc75a102",
+    "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+    "admin_email": "admin-f1f86177c6@example.com",
+    "action": "care_plan.plan.create",
+    "entity_type": "care_plan",
+    "entity_id": "3c427c11-5817-41ee-99b4-ed4ad6457c1a",
+    "before": null,
+    "after": {
+      "goals": 1,
+      "tasks": 1
+    },
+    "reason": null,
+    "ip": "testclient",
+    "user_agent": "testclient",
+    "created_at": "2026-10-28T16:46:30.667765"
+  },
+  {
+    "id": "05cf6e46-0218-4213-b9d2-e0d0777d73d7",
+    "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+    "admin_email": "admin-f1f86177c6@example.com",
+    "action": "care_plan.view",
+    "entity_type": "care_plan",
+    "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+    "before": null,
+    "after": {
+      "fields": [
+        "diagnosis",
+        "allergies",
+        "special_instructions",
+        "goals",
+        "medications",
+        "tasks"
+      ]
+    },
+    "reason": null,
+    "ip": "testclient",
+    "user_agent": "testclient",
+    "created_at": "2026-10-28T16:46:30.632686"
+  },
+  {
+    "id": "6147333c-28ac-4ee2-9e2d-7779a0065d08",
+    "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+    "admin_email": "admin-f1f86177c6@example.com",
+    "action": "care_plan.plan.status",
+    "entity_type": "care_plan",
+    "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+    "before": null,
+    "after": {
+      "from": "active",
+      "to": "completed"
+    },
+    "reason": null,
+    "ip": "testclient",
+    "user_agent": "testclient",
+    "created_at": "2026-10-28T16:46:30.595725"
+  }
+]
+```
+
+### UX consequences the console must surface
+
+- **Opening a plan is an audited act, and so is a conflict.** A `409 version_conflict` shows the reviewer the current plan, so it leaves an audit row too; do not trigger writes with a guessed version just to read a plan.
+- **Opening a plan is an audited act.** Do not pre-fetch plan details for every row of the list, and do not open plans on hover or to build a search index. The list is deliberately text-free so it can be browsed without audit rows; open a plan only when the reviewer does. Tell the reviewer that opening is recorded.
+- **Client names are shown in full** on these routes (the Clinical Reviewer does not hold `people.pii`, and the booking screens mask names for them; care plans do not). Do not copy names into other places, and do not cache any care plan response: every response is `Cache-Control: no-store`, and so are the `404` and `409` errors.
+- **A nurse may be editing the same plan.** Always send the `version` you loaded. On `version_conflict`, show the reviewer the current plan from the response and let them redo the change; never retry automatically.
+- **Completing or archiving a plan is final.** It cannot be reopened; the client can then get a new plan. Confirm before sending.
+- **A stopped medication and a removed goal or task are history, not deleted.** Stopped medications and discontinued goals stay in the plan; show them greyed, as the app does.
+- **A template sign-off is a clinical statement.** Show who signed it and when (`reviewed_by`, `reviewed_at`), and confirm before approving. Taking an approval back (`pending`) is allowed and audited.
+
+### Verification (care plans, B4)
+
+| Behaviour | Status | Evidence |
+|---|---|---|
+| Create for a patient, for a care recipient, from a template; duplicate, both/no id, unknown client, unknown template | Verified live (test harness) | 501, 502 |
+| List with `q`, `status`, paging; text-free rows; bad status `422` | Verified live (test harness) | 500-a, 503 |
+| Open a plan; unknown id `404` | Verified live (test harness) | 504 |
+| Patch, stale `409` with the current plan | Verified live (test harness) | 505 |
+| Goal, task and medication add, edit, remove or stop; removed task `404`; stopped medication `409` | Verified live (test harness) | 506, 507, 508 |
+| Notes: add, list; the caregiver sees the admin's plan | Verified live (test harness) | 509, 510 |
+| Templates: list, approve, take back, bad status, unknown id | Verified live (test harness) | 511 |
+| Complete; write on a completed plan `409`; new plan after completing | Verified live (test harness) | 512 |
+| Audit rows for the writes and the opens; no plan text in them | Verified live (test harness) / Test only | 513; `test_admin_care_plans_audit.py` |
+| A stale-version `409` and a no-change write are audited as reads (`after.via`) | Test only | `test_admin_care_plans_audit.py` (the `409` itself is capture 505-b) |
+| `403` for Support on read, write and review; `401` without a token | Verified live (test harness) | 500-b, 500-c, 501-f, 509-c, 511-f |
+| Every route against every role | Test only | `test_admin_rbac.py` |
+| The audit row and the change roll back together | Test only | `test_admin_care_plans_audit.py` |
+| `invalid_care_plan` (no risk level, end before start, 41st active medication) on the admin routes | Test only | `test_admin_care_plans.py` |
+| Anything against the compose stack, a browser, or a real authenticator-signed sign-in | **[not live]** | not run |
 
 ## 13. Pricing settings: `/api/v1/booking-settings`
 

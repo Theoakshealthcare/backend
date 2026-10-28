@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans/4de89fc7-ff0c-46ac-8256-c862607dc8ec/observations",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "body": "Placeholder review note",
+      "category": "special_note"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "id": "6d066d08-403c-4af5-bfcf-348bcfc6ebaf",
+      "category": "special_note",
+      "body": "Placeholder review note",
+      "author": {
+        "name": "Placeholder Reviewer",
+        "kind": "admin"
+      },
+      "created_at": "2026-10-28T16:46:30.128038"
+    }
+  },
+  "note": "No visit needed. `author.kind` is `admin`. Notes never change the plan's `version`."
+}

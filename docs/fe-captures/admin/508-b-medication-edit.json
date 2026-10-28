@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/care-plan-medications/98742aab-a8af-44b3-ab75-264ff132f693",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 9,
+      "dose_amount": "2"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "medication": {
+        "id": "98742aab-a8af-44b3-ab75-264ff132f693",
+        "name": "Placeholder medicine A",
+        "strength": "500 mg",
+        "dose_amount": "2",
+        "dose_unit": "tablet",
+        "route": "oral",
+        "reason": "Placeholder reason",
+        "prescribed_by": "Placeholder prescriber",
+        "note": null,
+        "frequency": "twice_daily",
+        "times_of_day": [
+          "08:00",
+          "20:00"
+        ],
+        "start_date": "2026-10-28",
+        "end_date": null,
+        "status": "active",
+        "stopped_at": null
+      },
+      "plan_version": 10
+    }
+  }
+}

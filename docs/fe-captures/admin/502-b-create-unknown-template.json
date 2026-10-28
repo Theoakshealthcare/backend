@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "7a2b9a81-346e-4854-a059-4435eed032e8",
+      "template_id": "00000000-0000-4000-8000-000000000003",
+      "diagnosis": "x",
+      "risk_level": "low"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "template_not_found",
+        "message": "Care plan template not found."
+      }
+    }
+  },
+  "note": "404 `template_not_found`."
+}

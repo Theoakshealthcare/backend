@@ -1,0 +1,54 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "00000000-0000-4000-8000-000000000001",
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "high",
+      "start_date": "2026-10-28",
+      "duration_days": 30,
+      "review_every_days": 14,
+      "goals": [
+        {
+          "title": "Placeholder goal",
+          "target": "Placeholder target",
+          "frequency": "daily"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "Placeholder task",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            3,
+            5
+          ]
+        }
+      ],
+      "allergies": [
+        "Placeholder allergen"
+      ],
+      "special_instructions": [
+        "Placeholder instruction"
+      ]
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "client_not_found",
+        "message": "No such client."
+      }
+    }
+  },
+  "note": "No such (active) client: 404 `client_not_found`."
+}

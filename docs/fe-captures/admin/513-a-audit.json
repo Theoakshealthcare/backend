@@ -1,0 +1,407 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=care_plan&limit=100",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "623021f7-bbf7-46d5-ae55-769cfc75a102",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.plan.create",
+          "entity_type": "care_plan",
+          "entity_id": "3c427c11-5817-41ee-99b4-ed4ad6457c1a",
+          "before": null,
+          "after": {
+            "goals": 1,
+            "tasks": 1
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.667765"
+        },
+        {
+          "id": "05cf6e46-0218-4213-b9d2-e0d0777d73d7",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.view",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "fields": [
+              "diagnosis",
+              "allergies",
+              "special_instructions",
+              "goals",
+              "medications",
+              "tasks"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.632686"
+        },
+        {
+          "id": "6147333c-28ac-4ee2-9e2d-7779a0065d08",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.plan.status",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "from": "active",
+            "to": "completed"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.595725"
+        },
+        {
+          "id": "87223163-ed2f-45eb-bf50-92edfd7378c8",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.view",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "fields": [
+              "diagnosis",
+              "allergies",
+              "special_instructions",
+              "goals",
+              "medications",
+              "tasks"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.581944"
+        },
+        {
+          "id": "a1852faa-1c01-4c70-a90d-4d2f715b4aeb",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.observations_view",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "fields": [
+              "observations"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.460517"
+        },
+        {
+          "id": "4f7d656a-6a83-4c5f-8f1c-af0efa1c93b5",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.observation.add",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "observation_id": "6d066d08-403c-4af5-bfcf-348bcfc6ebaf",
+            "category": "special_note"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.129465"
+        },
+        {
+          "id": "bddcb0fb-eb2f-40df-b9bf-85313f56bd83",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.med.stop",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "medication_id": "98742aab-a8af-44b3-ab75-264ff132f693"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.082638"
+        },
+        {
+          "id": "33801774-7843-4735-a85e-b0929cae5666",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.med.update",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "medication_id": "98742aab-a8af-44b3-ab75-264ff132f693",
+            "fields": [
+              "dose_amount"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.058604"
+        },
+        {
+          "id": "526d860b-eeaa-4de5-ad04-41d733a46ed5",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.med.add",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "medication_id": "98742aab-a8af-44b3-ab75-264ff132f693"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.025981"
+        },
+        {
+          "id": "0ab1e27d-7d67-48c6-886e-e92c11517d01",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.task.remove",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "task_id": "484cafdb-7efe-49d6-b19e-10c7ae567e23"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.975665"
+        },
+        {
+          "id": "74faaf42-e30f-43da-a80d-a53f95f51049",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.task.update",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "task_id": "484cafdb-7efe-49d6-b19e-10c7ae567e23",
+            "fields": [
+              "time_slot"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.946988"
+        },
+        {
+          "id": "234c1023-be22-4315-b0a5-d89dd5619d16",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.task.add",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "task_id": "484cafdb-7efe-49d6-b19e-10c7ae567e23"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.922511"
+        },
+        {
+          "id": "9e3514d8-46cb-4930-8c07-005e22c6a811",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.goal.remove",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "goal_id": "b8baffd9-9d58-4012-a6a4-938e5c8e521b"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.894948"
+        },
+        {
+          "id": "637ae509-1175-465c-a0f0-a0e6a05dda98",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.goal.update",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "goal_id": "b8baffd9-9d58-4012-a6a4-938e5c8e521b",
+            "fields": [
+              "status"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.864959"
+        },
+        {
+          "id": "0cf18ad4-e3e9-4d51-9a21-9d8555430780",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.goal.add",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "goal_id": "b8baffd9-9d58-4012-a6a4-938e5c8e521b"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.836981"
+        },
+        {
+          "id": "bdc2ee16-3eab-4142-9197-5237d9af0de1",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.view",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "fields": [
+              "diagnosis",
+              "allergies",
+              "special_instructions",
+              "goals",
+              "medications",
+              "tasks"
+            ],
+            "via": "version_conflict"
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.811458"
+        },
+        {
+          "id": "edd1b1a7-acf3-4320-b64a-3536195f6f34",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.plan.update",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "fields": [
+              "risk_level",
+              "allergies"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.770248"
+        },
+        {
+          "id": "7968c5b8-42f1-4e61-8c0c-cc9756c700b0",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.view",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "fields": [
+              "diagnosis",
+              "allergies",
+              "special_instructions",
+              "goals",
+              "medications",
+              "tasks"
+            ]
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.742352"
+        },
+        {
+          "id": "73938539-430f-4fda-85dc-457678dadea1",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.template.use",
+          "entity_type": "care_plan",
+          "entity_id": "3bf9e07a-f1e8-484e-a3af-766c3d2f9a7b",
+          "before": null,
+          "after": {
+            "template_id": "9c04f684-dc4d-401c-abc1-fac28a708df3",
+            "template_version": 1
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.639753"
+        },
+        {
+          "id": "4fea1bf8-b518-46ab-a155-66659cdceed8",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.plan.create",
+          "entity_type": "care_plan",
+          "entity_id": "3bf9e07a-f1e8-484e-a3af-766c3d2f9a7b",
+          "before": null,
+          "after": {
+            "goals": 4,
+            "tasks": 8
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.631283"
+        },
+        {
+          "id": "ebb74f24-4f6b-4bd6-a83f-6d05fe0f2fa6",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan.plan.create",
+          "entity_type": "care_plan",
+          "entity_id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+          "before": null,
+          "after": {
+            "goals": 1,
+            "tasks": 1
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:29.544780"
+        }
+      ],
+      "total": 21,
+      "limit": 100,
+      "offset": 0
+    }
+  },
+  "note": "Finance has `audit.read`. Each admin write is a row; the `after` holds field names and ids only, never plan text."
+}

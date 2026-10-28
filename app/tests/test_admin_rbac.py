@@ -83,6 +83,23 @@ ADMIN_ONLY = {
     ("POST", f"{API}/admin/refunds/{{refund_id}}/close"): "refunds.approve",
     ("POST", f"{API}/admin/refunds/{{refund_id}}/switch-to-wallet"): "refunds.approve_above_limit",
     ("POST", f"{API}/admin/refunds/{{refund_id}}/resolve"): "refunds.approve_above_limit",
+    ("GET", f"{API}/admin/care-plans"): "careplans.read",
+    ("GET", f"{API}/admin/care-plans/{{plan_id}}"): "careplans.read",
+    ("GET", f"{API}/admin/care-plans/{{plan_id}}/observations"): "careplans.read",
+    ("GET", f"{API}/admin/care-plan-templates"): "careplans.read",
+    ("POST", f"{API}/admin/care-plans"): "careplans.write",
+    ("PATCH", f"{API}/admin/care-plans/{{plan_id}}"): "careplans.write",
+    ("POST", f"{API}/admin/care-plans/{{plan_id}}/observations"): "careplans.write",
+    ("POST", f"{API}/admin/care-plans/{{plan_id}}/goals"): "careplans.write",
+    ("POST", f"{API}/admin/care-plans/{{plan_id}}/tasks"): "careplans.write",
+    ("POST", f"{API}/admin/care-plans/{{plan_id}}/medications"): "careplans.write",
+    ("PATCH", f"{API}/admin/care-plan-goals/{{goal_id}}"): "careplans.write",
+    ("DELETE", f"{API}/admin/care-plan-goals/{{goal_id}}"): "careplans.write",
+    ("PATCH", f"{API}/admin/care-plan-tasks/{{task_id}}"): "careplans.write",
+    ("DELETE", f"{API}/admin/care-plan-tasks/{{task_id}}"): "careplans.write",
+    ("PATCH", f"{API}/admin/care-plan-medications/{{medication_id}}"): "careplans.write",
+    ("POST", f"{API}/admin/care-plan-medications/{{medication_id}}/stop"): "careplans.write",
+    ("POST", f"{API}/admin/care-plan-templates/{{template_id}}/review"): "careplans.templates",
 }
 # Open to a holder of ANY of the listed permissions (the refunds queue and detail).
 ANY_OF = {
@@ -160,6 +177,11 @@ def test_prd_spot_checks():
     assert "audit.read" in p["finance"]
     assert "audit.read" not in set().union(*(v for k, v in p.items() if k not in ("super_admin", "finance")))
     assert "admins.manage" not in p["finance"]
+    # Care plans (slice B4): the Clinical Reviewer authors and signs off templates through the admin API; nobody else but
+    # the Super Admin holds any of the three (a plan is patient health data).
+    care_plan_perms = {"careplans.read", "careplans.write", "careplans.templates"}
+    assert care_plan_perms <= p["clinical_reviewer"] and care_plan_perms <= p["super_admin"]
+    assert not care_plan_perms & set().union(*(v for k, v in p.items() if k not in ("super_admin", "clinical_reviewer")))
 
 
 def test_only_super_admin_can_approve_above_limit():

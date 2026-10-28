@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-plans/4de89fc7-ff0c-46ac-8256-c862607dc8ec/observations?limit=10",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "8bb60d2b-a80e-4a45-8ade-280f72418fe9",
+          "category": "observation",
+          "body": "Placeholder visit note",
+          "author": {
+            "name": "Placeholder Nurse",
+            "kind": "caregiver"
+          },
+          "created_at": "2026-10-28T16:46:30.445388"
+        },
+        {
+          "id": "6d066d08-403c-4af5-bfcf-348bcfc6ebaf",
+          "category": "special_note",
+          "body": "Placeholder review note",
+          "author": {
+            "name": "Placeholder Reviewer",
+            "kind": "admin"
+          },
+          "created_at": "2026-10-28T16:46:30.128038"
+        }
+      ],
+      "next_before": null,
+      "next_before_id": null
+    }
+  },
+  "note": "Newest first, from nurses and admins alike. Reading the notes is audited (`care_plan.observations_view`)."
+}

@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans/4de89fc7-ff0c-46ac-8256-c862607dc8ec/goals",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "title": "Placeholder rejected title",
+      "frequency": "hourly"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "frequency"
+          ],
+          "msg": "Input should be 'daily', 'weekly', 'ongoing' or 'one_time'",
+          "ctx": {
+            "expected": "'daily', 'weekly', 'ongoing' or 'one_time'"
+          }
+        }
+      ]
+    }
+  },
+  "note": "Validation: 422, the rejected value is not echoed."
+}

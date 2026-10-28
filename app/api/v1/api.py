@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, admin_auth, admin_users, devices, caregiver_app, admin_bookings, admin_booking_policy, admin_earnings, admin_payouts, admin_refunds, caregiver_clients, caregiver_care_plans
+from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, admin_auth, admin_users, devices, caregiver_app, admin_bookings, admin_booking_policy, admin_earnings, admin_payouts, admin_refunds, caregiver_clients, caregiver_care_plans, admin_care_plans
 from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, devices, caregiver_app, whatsapp
 from app.api.v1.endpoints import kyc_webhook
 
@@ -26,5 +26,6 @@ api_router.include_router(admin_payouts.router, prefix="/admin/payouts", tags=["
 api_router.include_router(admin_refunds.router, prefix="/admin/refunds", tags=["admin-refunds"])
 api_router.include_router(admin_auth.router, prefix="/admin/auth", tags=["admin-auth"])
 api_router.include_router(admin_users.router, prefix="/admin", tags=["admin-users"])
+api_router.include_router(admin_care_plans.router, prefix="/admin", tags=["admin-care-plans"])
 api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
 api_router.include_router(kyc_webhook.router, prefix="/kyc/prembly", tags=["kyc"])

@@ -65,6 +65,9 @@ ALL_PERMISSIONS: FrozenSet[str] = frozenset({
     "admins.manage",
     "audit.read",
     "exports.pii",
+    "careplans.read",
+    "careplans.write",
+    "careplans.templates",
 })
 
 ROLE_PERMISSIONS: Dict[str, FrozenSet[str]] = {
@@ -91,6 +94,7 @@ ROLE_PERMISSIONS: Dict[str, FrozenSet[str]] = {
     CLINICAL_REVIEWER: frozenset({
         "dashboard.read", "caregivers.read", "documents.read", "bookings.read", "people.read",
         "clinical.read", "support.inbox", "fallguard.write", "prescriptions.manage",
+        "careplans.read", "careplans.write", "careplans.templates",
     }),
     READ_ONLY_ANALYST: frozenset({"dashboard.read"}),
 }

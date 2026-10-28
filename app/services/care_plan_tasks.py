@@ -32,8 +32,8 @@ from app.schemas.care_plan import MAX_TASKS, TaskCreate, TaskPatch
 from app.services import care_plans as base
 from app.services.care_plan_access import PlanAccess
 from app.services.care_plans import (
-    InvalidPlan, PlanNotEditable, TaskDateNotToday, TaskNotScheduled, TaskRemoved, VisitNotInProgress, record_event, seal,
-    unseal,
+    Actor, InvalidPlan, PlanNotEditable, TaskDateNotToday, TaskNotScheduled, TaskRemoved, VisitNotInProgress, actor_event,
+    record_event, seal, unseal,
 )
 
 SLOT_ORDER = ("morning", "afternoon", "evening", "night")
@@ -64,7 +64,7 @@ def _live_task_count(db: Session, plan_id: UUID) -> int:
     return db.query(CarePlanTask.id).filter(CarePlanTask.plan_id == plan_id, CarePlanTask.is_active.is_(True)).count()
 
 
-def add_task(db: Session, caregiver: Caregiver, plan_id: UUID, payload: TaskCreate) -> Tuple[CarePlanTask, int]:
+def add_task(db: Session, actor: Actor, plan_id: UUID, payload: TaskCreate) -> Tuple[CarePlanTask, int]:
     try:
         plan = base._lock_editable(db, plan_id, payload.expected_version)
         if _live_task_count(db, plan.id) >= MAX_TASKS:
@@ -76,7 +76,7 @@ def add_task(db: Session, caregiver: Caregiver, plan_id: UUID, payload: TaskCrea
                             sort_order=(last[0] + 1) if last else 0)
         db.add(task)
         db.flush()
-        record_event(db, plan.id, "caregiver", caregiver.id, "task.add", {"task_id": str(task.id)})
+        actor_event(db, plan.id, actor, "task.add", {"task_id": str(task.id)})
         base._touch(plan)
         version = plan.version
         db.commit()
@@ -91,7 +91,7 @@ def _locked_task(db: Session, task_id: UUID) -> CarePlanTask:
     return db.query(CarePlanTask).filter(CarePlanTask.id == task_id).populate_existing().with_for_update().one()
 
 
-def update_task(db: Session, caregiver: Caregiver, task: CarePlanTask, payload: TaskPatch) -> Tuple[CarePlanTask, int]:
+def update_task(db: Session, actor: Actor, task: CarePlanTask, payload: TaskPatch) -> Tuple[CarePlanTask, int]:
     sent = payload.model_fields_set - {"expected_version"}
     try:
         plan = base._lock_editable(db, task.plan_id, payload.expected_version)
@@ -113,7 +113,7 @@ def update_task(db: Session, caregiver: Caregiver, task: CarePlanTask, payload: 
             changed.append("days_of_week")
         if changed:
             task.updated_at = datetime.utcnow()
-            record_event(db, plan.id, "caregiver", caregiver.id, "task.update", {"task_id": str(task.id), "fields": changed})
+            actor_event(db, plan.id, actor, "task.update", {"task_id": str(task.id), "fields": changed})
             base._touch(plan)
         version = plan.version
         db.commit()
@@ -124,7 +124,7 @@ def update_task(db: Session, caregiver: Caregiver, task: CarePlanTask, payload: 
     return task, version
 
 
-def remove_task(db: Session, caregiver: Caregiver, task: CarePlanTask, expected_version: int) -> Tuple[CarePlanTask, int]:
+def remove_task(db: Session, actor: Actor, task: CarePlanTask, expected_version: int) -> Tuple[CarePlanTask, int]:
     """Removing a task deactivates it. The row and every tick it has are kept; it simply stops being scheduled."""
     try:
         plan = base._lock_editable(db, task.plan_id, expected_version)
@@ -132,7 +132,7 @@ def remove_task(db: Session, caregiver: Caregiver, task: CarePlanTask, expected_
         if task.is_active:
             task.is_active = False
             task.updated_at = datetime.utcnow()
-            record_event(db, plan.id, "caregiver", caregiver.id, "task.remove", {"task_id": str(task.id)})
+            actor_event(db, plan.id, actor, "task.remove", {"task_id": str(task.id)})
             base._touch(plan)
         version = plan.version
         db.commit()

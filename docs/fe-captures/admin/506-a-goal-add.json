@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans/4de89fc7-ff0c-46ac-8256-c862607dc8ec/goals",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "title": "Placeholder goal two",
+      "frequency": "weekly"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "goal": {
+        "id": "b8baffd9-9d58-4012-a6a4-938e5c8e521b",
+        "title": "Placeholder goal two",
+        "target": null,
+        "frequency": "weekly",
+        "status": "active"
+      },
+      "plan_version": 3
+    }
+  },
+  "note": "`expected_version` is optional when adding."
+}

@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "low"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, send exactly one of patient_id or care_recipient_id",
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  "note": "Neither id: the same 422."
+}

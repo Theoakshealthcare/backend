@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans/4de89fc7-ff0c-46ac-8256-c862607dc8ec/goals",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "title": "Placeholder goal three",
+      "frequency": "daily"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "plan_not_editable",
+        "message": "This care plan is completed or archived and can no longer be changed."
+      }
+    }
+  },
+  "note": "409 `plan_not_editable`. Reads still work."
+}

@@ -1,0 +1,103 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+    "auth": "Bearer <CAREGIVER_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "id": "4de89fc7-ff0c-46ac-8256-c862607dc8ec",
+      "version": 11,
+      "status": "active",
+      "booking_id": "e3d112ca-52ab-448a-8b20-152ec772a275",
+      "client": {
+        "full_name": "Placeholder Client One",
+        "age": 71,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "medium",
+      "start_date": "2026-10-28",
+      "duration_days": 30,
+      "review_every_days": 14,
+      "review_due_on": "2026-11-11",
+      "template": null,
+      "author": {
+        "name": "Placeholder Reviewer",
+        "kind": "admin"
+      },
+      "allergies": [
+        "Placeholder allergen",
+        "Placeholder allergen two"
+      ],
+      "special_instructions": [
+        "Placeholder instruction"
+      ],
+      "goals": [
+        {
+          "id": "a0d08167-194a-4380-955a-8fbf5664fa35",
+          "title": "Placeholder goal",
+          "target": "Placeholder target",
+          "frequency": "daily",
+          "status": "active"
+        },
+        {
+          "id": "b8baffd9-9d58-4012-a6a4-938e5c8e521b",
+          "title": "Placeholder goal two",
+          "target": null,
+          "frequency": "weekly",
+          "status": "discontinued"
+        }
+      ],
+      "medications": [
+        {
+          "id": "98742aab-a8af-44b3-ab75-264ff132f693",
+          "name": "Placeholder medicine A",
+          "strength": "500 mg",
+          "dose_amount": "2",
+          "dose_unit": "tablet",
+          "route": "oral",
+          "reason": "Placeholder reason",
+          "prescribed_by": "Placeholder prescriber",
+          "note": null,
+          "frequency": "twice_daily",
+          "times_of_day": [
+            "08:00",
+            "20:00"
+          ],
+          "start_date": "2026-10-28",
+          "end_date": null,
+          "status": "stopped",
+          "stopped_at": "2026-10-28T16:46:30.082309"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "6f0f6818-7d39-45ac-8c46-f37009a1787d",
+          "title": "Placeholder task",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            3,
+            5
+          ]
+        }
+      ],
+      "capabilities": {
+        "can_edit_plan": true,
+        "can_tick_tasks": true,
+        "can_add_observation": true
+      },
+      "created_at": "2026-10-28T16:46:29.542389",
+      "updated_at": "2026-10-28T16:46:30.085325"
+    }
+  },
+  "note": "The same plan through the caregiver route (a live visit for this client): `author.kind` is `admin`, and the admin's edits are in it."
+}

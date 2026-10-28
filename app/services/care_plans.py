@@ -9,12 +9,14 @@ ids and counts only. Services commit; they roll back and re-raise on any failure
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from cryptography.fernet import InvalidToken
+from fastapi import Request
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -31,6 +33,7 @@ from app.schemas.care_plan import MAX_GOALS, MAX_TASKS, CarePlanCreate, CarePlan
 from app.services.care_plan_access import (
     PlanAccess, Subject, accessible_subjects, is_care_plan_author,
 )
+from app.services.audit import AuditService
 from app.services.caregiver_clients import age_in_years
 
 logger = logging.getLogger(__name__)
@@ -206,11 +209,13 @@ def can_record_visit(access: PlanAccess, plan: CarePlan) -> bool:
     return plan.status == "active" and access.booking.status == BookingStatus.IN_PROGRESS
 
 
-def build_plan(db: Session, caregiver: Caregiver, access: PlanAccess, plan: CarePlan) -> Dict[str, Any]:
+def plan_core(db: Session, plan: CarePlan, subject: Subject) -> Dict[str, Any]:
+    """What a caregiver and an admin both see of a plan: everything except the caller-specific parts (the booking that gives
+    access and the capabilities)."""
     template = db.get(CarePlanTemplate, plan.template_id) if plan.template_id else None
     return {
-        "id": plan.id, "version": plan.version, "status": plan.status, "booking_id": access.booking.id,
-        "client": _client(access.require_subject()),
+        "id": plan.id, "version": plan.version, "status": plan.status,
+        "client": _client(subject),
         "diagnosis": unseal(plan.diagnosis_encrypted, plan.id, "care_plans.diagnosis_encrypted") or "",
         "risk_level": plan.risk_level, "start_date": plan.start_date, "duration_days": plan.duration_days,
         "review_every_days": plan.review_every_days, "review_due_on": _review_due(plan),
@@ -223,9 +228,15 @@ def build_plan(db: Session, caregiver: Caregiver, access: PlanAccess, plan: Care
         "goals": [_goal_out(g) for g in _goals(db, plan.id)],
         "medications": [_medication_out(m) for m in _medications(db, plan.id)],
         "tasks": [_task_out(t) for t in _tasks(db, plan.id)],
+        "created_at": plan.created_at, "updated_at": plan.updated_at,
+    }
+
+
+def build_plan(db: Session, caregiver: Caregiver, access: PlanAccess, plan: CarePlan) -> Dict[str, Any]:
+    return {
+        **plan_core(db, plan, access.require_subject()), "booking_id": access.booking.id,
         "capabilities": {"can_edit_plan": can_edit(db, caregiver, plan), "can_tick_tasks": can_record_visit(access, plan),
                          "can_add_observation": can_record_visit(access, plan)},
-        "created_at": plan.created_at, "updated_at": plan.updated_at,
     }
 
 
@@ -329,6 +340,33 @@ def record_event(db: Session, plan_id: UUID, actor_type: str, actor_id: Optional
     db.add(CarePlanEvent(plan_id=plan_id, actor_type=actor_type, actor_id=actor_id, action=action, detail=detail or {}))
 
 
+@dataclass(frozen=True)
+class AdminActor:
+    """An admin writing through the same services as a caregiver (slice B4). ``request`` only feeds the audit row's ip and
+    user agent."""
+    admin: AdminUser
+    request: Optional[Request] = None
+
+
+Actor = Union[Caregiver, AdminActor]
+
+
+def actor_event(db: Session, plan_id: UUID, actor: Actor, action: str, detail: Optional[Dict[str, Any]] = None) -> None:
+    """The one place a plan write is recorded. A caregiver's write is a ``care_plan_events`` row; an admin's is that row **and**
+    an ``admin_audit_log`` row (``care_plan.<action>``), both added to the caller's transaction so they commit or roll back
+    with the change. ``detail`` is field names, ids and counts only: the audit log is readable by Finance (``audit.read``), so
+    health text must never reach it."""
+    detail = detail or {}
+    if isinstance(actor, AdminActor):
+        record_event(db, plan_id, "admin", actor.admin.id, action, detail)
+        AuditService(db).record(admin_user_id=actor.admin.id, action=f"care_plan.{action}", entity_type="care_plan",
+                                entity_id=plan_id, after=detail, request=actor.request)
+    elif isinstance(actor, Caregiver):
+        record_event(db, plan_id, "caregiver", actor.id, action, detail)
+    else:  # a bare AdminUser would otherwise be filed as a caregiver with no audit row
+        raise TypeError(f"actor must be a Caregiver or an AdminActor, not {type(actor).__name__}")
+
+
 def _parse_time(value: Optional[str]) -> Optional[time]:
     return time.fromisoformat(value) if value else None
 
@@ -361,9 +399,15 @@ def _template_content(template: CarePlanTemplate, payload: CarePlanCreate) -> Tu
 
 
 def create_plan(db: Session, caregiver: Caregiver, access: PlanAccess, payload: CarePlanCreate) -> CarePlan:
-    subject = access.subject
-    if subject is None:
+    if access.subject is None:
         raise ClientNotIdentified()
+    return create_plan_for_subject(db, caregiver, access.subject, access.booking.id, payload)
+
+
+def create_plan_for_subject(db: Session, actor: Actor, subject: Subject, booking_id: Optional[UUID],
+                            payload: CarePlanCreate) -> CarePlan:
+    """The one create path: a caregiver creates through a live booking, an admin straight for a client (``booking_id`` None)."""
+    by_admin = isinstance(actor, AdminActor)
     template = get_template(db, payload.template_id) if payload.template_id else None
     existing = _active_plan(db, subject)
     if existing is not None:
@@ -391,7 +435,8 @@ def create_plan(db: Session, caregiver: Caregiver, access: PlanAccess, payload: 
         risk_level=risk, diagnosis_encrypted=seal(payload.diagnosis),
         allergies_encrypted=seal_list(payload.allergies), special_instructions_encrypted=seal_list(instructions),
         start_date=payload.start_date or local_today(), duration_days=duration, review_every_days=review,
-        created_by_caregiver_id=caregiver.id, created_from_booking_id=access.booking.id,
+        created_by_caregiver_id=None if by_admin else actor.id, created_by_admin_id=actor.admin.id if by_admin else None,
+        created_from_booking_id=booking_id,
     )
     try:
         db.add(plan)
@@ -403,11 +448,11 @@ def create_plan(db: Session, caregiver: Caregiver, access: PlanAccess, payload: 
             db.add(CarePlanTask(plan_id=plan.id, title_encrypted=seal(task["title"]), time_slot=task["time_slot"],
                                 time_of_day=_parse_time(task.get("time_of_day")),
                                 days_of_week=sorted(task["days_of_week"]), sort_order=position))
-        record_event(db, plan.id, "caregiver", caregiver.id, "plan.create",
-                     {"goals": len(goals), "tasks": len(tasks), "booking_id": str(access.booking.id)})
+        actor_event(db, plan.id, actor, "plan.create", {"goals": len(goals), "tasks": len(tasks),
+                                                         **({"booking_id": str(booking_id)} if booking_id else {})})
         if template is not None:
-            record_event(db, plan.id, "caregiver", caregiver.id, "template.use",
-                         {"template_id": str(template.id), "template_version": template.version})
+            actor_event(db, plan.id, actor, "template.use",
+                        {"template_id": str(template.id), "template_version": template.version})
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -422,7 +467,7 @@ def create_plan(db: Session, caregiver: Caregiver, access: PlanAccess, payload: 
     return plan
 
 
-def update_plan(db: Session, caregiver: Caregiver, plan_id: UUID, payload: CarePlanPatch) -> CarePlan:
+def update_plan(db: Session, actor: Actor, plan_id: UUID, payload: CarePlanPatch) -> CarePlan:
     sent = payload.model_fields_set - {"expected_version"}
     try:
         plan = _lock_editable(db, plan_id, payload.expected_version)
@@ -441,7 +486,7 @@ def update_plan(db: Session, caregiver: Caregiver, plan_id: UUID, payload: CareP
             plan.special_instructions_encrypted = seal_list(payload.special_instructions)
             changed.append("special_instructions")
         if changed:
-            record_event(db, plan.id, "caregiver", caregiver.id, "plan.update", {"fields": changed})
+            actor_event(db, plan.id, actor, "plan.update", {"fields": changed})
         if payload.status is not None:
             now = datetime.utcnow()
             plan.status = payload.status
@@ -449,7 +494,7 @@ def update_plan(db: Session, caregiver: Caregiver, plan_id: UUID, payload: CareP
                 plan.completed_at = now
             else:
                 plan.archived_at = now
-            record_event(db, plan.id, "caregiver", caregiver.id, "plan.status", {"from": "active", "to": payload.status})
+            actor_event(db, plan.id, actor, "plan.status", {"from": "active", "to": payload.status})
         if changed or payload.status is not None:
             _touch(plan)
         db.commit()
@@ -464,7 +509,7 @@ def _goal_for(db: Session, goal_id: UUID) -> Optional[CarePlanGoal]:
     return db.get(CarePlanGoal, goal_id)
 
 
-def add_goal(db: Session, caregiver: Caregiver, plan_id: UUID, payload: GoalCreate) -> Tuple[CarePlanGoal, int]:
+def add_goal(db: Session, actor: Actor, plan_id: UUID, payload: GoalCreate) -> Tuple[CarePlanGoal, int]:
     try:
         plan = _lock_editable(db, plan_id, payload.expected_version)
         live = db.query(CarePlanGoal.id).filter(CarePlanGoal.plan_id == plan.id, CarePlanGoal.status != "discontinued").count()
@@ -476,7 +521,7 @@ def add_goal(db: Session, caregiver: Caregiver, plan_id: UUID, payload: GoalCrea
                             frequency=payload.frequency, sort_order=(last[0] + 1) if last else 0)
         db.add(goal)
         db.flush()
-        record_event(db, plan.id, "caregiver", caregiver.id, "goal.add", {"goal_id": str(goal.id)})
+        actor_event(db, plan.id, actor, "goal.add", {"goal_id": str(goal.id)})
         _touch(plan)
         version = plan.version
         db.commit()
@@ -487,7 +532,7 @@ def add_goal(db: Session, caregiver: Caregiver, plan_id: UUID, payload: GoalCrea
     return goal, version
 
 
-def update_goal(db: Session, caregiver: Caregiver, goal: CarePlanGoal, payload: GoalPatch) -> Tuple[CarePlanGoal, int]:
+def update_goal(db: Session, actor: Actor, goal: CarePlanGoal, payload: GoalPatch) -> Tuple[CarePlanGoal, int]:
     sent = payload.model_fields_set - {"expected_version"}
     try:
         plan = _lock_editable(db, goal.plan_id, payload.expected_version)
@@ -510,7 +555,7 @@ def update_goal(db: Session, caregiver: Caregiver, goal: CarePlanGoal, payload: 
                 changed.append(name)
         if changed:
             goal.updated_at = datetime.utcnow()
-            record_event(db, plan.id, "caregiver", caregiver.id, "goal.update", {"goal_id": str(goal.id), "fields": changed})
+            actor_event(db, plan.id, actor, "goal.update", {"goal_id": str(goal.id), "fields": changed})
             _touch(plan)
         version = plan.version
         db.commit()
@@ -521,7 +566,7 @@ def update_goal(db: Session, caregiver: Caregiver, goal: CarePlanGoal, payload: 
     return goal, version
 
 
-def remove_goal(db: Session, caregiver: Caregiver, goal: CarePlanGoal, expected_version: int) -> Tuple[CarePlanGoal, int]:
+def remove_goal(db: Session, actor: Actor, goal: CarePlanGoal, expected_version: int) -> Tuple[CarePlanGoal, int]:
     """Removing a goal marks it discontinued; the row stays so the plan keeps its history."""
     try:
         plan = _lock_editable(db, goal.plan_id, expected_version)
@@ -529,7 +574,7 @@ def remove_goal(db: Session, caregiver: Caregiver, goal: CarePlanGoal, expected_
         if goal.status != "discontinued":
             goal.status = "discontinued"
             goal.updated_at = datetime.utcnow()
-            record_event(db, plan.id, "caregiver", caregiver.id, "goal.remove", {"goal_id": str(goal.id)})
+            actor_event(db, plan.id, actor, "goal.remove", {"goal_id": str(goal.id)})
             _touch(plan)
         version = plan.version
         db.commit()
