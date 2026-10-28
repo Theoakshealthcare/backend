@@ -293,6 +293,18 @@ def test_a_replay_under_a_new_token_changes_nothing_the_second_time(client, db, 
     assert db.query(IdentityVerificationEvent).count() == 0
 
 
+def test_a_recorded_result_is_never_overwritten_inside_the_lock(client, db, kyc_queue, fake_prembly):
+    """The pre-check in process_event is unlocked; a second worker that got past it must still find the result and leave it."""
+    caregiver = cg(db)
+    a = attempt(db, caregiver, provider_session_id="sdk_session_a", face_confidence=91, completed_at=datetime(2026, 10, 27, 10, 0))
+    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=12)
+    session = fake_prembly_session(fake_prembly, "sdk_session_a")
+    assert kyc_events.confirm_and_record(db, a.id, session) == ("applied", None)
+    db.commit()
+    after = fresh(db, a)
+    assert float(after.face_confidence) == 91.0 and after.completed_at == datetime(2026, 10, 27, 10, 0)
+
+
 def test_a_job_delivered_twice_is_processed_once(client, db, kyc_queue, fake_prembly):
     caregiver = cg(db)
     a = attempt(db, caregiver)

@@ -100,7 +100,7 @@ def process_event(db: Session, job: dict, *, client: Optional[PremblyClient] = N
         return _close(db, event_id, ERROR, attempt_id)
 
     outcome, observation = confirm_and_record(db, attempt_id, session, claim=claim)
-    if outcome == APPLIED and claim is not None and not observation.final and not final_try:
+    if outcome == APPLIED and claim is not None and observation is not None and not observation.final and not final_try:
         # The webhook says Prembly finished but the session read does not show a verdict yet (a lag between the two). Do not
         # consume the event: undo the binding and look again.
         db.rollback()
@@ -115,6 +115,8 @@ def confirm_and_record(db: Session, attempt_id: uuid.UUID, session: PremblySessi
     caregiver, attempt = lock_caregiver_then_attempt(db, attempt_id)
     if attempt is None or attempt.status not in VERIFICATION_ACTIVE_STATUSES:
         return IGNORED_TERMINAL, None  # finished or erased while we were talking to Prembly
+    if attempt.completed_at is not None:
+        return APPLIED, None  # a result is already recorded (the unlocked check in process_event is only a cost saver): never overwrite it
     observation = seam.observe(session)
 
     # The attempt was found from attacker-controllable input (the signed body's ref, a client hint), so until the PULLED session is
