@@ -163,24 +163,6 @@ class CaregiverService:
 
         return status
 
-    def process_verification_result(self, user_id: UUID, verification_type: str, result: dict) -> None:
-        caregiver = self.get_caregiver_by_user_id(user_id)
-        if not caregiver:
-            raise ValueError("Caregiver not found")
-
-        # The client is not trusted: the submitted payload is NOT stored (the columns that held it were dropped with the
-        # Prembly migration), and the most the client can do is move the status to "in_progress". "verified" / "failed" are
-        # never overwritten by a resubmission, and neither is a ``needs_review`` waiting for a person. The whole endpoint goes away in K2.
-        if verification_type not in ("document", "face"):
-            raise ValueError("Invalid verification type")
-        if verification_type == "document" and caregiver.identity_verification_status not in (
-                "verified", "failed", "needs_review"):
-            caregiver.identity_verification_status = "in_progress"
-
-        caregiver.profile_completion_step = max(caregiver.profile_completion_step, 3)
-        caregiver.updated_at = datetime.utcnow()
-        self.db.commit()
-
     @staticmethod
     def get_form_options() -> Dict[str, List[str]]:
         return {

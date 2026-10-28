@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/identity-verification/bdc04b87-e29e-473c-b566-47bb1ae52ab0/client-event",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "event": "completed",
+      "session_id": "../x"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "session_id"
+          ],
+          "msg": "String should match pattern '^[A-Za-z0-9_.-]{1,128}$'",
+          "input": "../x",
+          "ctx": {
+            "pattern": "^[A-Za-z0-9_.-]{1,128}$"
+          }
+        }
+      ]
+    }
+  }
+}

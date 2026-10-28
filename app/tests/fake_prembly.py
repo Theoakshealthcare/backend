@@ -218,3 +218,31 @@ def fake_prembly(monkeypatch):
     }.items():
         monkeypatch.setattr(settings, name, value)
     return fake
+
+
+# --- the provider-availability flag (K2; the real one is Redis, K4 writes it) ---------------------------------------
+class FakeProviderAvailability:
+    def __init__(self) -> None:
+        self.available = True
+
+    def is_available(self) -> bool:
+        return self.available
+
+    def mark_unavailable(self, ttl_seconds: int = 900) -> None:
+        self.available = False
+
+    def mark_available(self) -> None:
+        self.available = True
+
+
+@pytest.fixture
+def kyc_availability():
+    from app.main import app
+    from app.services.kyc_availability import get_provider_availability
+
+    fake = FakeProviderAvailability()
+    app.dependency_overrides[get_provider_availability] = lambda: fake
+    try:
+        yield fake
+    finally:
+        app.dependency_overrides.pop(get_provider_availability, None)

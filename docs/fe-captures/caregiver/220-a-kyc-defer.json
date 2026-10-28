@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/identity-verification/defer",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "status": "pending",
+      "attempts_used": 0,
+      "attempts_max": 3,
+      "active_verification_id": null,
+      "last_attempt_status": null,
+      "can_start": false,
+      "failure_hint": null,
+      "provider_available": false,
+      "review_eta_hours": null,
+      "policy_version": "kyc-2026-10"
+    }
+  }
+}

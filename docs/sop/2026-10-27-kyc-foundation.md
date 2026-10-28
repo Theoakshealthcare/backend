@@ -84,5 +84,5 @@ Config names: `PREMBLY_BASE_URL` (default `https://api.prembly.com`), `PREMBLY_S
 | `caregivers.identity_verification_status` is nullable and the CHECK lets NULL through (`pending` is the default and the code never writes NULL) | accepted; tighten with NOT NULL if a migration is open anyway |
 | Retention after erasure: the doc proposes dropping status, timestamp and reference after 12 months. `identity_verification_events` refuses DELETE by trigger, so a retention job needs a deliberate bypass like the downgrade's | owner O3 / a later job |
 | `KYC_FACE_THRESHOLD` / `KYC_FACE_FLOOR` are placeholders (Q6) | K0 |
-| The old `POST .../identity-verification/result` is now a no-op that returns 200 and discards the body; it goes to 410 in K2 | K2 |
+| The old `POST .../identity-verification/result` is now a no-op that returns 200 and discards the body; it goes to 410 in K2 | K2 (done: [`2026-10-28-kyc-caregiver-api.md`](2026-10-28-kyc-caregiver-api.md)) |
 | Prembly pricing and the DPA remain owner items (checklist section 14) | owner |

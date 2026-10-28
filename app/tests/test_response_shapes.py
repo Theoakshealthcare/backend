@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from app.core.config import settings
 from app.db.models.booking import BookingNotification, BookingStatus, PaymentStatus
 from app.db.models.caregiver import CaregiverDocument, CaregiverSkill
 from app.tests.factories import auth_headers, make_admin, make_booking, make_caregiver, make_patient
@@ -41,10 +42,18 @@ def _offered(db, caregiver, **overrides):
 
 
 @pytest.fixture
-def captured(db, client):
+def captured(db, client, monkeypatch, kyc_availability):
+    monkeypatch.setattr(settings, "PREMBLY_WIDGET_ID", "placeholder-widget-id")
+    monkeypatch.setattr(settings, "PREMBLY_WIDGET_KEY", "placeholder-widget-key")
     out = {}
     cg = make_caregiver(db, approved=False)
     out["verification_status"] = client.get("/api/v1/caregiver/verification-status", headers=auth_headers(cg.user))
+    kyc = make_caregiver(db, approved=False, profile_completion_step=2)
+    kyc_url = "/api/v1/caregiver/identity-verification"
+    consent = {"consent": True, "policy_version": settings.KYC_POLICY_VERSION}
+    client.post(f"{kyc_url}/sessions", json=consent, headers=auth_headers(kyc.user))  # 201; the shape pinned is the 200 re-read
+    out["identity_session"] = client.post(f"{kyc_url}/sessions", json=consent, headers=auth_headers(kyc.user))
+    out["identity_state"] = client.get(kyc_url, headers=auth_headers(kyc.user))
     out["form_options"] = client.get("/api/v1/caregiver/form-options")
 
     worker = make_caregiver(db)

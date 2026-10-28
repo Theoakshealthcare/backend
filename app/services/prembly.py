@@ -45,7 +45,8 @@ UNDELIVERED_PATH = "/api/v1/checker-widget/sdk/sessions/undelivered/"
 DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_RATE_LIMIT_WAIT_SECONDS = 60.0  # the 429 example in Prembly's docs suggests waiting a minute
 MAX_RETRY_AFTER_SECONDS = 300.0
-_SESSION_ID = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")  # the id can come from the client; it goes into a URL path
+SESSION_ID_PATTERN = r"^[A-Za-z0-9_.-]{1,128}$"  # the id can come from the client; it goes into a URL path
+_SESSION_ID = re.compile(SESSION_ID_PATTERN)
 
 # Error kinds
 NOT_CONFIGURED = "not_configured"  # our key or org id is empty: nothing was sent

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, StreamingResponse
 import csv
 from io import StringIO
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.api.deps import get_current_user, get_db, get_user_or_admin, is_admin
+from app.api.deps import get_current_caregiver, get_current_user, get_db, get_user_or_admin, is_admin
 from app.db.models.admin import AdminUser
 from app.db.models.user import User
 from app.schemas.caregiver import (
@@ -23,7 +23,10 @@ from app.schemas.caregiver import (
     DocumentUploadResponse,
     IdentityVerificationResponse,
     SpecializationOptions,
-    VerificationResultRequest,
+    IdentityVerificationClientEventRequest,
+    IdentityVerificationSessionOut,
+    IdentityVerificationSessionRequest,
+    IdentityVerificationStateOut,
     CaregiverWalletSummary,
     CaregiverTransactionOut,
     BankAccountResolveOut,
@@ -33,6 +36,8 @@ from app.schemas.caregiver import (
     CaregiverBankAccountUpdate,
 )
 from app.services.caregiver import CaregiverService
+from app.services.kyc_availability import ProviderAvailability, get_provider_availability
+from app.services.kyc_caregiver import CaregiverIdentityService, KycError
 from app.services import bank_accounts, booking_policy, payouts
 from app.services import earnings as earnings_service
 from app.db.models.caregiver import EARNING_TYPES, CaregiverWallet, CaregiverTransaction, CaregiverBankAccount, Caregiver, CaregiverDocument
@@ -245,26 +250,92 @@ def get_form_options() -> Any:
     return CaregiverService.get_form_options()
 
 
-@router.post("/identity-verification/result", response_model=dict)
-def receive_verification_result(
-    payload: VerificationResultRequest,
-    current_user: User = Depends(get_current_user),
-    caregiver_service: CaregiverService = Depends(get_caregiver_service),
+def _identity_service(db: Session = Depends(get_db),
+                      availability: ProviderAvailability = Depends(get_provider_availability)) -> CaregiverIdentityService:
+    return CaregiverIdentityService(db, availability)
+
+
+def _kyc_http_error(exc: KycError) -> HTTPException:
+    """Identity verification errors carry a machine code: ``detail`` is ``{"code", "message"}`` (the rest of this API uses a string)."""
+    return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
+
+
+_KYC_ERRORS = {
+    404: {"description": "No caregiver profile, or (client-event) no such attempt of yours: VERIFICATION_NOT_FOUND."},
+    409: {"description": "ALREADY_VERIFIED, UNDER_REVIEW, IDENTITY_REJECTED, PROFILE_INCOMPLETE, POLICY_VERSION_MISMATCH, "
+                        "ATTEMPTS_EXHAUSTED or PROVIDER_AVAILABLE."},
+}
+
+
+@router.get("/identity-verification", response_model=IdentityVerificationStateOut, responses={404: _KYC_ERRORS[404]})
+def get_identity_verification(
+    current_user: User = Depends(get_current_caregiver),
+    service: CaregiverIdentityService = Depends(_identity_service),
 ) -> Any:
-    """Receive and store verification result from mobile app (Prembly)"""
-    if current_user.user_type != "caregiver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Caregiver account required."
-        )
+    """Where the caregiver stands in identity verification. Never returns scores or the reason for a review."""
     try:
-        caregiver_service.process_verification_result(current_user.id, payload.type, payload.result)
-        return {"message": "Verification result received."}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        return service.status_for(current_user.id)
+    except KycError as exc:
+        raise _kyc_http_error(exc)
+
+
+@router.post("/identity-verification/sessions", response_model=IdentityVerificationSessionOut, status_code=status.HTTP_201_CREATED,
+             responses={200: {"description": "The caregiver's active attempt, returned again."}, **_KYC_ERRORS,
+                        503: {"description": "PROVIDER_UNAVAILABLE: Prembly is flagged down or the widget is not configured."}})
+def create_identity_verification_session(
+    payload: IdentityVerificationSessionRequest,
+    response: Response,
+    current_user: User = Depends(get_current_caregiver),
+    service: CaregiverIdentityService = Depends(_identity_service),
+) -> Any:
+    """Record the separate identity consent and open an attempt (or resume the active one); returns the widget config."""
+    try:
+        body, created = service.start_session(current_user.id, payload.policy_version)
+    except KycError as exc:
+        raise _kyc_http_error(exc)
+    response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+    return body
+
+
+@router.post("/identity-verification/defer", response_model=IdentityVerificationStateOut, responses=_KYC_ERRORS)
+def defer_identity_verification(
+    current_user: User = Depends(get_current_caregiver),
+    service: CaregiverIdentityService = Depends(_identity_service),
+) -> Any:
+    """Outage path: only while Prembly is flagged unavailable. Lets the caregiver carry on to consent; verifies nobody."""
+    try:
+        return service.defer(current_user.id)
+    except KycError as exc:
+        raise _kyc_http_error(exc)
+
+
+@router.post("/identity-verification/{verification_id}/client-event", response_model=IdentityVerificationStateOut,
+             responses=_KYC_ERRORS)
+def identity_verification_client_event(
+    verification_id: UUID,
+    payload: IdentityVerificationClientEventRequest,
+    current_user: User = Depends(get_current_caregiver),
+    service: CaregiverIdentityService = Depends(_identity_service),
+) -> Any:
+    """A hint from the widget (opened, completed, closed, error). Non-authoritative: it can advance the caregiver's own
+    attempt and remember the session id, and can never change the caregiver's identity status."""
+    try:
+        return service.client_event(current_user.id, verification_id, payload.event, payload.session_id)
+    except KycError as exc:
+        raise _kyc_http_error(exc)
+
+
+@router.post("/identity-verification/result", status_code=status.HTTP_410_GONE, include_in_schema=True,
+             responses={410: {"description": "The client no longer reports verification results."}})
+def receive_verification_result(current_user: User = Depends(get_current_user)):
+    """Removed. The verification result comes from the provider's signed webhook, not from the app. Kept as a clear 410 so an
+    older app version shows a message instead of an unexplained 404. Takes no body: nothing the app posts is read or stored."""
+    if current_user.user_type != "caregiver":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Caregiver account required.")
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="The app no longer reports identity verification results. Verification is completed in the verification step "
+               "and confirmed by our verification partner.")
 
 
 @router.get("/wallet", response_model=CaregiverWalletSummary)
