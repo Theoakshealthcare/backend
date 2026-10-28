@@ -243,7 +243,8 @@ def test_latest_vitals_is_an_empty_list_when_none_were_recorded_and_null_when_no
     accepted = _booking(db, patient2, caregiver2, BookingStatus.ACCEPTED)
     body = _get(client, accepted, caregiver2).json()
     assert body["latest_vitals"] is None  # not allowed before the visit starts
-    assert "84" not in str(body)
+    # Quoted, so a random UUID that happens to contain "84" cannot trip it.
+    assert "'84'" not in str(body) and "bpm" not in str(body)
 
 
 def test_a_patient_grant_makes_vitals_available_before_the_visit_starts(db, client):
