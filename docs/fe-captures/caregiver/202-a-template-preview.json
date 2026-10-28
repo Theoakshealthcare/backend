@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/caregiver/care-plan-templates/957d1ed4-18a5-45b3-a53f-a8c8e701a163",
+    "path": "/api/v1/caregiver/care-plan-templates/34d0323c-3f7c-457d-bae7-ceb608ef5463",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,7 +12,7 @@
       "cache-control": "no-store"
     },
     "body": {
-      "id": "957d1ed4-18a5-45b3-a53f-a8c8e701a163",
+      "id": "34d0323c-3f7c-457d-bae7-ceb608ef5463",
       "key": "stroke_recovery",
       "name": "Stroke Recovery",
       "summary": "Daily support after a stroke: safe movement, therapy exercises, swallowing and skin care.",

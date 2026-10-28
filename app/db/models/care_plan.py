@@ -26,6 +26,8 @@ TIME_SLOTS = ("morning", "afternoon", "evening", "night")
 REVIEW_STATUSES = ("pending", "approved")
 ACTOR_TYPES = ("caregiver", "admin", "system")
 OBSERVATION_CATEGORIES = ("observation", "special_note")
+MEDICATION_FREQUENCIES = ("once_daily", "twice_daily", "three_times_daily", "four_times_daily", "weekly", "as_needed", "other")
+MEDICATION_STATUSES = ("active", "stopped")
 
 
 def _in(column: str, values) -> str:
@@ -201,3 +203,32 @@ class CarePlanObservation(Base):
     body_encrypted = Column(Text, nullable=True)  # required on write; null only after erasure
     family_visible = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CarePlanMedication(Base):
+    """A medicine the prescriber ordered, as the nurse recorded it. Record only (decision D4): nothing checks a dose or an
+    interaction and nothing reminds anyone. Name, strength, dose, route, reason, prescriber and note are one encrypted JSON
+    document (``detail_encrypted``); the enums, times and dates stay plaintext. A medication is stopped, never deleted: what a
+    client was on matters more than a tidy list. ``detail_encrypted`` is nullable only so that erasure can wipe it."""
+    __tablename__ = "care_plan_medications"
+    __table_args__ = (
+        CheckConstraint(_in("frequency", MEDICATION_FREQUENCIES), name="ck_care_plan_medications_frequency"),
+        CheckConstraint(_in("status", MEDICATION_STATUSES), name="ck_care_plan_medications_status"),
+        CheckConstraint("end_date IS NULL OR end_date >= start_date", name="ck_care_plan_medications_dates"),
+        CheckConstraint("(status = 'stopped') = (stopped_at IS NOT NULL)", name="ck_care_plan_medications_stopped"),
+        CheckConstraint("cardinality(times_of_day) <= 12", name="ck_care_plan_medications_times"),
+        Index("ix_care_plan_medications_plan_status", "plan_id", "status"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("care_plans.id"), nullable=False)
+    # Encrypted JSON: name, strength, dose_amount, dose_unit, route, reason, prescribed_by, note. Required on write.
+    detail_encrypted = Column(Text, nullable=True)
+    frequency = Column(String, nullable=False)
+    times_of_day = Column(ARRAY(String), nullable=False, default=list, server_default=text("'{}'"))  # "08:00", display only
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=True)
+    status = Column(String, nullable=False, default="active", server_default=text("'active'"))
+    stopped_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PATCH",
-    "path": "/api/v1/caregiver/care-plan-tasks/a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+    "path": "/api/v1/caregiver/care-plan-tasks/daed2650-ad46-4d39-9c2e-990e75c2e6ab",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "expected_version": 2,
@@ -24,7 +24,7 @@
     },
     "body": {
       "task": {
-        "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+        "id": "daed2650-ad46-4d39-9c2e-990e75c2e6ab",
         "title": "Placeholder afternoon walk",
         "time_slot": "afternoon",
         "time_of_day": null,

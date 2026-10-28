@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/caregiver/care-plan-medications/61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 5,
+      "name": "Placeholder other"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "medication_stopped",
+        "message": "This medication was stopped. Record a new one instead of editing it."
+      }
+    }
+  },
+  "note": "A stopped medication is history: record a new one instead."
+}

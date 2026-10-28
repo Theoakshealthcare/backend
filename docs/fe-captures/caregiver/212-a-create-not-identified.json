@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/caregiver/bookings/0e20b6b5-48b7-40f4-8ced-2d4b4c5b4cda/care-plan",
+    "path": "/api/v1/caregiver/bookings/0a648709-9246-411c-99e9-7beb809e0e8d/care-plan",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "diagnosis": "Placeholder diagnosis",

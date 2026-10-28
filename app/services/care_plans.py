@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.security import decrypt, encrypt
 from app.db.models.booking import BookingStatus
 from app.db.models.care_plan import (
-    CarePlan, CarePlanEvent, CarePlanGoal, CarePlanObservation, CarePlanTask, CarePlanTemplate,
+    CarePlan, CarePlanEvent, CarePlanGoal, CarePlanMedication, CarePlanObservation, CarePlanTask, CarePlanTemplate,
 )
 from app.db.models.admin import AdminUser
 from app.db.models.caregiver import Caregiver
@@ -119,6 +119,15 @@ def unseal(value: Optional[str], plan_id: UUID, column: str) -> Optional[str]:
         raise CarePlanDecryptionError(f"cannot decrypt care_plans/{plan_id} {column}") from None
 
 
+def seal_json(value: Dict[str, Any]) -> str:
+    return encrypt(json.dumps(value))
+
+
+def unseal_json(value: Optional[str], plan_id: UUID, column: str) -> Dict[str, Any]:
+    text = unseal(value, plan_id, column)
+    return json.loads(text) if text else {}
+
+
 def unseal_list(value: Optional[str], plan_id: UUID, column: str) -> List[str]:
     text = unseal(value, plan_id, column)
     return json.loads(text) if text else []
@@ -151,6 +160,22 @@ def _goal_out(goal: CarePlanGoal) -> Dict[str, Any]:
 def _task_out(task: CarePlanTask) -> Dict[str, Any]:
     return {"id": task.id, "title": unseal(task.title_encrypted, task.plan_id, "care_plan_tasks.title_encrypted") or "",
             "time_slot": task.time_slot, "time_of_day": _hhmm(task.time_of_day), "days_of_week": list(task.days_of_week)}
+
+
+MEDICATION_DETAIL_FIELDS = ("name", "strength", "dose_amount", "dose_unit", "route", "reason", "prescribed_by", "note")
+
+
+def _medication_out(med: CarePlanMedication) -> Dict[str, Any]:
+    detail = unseal_json(med.detail_encrypted, med.plan_id, "care_plan_medications.detail_encrypted")
+    return {"id": med.id, **{f: detail.get(f) for f in MEDICATION_DETAIL_FIELDS}, "name": detail.get("name") or "",
+            "frequency": med.frequency, "times_of_day": list(med.times_of_day or []), "start_date": med.start_date,
+            "end_date": med.end_date, "status": med.status, "stopped_at": med.stopped_at}
+
+
+def _medications(db: Session, plan_id: UUID) -> List[CarePlanMedication]:
+    """Active first, then stopped (history), each in the order they were recorded."""
+    return (db.query(CarePlanMedication).filter(CarePlanMedication.plan_id == plan_id)
+            .order_by(CarePlanMedication.status, CarePlanMedication.created_at, CarePlanMedication.id).all())
 
 
 def _goals(db: Session, plan_id: UUID) -> List[CarePlanGoal]:
@@ -196,6 +221,7 @@ def build_plan(db: Session, caregiver: Caregiver, access: PlanAccess, plan: Care
         "special_instructions": unseal_list(plan.special_instructions_encrypted, plan.id,
                                             "care_plans.special_instructions_encrypted"),
         "goals": [_goal_out(g) for g in _goals(db, plan.id)],
+        "medications": [_medication_out(m) for m in _medications(db, plan.id)],
         "tasks": [_task_out(t) for t in _tasks(db, plan.id)],
         "capabilities": {"can_edit_plan": can_edit(db, caregiver, plan), "can_tick_tasks": can_record_visit(access, plan),
                          "can_add_observation": can_record_visit(access, plan)},
@@ -522,8 +548,8 @@ def goal_out(goal: CarePlanGoal) -> Dict[str, Any]:
 
 def wipe_plans_for_subject(db: Session, *, patient_id: Optional[UUID] = None, recipient_id: Optional[UUID] = None,
                            now: Optional[datetime] = None) -> int:
-    """Account erasure: archive the subject's plans and null every ciphertext (header, goals, tasks, notes). Ids, dates, enums,
-    the ticks and the event trail stay. Returns the number of plans wiped. Does not commit."""
+    """Account erasure: archive the subject's plans and null every ciphertext (header, goals, tasks, medications, notes). Ids,
+    dates, enums, the ticks and the event trail stay. Returns the number of plans wiped. Does not commit."""
     now = now or datetime.utcnow()
     column = CarePlan.patient_id if patient_id is not None else CarePlan.care_recipient_id
     plans = db.query(CarePlan).filter(column == (patient_id or recipient_id)).all()
@@ -534,6 +560,8 @@ def wipe_plans_for_subject(db: Session, *, patient_id: Optional[UUID] = None, re
             {"title_encrypted": None, "target_encrypted": None}, synchronize_session=False)
         db.query(CarePlanTask).filter(CarePlanTask.plan_id == plan.id).update(
             {"title_encrypted": None}, synchronize_session=False)
+        db.query(CarePlanMedication).filter(CarePlanMedication.plan_id == plan.id).update(
+            {"detail_encrypted": None}, synchronize_session=False)
         db.query(CarePlanObservation).filter(CarePlanObservation.plan_id == plan.id).update(
             {"body_encrypted": None}, synchronize_session=False)
         record_event(db, plan.id, "system", None, "plan.erased", {})

@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/caregiver/care-plan-medications/61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 4,
+      "name": null
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, name cannot be null",
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  "note": "`name`, `frequency`, `times_of_day` and `start_date` cannot be null."
+}

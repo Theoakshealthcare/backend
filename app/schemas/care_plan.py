@@ -16,6 +16,15 @@ GoalStatus = Literal["active", "achieved", "discontinued"]
 TimeSlot = Literal["morning", "afternoon", "evening", "night"]
 
 MAX_GOALS, MAX_TASKS, MAX_LIST_ITEMS = 30, 60, 30
+MAX_MEDICATIONS, MAX_MEDICATION_TIMES = 40, 12
+
+# The "not clinical advice" notice for medications (decision D4). One constant: the OpenAPI descriptions of the medication
+# routes and of the plan's `medications` field are built from it, and the mobile app shows the same words as a banner. The
+# wording is for clinical sign-off; change it here and nowhere else.
+MEDICATION_NOTICE = (
+    "This is a record of what the prescriber ordered. Oakly does not check doses or interactions and does not remind "
+    "anyone to give medicines. Follow the prescriber's instructions."
+)
 
 Diagnosis = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
@@ -26,6 +35,18 @@ ReviewEvery = Annotated[int, Field(ge=7, le=90)]
 Day = date  # an alias, so a field called `date` does not shadow the type inside its own class
 ObservationText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 ObservationCategory = Literal["observation", "special_note"]
+MedicationFrequency = Literal["once_daily", "twice_daily", "three_times_daily", "four_times_daily", "weekly", "as_needed", "other"]
+MedicationStatus = Literal["active", "stopped"]
+MedicationName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+MedicationShort = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+MedicationReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+HHMM = Annotated[str, Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$", examples=["08:00"])]  # [0-9], not \d: no Unicode digits
+
+
+def _check_times(times: List[str]) -> List[str]:
+    if len(set(times)) != len(times):
+        raise ValueError("times_of_day must not repeat a time")
+    return sorted(times)
 
 
 def _check_days(days: List[int]) -> List[int]:
@@ -147,6 +168,66 @@ class GoalPatch(BaseModel):
         return self
 
 
+class MedicationFields(BaseModel):
+    """What the prescriber ordered, as the nurse records it. Record only: nothing here is checked against anything."""
+    name: MedicationName
+    strength: Optional[MedicationShort] = Field(None, examples=["500 mg"], description="The product's strength, as written.")
+    dose_amount: Optional[MedicationShort] = Field(None, examples=["1"], description="Text, so '1/2' and '5' both fit.")
+    dose_unit: Optional[MedicationShort] = Field(None, examples=["tablet"])
+    route: Optional[MedicationShort] = Field(None, examples=["oral"])
+    reason: Optional[MedicationReason] = None
+    prescribed_by: Optional[MedicationName] = None
+    note: Optional[FreeText] = None
+    frequency: MedicationFrequency
+    times_of_day: List[HHMM] = Field(default_factory=list, max_length=MAX_MEDICATION_TIMES,
+                                     description="Display times, HH:MM. Empty for as_needed or other.")
+    start_date: Optional[date] = Field(None, description="Defaults to today (Africa/Lagos).")
+    end_date: Optional[date] = Field(None, description="Not before `start_date`; null while ongoing.")
+
+    @field_validator("times_of_day")
+    @classmethod
+    def _times(cls, times: List[str]) -> List[str]:
+        return _check_times(times)
+
+
+class MedicationCreate(MedicationFields):
+    expected_version: Optional[int] = Field(None, ge=1, description="Optional: adding never overwrites anything.")
+
+
+class MedicationPatch(BaseModel):
+    """Only the fields sent change. Every optional field accepts null to clear it. A stopped medication cannot be edited:
+    record a new one."""
+    expected_version: int = Field(ge=1)
+    name: Optional[MedicationName] = None
+    strength: Optional[MedicationShort] = None
+    dose_amount: Optional[MedicationShort] = None
+    dose_unit: Optional[MedicationShort] = None
+    route: Optional[MedicationShort] = None
+    reason: Optional[MedicationReason] = None
+    prescribed_by: Optional[MedicationName] = None
+    note: Optional[FreeText] = None
+    frequency: Optional[MedicationFrequency] = None
+    times_of_day: Optional[List[HHMM]] = Field(None, max_length=MAX_MEDICATION_TIMES)
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+    @field_validator("times_of_day")
+    @classmethod
+    def _times(cls, times: Optional[List[str]]) -> Optional[List[str]]:
+        return _check_times(times) if times is not None else None
+
+    @model_validator(mode="after")
+    def _required_fields_are_not_cleared(self):
+        for name in ("name", "frequency", "times_of_day", "start_date"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class MedicationStop(BaseModel):
+    expected_version: int = Field(ge=1)
+
+
 # --- responses ------------------------------------------------------------------------------------------------------
 
 class ClientOut(BaseModel):
@@ -182,6 +263,29 @@ class TaskOut(BaseModel):
     days_of_week: List[int]
 
 
+class MedicationOut(BaseModel):
+    id: UUID
+    name: str
+    strength: Optional[str] = None
+    dose_amount: Optional[str] = None
+    dose_unit: Optional[str] = None
+    route: Optional[str] = None
+    reason: Optional[str] = None
+    prescribed_by: Optional[str] = None
+    note: Optional[str] = None
+    frequency: MedicationFrequency
+    times_of_day: List[str] = Field(description="HH:MM, earliest first; may be empty.")
+    start_date: date
+    end_date: Optional[date] = None
+    status: MedicationStatus
+    stopped_at: Optional[datetime] = Field(None, description="Set when `status` is `stopped`, null otherwise.")
+
+
+class MedicationWriteResult(BaseModel):
+    medication: MedicationOut
+    plan_version: int = Field(description="The plan's version after this write; use it as the next expected_version.")
+
+
 class Capabilities(BaseModel):
     can_edit_plan: bool = Field(description="A nurse, and the plan is active.")
     can_tick_tasks: bool = Field(description="The plan is active and the caller has a visit for this client in progress.")
@@ -205,6 +309,7 @@ class CarePlanOut(BaseModel):
     allergies: List[str]
     special_instructions: List[str]
     goals: List[GoalOut]
+    medications: List[MedicationOut] = Field(description="Active ones first, then stopped ones (history). " + MEDICATION_NOTICE)
     tasks: List[TaskOut]
     capabilities: Capabilities
     created_at: datetime

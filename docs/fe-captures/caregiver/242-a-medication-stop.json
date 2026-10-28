@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plan-medications/61986564-03c8-4ffc-9fc9-75a5f60bbbe4/stop",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 4
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "medication": {
+        "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+        "name": "Placeholder medicine A",
+        "strength": "250 mg",
+        "dose_amount": "1",
+        "dose_unit": "tablet",
+        "route": "oral",
+        "reason": "Placeholder reason",
+        "prescribed_by": "Placeholder prescriber",
+        "note": null,
+        "frequency": "once_daily",
+        "times_of_day": [
+          "12:00"
+        ],
+        "start_date": "2026-10-28",
+        "end_date": "2026-11-25",
+        "status": "stopped",
+        "stopped_at": "2026-10-28T12:55:01.667687"
+      },
+      "plan_version": 5
+    }
+  },
+  "note": "The medication stays on the plan as history. `stopped_at` is UTC without a `Z`."
+}

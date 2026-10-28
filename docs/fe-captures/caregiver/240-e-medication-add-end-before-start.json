@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/1bb2fcaf-06d3-4244-8097-e5b9d2f38b26/medications",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "name": "Placeholder medicine D",
+      "frequency": "once_daily",
+      "start_date": "2026-10-28",
+      "end_date": "2026-10-27"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "invalid_care_plan",
+        "message": "end_date cannot be before start_date"
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "DELETE",
-    "path": "/api/v1/caregiver/care-plan-tasks/e20e9d6d-d108-495e-9f4f-53565c5f0a27?expected_version=4",
+    "path": "/api/v1/caregiver/care-plan-tasks/15693974-c881-483b-bd86-b304dd044662?expected_version=4",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -13,7 +13,7 @@
     },
     "body": {
       "task": {
-        "id": "e20e9d6d-d108-495e-9f4f-53565c5f0a27",
+        "id": "15693974-c881-483b-bd86-b304dd044662",
         "title": "Placeholder other-day task",
         "time_slot": "night",
         "time_of_day": null,

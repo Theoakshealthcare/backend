@@ -108,3 +108,24 @@ def colleague(db, patient, status=BookingStatus.IN_PROGRESS, nurse=False):
     other = make_nurse(db) if nurse else make_caregiver(db)
     make_booking(db, patient, other, status=status, booking_for="myself")
     return other
+
+
+# --- slice B3: medications ----------------------------------------------------------------------------------------------
+
+SECRET_MED = "Placeholder medicine theta"
+SECRET_MED_NOTE = "Placeholder medicine note iota"
+SECRET_MED_REASON = "Placeholder medicine reason kappa"
+SECRET_MED_PRESCRIBER = "Placeholder prescriber lambda"
+SECRET_MED_TEXTS = (SECRET_MED, SECRET_MED_NOTE, SECRET_MED_REASON, SECRET_MED_PRESCRIBER)
+
+
+def med_body(**over):
+    body = {"name": SECRET_MED, "strength": "500 mg", "dose_amount": "1", "dose_unit": "tablet", "route": "oral",
+            "reason": SECRET_MED_REASON, "prescribed_by": SECRET_MED_PRESCRIBER, "note": SECRET_MED_NOTE,
+            "frequency": "twice_daily", "times_of_day": ["20:00", "08:00"], "start_date": "2026-10-28", "end_date": "2026-11-28"}
+    body.update(over)
+    return body
+
+
+def add_med(client, caregiver, plan_id, **over):
+    return client.post(f"{BASE}/care-plans/{plan_id}/medications", json=med_body(**over), headers=h(caregiver))

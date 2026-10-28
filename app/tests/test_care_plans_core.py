@@ -227,7 +227,7 @@ def test_a_response_is_a_closed_list_with_no_ciphertext_and_no_family_flag(db, c
     nurse, _, _, plan = _created(client, db)
     assert set(plan) == {"id", "version", "status", "booking_id", "client", "diagnosis", "risk_level", "start_date",
                          "duration_days", "review_every_days", "review_due_on", "template", "author", "allergies",
-                         "special_instructions", "goals", "tasks", "capabilities", "created_at", "updated_at"}
+                         "special_instructions", "goals", "medications", "tasks", "capabilities", "created_at", "updated_at"}
     assert set(plan["goals"][0]) == {"id", "title", "target", "frequency", "status"}
     assert set(plan["tasks"][0]) == {"id", "title", "time_slot", "time_of_day", "days_of_week"}
     assert "gAAAAA" not in json.dumps(plan) and "family_visible" not in json.dumps(plan)

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PUT",
-    "path": "/api/v1/caregiver/care-plan-tasks/47f653e2-e9e1-4c75-ad77-14d85aa53b7c/completion",
+    "path": "/api/v1/caregiver/care-plan-tasks/9da86b1f-220d-4adb-8881-4ea84dfc74f2/completion",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "date": "2026-10-28",
@@ -15,11 +15,11 @@
       "cache-control": "no-store"
     },
     "body": {
-      "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+      "task_id": "9da86b1f-220d-4adb-8881-4ea84dfc74f2",
       "date": "2026-10-28",
       "done": true,
       "done_by": "Placeholder Nurse",
-      "done_at": "2026-10-28T10:10:52.399709"
+      "done_at": "2026-10-28T12:54:59.052077"
     }
   },
   "note": "Idempotent: another caregiver ticking the same task changes nothing; the first tick (who, when) is returned."

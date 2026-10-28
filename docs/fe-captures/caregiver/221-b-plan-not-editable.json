@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PATCH",
-    "path": "/api/v1/caregiver/care-plans/34fe9218-f4df-4bca-8261-44a82a0f50db",
+    "path": "/api/v1/caregiver/care-plans/a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "expected_version": 6,

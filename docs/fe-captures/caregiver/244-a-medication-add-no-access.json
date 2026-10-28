@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/1bb2fcaf-06d3-4244-8097-e5b9d2f38b26/medications",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "name": "Placeholder",
+      "frequency": "once_daily"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Care plan not found"
+    }
+  },
+  "note": "A caregiver with no live visit for this client: the same 404 as everywhere."
+}

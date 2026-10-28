@@ -41,6 +41,7 @@ COLUMNS = [
     EncryptedColumn("care_plan_goals", "title_encrypted", plaintext_fallback=False),
     EncryptedColumn("care_plan_goals", "target_encrypted", plaintext_fallback=False),
     EncryptedColumn("care_plan_tasks", "title_encrypted", plaintext_fallback=False),
+    EncryptedColumn("care_plan_medications", "detail_encrypted", plaintext_fallback=False),
     EncryptedColumn("care_plan_observations", "body_encrypted", plaintext_fallback=False),
 ]
 
