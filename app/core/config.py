@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     KYC_SESSION_TTL_HOURS: int = 24
     KYC_FACE_THRESHOLD: int = 85  # a placeholder until the K0 spike tunes it
     KYC_FACE_FLOOR: int = 70
+    KYC_LIVENESS_FLOOR: int = 50  # a placeholder until the K0 spike (Q6 asks Prembly for the liveness pass rule); 0..100
+    KYC_ALERT_EMAIL: str = ""  # who is told when the Prembly wallet is empty or the key is refused (owner question O5); empty = log only
     KYC_POLICY_VERSION: str = "kyc-2026-10"  # the consent text version recorded with identity_verification consents
     
     # Paystack Configuration

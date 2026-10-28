@@ -52,6 +52,12 @@ FAILURE_HINTS = {
 }
 GENERIC_FAILURE_HINT = "mismatch_generic"
 
+
+def attempts_used(attempts) -> int:
+    """How many of a caregiver's attempts count against ``KYC_MAX_ATTEMPTS``. THE counting rule: the state endpoint, the session
+    creation and the K4 engine all call it, so K5's ``identity-reset`` (a fresh set of attempts) changes one place."""
+    return sum(1 for a in attempts if a.status not in UNCOUNTED_STATUSES)
+
 _SESSION_ID = re.compile(SESSION_ID_PATTERN)
 
 
@@ -75,7 +81,7 @@ class CaregiverIdentityService:
         attempts = self._attempts(caregiver)  # newest first
         latest = attempts[0] if attempts else None
         active = next((a for a in attempts if a.status in VERIFICATION_ACTIVE_STATUSES), None)
-        used = sum(1 for a in attempts if a.status not in UNCOUNTED_STATUSES)
+        used = attempts_used(attempts)
         if available is None:
             available = self.availability.is_available()
         eligible = caregiver.identity_verification_status in RETRYABLE_IDENTITY_STATUSES and caregiver.profile_completion_step >= MIN_STEP
@@ -113,7 +119,7 @@ class CaregiverIdentityService:
         row = next((a for a in attempts if a.status in VERIFICATION_ACTIVE_STATUSES), None)
         created = row is None
         if created:
-            if sum(1 for a in attempts if a.status not in UNCOUNTED_STATUSES) >= settings.KYC_MAX_ATTEMPTS:
+            if attempts_used(attempts) >= settings.KYC_MAX_ATTEMPTS:
                 raise _conflict("ATTEMPTS_EXHAUSTED", "You have used all your identity verification attempts. Our team will review your case.")
             row = IdentityVerification(
                 caregiver_id=caregiver.id, attempt_no=max((a.attempt_no for a in attempts), default=0) + 1,

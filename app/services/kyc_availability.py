@@ -13,13 +13,23 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 UNAVAILABLE_KEY = "kyc:provider_unavailable"
+ERRORS_KEY = "kyc:provider_errors"  # the consecutive-error counter (K4); it expires on its own so old errors are forgotten
+ALERT_KEY_PREFIX = "kyc:alert:"  # one ops alert per kind per window (K4)
 DEFAULT_UNAVAILABLE_TTL_SECONDS = 15 * 60  # design 7.3: three consecutive provider errors flag it for 15 minutes
+CONSECUTIVE_ERRORS_TO_FLAG = 3
+DEFAULT_ALERT_WINDOW_SECONDS = 60 * 60
 
 
 class ProviderAvailability(Protocol):
     def is_available(self) -> bool: ...
     def mark_unavailable(self, ttl_seconds: int = DEFAULT_UNAVAILABLE_TTL_SECONDS) -> None: ...
     def mark_available(self) -> None: ...
+    def record_error(self) -> bool:
+        """One more provider error. Returns True when this one tripped the flag (three in a row)."""
+    def record_success(self) -> None:
+        """A good provider answer: forget the error streak and lift the flag."""
+    def claim_alert(self, kind: str, window_seconds: int = DEFAULT_ALERT_WINDOW_SECONDS) -> bool:
+        """True for the first caller per ``kind`` per window (so a wallet that stays empty alerts once an hour, not once a pull)."""
 
 
 class RedisProviderAvailability:
@@ -51,6 +61,33 @@ class RedisProviderAvailability:
             self._redis().delete(UNAVAILABLE_KEY)
         except Exception:  # noqa: BLE001
             logger.warning("kyc availability flag could not be cleared", exc_info=True)
+
+
+    def record_error(self) -> bool:
+        try:
+            redis = self._redis()
+            count = redis.incr(ERRORS_KEY)
+            if count == 1:
+                redis.expire(ERRORS_KEY, DEFAULT_UNAVAILABLE_TTL_SECONDS)
+            if count >= CONSECUTIVE_ERRORS_TO_FLAG:
+                self.mark_unavailable()
+                return True
+        except Exception:  # noqa: BLE001
+            logger.warning("kyc provider error counter could not be updated", exc_info=True)
+        return False
+
+    def record_success(self) -> None:
+        try:
+            self._redis().delete(ERRORS_KEY, UNAVAILABLE_KEY)
+        except Exception:  # noqa: BLE001
+            logger.warning("kyc provider error counter could not be cleared", exc_info=True)
+
+    def claim_alert(self, kind: str, window_seconds: int = DEFAULT_ALERT_WINDOW_SECONDS) -> bool:
+        try:
+            return bool(self._redis().set(ALERT_KEY_PREFIX + kind, "1", nx=True, ex=window_seconds))
+        except Exception:  # noqa: BLE001 - alert anyway: a duplicate alert beats a missed one
+            logger.warning("kyc alert throttle unreadable; alerting", exc_info=True)
+            return True
 
 
 _availability: Optional[ProviderAvailability] = None

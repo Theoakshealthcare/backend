@@ -660,7 +660,7 @@ _capture `031-admin-approve-no-skills.json`_
 
 **What it is.** After Step 2 the caregiver proves who they are with a hosted check (ID or NIN/BVN plus a live selfie) run by our verification partner, Prembly. The check runs inside Prembly's widget; the photos go from the phone to Prembly and never reach Oakly. **The app never decides the outcome.** The result reaches the backend from Prembly directly; the app only reads the status. Everything the widget reports back to the app (opened, completed, closed, error) is sent to the backend as a *hint* and changes nothing about the caregiver's identity status.
 
-**Captured by the backend test harness (the real app and a real Postgres), not the compose stack: captures `200` to `225` come from `app/tests/test_capture_kyc_caregiver.py`. Not live against Prembly:** these endpoints make no Prembly call, so there was nothing to capture from it, and the widget, the webhook and the decision engine (what turns an attempt into `verified`, `needs_review` or a failure) are **not built yet** (backend slices K3 and K4, app slices K7a and K7b). Captures marked **[seeded]** put the attempt row straight into the database, because nothing else can create it yet; the endpoint responses over those rows are real. The "is Prembly up" flag was an in-memory stand-in for the Redis flag the backend will set. The widget id and key in the examples are placeholders.
+**Captured by the backend test harness (the real app and a real Postgres), not the compose stack: captures `200` to `231` come from `app/tests/test_capture_kyc_caregiver.py`. NOT live against Prembly, and this matters:** the decision engine (backend slice K4, built) is real code, and the captures marked **[engine]** were produced by running it (the same functions the worker and the cron run) over sessions served by a **fake Prembly** whose shapes come from Prembly's public docs and our guesses. Nobody has yet seen a real Prembly session, webhook or widget callback (the K0 spike and K8 live pass are still ahead), so *what real results look like, how many real caregivers land in review, and the exact scores* are unconfirmed. Captures marked **[seeded]** put an attempt row straight into the database. The "is Prembly up" flag was an in-memory stand-in for the Redis flag (the engine wrote it through the same code path). The widget id and key in the examples are placeholders. The widget itself (app slices K7a/K7b) is not built.
 
 All five calls need a caregiver token. A patient token gets `403 Access denied. Caregiver account required.` and no token gets `401 Not authenticated` (captures `224`, `225`).
 
@@ -713,12 +713,12 @@ What each combination means for the screen:
 | `in_progress` | set | `awaiting_result` | `true` | "Checking your details..." and poll |
 | `in_progress` | `null` | `failed` | `true` | "Try again" with the tip |
 | `in_progress` | `null` | `expired` / `error` | `true` | "That session timed out. Start again." |
-| `in_progress` | `null` | `failed` | `false` | Attempts used up; the backend will move the case to review (**not built yet: today it stays `in_progress`**) |
-| `needs_review` | `null` | any | `false` | "A person on our team will check this, usually within 24 hours. You can continue." |
+| `needs_review` | `null` | `needs_review` | `false` | "A person on our team will check this, usually within 24 hours. You can continue." This is also where the third failed attempt ends (capture `228`): the backend moves the case to review by itself, so `in_progress` with `can_start: false` and nothing running does not occur from the engine |
+| `in_progress` | set | any | `false` | The attempt is running but `provider_available` is `false` (capture `231`): offer "Continue without for now" |
 | `verified` | `null` | `passed` | `false` | "Identity verified", continue |
 | `failed` | `null` | any | `false` | Rejected: contact support |
 
-Fresh caregiver, nothing started (this is the `200` above). Two more states, both **[seeded]**: after one clean failure, and while the case is with a person. Note the response says nothing about *why*:
+Fresh caregiver, nothing started (this is the `200` above). Two more states, both **[engine]**: after one clean failure, and while the case is with a person (here because the name on the ID differs from the profile). Note the response says nothing about *why*:
 
 <!-- capture: 210-a-kyc-state-try-again.json response.body -->
 ```json
@@ -756,6 +756,115 @@ _capture `210-a-kyc-state-try-again.json`_
 
 _capture `213-a-kyc-state-under-review.json`_
 
+#### What the backend decides, and what the app sees (K4, **[engine]**, over a fake Prembly)
+
+The app never sends a result; it reads the state. This is how the backend turns the provider's confirmed result into the state you poll:
+
+| Outcome | `status` | `last_attempt_status` | What happens next |
+|---|---|---|---|
+| Everything checks out (capture `226`) | `verified` | `passed` | The step moves to 3 (capture `227`): go to consent |
+| A clean failure with attempts left (face mismatch, liveness, unreadable ID, record not found) | `in_progress` | `failed` | "Try again" with `failure_hint` (capture `210`); the step stays 2 |
+| The third clean failure (capture `228`) | `needs_review` | `needs_review` | The step moves to 3: a person looks; the caregiver can continue |
+| Anything doubtful: name or date of birth differs from the profile, face score in the grey band, the same ID on another account, a watch-list hit, a result that could not be checked (capture `213`) | `needs_review` | `needs_review` | The step moves to 3: a person looks. The reason is never returned |
+| Nobody answered within 24 hours (capture `230`) | unchanged | `expired` | Not counted as an attempt; `can_start` is `true` again |
+| The provider's wallet is empty or its key is refused (capture `231`) | unchanged | unchanged | `provider_available` is `false` for 15 minutes; offer "Continue without for now" |
+
+**`failed` is never produced by the backend on its own.** Only our team sets it (after a review). A caregiver the team has decided (`verified` or `failed`) is never changed by a later provider result.
+
+<!-- capture: 226-a-kyc-state-verified.json response.body -->
+```json
+{
+  "status": "verified",
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "active_verification_id": null,
+  "last_attempt_status": "passed",
+  "can_start": false,
+  "failure_hint": null,
+  "provider_available": true,
+  "review_eta_hours": null,
+  "policy_version": "kyc-2026-10"
+}
+```
+
+_capture `226-a-kyc-state-verified.json`_
+
+<!-- capture: 227-a-kyc-verification-status-verified.json response.body -->
+```json
+{
+  "profile_completion_step": 3,
+  "identity_verification_status": "verified",
+  "background_check_status": "pending",
+  "profile_status": "under_review",
+  "rejection_reason": null,
+  "changes_requested": null
+}
+```
+
+_capture `227-a-kyc-verification-status-verified.json`_
+
+The third failed attempt ends in review, not in a dead end. Starting again is refused with `409 UNDER_REVIEW` (capture `229`), not `ATTEMPTS_EXHAUSTED`:
+
+<!-- capture: 228-a-kyc-state-attempts-used-up-review.json response.body -->
+```json
+{
+  "status": "needs_review",
+  "attempts_used": 3,
+  "attempts_max": 3,
+  "active_verification_id": null,
+  "last_attempt_status": "needs_review",
+  "can_start": false,
+  "failure_hint": null,
+  "provider_available": true,
+  "review_eta_hours": 24,
+  "policy_version": "kyc-2026-10"
+}
+```
+
+_capture `228-a-kyc-state-attempts-used-up-review.json`_
+
+An attempt nobody answered is closed by a background job after 24 hours; it does not count against the three attempts:
+
+<!-- capture: 230-a-kyc-state-expired.json response.body -->
+```json
+{
+  "status": "in_progress",
+  "attempts_used": 0,
+  "attempts_max": 3,
+  "active_verification_id": null,
+  "last_attempt_status": "expired",
+  "can_start": true,
+  "failure_hint": null,
+  "provider_available": true,
+  "review_eta_hours": null,
+  "policy_version": "kyc-2026-10"
+}
+```
+
+_capture `230-a-kyc-state-expired.json`_
+
+When the provider's wallet is empty, `provider_available` flips to `false` (here with an attempt running, so `can_start` is `false` too):
+
+<!-- capture: 231-a-kyc-state-wallet-empty.json response.body -->
+```json
+{
+  "status": "in_progress",
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "active_verification_id": "cc93de0e-cc4a-43a8-8110-9bc65e8f2dbe",
+  "last_attempt_status": "awaiting_result",
+  "can_start": false,
+  "failure_hint": null,
+  "provider_available": false,
+  "review_eta_hours": null,
+  "policy_version": "kyc-2026-10"
+}
+```
+
+_capture `231-a-kyc-state-wallet-empty.json`_
+
+**Notifications (push and e-mail), sent when the backend decides.** Push `data.type` is `kyc_verified`, `kyc_try_again` or `kyc_under_review`; the e-mail has the same three headings. They never carry a reason. **The push is a nudge, not the source of truth:** on receiving one, re-read `GET .../identity-verification`. **Not verified:** no real push or e-mail was sent in the captures (both are stubbed in the harness); the copy and types are from the code.
+
 #### Start: `POST .../sessions`
 
 Send the explicit tick and the `policy_version` the app was shown. The backend records the consent (a separate, append-only record, not part of the terms) and opens the attempt. **First call `201`, any repeat while that attempt is still running `200` with the same attempt and widget config** (use it to reopen the widget; it does not use another attempt).
@@ -773,23 +882,23 @@ Request and response `201`:
 <!-- capture: 203-a-kyc-sessions-create.json response.body -->
 ```json
 {
-  "verification_id": "bdc04b87-e29e-473c-b566-47bb1ae52ab0",
+  "verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
   "attempt_no": 1,
   "widget": {
     "widget_id": "placeholder-widget-id",
     "widget_key": "placeholder-widget-key",
-    "email": "caregiver-616524d402@example.com",
+    "email": "caregiver-7a3968665b@example.com",
     "first_name": "Placeholder",
     "last_name": "Caregiver",
     "metadata": {
-      "oakly_ref": "a0fbe750-b549-4a8a-95ae-512fbe35358c"
+      "oakly_ref": "590006a8-5097-4d41-8f02-924e8147f036"
     }
   },
   "state": {
     "status": "in_progress",
     "attempts_used": 1,
     "attempts_max": 3,
-    "active_verification_id": "bdc04b87-e29e-473c-b566-47bb1ae52ab0",
+    "active_verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
     "last_attempt_status": "created",
     "can_start": true,
     "failure_hint": null,
@@ -812,10 +921,10 @@ Errors (`detail` is an **object** `{"code", "message"}` on every identity-verifi
 |---|---|---|---|
 | 422 | (validation list) | `consent` false, absent or null | `201` |
 | 409 | `POLICY_VERSION_MISMATCH` | The `policy_version` is not the current one: reload `GET`, show the current consent text, ask again | `202` |
-| 409 | `ALREADY_VERIFIED` | Identity already verified | `215` **[seeded]** |
-| 409 | `UNDER_REVIEW` | The case is with our team (`needs_review`) | `214` **[seeded]** |
+| 409 | `ALREADY_VERIFIED` | Identity already verified | `215` **[engine]** |
+| 409 | `UNDER_REVIEW` | The case is with our team (`needs_review`), including after the third failed attempt | `214`, `229` **[engine]** |
 | 409 | `IDENTITY_REJECTED` | Our team marked the identity `failed` | **not captured**: same shape as `215`; `app/tests/test_kyc_caregiver_api.py` |
-| 409 | `ATTEMPTS_EXHAUSTED` | No attempts left and none running | `212` **[seeded]** |
+| 409 | `ATTEMPTS_EXHAUSTED` | No attempts left and none running, while the caregiver is still `in_progress`. **The backend no longer ends up here by itself** (it moves the case to review at the third failure, so you get `UNDER_REVIEW`); keep handling it as a defensive case | `212` **[seeded]** |
 | 409 | `PROFILE_INCOMPLETE` | Step 2 is not done (`profile_completion_step` below 2) | `216` |
 | 503 | `PROVIDER_UNAVAILABLE` | Verification is flagged down, or the widget is not configured on the server | `219` |
 
@@ -871,7 +980,7 @@ Call it from the widget's callbacks. `event` is `opened`, `completed`, `closed` 
   "status": "in_progress",
   "attempts_used": 1,
   "attempts_max": 3,
-  "active_verification_id": "bdc04b87-e29e-473c-b566-47bb1ae52ab0",
+  "active_verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
   "last_attempt_status": "awaiting_result",
   "can_start": true,
   "failure_hint": null,
@@ -2879,7 +2988,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 - **While a visit is active:** the booking detail is fine to poll every 15 to 30 seconds; the location goes over the WebSocket or REST ping.
 - **After a `409` on accept** ("no longer available"): drop the offer and refetch home. Do not retry.
 - **After a `423`:** stop sending codes until the `Retry-After` seconds pass; show the countdown.
-- **Identity verification.** Read `GET /caregiver/identity-verification` when the identity screen opens. After the widget reports `completed`, poll it every **3 seconds, backing off to 10**, until `status` leaves `in_progress` or `active_verification_id` becomes `null`. After about 2 minutes say it is taking longer and let the caregiver leave; do not poll forever. A hint (`client-event`) never ends the wait.
+- **Identity verification.** Read `GET /caregiver/identity-verification` when the identity screen opens. After the widget reports `completed`, poll it every **3 seconds, backing off to 10**, until `status` leaves `in_progress` or `active_verification_id` becomes `null`. After about 2 minutes say it is taking longer and let the caregiver leave; do not poll forever. A hint (`client-event`) never ends the wait. The backend decides when the provider's result is confirmed: poll until `status` is `verified` (go to consent), `needs_review` (say a person will check, then go to consent) or `last_attempt_status` is `failed` (show "Try again"). **After a decision the backend sets `profile_completion_step` to 3 itself for `verified` and `needs_review`** (not for "try again"): re-read `GET /caregiver/verification-status` rather than assuming the step. An attempt left unanswered for 24 hours becomes `expired` and does not count: show "That session timed out. Start again.". A push (`data.type` `kyc_verified`, `kyc_try_again`, `kyc_under_review`) is only a nudge to re-read the state.
 - **Offers expire silently.** A booking nobody takes for 30 minutes becomes `unmatched`, but outstanding offers stay acceptable; a cancelled or taken booking returns `409`.
 
 ## 14. UX consequences the app must surface
@@ -2952,10 +3061,11 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Earnings: rounding, snapshot of the terms at booking creation, double-complete and concurrent-complete idempotency, late-cancel compensation, the ARQ cron schedule | No (tests) | `test_caregiver_earnings.py` |
 | Account deletion refused while earnings are pending or held, or a payout is in flight | No (tests) | `test_caregiver_earnings.py`, `test_payouts.py` |
 | Identity verification: state (fresh, checking, try again, attempts exhausted, under review, provider down), session create `201` and repeat `200`, hints, defer and `verified` status unchanged, the `409`/`422`/`503` errors, the `404` on someone else's attempt, `403`, `401`, the removed result call (`410`) | Yes (test harness: real app and Postgres, not the compose stack; **no Prembly call exists in these endpoints**) | `200`-`225` |
-| Identity verification: attempts in `failed`, `needs_review`, the exhausted state and `ALREADY_VERIFIED` | **[seeded]** | Rows inserted into the database; the endpoint responses over them are real. The webhook and decision engine that create them (K3, K4) are not built |
-| Identity verification: the widget, the real Prembly session id and callbacks, the webhook, the move to `verified`, expiry of an unfinished attempt, push when the result arrives | **No** | Not built or not exercisable yet (K3, K4, K7, K8). The `client-event` and `sessions` shapes are the backend's own; what Prembly's widget actually calls back with is unconfirmed |
+| Identity verification: the engine's outcomes (verified, try again, under review, the third failure ending in review, expiry by the cron, the provider flagged down by an empty wallet) and `ALREADY_VERIFIED` / `UNDER_REVIEW` after them | **Yes, [engine] over a fake Prembly** | `210`, `213`, `215`, `226`-`231`: the real decision code, the real database and the real endpoints; the Prembly session was served by `FakePrembly` (its shapes are the public docs' and our guesses), so this is verified for our logic and **not** for real Prembly data |
+| Identity verification: the exhausted state with the caregiver still `in_progress` | **[seeded]** | `211`, `212`: a row inserted by hand; the engine never produces it |
+| Identity verification: the widget, the real Prembly session id and callbacks, a real signed webhook, a real session pull, how a real result maps to `verified` / `needs_review`, real push and e-mail delivery | **No** | The webhook and engine are built (K3, K4) and tested against the fake; the widget (K7) and the live pass (K0, K8) are not done. The `client-event` and `sessions` shapes are the backend's own; what Prembly's widget calls back with and what its real sessions contain are unconfirmed |
 | Identity verification: `IDENTITY_REJECTED`, `UNDER_REVIEW` from `defer`, the parallel-start race, consent rows | **[not live]** | `app/tests/test_kyc_caregiver_api.py` |
-| `provider_available` flipping from the real outage detection | **No** | The flag is a Redis key that K4 will set; the harness used an in-memory stand-in |
+| `provider_available` flipping from the engine's outage detection | **Partly** | Capture `231` is the engine setting the flag from a fake Prembly answer. The flag is a Redis key in production; the harness used an in-memory stand-in, and the Redis calls themselves are unit-tested with a fake client, never against a real Redis |
 | Chat, notes, tracking for the caregiver | No | Out of scope for C3 |
 | Delete account: `409` for an active booking (caregiver and patient) and a wallet balance, `200`, old tokens refused (`403`, `400`), login `401`, repeat delete `403`, same email registers again | Yes | 134-145 |
 | Delete account: `409` for a pending withdrawal or payout | **No** | Automated tests only (`test_caregiver_with_a_pending_withdrawal_is_refused`, `test_payouts.py`) |

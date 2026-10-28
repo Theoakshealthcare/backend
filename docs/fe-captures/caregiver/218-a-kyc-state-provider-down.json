@@ -23,5 +23,5 @@
       "policy_version": "kyc-2026-10"
     }
   },
-  "note": "The provider flag is an in-memory stand-in for the Redis flag K4 will set."
+  "note": "The provider flag is an in-memory stand-in for the Redis flag the engine sets."
 }

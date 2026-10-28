@@ -27,19 +27,32 @@ UNCONFIRMED assumptions (each is also listed in the K3 SOP):
       as 0-1 (``FACE_SCORE_SCALE`` / ``LIVENESS_SCORE_SCALE``); a value outside its scale is dropped, never clamped.
   U10 Provider reference. ``payload.verification.reference`` is Prembly's reference for the check.
   U11 Body cap. 1 MB is far above any documented payload (Q5 asks Prembly for the real maximum).
+  U12 Registry identity (K4). The registry's name, date of birth and ID number come back in the pull's ``payload.verification_response``
+      (the NIN / BVN samples): a full name or first / middle / last parts, a date under ``birthdate`` / ``dateOfBirth`` / ``dob``,
+      the number under ``number``. Not found there = not compared: the engine sends the attempt to a human (``identity_data_missing``).
+      The session's own top-level ``full_name`` is NOT used: it is what the widget was pre-filled with, not the registry's. (Q1)
+  U13 ID type. ``payload.id_type`` (or ``verification_response.id_type``) is one of ``nin``, ``bvn``, ``drivers_licence``,
+      ``voters_card``, ``passport``; anything else is left NULL. (Q1)
+  U14 Watch list. ``verification_response.watchListed`` (BVN sample, code ``07``) is true for a watch-listed person. (Q1)
+  U15 Failure reason. ``failure_reason`` is free text; ``_failure_code`` maps a few keywords (liveness, not found, unreadable,
+      face) onto our reason codes and anything else is ``provider_failed``. (Q6)
 
-Nothing here stores a body or a person's details: the functions return small typed values and drop the rest.
+Nothing here stores a body or a person's details: the functions return small typed values and drop the rest. The registry name,
+date of birth and number live in an ``Evidence`` (in memory, hidden from ``repr``) for the length of one decision.
 """
 import base64
 import hashlib
 import hmac
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from app.core.config import settings
+from app.db.models.identity_verification import ID_TYPES
+from app.services.kyc_decision import Evidence
+from app.services.kyc_matching import parse_dob
 from app.services.prembly import SESSION_ID_PATTERN, PremblySession
 
 SIGNATURE_HEADER = "x-prembly-signature"
@@ -134,13 +147,15 @@ def parse_event(payload: Any) -> Optional[WebhookEvent]:
 
 @dataclass(frozen=True)
 class Observation:
-    """What the PULLED session says (the trusted confirmation, design 8.4), reduced to what K3 records. No name, e-mail or number."""
+    """What the PULLED session says (the trusted confirmation, design 8.4), reduced to what is recorded and decided on. The
+    scalar fields hold no name, e-mail or number; those are only in ``evidence`` (K4), which is in memory and hidden from ``repr``."""
     final: bool  # the provider reached a verdict (U8)
     verdict: Optional[str]  # PASS / FAIL when final
     face_confidence: Optional[Decimal]
     liveness_confidence: Optional[Decimal]
     provider_reference: Optional[str]
     echoed_ref: Optional[uuid.UUID]
+    evidence: Optional[Evidence] = field(default=None, repr=False)  # set when final: what the K4 decision rules read
 
 
 def _score(value: Any, scale: int) -> Optional[Decimal]:
@@ -159,13 +174,68 @@ def _score(value: Any, scale: int) -> Optional[Decimal]:
 def observe(session: PremblySession) -> Observation:
     verdict = _verdict(session.overall_result)
     payload = session.payload or {}
+    face = _score(_dict(payload.get("face_data")).get("confidence"), FACE_SCORE_SCALE)
+    liveness = _score(_dict(payload.get("biometric_results")).get("liveness_confidence"), LIVENESS_SCORE_SCALE)
+    registry = _dict(payload.get("verification_response"))
+    evidence = None
+    if verdict is not None:
+        evidence = Evidence(
+            verdict=verdict, face_confidence=face, liveness_confidence=liveness, watchlisted=_watchlisted(registry),
+            failure_reason=_failure_code(session.failure_reason), id_type=_id_type(payload, registry),
+            id_number=_text(registry.get("number")), registry_name=_registry_name(registry),
+            registry_dob=_registry_dob(registry))
     return Observation(
-        final=verdict is not None, verdict=verdict,
-        face_confidence=_score(_dict(payload.get("face_data")).get("confidence"), FACE_SCORE_SCALE),
-        liveness_confidence=_score(_dict(payload.get("biometric_results")).get("liveness_confidence"), LIVENESS_SCORE_SCALE),
+        final=verdict is not None, verdict=verdict, face_confidence=face, liveness_confidence=liveness,
         provider_reference=_reference(_dict(payload.get("verification")).get("reference")),  # U10
-        echoed_ref=_echoed_ref(payload),
+        echoed_ref=_echoed_ref(payload), evidence=evidence,
     )
+
+
+def _text(value: Any) -> Optional[str]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (str, int)) and str(value).strip():
+        return str(value).strip()[:200]
+    return None
+
+
+def _first(container: dict, *keys: str) -> Optional[str]:
+    return next((t for t in (_text(container.get(k)) for k in keys) if t), None)
+
+
+def _registry_name(registry: dict) -> Optional[str]:
+    """U12: the registry's full name, or its parts joined."""
+    full = _first(registry, "full_name", "fullName", "name")
+    if full:
+        return full
+    parts = [_first(registry, *keys) for keys in (("firstname", "first_name", "firstName"), ("middlename", "middle_name", "middleName"),
+                                                 ("lastname", "last_name", "lastName", "surname"))]
+    return " ".join(p for p in parts if p) or None
+
+
+def _registry_dob(registry: dict):
+    return parse_dob(_first(registry, "birthdate", "dateOfBirth", "date_of_birth", "dob"))
+
+
+def _id_type(payload: dict, registry: dict) -> Optional[str]:
+    word = _word(payload.get("id_type")) or _word(registry.get("id_type"))
+    return word if word in ID_TYPES else None
+
+
+def _watchlisted(registry: dict) -> bool:
+    return any(registry.get(key) is True for key in ("watchListed", "watchlisted", "watch_listed"))
+
+
+_FAILURE_KEYWORDS = (  # U15: (substring of the provider's free text, our reason code); first hit wins
+    ("liveness", "liveness_failed"), ("not found", "record_not_found"), ("no record", "record_not_found"),
+    ("unreadable", "document_unreadable"), ("blur", "document_unreadable"), ("document", "document_unreadable"),
+    ("face", "face_mismatch"),
+)
+
+
+def _failure_code(reason: Optional[str]) -> Optional[str]:
+    text = (reason or "").casefold()
+    return next((code for needle, code in _FAILURE_KEYWORDS if needle in text), None)
 
 
 def _reference(value: Any) -> Optional[str]:

@@ -23,5 +23,5 @@
       "policy_version": "kyc-2026-10"
     }
   },
-  "note": "[seeded] Three failed attempts."
+  "note": "[seeded] Three failed attempts with the caregiver left in_progress. The engine never leaves this state (it moves the caregiver to needs_review at the third failure, capture 228); it is only reachable by hand."
 }

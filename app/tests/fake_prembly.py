@@ -96,9 +96,12 @@ class FakePrembly:
                        widget_name: str = "Placeholder Widget", failure_reason: str = "", total_cost: str = "300.00",
                        currency: str = "NGN", is_used: bool = False, face_confidence: Optional[float] = None,
                        liveness_confidence: Optional[float] = None, id_number: Optional[str] = None,
-                       payload: Optional[dict] = None) -> dict:
-        """Register a session and return it. ``face_confidence`` / ``liveness_confidence`` / ``id_number`` build a ``payload``
-        (served only with ``include_payload=true``); its shape follows the webhook sample and is UNCONFIRMED for the pull."""
+                       payload: Optional[dict] = None, registry_name: Optional[str] = None,
+                       registry_dob: Optional[str] = None, id_type: Optional[str] = None, watchlisted: bool = False,
+                       oakly_ref: Optional[str] = None) -> dict:
+        """Register a session and return it. ``face_confidence`` / ``liveness_confidence`` / ``id_number`` / ``registry_*`` /
+        ``id_type`` / ``watchlisted`` / ``oakly_ref`` build a ``payload`` (served only with ``include_payload=true``); its shape
+        follows the webhook sample and is UNCONFIRMED for the pull (seam U12-U14)."""
         session_id = session_id or f"sdk_session_{uuid.uuid4().hex}"
         body: dict[str, Any] = {
             "id": str(uuid.uuid4()), "session_id": session_id, "status": status, "full_name": full_name,
@@ -107,14 +110,30 @@ class FakePrembly:
             "started_at": "2026-10-27 10:00:00", "completed_at": "2026-10-27 10:01:30", "duration": 90,
             "created_at": "2026-10-27 10:00:00", "is_used": is_used,
         }
-        if payload is None and (face_confidence is not None or liveness_confidence is not None or id_number is not None):
+        if payload is None and any(v is not None for v in (face_confidence, liveness_confidence, id_number, registry_name,
+                                                          registry_dob, id_type, oakly_ref)) or watchlisted:
             payload = {"face_data": {"status": "success", "response_code": "00", "confidence": face_confidence},
                        "biometric_results": {"liveness_confidence": liveness_confidence},
-                       "verification_response": {"number": id_number}}
+                       "verification_response": {"number": id_number, "full_name": registry_name, "birthdate": registry_dob,
+                                                 "watchListed": watchlisted}}
+            if id_type is not None:
+                payload["id_type"] = id_type
+            if oakly_ref is not None:
+                payload["metadata"] = {"oakly_ref": oakly_ref}
         if payload is not None:
             body["_payload"] = payload  # kept apart: only served on request
         self.sessions[session_id] = body
         return body
+
+    def script_clean_pass(self, session_id: str, caregiver, *, oakly_ref: Optional[str] = None, **overrides) -> dict:
+        """A session that passes every K4 check for ``caregiver`` (the registry name and date of birth are the caregiver's own, the
+        face and liveness scores are high, the number is Prembly's published sandbox NIN). ``overrides`` replace any field."""
+        fields: dict[str, Any] = dict(
+            overall_result="passed", email=caregiver.email, face_confidence=92.0, liveness_confidence=0.9, id_number=SANDBOX_NIN,
+            id_type="nin", registry_name=caregiver.full_name,
+            registry_dob=caregiver.date_of_birth.isoformat() if caregiver.date_of_birth else None, oakly_ref=oakly_ref)
+        fields.update(overrides)
+        return self.script_session(session_id, **fields)
 
     def outage(self) -> None:
         self.fail = "outage"
@@ -227,6 +246,9 @@ def fake_prembly(monkeypatch):
 class FakeProviderAvailability:
     def __init__(self) -> None:
         self.available = True
+        self.errors = 0
+        self.alerts: list[str] = []  # the alert kinds that were let through the throttle
+        self._claimed: set[str] = set()
 
     def is_available(self) -> bool:
         return self.available
@@ -236,6 +258,24 @@ class FakeProviderAvailability:
 
     def mark_available(self) -> None:
         self.available = True
+
+    def record_error(self) -> bool:
+        self.errors += 1
+        if self.errors >= 3:
+            self.mark_unavailable()
+            return True
+        return False
+
+    def record_success(self) -> None:
+        self.errors = 0
+        self.available = True
+
+    def claim_alert(self, kind: str, window_seconds: int = 3600) -> bool:
+        if kind in self._claimed:
+            return False
+        self._claimed.add(kind)
+        self.alerts.append(kind)
+        return True
 
 
 @pytest.fixture

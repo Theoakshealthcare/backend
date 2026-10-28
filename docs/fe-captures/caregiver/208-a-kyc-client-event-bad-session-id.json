@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/caregiver/identity-verification/bdc04b87-e29e-473c-b566-47bb1ae52ab0/client-event",
+    "path": "/api/v1/caregiver/identity-verification/6d004602-b62b-4b16-8fbf-ff8945f22e38/client-event",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "event": "completed",
