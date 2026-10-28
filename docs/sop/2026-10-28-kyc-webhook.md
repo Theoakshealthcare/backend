@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Date** | 2026-10-28 |
-| **Branch** | `feat/kyc-webhook`, STACKED on `feat/kyc-caregiver-api` (K2, backend PR #27, head `8ea4cf3`, based on `oakly/main` `59d4029`). Rebase onto `oakly/main` once #27 merges. **Not pushed, no PR.** |
+| **Branch** | `feat/kyc-webhook`, rebased onto `oakly/main` `11f7e48` (K2 #27 and care plans B2 #29 merged); two commits on top (the feature and a post-review race fix). **Not pushed, no PR.** |
 | **Migration** | None (Alembic head stays `0015_caregiver_kyc`). |
 | **Spec** | [`docs/plans/2026-10-27-caregiver-kyc-design.md`](../plans/2026-10-27-caregiver-kyc-design.md) sections 8, 14 (K3), 16.1, 17. K1 SOP: [`2026-10-27-kyc-foundation.md`](2026-10-27-kyc-foundation.md); K2 SOP: [`2026-10-28-kyc-caregiver-api.md`](2026-10-28-kyc-caregiver-api.md). |
 | **Status** | Built and tested against the documented Prembly shapes and a fake. **Nothing here has met the real Prembly** (K0 spike and K8 live pass are still ahead). The endpoint is dark until K7b wires the widget. |
@@ -98,8 +98,8 @@ K-D5 and K-C1: the provider's result must reach Oakly over a server-to-server ch
 |---|---|
 | K3 tests | `test_kyc_webhook.py` (endpoint: bad / missing / malformed signature, empty key, tampered and re-serialised body, missing and malformed token, non-event bodies, duplicate and replayed tokens, re-delivery after a lost job, enqueue failure and compensation, oversize and chunked oversize, unknown event types, no body / signature / token in logs), `test_kyc_events.py` (pull-confirmed record, no status changes, disagreement, forged binding, hint handling, orphan, terminal, replay, pull failures and retries, PII sentinels, the ARQ job, three lock-order tests), `test_kyc_boot.py`: 112 cases, all pass |
 | Lock order | Race tests in both directions with real concurrent sessions (erasure vs worker) plus a statement-order test; the statement-order test was checked by mutation (swapping the worker's two locks fails it) |
-| Full suite | `pytest`: **3022 passed, 2 skipped** (25m33s, under the shared lock, lock released). An earlier full run was stopped by me mid-way to apply the review fixes; it had shown one `F` that I could not attribute, and the final run on the final code is clean |
-| CI parity | `poetry check --lock` ok; `ruff check --select E9,F63,F7,F82 .` ok; `scripts.ci_smoke` OK (158 operations); both `render_fe_guide --check` exit 0 (no FE-facing shape moved) |
+| Full suite | `pytest` on the final head, rebased onto `oakly/main` `11f7e48` (K2 and care plans B2 merged, Alembic head `0017_care_plan_ticks_and_notes`, which includes the post-review race fix): **3310 passed, 4 skipped** (33m18s, under the shared lock, lock released). Earlier, before the rebase: 3022 passed on the pre-race-fix commit |
+| CI parity (re-run on the rebased head) | `poetry check --lock` ok; `ruff check --select E9,F63,F7,F82 .` ok; `scripts.ci_smoke` OK (177 operations); both `render_fe_guide --check` exit 0 (no FE-facing shape moved) |
 | Opus review | One read-only pass walking design 16.1: **APPROVE WITH FIXES, no blockers**, six minor findings, all six applied in this slice (see the decisions table) and covered by new tests. Not re-reviewed (no blocker remained) |
 | **Not verified** | Anything against real Prembly: signature encoding and key, metadata echo, the pull's shape, scores' scale, retry behaviour (all UNCONFIRMED above). No real Redis/ARQ round trip either: the queue is faked in tests; `ArqKycEventQueue` mirrors the proven WhatsApp queue |
 
