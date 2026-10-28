@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PATCH",
-    "path": "/api/v1/caregiver/care-plans/34fe9218-f4df-4bca-8261-44a82a0f50db",
+    "path": "/api/v1/caregiver/care-plans/a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "expected_version": 1,
@@ -18,10 +18,10 @@
         "code": "version_conflict",
         "message": "Someone just changed this plan. Reload it and try again.",
         "plan": {
-          "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+          "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
           "version": 2,
           "status": "active",
-          "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
+          "booking_id": "352db064-c984-499a-8734-c409ee0ae0a3",
           "client": {
             "full_name": "Placeholder Client",
             "age": 71,
@@ -47,16 +47,17 @@
           ],
           "goals": [
             {
-              "id": "1fc54f86-fa3b-406e-980b-858831da1bd7",
+              "id": "2b4e8d6f-167c-4d35-ac0d-6fa0de583903",
               "title": "Placeholder goal",
               "target": "Placeholder target",
               "frequency": "daily",
               "status": "active"
             }
           ],
+          "medications": [],
           "tasks": [
             {
-              "id": "b24a7f07-adf8-4417-a884-d6aeead43669",
+              "id": "786de269-c57a-4c5a-ae62-a85f9bf01737",
               "title": "Placeholder task",
               "time_slot": "morning",
               "time_of_day": "08:00",
@@ -72,8 +73,8 @@
             "can_tick_tasks": true,
             "can_add_observation": true
           },
-          "created_at": "2026-10-28T10:10:50.058340",
-          "updated_at": "2026-10-28T10:10:50.293218"
+          "created_at": "2026-10-28T12:54:57.042055",
+          "updated_at": "2026-10-28T12:54:57.239349"
         }
       }
     }

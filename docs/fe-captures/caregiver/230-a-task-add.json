@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/tasks",
+    "path": "/api/v1/caregiver/care-plans/d62a4704-8b99-499b-a817-3930d6fe29cf/tasks",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "title": "Placeholder afternoon task",
@@ -23,7 +23,7 @@
     },
     "body": {
       "task": {
-        "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+        "id": "daed2650-ad46-4d39-9c2e-990e75c2e6ab",
         "title": "Placeholder afternoon task",
         "time_slot": "afternoon",
         "time_of_day": "13:00",

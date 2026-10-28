@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plan-medications/7664c137-38d2-4985-a672-d9676b42f4e2/stop",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 5
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "not_a_nurse",
+        "message": "Only nurses can create or change a care plan."
+      }
+    }
+  }
+}

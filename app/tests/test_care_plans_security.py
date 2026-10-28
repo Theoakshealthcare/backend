@@ -96,7 +96,7 @@ def test_every_encrypted_column_on_the_care_plan_models_is_in_the_rotation_list(
     import app.db.models  # noqa: F401
     from app.db.base import Base
 
-    assert {"care_plans", "care_plan_goals", "care_plan_tasks", "care_plan_observations"} <= set(CARE_PLAN_TABLES)
+    assert {"care_plans", "care_plan_goals", "care_plan_tasks", "care_plan_medications", "care_plan_observations"} <= set(CARE_PLAN_TABLES)
     listed = {(c.table, c.column) for c in COLUMNS if c.table in CARE_PLAN_TABLES}
     actual = {(t, c.name) for t in CARE_PLAN_TABLES for c in Base.metadata.tables[t].columns if c.name.endswith("_encrypted")}
     assert actual and actual == listed

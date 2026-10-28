@@ -1,0 +1,72 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/1bb2fcaf-06d3-4244-8097-e5b9d2f38b26/medications",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "name": "",
+      "frequency": "hourly",
+      "times_of_day": [
+        "8:00",
+        "8:00"
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "body",
+            "name"
+          ],
+          "msg": "String should have at least 1 character",
+          "ctx": {
+            "min_length": 1
+          }
+        },
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "frequency"
+          ],
+          "msg": "Input should be 'once_daily', 'twice_daily', 'three_times_daily', 'four_times_daily', 'weekly', 'as_needed' or 'other'",
+          "ctx": {
+            "expected": "'once_daily', 'twice_daily', 'three_times_daily', 'four_times_daily', 'weekly', 'as_needed' or 'other'"
+          }
+        },
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "times_of_day",
+            0
+          ],
+          "msg": "String should match pattern '^([01]\\d|2[0-3]):[0-5]\\d$'",
+          "ctx": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+          }
+        },
+        {
+          "type": "string_pattern_mismatch",
+          "loc": [
+            "body",
+            "times_of_day",
+            1
+          ],
+          "msg": "String should match pattern '^([01]\\d|2[0-3]):[0-5]\\d$'",
+          "ctx": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+          }
+        }
+      ]
+    }
+  },
+  "note": "The standard 422 list; no rejected value is echoed."
+}

@@ -1,0 +1,95 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/1bb2fcaf-06d3-4244-8097-e5b9d2f38b26",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "id": "1bb2fcaf-06d3-4244-8097-e5b9d2f38b26",
+      "version": 6,
+      "status": "completed",
+      "booking_id": "1d0c8c2e-b9b5-4652-8450-536d5e771822",
+      "client": {
+        "full_name": "Placeholder Client",
+        "age": 71,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "medium",
+      "start_date": "2026-10-28",
+      "duration_days": 30,
+      "review_every_days": null,
+      "review_due_on": null,
+      "template": null,
+      "author": {
+        "name": "Placeholder Nurse",
+        "kind": "caregiver"
+      },
+      "allergies": [],
+      "special_instructions": [],
+      "goals": [
+        {
+          "id": "10654331-46bc-4500-9fce-93ad1eef6fa6",
+          "title": "Placeholder goal",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        }
+      ],
+      "medications": [
+        {
+          "id": "7664c137-38d2-4985-a672-d9676b42f4e2",
+          "name": "Placeholder medicine B",
+          "strength": null,
+          "dose_amount": null,
+          "dose_unit": null,
+          "route": null,
+          "reason": null,
+          "prescribed_by": null,
+          "note": null,
+          "frequency": "as_needed",
+          "times_of_day": [],
+          "start_date": "2026-10-28",
+          "end_date": null,
+          "status": "active",
+          "stopped_at": null
+        },
+        {
+          "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+          "name": "Placeholder medicine A",
+          "strength": "250 mg",
+          "dose_amount": "1",
+          "dose_unit": "tablet",
+          "route": "oral",
+          "reason": "Placeholder reason",
+          "prescribed_by": "Placeholder prescriber",
+          "note": null,
+          "frequency": "once_daily",
+          "times_of_day": [
+            "12:00"
+          ],
+          "start_date": "2026-10-28",
+          "end_date": "2026-11-25",
+          "status": "stopped",
+          "stopped_at": "2026-10-28T12:55:01.667687"
+        }
+      ],
+      "tasks": [],
+      "capabilities": {
+        "can_edit_plan": false,
+        "can_tick_tasks": false,
+        "can_add_observation": false
+      },
+      "created_at": "2026-10-28T12:55:01.505255",
+      "updated_at": "2026-10-28T12:55:01.743036"
+    }
+  },
+  "note": "A completed plan keeps its medications (history); no write is accepted."
+}

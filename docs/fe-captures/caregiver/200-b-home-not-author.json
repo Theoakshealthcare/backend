@@ -17,13 +17,13 @@
       "today_visits": [],
       "upcoming_visits": [
         {
-          "id": "561d72b9-8f2e-45da-8418-7093b964ad66",
-          "booking_code": "0F32C679",
+          "id": "d1146d90-aab3-4287-bb3d-46a46032e72b",
+          "booking_code": "614C0429",
           "service_type": "nurse",
           "status": "accepted",
           "dispatch_state": null,
-          "scheduled_date": "2026-10-29T10:10:49.845571",
-          "scheduled_end_date": "2026-10-29T14:10:49.845571",
+          "scheduled_date": "2026-10-29T12:54:56.867404",
+          "scheduled_end_date": "2026-10-29T16:54:56.867404",
           "duration_hours": 4,
           "patient_name": "Placeholder Client",
           "patient_address": "1 Test Close, Lekki",

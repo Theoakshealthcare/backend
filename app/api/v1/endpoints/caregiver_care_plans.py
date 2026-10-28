@@ -16,14 +16,16 @@ from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_caregiver, get_db
-from app.db.models.care_plan import CarePlan, CarePlanGoal, CarePlanTask
+from app.db.models.care_plan import CarePlan, CarePlanGoal, CarePlanMedication, CarePlanTask
 from app.db.models.caregiver import Caregiver
 from app.db.models.user import User
 from app.schemas.care_plan import (
     CandidateList, CarePlanCreate, CarePlanList, CarePlanOut, CarePlanPatch, CompletionIn, CompletionOut, GoalCreate,
-    GoalPatch, GoalWriteResult, ObservationCategory, ObservationIn, ObservationList, ObservationOut, Progress, TaskCreate,
-    TaskDay, TaskPatch, TaskWriteResult, TemplateDetail, TemplateList, VisitCarePlan,
+    GoalPatch, GoalWriteResult, MEDICATION_NOTICE, MedicationCreate, MedicationPatch, MedicationStop, MedicationWriteResult,
+    ObservationCategory, ObservationIn, ObservationList, ObservationOut, Progress, TaskCreate, TaskDay, TaskPatch,
+    TaskWriteResult, TemplateDetail, TemplateList, VisitCarePlan,
 )
+from app.services import care_plan_medications as meds
 from app.services import care_plan_observations as notes
 from app.services import care_plan_tasks as tasks
 from app.services import care_plans as svc
@@ -99,7 +101,7 @@ def _refuse(exc: svc.CarePlanError, **extra: Any) -> HTTPException:
         svc.CarePlanExists: status.HTTP_409_CONFLICT, svc.ClientNotIdentified: status.HTTP_409_CONFLICT,
         svc.TemplateNotFound: status.HTTP_404_NOT_FOUND, svc.InvalidPlan: status.HTTP_422_UNPROCESSABLE_ENTITY,
         svc.VisitNotInProgress: status.HTTP_409_CONFLICT, svc.TaskDateNotToday: status.HTTP_422_UNPROCESSABLE_ENTITY,
-        svc.TaskNotScheduled: status.HTTP_422_UNPROCESSABLE_ENTITY,
+        svc.TaskNotScheduled: status.HTTP_422_UNPROCESSABLE_ENTITY, meds.MedicationStopped: status.HTTP_409_CONFLICT,
     }
     return HTTPException(status_code=codes[type(exc)], detail={"code": exc.code, "message": exc.message, **extra})
 
@@ -416,3 +418,82 @@ def get_progress(plan_id: UUID, current_user: User = Depends(get_current_caregiv
     caregiver = _caregiver(db, current_user)
     plan, _ = _plan_access(db, caregiver, plan_id)
     return tasks.progress(db, plan)
+
+
+# --- medications (slice B3): record only --------------------------------------------------------------------------------
+
+def _medication_access(db: Session, caregiver: Caregiver, medication_id: UUID) -> CarePlanMedication:
+    medication = db.get(CarePlanMedication, medication_id)
+    if medication is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    _plan_access(db, caregiver, medication.plan_id)
+    return medication
+
+
+def _medication_result(medication: CarePlanMedication, version: int) -> dict:
+    return {"medication": meds.medication_out(medication), "plan_version": version}
+
+
+def _medication_doc(summary: str) -> str:
+    """Every medication route carries the same notice in its OpenAPI description."""
+    return f"{summary}\n\n**Not clinical advice.** {MEDICATION_NOTICE}"
+
+
+@router.post("/care-plans/{plan_id}/medications", response_model=MedicationWriteResult, status_code=status.HTTP_201_CREATED,
+             description=_medication_doc("Record a medicine the prescriber ordered (nurses only). `expected_version` is optional "
+                                         "here: adding never overwrites anything. At most 40 active medications per plan."),
+             responses={**NO_ACCESS, **NURSE_ONLY, 409: {"description": "`plan_not_editable` (completed or archived plan)."},
+                        422: {"description": "Validation, or `invalid_care_plan` (end before start, too many medications)."}})
+def add_medication(plan_id: UUID, body: MedicationCreate, current_user: User = Depends(get_current_caregiver),
+                   db: Session = Depends(get_db)) -> Any:
+    caregiver = _caregiver(db, current_user)
+    _plan_access(db, caregiver, plan_id)
+    _nurse(db, caregiver)
+    try:
+        return _medication_result(*meds.add_medication(db, caregiver, plan_id, body))
+    except svc.VersionConflict as exc:
+        raise _conflict(db, caregiver, plan_id, exc)
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)
+
+
+@router.patch("/care-plan-medications/{medication_id}", response_model=MedicationWriteResult,
+              description=_medication_doc("Edit a medication (nurses only). Only the fields sent change; optional fields accept "
+                                          "null to clear. Needs the plan's `expected_version`. A stopped medication cannot be "
+                                          "edited."),
+              responses={**NO_ACCESS, **NURSE_ONLY,
+                         409: {"description": "`version_conflict` (body has the current `plan`), `plan_not_editable` or "
+                                              "`medication_stopped`."},
+                         422: {"description": "Validation, or `invalid_care_plan` (end before start)."}})
+def update_medication(medication_id: UUID, body: MedicationPatch, current_user: User = Depends(get_current_caregiver),
+                      db: Session = Depends(get_db)) -> Any:
+    caregiver = _caregiver(db, current_user)
+    medication = _medication_access(db, caregiver, medication_id)
+    _nurse(db, caregiver)
+    plan_id = medication.plan_id
+    try:
+        return _medication_result(*meds.update_medication(db, caregiver, medication, body))
+    except svc.VersionConflict as exc:
+        raise _conflict(db, caregiver, plan_id, exc)
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)
+
+
+@router.post("/care-plan-medications/{medication_id}/stop", response_model=MedicationWriteResult,
+             description=_medication_doc("Stop a medication (nurses only): `status` becomes `stopped` and `stopped_at` is set. "
+                                         "The medication stays on the plan as history and is never deleted. Needs the plan's "
+                                         "`expected_version`. Stopping a stopped medication changes nothing."),
+             responses={**NO_ACCESS, **NURSE_ONLY,
+                        409: {"description": "`version_conflict` (body has the current `plan`) or `plan_not_editable`."}})
+def stop_medication(medication_id: UUID, body: MedicationStop, current_user: User = Depends(get_current_caregiver),
+                    db: Session = Depends(get_db)) -> Any:
+    caregiver = _caregiver(db, current_user)
+    medication = _medication_access(db, caregiver, medication_id)
+    _nurse(db, caregiver)
+    plan_id = medication.plan_id
+    try:
+        return _medication_result(*meds.stop_medication(db, caregiver, medication, body.expected_version))
+    except svc.VersionConflict as exc:
+        raise _conflict(db, caregiver, plan_id, exc)
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)

@@ -40,10 +40,9 @@ def _refused(db, *rows):
     db.rollback()
 
 
-def test_0017_follows_its_predecessor_and_is_the_head():
+def test_0017_follows_its_predecessor():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     assert script.get_revision(THIS).down_revision == PREVIOUS
-    assert script.get_heads() == [THIS]
 
 
 def test_upgrade_downgrade_round_trip(scratch):  # noqa: F811

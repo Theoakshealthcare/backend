@@ -2924,6 +2924,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Client profile for a suspended caregiver, an erased patient, a patient grant, `Myself` capitalised | **[not live]** | `app/tests/test_caregiver_client_profile.py` |
 | Care plans (B1): templates, visit summary, create, read, lists, edit, goals, errors | Yes (test harness: real app and Postgres, not the compose stack) | Section 16.12, captures `200`-`222` |
 | Care plans (B2): task edits, day view, ticks, notes, progress, errors | Yes (test harness; some rows **[db-simulated]** or **[not live]**) | Section 16.20, captures `230`-`238` |
+| Care plans (B3): medications add, edit, stop, on the plan, errors | Yes (test harness; some rows **[not live]**) | Section 16.25, captures `240`-`244` |
 | Payment settlement starting dispatch | Yes | Signed webhook sent to the real route |
 | Wave 1 offers, unavailable caregiver skipped | Yes | `dispatch-5-who-was-offered` |
 | Wave 2 (+10 min), escalation to `unmatched` (30 min) | No | Automated tests only |
@@ -2960,11 +2961,11 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Delete account: `409` for a pending withdrawal or payout | **No** | Automated tests only (`test_caregiver_with_a_pending_withdrawal_is_refused`, `test_payouts.py`) |
 | What exactly is wiped (profile fields, bank account, transactions masked, WhatsApp contact, Cloudinary image) | **No (only the account row was queried live)** | Automated tests, `test_account_deletion.py` |
 
-## 16. Care plans (backend slices B1 and B2)
+## 16. Care plans (backend slices B1, B2 and B3)
 
-A nurse records a care plan for a client; every caregiver on a live visit for that client can read it. Slice B1 (sections 16.1 to 16.12) is the plan itself: create, read, edit the header, allergies and special instructions, complete or archive, and the goals. Slice B2 (sections 16.13 to 16.20) adds the daily work: task edits, the day view, ticking, visit notes and progress. **Not built yet** (later slices, do not code against them): medications, the admin API, the family view. Ignore unknown fields in responses: a later slice adds `medications` to the plan.
+A nurse records a care plan for a client; every caregiver on a live visit for that client can read it. Slice B1 (sections 16.1 to 16.12) is the plan itself: create, read, edit the header, allergies and special instructions, complete or archive, and the goals. Slice B2 (sections 16.13 to 16.20) adds the daily work: task edits, the day view, ticking, visit notes and progress. Slice B3 (sections 16.21 to 16.25) adds medications, a record only. **Not built yet** (later slices, do not code against them): the admin API, the family view. Ignore unknown fields in responses.
 
-**Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `200` to `222` come from `app/tests/test_capture_care_plans.py` and `230` to `238` from `app/tests/test_capture_care_plans_b2.py` (both skipped unless `CAPTURE_CARE_PLANS=1`). The data is placeholder; the nurse skill, bookings and clients were seeded in the database.
+**Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `200` to `222` come from `app/tests/test_capture_care_plans.py` `230` to `238` from `app/tests/test_capture_care_plans_b2.py` and `240` to `244` from `app/tests/test_capture_care_plans_b3.py` (all skipped unless `CAPTURE_CARE_PLANS=1`). The data is placeholder; the nurse skill, bookings and clients were seeded in the database.
 
 ### 16.1 Who can do what
 
@@ -3013,7 +3014,7 @@ _capture `200-b-home-not-author.json` (other fields trimmed)_
 ```json
 [
   {
-    "id": "2085f83c-22a2-4d7a-9da1-111dbb6edef1",
+    "id": "4b6fe79b-acae-48f3-b32b-84fde3364aec",
     "key": "cardiac_rehabilitation",
     "name": "Cardiac Rehabilitation",
     "summary": "Light activity, resting readings and low-salt meals while recovering from a heart event.",
@@ -3117,7 +3118,7 @@ Use it on the client profile and when a visit opens. Any caregiver on the visit 
 <!-- capture: 205-a-visit-summary-no-plan.json response.body -->
 ```json
 {
-  "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
+  "booking_id": "352db064-c984-499a-8734-c409ee0ae0a3",
   "subject_ready": true,
   "can_author": true,
   "plan": null
@@ -3126,7 +3127,7 @@ Use it on the client profile and when a visit opens. Any caregiver on the visit 
 <!-- capture: 205-b-visit-summary-not-identified.json response.body -->
 ```json
 {
-  "booking_id": "0e20b6b5-48b7-40f4-8ced-2d4b4c5b4cda",
+  "booking_id": "0a648709-9246-411c-99e9-7beb809e0e8d",
   "subject_ready": false,
   "can_author": false,
   "plan": null
@@ -3135,7 +3136,7 @@ Use it on the client profile and when a visit opens. Any caregiver on the visit 
 <!-- capture: 205-c-visit-summary-plain-caregiver.json response.body -->
 ```json
 {
-  "booking_id": "561d72b9-8f2e-45da-8418-7093b964ad66",
+  "booking_id": "d1146d90-aab3-4287-bb3d-46a46032e72b",
   "subject_ready": true,
   "can_author": false,
   "plan": null
@@ -3147,11 +3148,11 @@ With a plan, `plan` is a summary (`goal_count` counts goals that are not discont
 <!-- capture: 207-a-visit-summary-with-plan.json response.body -->
 ```json
 {
-  "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
+  "booking_id": "352db064-c984-499a-8734-c409ee0ae0a3",
   "subject_ready": true,
   "can_author": true,
   "plan": {
-    "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+    "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
     "version": 1,
     "status": "active",
     "diagnosis": "Placeholder diagnosis",
@@ -3225,10 +3226,10 @@ Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` sh
 <!-- capture: 206-a-create-blank.json response.body -->
 ```json
 {
-  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+  "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
   "version": 1,
   "status": "active",
-  "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
+  "booking_id": "352db064-c984-499a-8734-c409ee0ae0a3",
   "client": {
     "full_name": "Placeholder Client",
     "age": 71,
@@ -3253,16 +3254,17 @@ Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` sh
   ],
   "goals": [
     {
-      "id": "1fc54f86-fa3b-406e-980b-858831da1bd7",
+      "id": "2b4e8d6f-167c-4d35-ac0d-6fa0de583903",
       "title": "Placeholder goal",
       "target": "Placeholder target",
       "frequency": "daily",
       "status": "active"
     }
   ],
+  "medications": [],
   "tasks": [
     {
-      "id": "b24a7f07-adf8-4417-a884-d6aeead43669",
+      "id": "786de269-c57a-4c5a-ae62-a85f9bf01737",
       "title": "Placeholder task",
       "time_slot": "morning",
       "time_of_day": "08:00",
@@ -3278,8 +3280,8 @@ Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` sh
     "can_tick_tasks": true,
     "can_add_observation": true
   },
-  "created_at": "2026-10-28T10:10:50.058340",
-  "updated_at": "2026-10-28T10:10:50.058343"
+  "created_at": "2026-10-28T12:54:57.042055",
+  "updated_at": "2026-10-28T12:54:57.042061"
 }
 ```
 _capture `206-a-create-blank.json`_
@@ -3303,7 +3305,7 @@ A plan created from a template for a client booked by someone else (WhatsApp; th
   "review_every_days": 14,
   "review_due_on": "2026-11-11",
   "template": {
-    "id": "957d1ed4-18a5-45b3-a53f-a8c8e701a163",
+    "id": "34d0323c-3f7c-457d-bae7-ceb608ef5463",
     "name": "Stroke Recovery",
     "version": 1
   },
@@ -3332,7 +3334,7 @@ Errors:
   "detail": {
     "code": "care_plan_exists",
     "message": "This client already has an active care plan.",
-    "plan_id": "34fe9218-f4df-4bca-8261-44a82a0f50db"
+    "plan_id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72"
   }
 }
 ```
@@ -3380,7 +3382,7 @@ The full plan, for any caregiver with a live visit for the client (a completed o
 <!-- capture: 209-b-get-plan-plain-caregiver.json response.body keys=id,version,status,capabilities -->
 ```json
 {
-  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+  "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
   "version": 1,
   "status": "active",
   "capabilities": {
@@ -3396,6 +3398,7 @@ _capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
 - `author` is whoever created the plan. `template` is `null` for a blank plan.
 - `goals` keep their `status`; a removed goal stays in the list as `discontinued` (hide it, or show it greyed).
 - `allergies` and `special_instructions` are `[]` when empty, never `null`.
+- `medications` (slice B3, section 16.21) is `[]` when there are none, never `null`.
 
 ### 16.7 Lists
 
@@ -3406,8 +3409,8 @@ _capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
 {
   "items": [
     {
-      "id": "9cd68e75-9c03-4904-8ed5-a87ec20df0a5",
-      "booking_id": "b68e5c5e-2f8b-4ae4-9f90-31bd57fff574",
+      "id": "72aca0dc-8f99-47e6-8e24-f6eca4bf901c",
+      "booking_id": "d3fd715e-ad07-4d36-b377-faeb6d35363d",
       "client": {
         "full_name": "Placeholder Relative",
         "age": 82,
@@ -3420,8 +3423,8 @@ _capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
       "progress_percent": null
     },
     {
-      "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
-      "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
+      "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
+      "booking_id": "352db064-c984-499a-8734-c409ee0ae0a3",
       "client": {
         "full_name": "Placeholder Client",
         "age": 71,
@@ -3445,14 +3448,14 @@ _capture `217-a-assigned-list.json` (two clients: one booked for themselves, one
 {
   "items": [
     {
-      "booking_id": "cadcc485-1d78-45df-901d-f22575f84e02",
+      "booking_id": "130dd59d-16ac-43a1-8933-796d42edfed3",
       "client": {
         "full_name": "Placeholder Client Two",
         "age": null,
         "gender": "male"
       },
       "booking_status": "accepted",
-      "scheduled_date": "2026-10-29T10:10:49.287333"
+      "scheduled_date": "2026-10-29T12:54:56.329840"
     }
   ]
 }
@@ -3464,8 +3467,8 @@ _capture `217-a-assigned-list.json` (two clients: one booked for themselves, one
 ```json
 [
   {
-    "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
-    "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
+    "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
+    "booking_id": "352db064-c984-499a-8734-c409ee0ae0a3",
     "client": {
       "full_name": "Placeholder Client",
       "age": 71,
@@ -3498,7 +3501,7 @@ Send `expected_version` (required; the plan's `version`) and only the fields tha
 <!-- capture: 218-a-patch-plan.json response.body keys=id,version,risk_level,allergies -->
 ```json
 {
-  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+  "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
   "version": 2,
   "risk_level": "medium",
   "allergies": [
@@ -3521,7 +3524,7 @@ _capture `218-a-patch-plan.json` (response trimmed)_
 <!-- capture: 219-a-patch-version-conflict.json response.body path=detail.plan keys=id,version,risk_level -->
 ```json
 {
-  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+  "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
   "version": 2,
   "risk_level": "medium"
 }
@@ -3533,7 +3536,7 @@ Completing a plan, then trying to change it:
 <!-- capture: 221-a-plan-complete.json response.body keys=id,version,status,capabilities -->
 ```json
 {
-  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+  "id": "a9b158b2-9816-41cf-b0aa-0bd746c3bf72",
   "version": 6,
   "status": "completed",
   "capabilities": {
@@ -3586,7 +3589,7 @@ Every goal response is `{goal, plan_version}`. **`plan_version` is the plan's ne
 ```json
 {
   "goal": {
-    "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
+    "id": "2c40fb4c-f5bd-4e70-b7d4-4f7ba4b68a57",
     "title": "Placeholder goal two",
     "target": null,
     "frequency": "weekly",
@@ -3599,7 +3602,7 @@ Every goal response is `{goal, plan_version}`. **`plan_version` is the plan's ne
 ```json
 {
   "goal": {
-    "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
+    "id": "2c40fb4c-f5bd-4e70-b7d4-4f7ba4b68a57",
     "title": "Placeholder goal two",
     "target": "Placeholder target two",
     "frequency": "weekly",
@@ -3612,7 +3615,7 @@ Every goal response is `{goal, plan_version}`. **`plan_version` is the plan's ne
 ```json
 {
   "goal": {
-    "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
+    "id": "2c40fb4c-f5bd-4e70-b7d4-4f7ba4b68a57",
     "title": "Placeholder goal two",
     "target": "Placeholder target two",
     "frequency": "weekly",
@@ -3741,7 +3744,7 @@ Every task response is `{task, plan_version}`: use `plan_version` as the next `e
 ```json
 {
   "task": {
-    "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+    "id": "daed2650-ad46-4d39-9c2e-990e75c2e6ab",
     "title": "Placeholder afternoon task",
     "time_slot": "afternoon",
     "time_of_day": "13:00",
@@ -3758,7 +3761,7 @@ Every task response is `{task, plan_version}`: use `plan_version` as the next `e
 ```json
 {
   "task": {
-    "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+    "id": "daed2650-ad46-4d39-9c2e-990e75c2e6ab",
     "title": "Placeholder afternoon walk",
     "time_slot": "afternoon",
     "time_of_day": null,
@@ -3786,7 +3789,7 @@ A stale `expected_version` is `409` `version_conflict`, and the body also carrie
 ```json
 {
   "task": {
-    "id": "e20e9d6d-d108-495e-9f4f-53565c5f0a27",
+    "id": "15693974-c881-483b-bd86-b304dd044662",
     "title": "Placeholder other-day task",
     "time_slot": "night",
     "time_of_day": null,
@@ -3880,7 +3883,7 @@ Any caregiver with a live visit for the client. `date` defaults to today (Africa
       "time_of_day": "08:00",
       "tasks": [
         {
-          "id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+          "id": "9da86b1f-220d-4adb-8881-4ea84dfc74f2",
           "title": "Placeholder morning task",
           "time_of_day": "08:00",
           "done": false,
@@ -3894,7 +3897,7 @@ Any caregiver with a live visit for the client. `date` defaults to today (Africa
       "time_of_day": null,
       "tasks": [
         {
-          "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+          "id": "daed2650-ad46-4d39-9c2e-990e75c2e6ab",
           "title": "Placeholder afternoon walk",
           "time_of_day": null,
           "done": false,
@@ -3908,7 +3911,7 @@ Any caregiver with a live visit for the client. `date` defaults to today (Africa
       "time_of_day": "18:00",
       "tasks": [
         {
-          "id": "21ee30ca-1e9d-407b-890d-b51a5b7f297c",
+          "id": "a3935a87-d07b-4834-9ca1-a2292884460d",
           "title": "Placeholder evening task",
           "time_of_day": "18:00",
           "done": false,
@@ -3950,12 +3953,12 @@ After a tick, every caregiver on the client sees who did it and when:
     "time_of_day": "08:00",
     "tasks": [
       {
-        "id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+        "id": "9da86b1f-220d-4adb-8881-4ea84dfc74f2",
         "title": "Placeholder morning task",
         "time_of_day": "08:00",
         "done": true,
         "done_by": "Placeholder Nurse",
-        "done_at": "2026-10-28T10:10:52.399709"
+        "done_at": "2026-10-28T12:54:59.052077"
       }
     ]
   }
@@ -3970,27 +3973,27 @@ Body `{"date": "YYYY-MM-DD", "done": true|false}`. `done: true` ticks, `done: fa
 <!-- capture: 234-a-tick.json response.body -->
 ```json
 {
-  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "task_id": "9da86b1f-220d-4adb-8881-4ea84dfc74f2",
   "date": "2026-10-28",
   "done": true,
   "done_by": "Placeholder Nurse",
-  "done_at": "2026-10-28T10:10:52.399709"
+  "done_at": "2026-10-28T12:54:59.052077"
 }
 ```
 <!-- capture: 234-b-tick-again.json response.body -->
 ```json
 {
-  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "task_id": "9da86b1f-220d-4adb-8881-4ea84dfc74f2",
   "date": "2026-10-28",
   "done": true,
   "done_by": "Placeholder Nurse",
-  "done_at": "2026-10-28T10:10:52.399709"
+  "done_at": "2026-10-28T12:54:59.052077"
 }
 ```
 <!-- capture: 234-c-untick.json response.body -->
 ```json
 {
-  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "task_id": "9da86b1f-220d-4adb-8881-4ea84dfc74f2",
   "date": "2026-10-28",
   "done": false,
   "done_by": null,
@@ -4002,7 +4005,7 @@ Unticking someone else's tick is allowed and recorded in the plan's history (nev
 <!-- capture: 234-d-untick-again.json response.body -->
 ```json
 {
-  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "task_id": "9da86b1f-220d-4adb-8881-4ea84dfc74f2",
   "date": "2026-10-28",
   "done": false,
   "done_by": null,
@@ -4082,27 +4085,27 @@ Unticking someone else's tick is allowed and recorded in the plan's history (nev
 <!-- capture: 235-a-note-add.json response.body -->
 ```json
 {
-  "id": "ffd9a4e0-fa3b-41c8-aaca-e9bb778a70b9",
+  "id": "55149f95-b437-47cf-a768-34f478ab58cd",
   "category": "observation",
   "body": "Placeholder observation: ate well.",
   "author": {
     "name": "Placeholder Nurse",
     "kind": "caregiver"
   },
-  "created_at": "2026-10-28T10:10:52.806793"
+  "created_at": "2026-10-28T12:54:59.185531"
 }
 ```
 <!-- capture: 235-b-special-note-add.json response.body -->
 ```json
 {
-  "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+  "id": "03883bb0-234d-4957-8959-9071ba40b4a0",
   "category": "special_note",
   "body": "Placeholder special note.",
   "author": {
     "name": "Placeholder Caregiver",
     "kind": "caregiver"
   },
-  "created_at": "2026-10-28T10:10:52.834517"
+  "created_at": "2026-10-28T12:54:59.198251"
 }
 ```
 Paging. `next_before` and `next_before_id` are `null` on the last page; otherwise pass both unchanged as `before` and `before_id`:
@@ -4112,18 +4115,18 @@ Paging. `next_before` and `next_before_id` are `null` on the last page; otherwis
 {
   "items": [
     {
-      "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+      "id": "03883bb0-234d-4957-8959-9071ba40b4a0",
       "category": "special_note",
       "body": "Placeholder special note.",
       "author": {
         "name": "Placeholder Caregiver",
         "kind": "caregiver"
       },
-      "created_at": "2026-10-28T10:10:52.834517"
+      "created_at": "2026-10-28T12:54:59.198251"
     }
   ],
-  "next_before": "2026-10-28T10:10:52.834517",
-  "next_before_id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e"
+  "next_before": "2026-10-28T12:54:59.198251",
+  "next_before_id": "03883bb0-234d-4957-8959-9071ba40b4a0"
 }
 ```
 <!-- capture: 235-e-notes-page-2.json response.body -->
@@ -4131,14 +4134,14 @@ Paging. `next_before` and `next_before_id` are `null` on the last page; otherwis
 {
   "items": [
     {
-      "id": "ffd9a4e0-fa3b-41c8-aaca-e9bb778a70b9",
+      "id": "55149f95-b437-47cf-a768-34f478ab58cd",
       "category": "observation",
       "body": "Placeholder observation: ate well.",
       "author": {
         "name": "Placeholder Nurse",
         "kind": "caregiver"
       },
-      "created_at": "2026-10-28T10:10:52.806793"
+      "created_at": "2026-10-28T12:54:59.185531"
     }
   ],
   "next_before": null,
@@ -4151,14 +4154,14 @@ Filter by category:
 ```json
 [
   {
-    "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+    "id": "03883bb0-234d-4957-8959-9071ba40b4a0",
     "category": "special_note",
     "body": "Placeholder special note.",
     "author": {
       "name": "Placeholder Caregiver",
       "kind": "caregiver"
     },
-    "created_at": "2026-10-28T10:10:52.834517"
+    "created_at": "2026-10-28T12:54:59.198251"
   }
 ]
 ```
@@ -4207,18 +4210,18 @@ A completed plan keeps its notes as history:
 {
   "items": [
     {
-      "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+      "id": "03883bb0-234d-4957-8959-9071ba40b4a0",
       "category": "special_note",
       "body": "Placeholder special note.",
       "author": {
         "name": "Placeholder Caregiver",
         "kind": "caregiver"
       },
-      "created_at": "2026-10-28T10:10:52.834517"
+      "created_at": "2026-10-28T12:54:59.198251"
     }
   ],
-  "next_before": "2026-10-28T10:10:52.834517",
-  "next_before_id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e"
+  "next_before": "2026-10-28T12:54:59.198251",
+  "next_before_id": "03883bb0-234d-4957-8959-9071ba40b4a0"
 }
 ```
 The text of a note is health data and is **not** shown to a family member in this version. No flag for that is sent or accepted by any call.
@@ -4266,7 +4269,7 @@ A plan with history (past visit days were inserted directly for this capture; th
     "achieved": 0,
     "discontinued": 0
   },
-  "last_observation_at": "2026-10-28T10:10:52.834517"
+  "last_observation_at": "2026-10-28T12:54:59.198251"
 }
 ```
 With no visit yet, or nothing scheduled, `overall_percent` is `null`: show "No visits yet", not 0%.
@@ -4322,3 +4325,502 @@ With no visit yet, or nothing scheduled, `overall_percent` is `null`: show "No v
 | Note text is encrypted, survives key rotation, is wiped by account erasure while the ticks stay | **[not live]** | `test_care_plans_b2_security.py` |
 | `401` with no token, `403` for a patient token on the new routes | **[not live]** | `app/tests/test_care_plans_b2_access.py` |
 | Real device behaviour, push, offline | **No** | Not built (no push for plan changes in v1; the app never queues writes) |
+
+### 16.21 B3 overview: medications (a record, nothing more)
+
+Slice B3 adds three calls (add, edit, stop a medication) and a `medications` list on the full plan (`GET /caregiver/care-plans/{plan_id}`, the create and edit responses, and the `plan` inside a `409` `version_conflict`). Everything in 16.1 still applies: the same live-visit access, the same single `404`, `Cache-Control: no-store`, nothing written to the device.
+
+**What this is, in the FE's terms.** A medication is *what the prescriber ordered, as the nurse wrote it down*. Oakly does not check doses, does not compare medicines, does not remind anyone and does not record that a dose was given (giving medicines is a visit task, ticked like any other task in section 16.16). There are no alerts to build and no "given" ticks.
+
+**Show this notice on the medications section, always visible** (it is also in the OpenAPI description of the three routes and of the plan's `medications` field; the wording is pending clinical sign-off, so keep it in one string you can change):
+
+> This is a record of what the prescriber ordered. Oakly does not check doses or interactions and does not remind anyone to give medicines. Follow the prescriber's instructions.
+
+| Action | Who | Needs |
+|---|---|---|
+| Read the list (on the plan) | any caregiver with a live visit for the client | a completed plan still shows its medications |
+| Add, edit, stop | nurse | live visit (any status), plan `active` |
+
+**The medication object** (the same in the plan's list and in every write response):
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | uuid | |
+| `name` | string | 1-120 characters, the only required text |
+| `strength`, `dose_amount`, `dose_unit`, `route` | string or `null` | up to 60 characters each. `dose_amount` is text so `"1/2"` fits. Not validated against anything |
+| `reason`, `prescribed_by`, `note` | string or `null` | up to 200, 120 and 1000 characters |
+| `frequency` | string | `once_daily`, `twice_daily`, `three_times_daily`, `four_times_daily`, `weekly`, `as_needed`, `other`. It does not have to agree with `times_of_day` |
+| `times_of_day` | list of `HH:MM` | at most 12, no repeats, returned earliest first; `[]` for `as_needed` or `other` |
+| `start_date` | date | defaults to today (Africa/Lagos) when not sent |
+| `end_date` | date or `null` | never before `start_date`; `null` while ongoing |
+| `status` | `active` or `stopped` | |
+| `stopped_at` | datetime or `null` | UTC without a `Z`; set exactly when `status` is `stopped` |
+
+**Order and history.** `medications` lists active medications first, then stopped ones, each group in the order recorded. A stopped medication is **never deleted**: the plan keeps what the client was on. Show stopped ones greyed under a "Stopped" heading. A plan holds at most 40 active medications (`422` `invalid_care_plan`); stopping one frees a place.
+
+### 16.22 Add: `POST /caregiver/care-plans/{plan_id}/medications` (nurse)
+
+Body: the fields above (only `name` and `frequency` are required) plus an optional `expected_version`. Adding overwrites nothing, so `expected_version` may be left out; if it is sent and stale the answer is `409` `version_conflict`. `201` with `{medication, plan_version}`: use `plan_version` as the next `expected_version`.
+
+<!-- capture: 240-a-medication-add.json request.body -->
+```json
+{
+  "name": "Placeholder medicine A",
+  "strength": "500 mg",
+  "dose_amount": "1",
+  "dose_unit": "tablet",
+  "route": "oral",
+  "reason": "Placeholder reason",
+  "prescribed_by": "Placeholder prescriber",
+  "note": "Placeholder note",
+  "frequency": "twice_daily",
+  "times_of_day": [
+    "20:00",
+    "08:00"
+  ],
+  "start_date": "2026-10-28",
+  "end_date": "2026-11-25",
+  "expected_version": 1
+}
+```
+<!-- capture: 240-a-medication-add.json response.body -->
+```json
+{
+  "medication": {
+    "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+    "name": "Placeholder medicine A",
+    "strength": "500 mg",
+    "dose_amount": "1",
+    "dose_unit": "tablet",
+    "route": "oral",
+    "reason": "Placeholder reason",
+    "prescribed_by": "Placeholder prescriber",
+    "note": "Placeholder note",
+    "frequency": "twice_daily",
+    "times_of_day": [
+      "08:00",
+      "20:00"
+    ],
+    "start_date": "2026-10-28",
+    "end_date": "2026-11-25",
+    "status": "active",
+    "stopped_at": null
+  },
+  "plan_version": 2
+}
+```
+Only the required fields (unset text is `null`, `times_of_day` is `[]`, `start_date` is today):
+
+<!-- capture: 240-b-medication-add-minimal.json request.body -->
+```json
+{
+  "name": "Placeholder medicine B",
+  "frequency": "as_needed"
+}
+```
+<!-- capture: 240-b-medication-add-minimal.json response.body -->
+```json
+{
+  "medication": {
+    "id": "7664c137-38d2-4985-a672-d9676b42f4e2",
+    "name": "Placeholder medicine B",
+    "strength": null,
+    "dose_amount": null,
+    "dose_unit": null,
+    "route": null,
+    "reason": null,
+    "prescribed_by": null,
+    "note": null,
+    "frequency": "as_needed",
+    "times_of_day": [],
+    "start_date": "2026-10-28",
+    "end_date": null,
+    "status": "active",
+    "stopped_at": null
+  },
+  "plan_version": 3
+}
+```
+
+### 16.23 Edit: `PATCH /caregiver/care-plan-medications/{medication_id}` (nurse)
+
+Body: `{expected_version, ...fields}`; **only the fields sent change**. `strength`, `dose_amount`, `dose_unit`, `route`, `reason`, `prescribed_by`, `note` and `end_date` accept `null` to clear them; `name`, `frequency`, `times_of_day` and `start_date` cannot be `null` (`422`). The dates are checked together with the stored ones (`end_date` before `start_date` is `422` `invalid_care_plan`). A body that changes nothing is a `200` that leaves `plan_version` as it was. **A stopped medication cannot be edited** (`409` `medication_stopped`): record a new one.
+
+<!-- capture: 241-a-medication-edit.json request.body -->
+```json
+{
+  "expected_version": 3,
+  "strength": "250 mg",
+  "times_of_day": [
+    "12:00"
+  ],
+  "note": null,
+  "frequency": "once_daily"
+}
+```
+<!-- capture: 241-a-medication-edit.json response.body -->
+```json
+{
+  "medication": {
+    "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+    "name": "Placeholder medicine A",
+    "strength": "250 mg",
+    "dose_amount": "1",
+    "dose_unit": "tablet",
+    "route": "oral",
+    "reason": "Placeholder reason",
+    "prescribed_by": "Placeholder prescriber",
+    "note": null,
+    "frequency": "once_daily",
+    "times_of_day": [
+      "12:00"
+    ],
+    "start_date": "2026-10-28",
+    "end_date": "2026-11-25",
+    "status": "active",
+    "stopped_at": null
+  },
+  "plan_version": 4
+}
+```
+
+### 16.24 Stop: `POST /caregiver/care-plan-medications/{medication_id}/stop` (nurse)
+
+Body: `{expected_version}` (required). `status` becomes `stopped` and `stopped_at` is set; `end_date` is left as the nurse entered it (it is the prescribed end, `stopped_at` is when it was recorded as stopped). Repeating the call changes nothing and returns the same body.
+
+<!-- capture: 242-a-medication-stop.json request.body -->
+```json
+{
+  "expected_version": 4
+}
+```
+<!-- capture: 242-a-medication-stop.json response.body -->
+```json
+{
+  "medication": {
+    "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+    "name": "Placeholder medicine A",
+    "strength": "250 mg",
+    "dose_amount": "1",
+    "dose_unit": "tablet",
+    "route": "oral",
+    "reason": "Placeholder reason",
+    "prescribed_by": "Placeholder prescriber",
+    "note": null,
+    "frequency": "once_daily",
+    "times_of_day": [
+      "12:00"
+    ],
+    "start_date": "2026-10-28",
+    "end_date": "2026-11-25",
+    "status": "stopped",
+    "stopped_at": "2026-10-28T12:55:01.667687"
+  },
+  "plan_version": 5
+}
+```
+Stopping again (same `plan_version`, no new history):
+
+<!-- capture: 242-b-medication-stop-again.json response.body -->
+```json
+{
+  "medication": {
+    "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+    "name": "Placeholder medicine A",
+    "strength": "250 mg",
+    "dose_amount": "1",
+    "dose_unit": "tablet",
+    "route": "oral",
+    "reason": "Placeholder reason",
+    "prescribed_by": "Placeholder prescriber",
+    "note": null,
+    "frequency": "once_daily",
+    "times_of_day": [
+      "12:00"
+    ],
+    "start_date": "2026-10-28",
+    "end_date": "2026-11-25",
+    "status": "stopped",
+    "stopped_at": "2026-10-28T12:55:01.667687"
+  },
+  "plan_version": 5
+}
+```
+
+The medications on the full plan, after one is stopped (the active one first):
+
+<!-- capture: 243-c-plan-medications-after-stop.json response.body path=medications -->
+```json
+[
+  {
+    "id": "7664c137-38d2-4985-a672-d9676b42f4e2",
+    "name": "Placeholder medicine B",
+    "strength": null,
+    "dose_amount": null,
+    "dose_unit": null,
+    "route": null,
+    "reason": null,
+    "prescribed_by": null,
+    "note": null,
+    "frequency": "as_needed",
+    "times_of_day": [],
+    "start_date": "2026-10-28",
+    "end_date": null,
+    "status": "active",
+    "stopped_at": null
+  },
+  {
+    "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+    "name": "Placeholder medicine A",
+    "strength": "250 mg",
+    "dose_amount": "1",
+    "dose_unit": "tablet",
+    "route": "oral",
+    "reason": "Placeholder reason",
+    "prescribed_by": "Placeholder prescriber",
+    "note": null,
+    "frequency": "once_daily",
+    "times_of_day": [
+      "12:00"
+    ],
+    "start_date": "2026-10-28",
+    "end_date": "2026-11-25",
+    "status": "stopped",
+    "stopped_at": "2026-10-28T12:55:01.667687"
+  }
+]
+```
+
+**Errors.** Match on `detail.code`.
+
+Validation (`422`, the standard list with no rejected value echoed):
+
+<!-- capture: 240-d-medication-add-validation.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "string_too_short",
+      "loc": [
+        "body",
+        "name"
+      ],
+      "msg": "String should have at least 1 character",
+      "ctx": {
+        "min_length": 1
+      }
+    },
+    {
+      "type": "literal_error",
+      "loc": [
+        "body",
+        "frequency"
+      ],
+      "msg": "Input should be 'once_daily', 'twice_daily', 'three_times_daily', 'four_times_daily', 'weekly', 'as_needed' or 'other'",
+      "ctx": {
+        "expected": "'once_daily', 'twice_daily', 'three_times_daily', 'four_times_daily', 'weekly', 'as_needed' or 'other'"
+      }
+    },
+    {
+      "type": "string_pattern_mismatch",
+      "loc": [
+        "body",
+        "times_of_day",
+        0
+      ],
+      "msg": "String should match pattern '^([01]\\d|2[0-3]):[0-5]\\d$'",
+      "ctx": {
+        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+      }
+    },
+    {
+      "type": "string_pattern_mismatch",
+      "loc": [
+        "body",
+        "times_of_day",
+        1
+      ],
+      "msg": "String should match pattern '^([01]\\d|2[0-3]):[0-5]\\d$'",
+      "ctx": {
+        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+      }
+    }
+  ]
+}
+```
+End before start:
+
+<!-- capture: 240-e-medication-add-end-before-start.json response.body -->
+```json
+{
+  "detail": {
+    "code": "invalid_care_plan",
+    "message": "end_date cannot be before start_date"
+  }
+}
+```
+Not a nurse (`403`, access is checked first, so a caregiver with no access gets the plain `404` instead):
+
+<!-- capture: 240-c-medication-add-not-a-nurse.json response.body -->
+```json
+{
+  "detail": {
+    "code": "not_a_nurse",
+    "message": "Only nurses can create or change a care plan."
+  }
+}
+```
+Stale `expected_version` (`409`; the body carries the current plan, trimmed here, so the app can reload without another call):
+
+<!-- capture: 240-f-medication-add-version-conflict.json response.body keys=detail -->
+```json
+{
+  "detail": {
+    "code": "version_conflict",
+    "message": "Someone just changed this plan. Reload it and try again.",
+    "plan": {
+      "id": "1bb2fcaf-06d3-4244-8097-e5b9d2f38b26",
+      "version": 3,
+      "status": "active",
+      "booking_id": "1d0c8c2e-b9b5-4652-8450-536d5e771822",
+      "client": {
+        "full_name": "Placeholder Client",
+        "age": 71,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "medium",
+      "start_date": "2026-10-28",
+      "duration_days": 30,
+      "review_every_days": null,
+      "review_due_on": null,
+      "template": null,
+      "author": {
+        "name": "Placeholder Nurse",
+        "kind": "caregiver"
+      },
+      "allergies": [],
+      "special_instructions": [],
+      "goals": [
+        {
+          "id": "10654331-46bc-4500-9fce-93ad1eef6fa6",
+          "title": "Placeholder goal",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        }
+      ],
+      "medications": [
+        {
+          "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+          "name": "Placeholder medicine A",
+          "strength": "500 mg",
+          "dose_amount": "1",
+          "dose_unit": "tablet",
+          "route": "oral",
+          "reason": "Placeholder reason",
+          "prescribed_by": "Placeholder prescriber",
+          "note": "Placeholder note",
+          "frequency": "twice_daily",
+          "times_of_day": [
+            "08:00",
+            "20:00"
+          ],
+          "start_date": "2026-10-28",
+          "end_date": "2026-11-25",
+          "status": "active",
+          "stopped_at": null
+        },
+        {
+          "id": "7664c137-38d2-4985-a672-d9676b42f4e2",
+          "name": "Placeholder medicine B",
+          "strength": null,
+          "dose_amount": null,
+          "dose_unit": null,
+          "route": null,
+          "reason": null,
+          "prescribed_by": null,
+          "note": null,
+          "frequency": "as_needed",
+          "times_of_day": [],
+          "start_date": "2026-10-28",
+          "end_date": null,
+          "status": "active",
+          "stopped_at": null
+        }
+      ],
+      "tasks": [],
+      "capabilities": {
+        "can_edit_plan": true,
+        "can_tick_tasks": true,
+        "can_add_observation": true
+      },
+      "created_at": "2026-10-28T12:55:01.505255",
+      "updated_at": "2026-10-28T12:55:01.551715"
+    }
+  }
+}
+```
+Editing a stopped medication (`409`):
+
+<!-- capture: 242-c-medication-edit-stopped.json response.body -->
+```json
+{
+  "detail": {
+    "code": "medication_stopped",
+    "message": "This medication was stopped. Record a new one instead of editing it."
+  }
+}
+```
+Plan completed or archived (`409`; the plan still shows its medications as history):
+
+<!-- capture: 244-c-medication-add-plan-completed.json response.body -->
+```json
+{
+  "detail": {
+    "code": "plan_not_editable",
+    "message": "This care plan is completed or archived and can no longer be changed."
+  }
+}
+```
+No access (`404`, the same body as everywhere):
+
+<!-- capture: 244-a-medication-add-no-access.json response.body -->
+```json
+{
+  "detail": "Care plan not found"
+}
+```
+
+| Status | `detail.code` | When |
+|---|---|---|
+| 404 | plain `"Care plan not found"` | no access of any kind, or an unknown plan or medication id |
+| 403 | `not_a_nurse` | the caller has access but no nurse skill |
+| 409 | `version_conflict` | `expected_version` is stale (body has the current `plan`) |
+| 409 | `plan_not_editable` | the plan is `completed` or `archived` |
+| 409 | `medication_stopped` | edit of a stopped medication |
+| 422 | `invalid_care_plan` | `end_date` before `start_date`; more than 40 active medications |
+| 422 | (validation list) | any field limit, an unknown `frequency`, a bad `HH:MM`, a repeated time |
+
+### 16.25 B3 traps and verification
+
+**What the app must show or avoid.**
+
+1. **Always show the notice** (16.21) on the medications section, including to caregivers who cannot edit. Do not paraphrase it into advice, and do not add dose warnings, "due now" states, reminders or "given" buttons: none of that is backed by anything.
+2. **Do not treat a medication as an instruction.** It is a transcription. Do not compute "next dose" or "overdue" from `times_of_day`.
+3. **Stopped is permanent.** Tell the nurse before confirming that a stopped medication cannot be edited or restarted; to restart, add a new one (the old one stays as history).
+4. **Edits are last-write-safe only with the version.** Send the `plan_version` from the last response; on `409` `version_conflict` replace the screen with the `plan` in the body.
+5. **Medications are health data**: never persist them on the device, and clear them on logout.
+6. **Order matters to the screen, not to the data.** The list order is active-then-stopped; do not sort by `name` unless the design says so.
+
+| Behaviour | Verified live? | Evidence / reason |
+|---|---|---|
+| Add (full and minimal), edit (incl. clearing a field), stop, stop again, the list on the plan before and after a stop, read-only caregiver | Yes (test harness: real app and Postgres) | `240-a`, `240-b`, `241-a`, `242-a`, `242-b`, `243-a` to `243-c` |
+| Refusals: not a nurse, validation, end before start, stale version, null name, stopped medication, no access, plan completed | Yes (harness) | `240-c` to `240-f`, `241-b`, `241-c`, `242-c`, `242-d`, `244` |
+| A completed plan keeps showing its medications | Yes (harness) | `244-d` |
+| The notice is in the OpenAPI description of all three routes and of the plan's `medications` field | **[not live]** | `app/tests/test_care_plan_medications.py` (reads the generated spec) |
+| The 40-active limit, a stopped medication freeing a place | **[not live]** | `app/tests/test_care_plan_medications.py` (rows inserted directly) |
+| Medication text is encrypted, survives key rotation, is wiped by account erasure (rows and dates stay), events hold no health text, a bad ciphertext is a `500` never a blank | **[not live]** | `app/tests/test_care_plans_b3_security.py` |
+| The same `404` for every refused caller (not live, dropped out, erased, another client's medication id, unknown ids) | **[not live]** | `app/tests/test_care_plans_b3_access.py` |
+| Table constraints (frequency, status, stopped/`stopped_at` pair, end after start, at most 12 times) and the migration round trip | **[not live]** | `app/tests/test_care_plan_medications_migration.py` |
+| Real device behaviour, offline | **No** | Not built; the app never queues writes |

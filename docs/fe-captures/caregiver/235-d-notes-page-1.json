@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/observations?limit=1",
+    "path": "/api/v1/caregiver/care-plans/d62a4704-8b99-499b-a817-3930d6fe29cf/observations?limit=1",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -14,18 +14,18 @@
     "body": {
       "items": [
         {
-          "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+          "id": "03883bb0-234d-4957-8959-9071ba40b4a0",
           "category": "special_note",
           "body": "Placeholder special note.",
           "author": {
             "name": "Placeholder Caregiver",
             "kind": "caregiver"
           },
-          "created_at": "2026-10-28T10:10:52.834517"
+          "created_at": "2026-10-28T12:54:59.198251"
         }
       ],
-      "next_before": "2026-10-28T10:10:52.834517",
-      "next_before_id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e"
+      "next_before": "2026-10-28T12:54:59.198251",
+      "next_before_id": "03883bb0-234d-4957-8959-9071ba40b4a0"
     }
   },
   "note": "`limit=1`: `next_before` and `next_before_id` are the cursor for the next, older page."

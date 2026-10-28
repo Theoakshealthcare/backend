@@ -1,0 +1,56 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/1bb2fcaf-06d3-4244-8097-e5b9d2f38b26/medications",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "name": "Placeholder medicine A",
+      "strength": "500 mg",
+      "dose_amount": "1",
+      "dose_unit": "tablet",
+      "route": "oral",
+      "reason": "Placeholder reason",
+      "prescribed_by": "Placeholder prescriber",
+      "note": "Placeholder note",
+      "frequency": "twice_daily",
+      "times_of_day": [
+        "20:00",
+        "08:00"
+      ],
+      "start_date": "2026-10-28",
+      "end_date": "2026-11-25",
+      "expected_version": 1
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "medication": {
+        "id": "61986564-03c8-4ffc-9fc9-75a5f60bbbe4",
+        "name": "Placeholder medicine A",
+        "strength": "500 mg",
+        "dose_amount": "1",
+        "dose_unit": "tablet",
+        "route": "oral",
+        "reason": "Placeholder reason",
+        "prescribed_by": "Placeholder prescriber",
+        "note": "Placeholder note",
+        "frequency": "twice_daily",
+        "times_of_day": [
+          "08:00",
+          "20:00"
+        ],
+        "start_date": "2026-10-28",
+        "end_date": "2026-11-25",
+        "status": "active",
+        "stopped_at": null
+      },
+      "plan_version": 2
+    }
+  },
+  "note": "`times_of_day` comes back sorted. `expected_version` is optional when adding."
+}

@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/1bb2fcaf-06d3-4244-8097-e5b9d2f38b26/medications",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "name": "Placeholder medicine B",
+      "frequency": "as_needed"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "medication": {
+        "id": "7664c137-38d2-4985-a672-d9676b42f4e2",
+        "name": "Placeholder medicine B",
+        "strength": null,
+        "dose_amount": null,
+        "dose_unit": null,
+        "route": null,
+        "reason": null,
+        "prescribed_by": null,
+        "note": null,
+        "frequency": "as_needed",
+        "times_of_day": [],
+        "start_date": "2026-10-28",
+        "end_date": null,
+        "status": "active",
+        "stopped_at": null
+      },
+      "plan_version": 3
+    }
+  },
+  "note": "Only `name` and `frequency` are required. Unset text fields are null, `times_of_day` is [] and `start_date` is today."
+}

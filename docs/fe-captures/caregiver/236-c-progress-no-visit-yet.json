@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/caregiver/care-plans/3b297293-684c-4c8a-ad0d-fd9e3b2a84df/progress",
+    "path": "/api/v1/caregiver/care-plans/4667c1c5-f501-42ef-9960-59c73be50d1c/progress",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
