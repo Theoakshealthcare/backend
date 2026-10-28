@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/identity-verification/sessions",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "consent": true,
+      "policy_version": "kyc-2020-01"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "POLICY_VERSION_MISMATCH",
+        "message": "The identity-check consent text has changed. Reload and agree to the current version."
+      }
+    }
+  },
+  "note": "The consent text version the app showed is not the current one; nothing is recorded."
+}

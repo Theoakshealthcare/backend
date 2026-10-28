@@ -229,6 +229,44 @@
       "str"
     ]
   },
+  "identity_session": {
+    "attempt_no": "int",
+    "state": {
+      "active_verification_id": "str",
+      "attempts_max": "int",
+      "attempts_used": "int",
+      "can_start": "bool",
+      "failure_hint": "null",
+      "last_attempt_status": "str",
+      "policy_version": "str",
+      "provider_available": "bool",
+      "review_eta_hours": "null",
+      "status": "str"
+    },
+    "verification_id": "str",
+    "widget": {
+      "email": "str",
+      "first_name": "str",
+      "last_name": "str",
+      "metadata": {
+        "oakly_ref": "str"
+      },
+      "widget_id": "str",
+      "widget_key": "str"
+    }
+  },
+  "identity_state": {
+    "active_verification_id": "str",
+    "attempts_max": "int",
+    "attempts_used": "int",
+    "can_start": "bool",
+    "failure_hint": "null",
+    "last_attempt_status": "str",
+    "policy_version": "str",
+    "provider_available": "bool",
+    "review_eta_hours": "null",
+    "status": "str"
+  },
   "verification_status": {
     "background_check_status": "str",
     "changes_requested": "null",

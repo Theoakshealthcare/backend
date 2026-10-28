@@ -2,6 +2,9 @@ from datetime import datetime, date
 from typing import Optional, List, Literal
 from pydantic import BaseModel, EmailStr, Field, validator
 import uuid
+from uuid import UUID
+
+from app.services.prembly import SESSION_ID_PATTERN
 
 
 # Caregiver Profile Schemas
@@ -109,10 +112,49 @@ class SpecializationOptions(BaseModel):
     states: List[str]
 
 
-# Verification Result Schema
-class VerificationResultRequest(BaseModel):
-    type: Literal["document", "face"]
-    result: dict
+# Identity verification (KYC with Prembly). Design: docs/plans/2026-10-27-caregiver-kyc-design.md section 12.1.
+class IdentityVerificationStateOut(BaseModel):
+    status: Literal["pending", "in_progress", "needs_review", "verified", "failed"]  # the caregiver's identity status
+    attempts_used: int  # attempts that count against the cap (expired and error attempts do not)
+    attempts_max: int
+    active_verification_id: Optional[UUID] = None  # the attempt that is running, if any
+    last_attempt_status: Optional[str] = None  # created | started | awaiting_result | passed | failed | needs_review | expired | error
+    can_start: bool  # POST /sessions would succeed (or resume the active attempt)
+    failure_hint: Optional[Literal["lighting", "document", "mismatch_generic"]] = None  # a coarse tip after a clean failure
+    provider_available: bool
+    review_eta_hours: Optional[int] = None  # set while the case is with a person
+    policy_version: str  # send this back with the consent
+
+
+class IdentityVerificationSessionRequest(BaseModel):
+    consent: Literal[True]  # the explicit tick; false or absent is a 422
+    policy_version: str = Field(max_length=64)
+
+
+class IdentityVerificationClientEventRequest(BaseModel):
+    """A hint from the widget. Anything else the client sends is ignored, never stored."""
+    event: Literal["opened", "completed", "closed", "error"]
+    session_id: Optional[str] = Field(default=None, pattern=SESSION_ID_PATTERN)
+
+
+class IdentityWidgetMetadata(BaseModel):
+    oakly_ref: str
+
+
+class IdentityWidgetConfig(BaseModel):
+    widget_id: str
+    widget_key: str  # public by Prembly's design (it ships in the app bundle); no secret is ever returned
+    email: str
+    first_name: str
+    last_name: str
+    metadata: IdentityWidgetMetadata
+
+
+class IdentityVerificationSessionOut(BaseModel):
+    verification_id: UUID
+    attempt_no: int
+    widget: IdentityWidgetConfig
+    state: IdentityVerificationStateOut
 
 
 class CaregiverWalletSummary(BaseModel):

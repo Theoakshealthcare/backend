@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/identity-verification/bdc04b87-e29e-473c-b566-47bb1ae52ab0/client-event",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "event": "completed"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "VERIFICATION_NOT_FOUND",
+        "message": "Verification not found"
+      }
+    }
+  },
+  "note": "Another caregiver's attempt: the same 404 as for an id that does not exist."
+}

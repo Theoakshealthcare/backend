@@ -1,0 +1,44 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/identity-verification/sessions",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "consent": true,
+      "policy_version": "kyc-2026-10"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "verification_id": "bdc04b87-e29e-473c-b566-47bb1ae52ab0",
+      "attempt_no": 1,
+      "widget": {
+        "widget_id": "placeholder-widget-id",
+        "widget_key": "placeholder-widget-key",
+        "email": "caregiver-616524d402@example.com",
+        "first_name": "Placeholder",
+        "last_name": "Caregiver",
+        "metadata": {
+          "oakly_ref": "a0fbe750-b549-4a8a-95ae-512fbe35358c"
+        }
+      },
+      "state": {
+        "status": "in_progress",
+        "attempts_used": 1,
+        "attempts_max": 3,
+        "active_verification_id": "bdc04b87-e29e-473c-b566-47bb1ae52ab0",
+        "last_attempt_status": "created",
+        "can_start": true,
+        "failure_hint": null,
+        "provider_available": true,
+        "review_eta_hours": null,
+        "policy_version": "kyc-2026-10"
+      }
+    }
+  },
+  "note": "First call: 201, a new attempt; the consent is recorded (append-only)."
+}

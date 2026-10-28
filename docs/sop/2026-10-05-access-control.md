@@ -90,7 +90,7 @@ Two pre-existing 500s on these paths were fixed because the happy path couldn't 
 ## Review fixes (same branch)
 - WebSocket rejections are accept-then-close, tested with a real uvicorn server and the `websockets` client.
 - REST live tracking is limited to accepted/in-progress bookings (409 otherwise).
-- `POST /caregiver/identity-verification/result` stores the payload as evidence only; the status can go to `in_progress` at most and never overwrites `verified`/`failed`. Those become admin decisions in WP-E5. Until then, nothing sets `verified` through the API.
+- `POST /caregiver/identity-verification/result` stores the payload as evidence only; the status can go to `in_progress` at most and never overwrites `verified`/`failed`. Those become admin decisions in WP-E5. Until then, nothing sets `verified` through the API. **Superseded 2026-10-28 (KYC K2):** this endpoint now answers `410` and reads nothing; see [`2026-10-28-kyc-caregiver-api.md`](2026-10-28-kyc-caregiver-api.md).
 
 - `PrescriptionUpdate` no longer has `payment_status`, `total_cost` or `paystack_reference`; the schema forbids extra fields, so sending them is a 422 (not a silent ignore). Payment state changes only via the webhook/settlement.
 

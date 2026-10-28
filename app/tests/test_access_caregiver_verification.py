@@ -1,4 +1,8 @@
-"""Caregivers can't mark their own identity as verified (WP-C review finding)."""
+"""Caregivers can't mark their own identity as verified (WP-C review finding).
+
+The client-posted result endpoint used to be a non-authoritative stub; since K2 it answers 410 and reads nothing. The status
+changes that remain open to a caregiver are covered in ``test_kyc_caregiver_api.py``.
+"""
 
 import pytest
 
@@ -13,37 +17,15 @@ def post(client, user, vtype, status):
     )
 
 
+@pytest.mark.parametrize("vtype", ["document", "face"])
 @pytest.mark.parametrize("claimed", ["verified", "failed", "approved", "anything"])
-def test_client_cannot_set_document_status_beyond_in_progress(db, client, claimed):
-    caregiver = make_caregiver(db, approved=False)
-    assert post(client, caregiver.user, "document", claimed).status_code == 200
+@pytest.mark.parametrize("identity", ["pending", "in_progress", "needs_review", "verified", "failed"])
+def test_a_client_result_changes_nothing(db, client, identity, claimed, vtype):
+    caregiver = make_caregiver(db, approved=False, identity_verification_status=identity, profile_completion_step=2)
+    assert post(client, caregiver.user, vtype, claimed).status_code == 410
     db.refresh(caregiver)
-    assert caregiver.identity_verification_status == "in_progress"
-    assert not hasattr(caregiver, "document_verification_result")  # the payload is not stored anywhere
-
-
-@pytest.mark.parametrize("claimed", ["verified", "failed"])
-def test_client_cannot_set_the_identity_status_with_a_face_result(db, client, claimed):
-    caregiver = make_caregiver(db, approved=False)
-    before = caregiver.identity_verification_status
-    assert post(client, caregiver.user, "face", claimed).status_code == 200
-    db.refresh(caregiver)
-    assert caregiver.identity_verification_status == before
-    assert caregiver.profile_completion_step >= 3
-
-
-def test_resubmitting_cannot_overwrite_an_admin_decision(db, client):
-    caregiver = make_caregiver(db, approved=True)  # identity already "verified"
-    assert post(client, caregiver.user, "document", "failed").status_code == 200
-    db.refresh(caregiver)
-    assert caregiver.identity_verification_status == "verified"
-
-
-def test_resubmitting_cannot_pull_a_caregiver_out_of_review(db, client):
-    caregiver = make_caregiver(db, approved=False, identity_verification_status="needs_review")
-    assert post(client, caregiver.user, "document", "verified").status_code == 200
-    db.refresh(caregiver)
-    assert caregiver.identity_verification_status == "needs_review"
+    assert caregiver.identity_verification_status == identity
+    assert caregiver.profile_completion_step == 2
 
 
 def test_requires_token_and_caregiver_role(db, client):

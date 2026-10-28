@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/identity-verification",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "status": "needs_review",
+      "attempts_used": 1,
+      "attempts_max": 3,
+      "active_verification_id": null,
+      "last_attempt_status": "needs_review",
+      "can_start": false,
+      "failure_hint": null,
+      "provider_available": true,
+      "review_eta_hours": 24,
+      "policy_version": "kyc-2026-10"
+    }
+  },
+  "note": "[seeded] A case with a person. The reason (here a duplicate identity) is not returned."
+}

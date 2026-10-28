@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/identity-verification/result",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "type": "face",
+      "result": {
+        "status": "verified"
+      }
+    }
+  },
+  "response": {
+    "status_code": 410,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "The app no longer reports identity verification results. Verification is completed in the verification step and confirmed by our verification partner."
+    }
+  },
+  "note": "Removed: 410 whatever is posted; nothing is read or stored."
+}
