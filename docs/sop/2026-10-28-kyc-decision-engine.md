@@ -94,7 +94,7 @@ K-D3 and K-D5: the provider's pull-confirmed result is the only evidence, failur
 | Mutation checks | Removing the human-decision guard, the advisory lock, or the ownership check each fails tests |
 | Opus review | One read-only pass walking design 16.1 on approval trust and PII: **APPROVE WITH FIXES, no blockers.** Applied: expiry only when the run knows there is no result, a flush guard on the session binding, per-row guards in the cron, no restamping of a closed ledger row, one provider error counted per event, initials-only names never match, and the commit/doc items. The rest are in Follow-ups. Not re-reviewed |
 | Capture harness | `CAPTURE_KYC_CAREGIVER=1` run: 226-231 and the engine-driven 210/213/215 are real engine output over the fake; both `render_fe_guide --check` exit 0 |
-| CI parity and full suite | See the final report of the slice (results recorded in the ledger) |
+| CI parity and full suite | On the final code head (`6faadd4`): `poetry check --lock` ok; `ruff check --select E9,F63,F7,F82 .` ok; `scripts.ci_smoke` OK (197 operations, with CI's dummy env); both `render_fe_guide --check` exit 0; full `pytest`: **3577 passed, 6 skipped** (34m02s, under the shared lock, lock released). Alembic head unchanged: `0019_care_plan_admin_permissions` |
 | **Not verified** | Anything against real Prembly (U1-U15). Redis calls are exercised with a fake client only; no real Redis, ARQ, Expo push or SMTP round trip. The decision thresholds (face 85/70, liveness 50) are placeholders until K0 |
 
 ## Follow-ups
