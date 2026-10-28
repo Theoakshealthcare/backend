@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/care-plan-tasks/47f653e2-e9e1-4c75-ad77-14d85aa53b7c/completion",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "date": "2026-10-28",
+      "done": true
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Care plan not found"
+    }
+  },
+  "note": "A caregiver with no live visit for this client: the same 404 as everywhere."
+}

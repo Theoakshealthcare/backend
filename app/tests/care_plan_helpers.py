@@ -68,3 +68,43 @@ def create_plan(client, caregiver, booking, **over):
 
 def a_template(db, key="stroke_recovery") -> CarePlanTemplate:
     return db.query(CarePlanTemplate).filter(CarePlanTemplate.key == key).one()
+
+
+# --- slice B2: ticks, notes, progress ---------------------------------------------------------------------------------
+
+EVERY_DAY = [1, 2, 3, 4, 5, 6, 7]
+SECRET_NOTE = "Placeholder note eta"
+
+
+def today_iso() -> str:
+    from app.services.care_plans import local_today
+
+    return local_today().isoformat()
+
+
+def daily_task(title=SECRET_TASK, slot="morning", time="08:00", days=None):
+    return {"title": title, "time_slot": slot, "time_of_day": time, "days_of_week": days or EVERY_DAY}
+
+
+def started_plan(client, db, tasks=None, **over):
+    """A nurse with an in-progress visit and a plan that starts today, with daily tasks (so no test depends on the weekday).
+    Returns (nurse, patient, booking, plan)."""
+    nurse = make_nurse(db)
+    patient, booking = self_visit(db, nurse)
+    body = {"start_date": today_iso(), "tasks": tasks if tasks is not None else [daily_task(), daily_task("Placeholder task two", "evening", "18:00")]}
+    body.update(over)
+    r = create_plan(client, nurse, booking, **body)
+    assert r.status_code == 201, r.text
+    return nurse, patient, booking, r.json()
+
+
+def tick(client, caregiver, task_id, done=True, day=None):
+    return client.put(f"{BASE}/care-plan-tasks/{task_id}/completion", json={"date": day or today_iso(), "done": done},
+                      headers=h(caregiver))
+
+
+def colleague(db, patient, status=BookingStatus.IN_PROGRESS, nurse=False):
+    """Another caregiver with a visit for the same client."""
+    other = make_nurse(db) if nurse else make_caregiver(db)
+    make_booking(db, patient, other, status=status, booking_for="myself")
+    return other

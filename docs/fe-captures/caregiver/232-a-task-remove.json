@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/caregiver/care-plan-tasks/e20e9d6d-d108-495e-9f4f-53565c5f0a27?expected_version=4",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "task": {
+        "id": "e20e9d6d-d108-495e-9f4f-53565c5f0a27",
+        "title": "Placeholder other-day task",
+        "time_slot": "night",
+        "time_of_day": null,
+        "days_of_week": [
+          1,
+          2,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "plan_version": 5
+    }
+  },
+  "note": "Removing deactivates the task; it leaves `tasks` and the day view, its ticks are kept."
+}

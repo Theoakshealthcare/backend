@@ -1,0 +1,43 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/caregiver/care-plan-tasks/a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 2,
+      "title": "Placeholder afternoon walk",
+      "days_of_week": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "time_of_day": null
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "task": {
+        "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+        "title": "Placeholder afternoon walk",
+        "time_slot": "afternoon",
+        "time_of_day": null,
+        "days_of_week": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "plan_version": 3
+    }
+  },
+  "note": "`time_of_day: null` clears the display time. Only the fields sent change."
+}

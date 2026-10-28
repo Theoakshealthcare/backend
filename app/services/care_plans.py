@@ -1,4 +1,5 @@
-"""Care plans for the caregiver app: create, read, edit and the goals (slice B1).
+"""Care plans for the caregiver app: create, read, edit and the goals (slice B1). Task definitions' edits, ticks, notes and
+progress are in care_plan_tasks.py and care_plan_observations.py (slice B2).
 
 Health text (diagnosis, allergies, special instructions, goal and task text) is sealed with Fernet before it is stored and
 opened only when a response is built. There is deliberately no plaintext fallback: a value that cannot be decrypted is a
@@ -20,7 +21,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import decrypt, encrypt
-from app.db.models.care_plan import CarePlan, CarePlanEvent, CarePlanGoal, CarePlanTask, CarePlanTemplate
+from app.db.models.booking import BookingStatus
+from app.db.models.care_plan import (
+    CarePlan, CarePlanEvent, CarePlanGoal, CarePlanObservation, CarePlanTask, CarePlanTemplate,
+)
 from app.db.models.admin import AdminUser
 from app.db.models.caregiver import Caregiver
 from app.schemas.care_plan import MAX_GOALS, MAX_TASKS, CarePlanCreate, CarePlanPatch, GoalCreate, GoalPatch
@@ -59,6 +63,23 @@ class VersionConflict(CarePlanError):
 
 class PlanNotEditable(CarePlanError):
     code, message = "plan_not_editable", "This care plan is completed or archived and can no longer be changed."
+
+
+class VisitNotInProgress(CarePlanError):
+    code, message = "visit_not_in_progress", "Available during an active visit."
+
+
+class TaskDateNotToday(CarePlanError):
+    code, message = "task_date_not_today", "Tasks can only be ticked for today."
+
+
+class TaskNotScheduled(CarePlanError):
+    code, message = "task_not_scheduled", "This task is not scheduled for that day."
+
+
+class TaskRemoved(CarePlanError):
+    """The task was removed from the plan. The endpoints answer the plain 404, like any other unavailable plan part."""
+    code, message = "task_removed", "Care plan not found"
 
 
 class TemplateNotFound(CarePlanError):
@@ -154,6 +175,12 @@ def can_edit(db: Session, caregiver: Caregiver, plan: CarePlan) -> bool:
     return plan.status == "active" and is_care_plan_author(db, caregiver)
 
 
+def can_record_visit(access: PlanAccess, plan: CarePlan) -> bool:
+    """Ticks and notes: the plan is active and the caller has a visit for this client in progress (``access`` is the nearest
+    live booking, and an in-progress one sorts first)."""
+    return plan.status == "active" and access.booking.status == BookingStatus.IN_PROGRESS
+
+
 def build_plan(db: Session, caregiver: Caregiver, access: PlanAccess, plan: CarePlan) -> Dict[str, Any]:
     template = db.get(CarePlanTemplate, plan.template_id) if plan.template_id else None
     return {
@@ -170,7 +197,8 @@ def build_plan(db: Session, caregiver: Caregiver, access: PlanAccess, plan: Care
                                             "care_plans.special_instructions_encrypted"),
         "goals": [_goal_out(g) for g in _goals(db, plan.id)],
         "tasks": [_task_out(t) for t in _tasks(db, plan.id)],
-        "capabilities": {"can_edit_plan": can_edit(db, caregiver, plan)},
+        "capabilities": {"can_edit_plan": can_edit(db, caregiver, plan), "can_tick_tasks": can_record_visit(access, plan),
+                         "can_add_observation": can_record_visit(access, plan)},
         "created_at": plan.created_at, "updated_at": plan.updated_at,
     }
 
@@ -494,8 +522,8 @@ def goal_out(goal: CarePlanGoal) -> Dict[str, Any]:
 
 def wipe_plans_for_subject(db: Session, *, patient_id: Optional[UUID] = None, recipient_id: Optional[UUID] = None,
                            now: Optional[datetime] = None) -> int:
-    """Account erasure: archive the subject's plans and null every ciphertext (header, goals, tasks). Ids, dates, enums and
-    the event trail stay. Returns the number of plans wiped. Does not commit."""
+    """Account erasure: archive the subject's plans and null every ciphertext (header, goals, tasks, notes). Ids, dates, enums,
+    the ticks and the event trail stay. Returns the number of plans wiped. Does not commit."""
     now = now or datetime.utcnow()
     column = CarePlan.patient_id if patient_id is not None else CarePlan.care_recipient_id
     plans = db.query(CarePlan).filter(column == (patient_id or recipient_id)).all()
@@ -506,5 +534,7 @@ def wipe_plans_for_subject(db: Session, *, patient_id: Optional[UUID] = None, re
             {"title_encrypted": None, "target_encrypted": None}, synchronize_session=False)
         db.query(CarePlanTask).filter(CarePlanTask.plan_id == plan.id).update(
             {"title_encrypted": None}, synchronize_session=False)
+        db.query(CarePlanObservation).filter(CarePlanObservation.plan_id == plan.id).update(
+            {"body_encrypted": None}, synchronize_session=False)
         record_event(db, plan.id, "system", None, "plan.erased", {})
     return len(plans)

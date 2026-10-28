@@ -2923,6 +2923,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Client profile: 200 for in progress, accepted (vitals `null`) and booked-for-someone-else; the same 404 for another caregiver and a completed visit; 403 for a patient token | Yes (test harness: real app and Postgres, not the compose stack) | `190`-`195` |
 | Client profile for a suspended caregiver, an erased patient, a patient grant, `Myself` capitalised | **[not live]** | `app/tests/test_caregiver_client_profile.py` |
 | Care plans (B1): templates, visit summary, create, read, lists, edit, goals, errors | Yes (test harness: real app and Postgres, not the compose stack) | Section 16.12, captures `200`-`222` |
+| Care plans (B2): task edits, day view, ticks, notes, progress, errors | Yes (test harness; some rows **[db-simulated]** or **[not live]**) | Section 16.20, captures `230`-`238` |
 | Payment settlement starting dispatch | Yes | Signed webhook sent to the real route |
 | Wave 1 offers, unavailable caregiver skipped | Yes | `dispatch-5-who-was-offered` |
 | Wave 2 (+10 min), escalation to `unmatched` (30 min) | No | Automated tests only |
@@ -2959,11 +2960,11 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Delete account: `409` for a pending withdrawal or payout | **No** | Automated tests only (`test_caregiver_with_a_pending_withdrawal_is_refused`, `test_payouts.py`) |
 | What exactly is wiped (profile fields, bank account, transactions masked, WhatsApp contact, Cloudinary image) | **No (only the account row was queried live)** | Automated tests, `test_account_deletion.py` |
 
-## 16. Care plans (backend slice B1)
+## 16. Care plans (backend slices B1 and B2)
 
-A nurse records a care plan for a client; every caregiver on a live visit for that client can read it. This slice is the plan itself: create, read, edit the header, allergies and special instructions, complete or archive, and the goals. **Not built yet** (later slices, do not code against them): ticking tasks, adding or editing tasks after creation, notes and observations, progress, medications, the family view. Ignore unknown fields in responses: later slices add `medications` and more `capabilities` to the plan.
+A nurse records a care plan for a client; every caregiver on a live visit for that client can read it. Slice B1 (sections 16.1 to 16.12) is the plan itself: create, read, edit the header, allergies and special instructions, complete or archive, and the goals. Slice B2 (sections 16.13 to 16.20) adds the daily work: task edits, the day view, ticking, visit notes and progress. **Not built yet** (later slices, do not code against them): medications, the admin API, the family view. Ignore unknown fields in responses: a later slice adds `medications` to the plan.
 
-**Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `200` to `222` come from `app/tests/test_capture_care_plans.py` (skipped unless `CAPTURE_CARE_PLANS=1`). The data is placeholder; the nurse skill, bookings and clients were seeded in the database.
+**Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `200` to `222` come from `app/tests/test_capture_care_plans.py` and `230` to `238` from `app/tests/test_capture_care_plans_b2.py` (both skipped unless `CAPTURE_CARE_PLANS=1`). The data is placeholder; the nurse skill, bookings and clients were seeded in the database.
 
 ### 16.1 Who can do what
 
@@ -3012,7 +3013,7 @@ _capture `200-b-home-not-author.json` (other fields trimmed)_
 ```json
 [
   {
-    "id": "ca9f836a-e5af-4ee4-b2bf-5ae468b4930e",
+    "id": "2085f83c-22a2-4d7a-9da1-111dbb6edef1",
     "key": "cardiac_rehabilitation",
     "name": "Cardiac Rehabilitation",
     "summary": "Light activity, resting readings and low-salt meals while recovering from a heart event.",
@@ -3116,7 +3117,7 @@ Use it on the client profile and when a visit opens. Any caregiver on the visit 
 <!-- capture: 205-a-visit-summary-no-plan.json response.body -->
 ```json
 {
-  "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+  "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
   "subject_ready": true,
   "can_author": true,
   "plan": null
@@ -3125,7 +3126,7 @@ Use it on the client profile and when a visit opens. Any caregiver on the visit 
 <!-- capture: 205-b-visit-summary-not-identified.json response.body -->
 ```json
 {
-  "booking_id": "1eb237ae-3c4c-4ead-9c33-4d86060bdb8f",
+  "booking_id": "0e20b6b5-48b7-40f4-8ced-2d4b4c5b4cda",
   "subject_ready": false,
   "can_author": false,
   "plan": null
@@ -3134,7 +3135,7 @@ Use it on the client profile and when a visit opens. Any caregiver on the visit 
 <!-- capture: 205-c-visit-summary-plain-caregiver.json response.body -->
 ```json
 {
-  "booking_id": "deafd784-4f22-495f-b86b-d9f65a43466a",
+  "booking_id": "561d72b9-8f2e-45da-8418-7093b964ad66",
   "subject_ready": true,
   "can_author": false,
   "plan": null
@@ -3146,11 +3147,11 @@ With a plan, `plan` is a summary (`goal_count` counts goals that are not discont
 <!-- capture: 207-a-visit-summary-with-plan.json response.body -->
 ```json
 {
-  "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+  "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
   "subject_ready": true,
   "can_author": true,
   "plan": {
-    "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+    "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
     "version": 1,
     "status": "active",
     "diagnosis": "Placeholder diagnosis",
@@ -3224,10 +3225,10 @@ Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` sh
 <!-- capture: 206-a-create-blank.json response.body -->
 ```json
 {
-  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
   "version": 1,
   "status": "active",
-  "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+  "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
   "client": {
     "full_name": "Placeholder Client",
     "age": 71,
@@ -3252,7 +3253,7 @@ Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` sh
   ],
   "goals": [
     {
-      "id": "2d2b2dc7-e951-4655-830a-96050f25f4a9",
+      "id": "1fc54f86-fa3b-406e-980b-858831da1bd7",
       "title": "Placeholder goal",
       "target": "Placeholder target",
       "frequency": "daily",
@@ -3261,7 +3262,7 @@ Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` sh
   ],
   "tasks": [
     {
-      "id": "5ab63e26-15c2-43d3-a811-d37620020c0a",
+      "id": "b24a7f07-adf8-4417-a884-d6aeead43669",
       "title": "Placeholder task",
       "time_slot": "morning",
       "time_of_day": "08:00",
@@ -3273,10 +3274,12 @@ Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` sh
     }
   ],
   "capabilities": {
-    "can_edit_plan": true
+    "can_edit_plan": true,
+    "can_tick_tasks": true,
+    "can_add_observation": true
   },
-  "created_at": "2026-10-27T22:30:57.133041",
-  "updated_at": "2026-10-27T22:30:57.133047"
+  "created_at": "2026-10-28T10:10:50.058340",
+  "updated_at": "2026-10-28T10:10:50.058343"
 }
 ```
 _capture `206-a-create-blank.json`_
@@ -3295,12 +3298,12 @@ A plan created from a template for a client booked by someone else (WhatsApp; th
   },
   "diagnosis": "Placeholder diagnosis two",
   "risk_level": "high",
-  "start_date": "2026-10-27",
+  "start_date": "2026-10-28",
   "duration_days": 30,
   "review_every_days": 14,
-  "review_due_on": "2026-11-10",
+  "review_due_on": "2026-11-11",
   "template": {
-    "id": "aaa0ff22-39db-41fe-8623-9ec0bce4d7bd",
+    "id": "957d1ed4-18a5-45b3-a53f-a8c8e701a163",
     "name": "Stroke Recovery",
     "version": 1
   },
@@ -3329,7 +3332,7 @@ Errors:
   "detail": {
     "code": "care_plan_exists",
     "message": "This client already has an active care plan.",
-    "plan_id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d"
+    "plan_id": "34fe9218-f4df-4bca-8261-44a82a0f50db"
   }
 }
 ```
@@ -3377,11 +3380,13 @@ The full plan, for any caregiver with a live visit for the client (a completed o
 <!-- capture: 209-b-get-plan-plain-caregiver.json response.body keys=id,version,status,capabilities -->
 ```json
 {
-  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
   "version": 1,
   "status": "active",
   "capabilities": {
-    "can_edit_plan": false
+    "can_edit_plan": false,
+    "can_tick_tasks": false,
+    "can_add_observation": false
   }
 }
 ```
@@ -3394,15 +3399,15 @@ _capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
 
 ### 16.7 Lists
 
-`GET /caregiver/care-plans?status=active|completed&q=` is the **Assigned Care Plan** tab: plans for the clients of the caller's live visits, newest change first (default `active`; `q` searches the client name; any other `status` is `422`). It carries the diagnosis and risk only.
+`GET /caregiver/care-plans?status=active|completed&q=` is the **Assigned Care Plan** tab: plans for the clients of the caller's live visits, newest change first (default `active`; `q` searches the client name; any other `status` is `422`). It carries the diagnosis, risk and (from slice B2) `progress_percent`, the same number as `overall_percent` in section 16.18: `null` while there is nothing to measure, so show no bar rather than 0%.
 
 <!-- capture: 217-a-assigned-list.json response.body -->
 ```json
 {
   "items": [
     {
-      "id": "df2b0e55-f1d2-491c-9012-925327dbf16b",
-      "booking_id": "a0857ea0-9c60-48ed-85ec-c2714487f1f1",
+      "id": "9cd68e75-9c03-4904-8ed5-a87ec20df0a5",
+      "booking_id": "b68e5c5e-2f8b-4ae4-9f90-31bd57fff574",
       "client": {
         "full_name": "Placeholder Relative",
         "age": 82,
@@ -3411,11 +3416,12 @@ _capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
       "diagnosis": "Placeholder diagnosis two",
       "risk_level": "high",
       "status": "active",
-      "start_date": "2026-10-27"
+      "start_date": "2026-10-28",
+      "progress_percent": null
     },
     {
-      "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
-      "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+      "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+      "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
       "client": {
         "full_name": "Placeholder Client",
         "age": 71,
@@ -3424,7 +3430,8 @@ _capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
       "diagnosis": "Placeholder diagnosis",
       "risk_level": "high",
       "status": "active",
-      "start_date": "2026-10-28"
+      "start_date": "2026-10-28",
+      "progress_percent": null
     }
   ]
 }
@@ -3438,14 +3445,14 @@ _capture `217-a-assigned-list.json` (two clients: one booked for themselves, one
 {
   "items": [
     {
-      "booking_id": "f552c098-3b49-468d-b25f-426dcf56adf3",
+      "booking_id": "cadcc485-1d78-45df-901d-f22575f84e02",
       "client": {
         "full_name": "Placeholder Client Two",
         "age": null,
         "gender": "male"
       },
       "booking_status": "accepted",
-      "scheduled_date": "2026-10-28T22:30:56.365320"
+      "scheduled_date": "2026-10-29T10:10:49.287333"
     }
   ]
 }
@@ -3457,8 +3464,8 @@ _capture `217-a-assigned-list.json` (two clients: one booked for themselves, one
 ```json
 [
   {
-    "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
-    "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+    "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+    "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
     "client": {
       "full_name": "Placeholder Client",
       "age": 71,
@@ -3467,7 +3474,8 @@ _capture `217-a-assigned-list.json` (two clients: one booked for themselves, one
     "diagnosis": "Placeholder diagnosis",
     "risk_level": "medium",
     "status": "completed",
-    "start_date": "2026-10-28"
+    "start_date": "2026-10-28",
+    "progress_percent": null
   }
 ]
 ```
@@ -3490,7 +3498,7 @@ Send `expected_version` (required; the plan's `version`) and only the fields tha
 <!-- capture: 218-a-patch-plan.json response.body keys=id,version,risk_level,allergies -->
 ```json
 {
-  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
   "version": 2,
   "risk_level": "medium",
   "allergies": [
@@ -3513,7 +3521,7 @@ _capture `218-a-patch-plan.json` (response trimmed)_
 <!-- capture: 219-a-patch-version-conflict.json response.body path=detail.plan keys=id,version,risk_level -->
 ```json
 {
-  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
   "version": 2,
   "risk_level": "medium"
 }
@@ -3525,11 +3533,13 @@ Completing a plan, then trying to change it:
 <!-- capture: 221-a-plan-complete.json response.body keys=id,version,status,capabilities -->
 ```json
 {
-  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
   "version": 6,
   "status": "completed",
   "capabilities": {
-    "can_edit_plan": false
+    "can_edit_plan": false,
+    "can_tick_tasks": false,
+    "can_add_observation": false
   }
 }
 ```
@@ -3576,7 +3586,7 @@ Every goal response is `{goal, plan_version}`. **`plan_version` is the plan's ne
 ```json
 {
   "goal": {
-    "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+    "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
     "title": "Placeholder goal two",
     "target": null,
     "frequency": "weekly",
@@ -3589,7 +3599,7 @@ Every goal response is `{goal, plan_version}`. **`plan_version` is the plan's ne
 ```json
 {
   "goal": {
-    "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+    "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
     "title": "Placeholder goal two",
     "target": "Placeholder target two",
     "frequency": "weekly",
@@ -3602,7 +3612,7 @@ Every goal response is `{goal, plan_version}`. **`plan_version` is the plan's ne
 ```json
 {
   "goal": {
-    "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+    "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
     "title": "Placeholder goal two",
     "target": "Placeholder target two",
     "frequency": "weekly",
@@ -3634,7 +3644,7 @@ _captures `220-a`, `220-b`, `220-c`_
 2. **`version` moves on every write**, including goal writes. After any write, take the new version from the response (`version` on the plan, `plan_version` on goals) before the next edit.
 3. **Present-but-empty, not absent:** `allergies`, `special_instructions`, `goals`, `tasks` are `[]` when empty. `template`, `review_every_days`, `review_due_on` and `client.age` are `null` when unknown.
 4. **`client`** is the person visited (the patient for a visit booked for themselves, the care recipient otherwise). There is no address, phone, email or booking condition in any care plan response.
-5. **Do not show the nurse-only actions to others**: use `can_author` (visit summary) and `capabilities.can_edit_plan` (plan). Show a read-only banner when `status` is `completed` or `archived`.
+5. **Do not show the nurse-only actions to others**: use `can_author` (visit summary) and `capabilities.can_edit_plan` (plan). Ticks and notes have their own flags (section 16.13). Show a read-only banner when `status` is `completed` or `archived`.
 6. **Seeded templates are drafts**: show "Not yet clinically reviewed" while `clinical_review_status` is `pending`.
 7. **Care plan responses are health data**: never persist them on the device.
 
@@ -3656,3 +3666,659 @@ _captures `220-a`, `220-b`, `220-c`_
 | Two simultaneous creates leave one plan (`409`), stale goal edit/delete `409` | **[not live]** | `app/tests/test_care_plans_core.py` |
 | Template with `clinical_review_status: "approved"` | **No** | None is approved yet; the field value comes from the schema (`pending` or `approved`) |
 | Compose stack, real device | **No** | Harness only, per the project's RAM rule |
+
+### 16.13 B2 overview: ticks, notes, progress
+
+Slice B2 adds eight calls (task add/edit/remove, day view, tick, notes list/add, progress) to the care plans above. Everything in 16.1 still applies: the same live-visit access, the same single `404`, `Cache-Control: no-store`, nothing written to the device.
+
+**`capabilities` on the plan now has three flags**, all computed for the caller:
+
+| Flag | True when |
+|---|---|
+| `can_edit_plan` | the caller is a nurse and the plan is `active` |
+| `can_tick_tasks` | the plan is `active` **and the caller has a visit for this client in progress** |
+| `can_add_observation` | same rule as `can_tick_tasks` |
+
+<!-- capture: 237-a-get-plan-with-capabilities.json response.body path=capabilities -->
+```json
+{
+  "can_edit_plan": true,
+  "can_tick_tasks": true,
+  "can_add_observation": true
+}
+```
+A caregiver whose visit is only `accepted` or `en_route` can read the plan but gets `false` for both visit flags:
+
+<!-- capture: 237-b-get-plan-waiting-caregiver.json response.body path=capabilities -->
+```json
+{
+  "can_edit_plan": false,
+  "can_tick_tasks": false,
+  "can_add_observation": false
+}
+```
+
+**Who may do what**
+
+| Action | Who | Needs |
+|---|---|---|
+| Add, edit, remove a task | nurse | live visit (any status), plan `active` |
+| Read the day view, notes, progress | any caregiver with a live visit for the client | live visit; a completed plan is still readable |
+| Tick or untick a task | **any** caregiver on the client, not only a nurse | a visit of the caller's own **in progress**, plan `active`, **today** only |
+| Add a note | **any** caregiver on the client | a visit of the caller's own in progress, plan `active` |
+
+**Timestamps** (`done_at`, `created_at`, `next_before`) are UTC without a `Z` suffix, as everywhere else in the care plan responses: parse them as UTC. **Dates** (`date`, `for_date`) are calendar days in Africa/Lagos.
+
+**Ticks and notes do not change the plan's `version`.** Only task add/edit/remove (and the other plan edits) bump it, so a nurse editing a task list is not forced to reload every time someone ticks a box.
+
+New error codes: `visit_not_in_progress` (409), `task_date_not_today` (422), `task_not_scheduled` (422). `plan_not_editable` (409) now also comes from ticks and notes on a completed or archived plan. All are `{"detail": {"code", "message"}}`.
+
+### 16.14 Task definitions (nurse): add, edit, remove
+
+| Call | Body | Notes |
+|---|---|---|
+| `POST /caregiver/care-plans/{plan_id}/tasks` | `{title, time_slot, time_of_day?, days_of_week, expected_version?}` | `201`. `expected_version` is optional (adding overwrites nothing). `time_slot`: `morning`, `afternoon`, `evening`, `night`. `time_of_day` is a display time `HH:MM`. `days_of_week`: unique numbers, 1 = Monday to 7 = Sunday. At most 60 live tasks (`422` `invalid_care_plan`) |
+| `PATCH /caregiver/care-plan-tasks/{task_id}` | `{expected_version, title?, time_slot?, time_of_day?, days_of_week?}` | `time_of_day: null` clears it; `title`, `time_slot` and `days_of_week` cannot be null |
+| `DELETE /caregiver/care-plan-tasks/{task_id}?expected_version=N` | none | **Deactivates the task; its ticks are kept.** `expected_version` is a **query parameter** |
+
+Every task response is `{task, plan_version}`: use `plan_version` as the next `expected_version`. A task is **scheduled from the day it is added**: it never shows on earlier days, and editing `days_of_week` or the slot applies to every day the task is shown.
+
+<!-- capture: 230-a-task-add.json request.body -->
+```json
+{
+  "title": "Placeholder afternoon task",
+  "time_slot": "afternoon",
+  "time_of_day": "13:00",
+  "days_of_week": [
+    1,
+    3,
+    5
+  ],
+  "expected_version": 1
+}
+```
+<!-- capture: 230-a-task-add.json response.body -->
+```json
+{
+  "task": {
+    "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+    "title": "Placeholder afternoon task",
+    "time_slot": "afternoon",
+    "time_of_day": "13:00",
+    "days_of_week": [
+      1,
+      3,
+      5
+    ]
+  },
+  "plan_version": 2
+}
+```
+<!-- capture: 231-a-task-edit.json response.body -->
+```json
+{
+  "task": {
+    "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+    "title": "Placeholder afternoon walk",
+    "time_slot": "afternoon",
+    "time_of_day": null,
+    "days_of_week": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "plan_version": 3
+}
+```
+A stale `expected_version` is `409` `version_conflict`, and the body also carries the current plan (trimmed here):
+
+<!-- capture: 231-b-task-edit-version-conflict.json response.body path=detail keys=code,message -->
+```json
+{
+  "code": "version_conflict",
+  "message": "Someone just changed this plan. Reload it and try again."
+}
+```
+<!-- capture: 232-a-task-remove.json response.body -->
+```json
+{
+  "task": {
+    "id": "e20e9d6d-d108-495e-9f4f-53565c5f0a27",
+    "title": "Placeholder other-day task",
+    "time_slot": "night",
+    "time_of_day": null,
+    "days_of_week": [
+      1,
+      2,
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  "plan_version": 5
+}
+```
+A removed task is gone for edits and ticks: the plain `404` (the same body as "no access"). Removing it a second time with the current `expected_version` is a harmless `200`.
+
+<!-- capture: 232-b-task-removed-is-404.json response.body -->
+```json
+{
+  "detail": "Care plan not found"
+}
+```
+Not a nurse:
+
+<!-- capture: 230-b-task-add-not-a-nurse.json response.body -->
+```json
+{
+  "detail": {
+    "code": "not_a_nurse",
+    "message": "Only nurses can create or change a care plan."
+  }
+}
+```
+Field limits are the standard `422` list (the rejected value is never echoed):
+
+<!-- capture: 230-c-task-add-validation.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "string_too_short",
+      "loc": [
+        "body",
+        "title"
+      ],
+      "msg": "String should have at least 1 character",
+      "ctx": {
+        "min_length": 1
+      }
+    },
+    {
+      "type": "literal_error",
+      "loc": [
+        "body",
+        "time_slot"
+      ],
+      "msg": "Input should be 'morning', 'afternoon', 'evening' or 'night'",
+      "ctx": {
+        "expected": "'morning', 'afternoon', 'evening' or 'night'"
+      }
+    },
+    {
+      "type": "value_error",
+      "loc": [
+        "body",
+        "days_of_week"
+      ],
+      "msg": "Value error, days_of_week must be unique numbers from 1 (Monday) to 7 (Sunday)",
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+### 16.15 The day view: `GET /caregiver/care-plans/{plan_id}/tasks?date=YYYY-MM-DD`
+
+Any caregiver with a live visit for the client. `date` defaults to today (Africa/Lagos); any day can be read. A task is listed on a day when it is active, the day is inside the plan's dates (`start_date` for `duration_days`), its `days_of_week` includes the day's weekday, and it already existed that day. Only slots that have a task are returned, in day order; tasks in a slot are ordered by `time_of_day`, untimed last. `slots[].time_of_day` is the earliest task time in the slot, for the heading.
+
+<!-- capture: 233-a-day-view.json response.body -->
+```json
+{
+  "date": "2026-10-28",
+  "is_today": true,
+  "can_tick": true,
+  "slots": [
+    {
+      "slot": "morning",
+      "time_of_day": "08:00",
+      "tasks": [
+        {
+          "id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+          "title": "Placeholder morning task",
+          "time_of_day": "08:00",
+          "done": false,
+          "done_by": null,
+          "done_at": null
+        }
+      ]
+    },
+    {
+      "slot": "afternoon",
+      "time_of_day": null,
+      "tasks": [
+        {
+          "id": "a1ae63c9-ee9b-4dd6-8297-b1799a30f5c5",
+          "title": "Placeholder afternoon walk",
+          "time_of_day": null,
+          "done": false,
+          "done_by": null,
+          "done_at": null
+        }
+      ]
+    },
+    {
+      "slot": "evening",
+      "time_of_day": "18:00",
+      "tasks": [
+        {
+          "id": "21ee30ca-1e9d-407b-890d-b51a5b7f297c",
+          "title": "Placeholder evening task",
+          "time_of_day": "18:00",
+          "done": false,
+          "done_by": null,
+          "done_at": null
+        }
+      ]
+    }
+  ]
+}
+```
+For another day `is_today` and `can_tick` are `false`. Show the boxes read-only:
+
+<!-- capture: 233-b-day-view-tomorrow.json response.body keys=date,is_today,can_tick -->
+```json
+{
+  "date": "2026-10-29",
+  "is_today": false,
+  "can_tick": false
+}
+```
+`can_tick` is `true` only for **today**, with the plan `active` and a visit of the caller's in progress. For a caregiver whose visit has not started:
+
+<!-- capture: 233-c-day-view-waiting-caregiver.json response.body keys=date,is_today,can_tick -->
+```json
+{
+  "date": "2026-10-28",
+  "is_today": true,
+  "can_tick": false
+}
+```
+After a tick, every caregiver on the client sees who did it and when:
+
+<!-- capture: 233-d-day-view-after-tick.json response.body path=slots first=1 -->
+```json
+[
+  {
+    "slot": "morning",
+    "time_of_day": "08:00",
+    "tasks": [
+      {
+        "id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+        "title": "Placeholder morning task",
+        "time_of_day": "08:00",
+        "done": true,
+        "done_by": "Placeholder Nurse",
+        "done_at": "2026-10-28T10:10:52.399709"
+      }
+    ]
+  }
+]
+```
+A bad `date` is a plain `422`. A day outside the plan's dates, or with nothing due, is `200` with `slots: []`.
+
+### 16.16 Ticking: `PUT /caregiver/care-plan-tasks/{task_id}/completion`
+
+Body `{"date": "YYYY-MM-DD", "done": true|false}`. `done: true` ticks, `done: false` unticks. **Idempotent: repeat it as often as needed (a retry after a dropped connection is safe).** Ticking an already-ticked task returns the first tick (who, when) and changes nothing, even if a different caregiver sends it; unticking what is not ticked is a `200` no-op.
+
+<!-- capture: 234-a-tick.json response.body -->
+```json
+{
+  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "date": "2026-10-28",
+  "done": true,
+  "done_by": "Placeholder Nurse",
+  "done_at": "2026-10-28T10:10:52.399709"
+}
+```
+<!-- capture: 234-b-tick-again.json response.body -->
+```json
+{
+  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "date": "2026-10-28",
+  "done": true,
+  "done_by": "Placeholder Nurse",
+  "done_at": "2026-10-28T10:10:52.399709"
+}
+```
+<!-- capture: 234-c-untick.json response.body -->
+```json
+{
+  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "date": "2026-10-28",
+  "done": false,
+  "done_by": null,
+  "done_at": null
+}
+```
+Unticking someone else's tick is allowed and recorded in the plan's history (never silently). Unticking twice:
+
+<!-- capture: 234-d-untick-again.json response.body -->
+```json
+{
+  "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+  "date": "2026-10-28",
+  "done": false,
+  "done_by": null,
+  "done_at": null
+}
+```
+
+**Refusals** (check the `code`):
+
+| Status | `code` | When | What the app shows |
+|---|---|---|---|
+| `409` | `visit_not_in_progress` | the caller has no visit of their own in progress for this client (also: it ended a moment ago) | boxes disabled, "Available during an active visit" |
+| `409` | `plan_not_editable` | the plan is completed or archived | read-only banner |
+| `422` | `task_date_not_today` | `date` is not **today in Africa/Lagos** (the server's clock decides, not the phone's) | refresh the day; do not retry |
+| `422` | `task_not_scheduled` | the task is not due on that day (its weekdays exclude it, the plan has not started or has ended, or it was added later) | hide the box |
+| `404` | (plain) | no access, unknown task, or a removed task | "This care plan isn't available" |
+
+<!-- capture: 234-e-tick-yesterday.json response.body -->
+```json
+{
+  "detail": {
+    "code": "task_date_not_today",
+    "message": "Tasks can only be ticked for today."
+  }
+}
+```
+<!-- capture: 234-f-tick-visit-not-in-progress.json response.body -->
+```json
+{
+  "detail": {
+    "code": "visit_not_in_progress",
+    "message": "Available during an active visit."
+  }
+}
+```
+<!-- capture: 234-g-tick-not-scheduled.json response.body -->
+```json
+{
+  "detail": {
+    "code": "task_not_scheduled",
+    "message": "This task is not scheduled for that day."
+  }
+}
+```
+<!-- capture: 238-b-tick-plan-completed.json response.body -->
+```json
+{
+  "detail": {
+    "code": "plan_not_editable",
+    "message": "This care plan is completed or archived and can no longer be changed."
+  }
+}
+```
+<!-- capture: 238-a-tick-no-access.json response.body -->
+```json
+{
+  "detail": "Care plan not found"
+}
+```
+**Midnight.** "Today" flips at 00:00 in Lagos. A tick sent at 23:59:59 that arrives after midnight is refused with `task_date_not_today`: on that error, reload the day view (it will now show the new day) and tell the user their tick for the previous day was not saved. Do not queue or auto-retry ticks, and keep the user's taps visible until the server confirms.
+
+### 16.17 Visit notes (observations)
+
+| Call | Notes |
+|---|---|
+| `POST /caregiver/care-plans/{plan_id}/observations` | `{body, category?}`. `body` 1 to 2000 characters (trimmed). `category`: `observation` (default, shows under Notes) or `special_note` (shows under Allergies and Special Instructions). `201` with the note. Any caregiver on the client, during their own in-progress visit |
+| `GET /caregiver/care-plans/{plan_id}/observations?limit=&before=&before_id=&category=` | Newest first. `limit` 1 to 50 (default 20). `before` and `before_id` = the previous page's `next_before` and `next_before_id` (send both: the id breaks ties between notes with the same timestamp). `category` filters |
+
+**Notes cannot be edited or deleted** (there is no such call): a correction is a new note. Each note shows its author's name.
+
+<!-- capture: 235-a-note-add.json request.body -->
+```json
+{
+  "body": "Placeholder observation: ate well."
+}
+```
+<!-- capture: 235-a-note-add.json response.body -->
+```json
+{
+  "id": "ffd9a4e0-fa3b-41c8-aaca-e9bb778a70b9",
+  "category": "observation",
+  "body": "Placeholder observation: ate well.",
+  "author": {
+    "name": "Placeholder Nurse",
+    "kind": "caregiver"
+  },
+  "created_at": "2026-10-28T10:10:52.806793"
+}
+```
+<!-- capture: 235-b-special-note-add.json response.body -->
+```json
+{
+  "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+  "category": "special_note",
+  "body": "Placeholder special note.",
+  "author": {
+    "name": "Placeholder Caregiver",
+    "kind": "caregiver"
+  },
+  "created_at": "2026-10-28T10:10:52.834517"
+}
+```
+Paging. `next_before` and `next_before_id` are `null` on the last page; otherwise pass both unchanged as `before` and `before_id`:
+
+<!-- capture: 235-d-notes-page-1.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+      "category": "special_note",
+      "body": "Placeholder special note.",
+      "author": {
+        "name": "Placeholder Caregiver",
+        "kind": "caregiver"
+      },
+      "created_at": "2026-10-28T10:10:52.834517"
+    }
+  ],
+  "next_before": "2026-10-28T10:10:52.834517",
+  "next_before_id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e"
+}
+```
+<!-- capture: 235-e-notes-page-2.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "ffd9a4e0-fa3b-41c8-aaca-e9bb778a70b9",
+      "category": "observation",
+      "body": "Placeholder observation: ate well.",
+      "author": {
+        "name": "Placeholder Nurse",
+        "kind": "caregiver"
+      },
+      "created_at": "2026-10-28T10:10:52.806793"
+    }
+  ],
+  "next_before": null,
+  "next_before_id": null
+}
+```
+Filter by category:
+
+<!-- capture: 235-f-notes-special-only.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+    "category": "special_note",
+    "body": "Placeholder special note.",
+    "author": {
+      "name": "Placeholder Caregiver",
+      "kind": "caregiver"
+    },
+    "created_at": "2026-10-28T10:10:52.834517"
+  }
+]
+```
+Refusals: outside an in-progress visit, `409` `visit_not_in_progress`; on a completed plan, `409` `plan_not_editable` (the old notes stay readable); empty or too long, the standard `422`.
+
+<!-- capture: 235-g-note-visit-not-in-progress.json response.body -->
+```json
+{
+  "detail": {
+    "code": "visit_not_in_progress",
+    "message": "Available during an active visit."
+  }
+}
+```
+<!-- capture: 238-c-note-plan-completed.json response.body -->
+```json
+{
+  "detail": {
+    "code": "plan_not_editable",
+    "message": "This care plan is completed or archived and can no longer be changed."
+  }
+}
+```
+<!-- capture: 235-h-note-validation.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "string_too_short",
+      "loc": [
+        "body",
+        "body"
+      ],
+      "msg": "String should have at least 1 character",
+      "ctx": {
+        "min_length": 1
+      }
+    }
+  ]
+}
+```
+A completed plan keeps its notes as history:
+
+<!-- capture: 238-d-notes-list-completed-plan.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e",
+      "category": "special_note",
+      "body": "Placeholder special note.",
+      "author": {
+        "name": "Placeholder Caregiver",
+        "kind": "caregiver"
+      },
+      "created_at": "2026-10-28T10:10:52.834517"
+    }
+  ],
+  "next_before": "2026-10-28T10:10:52.834517",
+  "next_before_id": "bf0dfe16-5ef6-4ffc-9f1d-b38b24b0104e"
+}
+```
+The text of a note is health data and is **not** shown to a family member in this version. No flag for that is sent or accepted by any call.
+
+### 16.18 View Progress: `GET /caregiver/care-plans/{plan_id}/progress`
+
+Any caregiver with a live visit for the client. `overall_percent` is **ticked task-occurrences divided by scheduled ones, counted only over days on which a visit for this client started** (by any caregiver; a visit that runs past midnight counts both days, and a visit never closed counts for at most 24 hours). A nurse who visits Monday, Wednesday and Friday cannot tick Tuesday, so Tuesday is not counted against the plan. A task counts from the day it was added; removed tasks drop out of both numbers. A completed or archived plan stops counting on the day it was closed. `by_day` lists the last 14 visit days, oldest first; the headline numbers cover all visit days. `day` is the plan's day number (0 before it starts, never above `of_days`).
+
+A plan with history (past visit days were inserted directly for this capture; the response is real):
+
+<!-- capture: 236-b-progress-with-history.json response.body -->
+```json
+{
+  "overall_percent": 55,
+  "scheduled": 11,
+  "completed": 6,
+  "visit_days": 4,
+  "day": 9,
+  "of_days": 30,
+  "review_due_on": "2026-11-03",
+  "by_day": [
+    {
+      "date": "2026-10-21",
+      "scheduled": 3,
+      "completed": 2
+    },
+    {
+      "date": "2026-10-22",
+      "scheduled": 3,
+      "completed": 2
+    },
+    {
+      "date": "2026-10-25",
+      "scheduled": 2,
+      "completed": 1
+    },
+    {
+      "date": "2026-10-28",
+      "scheduled": 3,
+      "completed": 1
+    }
+  ],
+  "goals": {
+    "active": 1,
+    "achieved": 0,
+    "discontinued": 0
+  },
+  "last_observation_at": "2026-10-28T10:10:52.834517"
+}
+```
+With no visit yet, or nothing scheduled, `overall_percent` is `null`: show "No visits yet", not 0%.
+
+<!-- capture: 236-c-progress-no-visit-yet.json response.body -->
+```json
+{
+  "overall_percent": null,
+  "scheduled": 0,
+  "completed": 0,
+  "visit_days": 0,
+  "day": 1,
+  "of_days": 30,
+  "review_due_on": null,
+  "by_day": [],
+  "goals": {
+    "active": 0,
+    "achieved": 0,
+    "discontinued": 0
+  },
+  "last_observation_at": null
+}
+```
+
+### 16.19 B2 traps and what the app must show
+
+1. **Never trust a tick locally.** Show a box as ticked only after the `200`. The response is the truth (`done`, `done_by`, `done_at`), including when another caregiver ticked it first.
+2. **A tick can fail because the visit ended.** If the caregiver clocks out, every plan call becomes `404` and ticks `409` `visit_not_in_progress`. Prompt for notes and remaining ticks **before** clock-out.
+3. **Only today.** Past days are history. Never show editable boxes on another day (`can_tick` is `false` there).
+4. **Two caregivers, one box.** The second tick is a no-op that returns the first tick. Show "done by <name>"; do not show an error.
+5. **Unticking is visible to the care team** (it is recorded). Ask for confirmation before unticking a task someone else did.
+6. **A removed task leaves every list.** Its past ticks are kept by the server but the app cannot show them; do not offer to restore it (there is no such call).
+7. **Task edits change every day.** Changing a task's days or slot applies to the whole plan, past days included. Warn the nurse before saving.
+8. **Progress is not "days elapsed".** A low number early in a plan is normal; a day without a visit does not lower it. Explain "counted over visit days" next to the percentage.
+9. **Notes are permanent.** Tell the user a note cannot be edited or deleted before they submit it.
+
+### 16.20 B2 verification
+
+| Behaviour | Verified live? | Evidence / reason |
+|---|---|---|
+| Plan `capabilities` with three flags, for a caregiver in progress and one waiting | Yes (test harness: real app and Postgres) | `237` |
+| Task add, edit (incl. clearing the time), remove, removed task is `404`, non-nurse `403`, validation `422`, stale version `409` | Yes (harness) | `230`-`232` |
+| Day view: today, another day, waiting caregiver, after a tick | Yes (harness) | `233` |
+| Tick, repeat tick by another caregiver, untick, untick again | Yes (harness) | `234-a` to `234-d` |
+| Tick refused: yesterday, visit not in progress, not scheduled, plan completed, no access | Yes (harness) | `234-e` to `234-g`, `238-a`, `238-b` |
+| Notes: add, special note, list, two pages, category filter, refusals, history on a completed plan | Yes (harness) | `235`, `238-c`, `238-d` |
+| Progress: today only, with history, no visit yet | Yes (harness). **Past visit days and ticks were inserted directly into the database** (the API cannot tick a past day); the response is real | `236` |
+| A bad `date` or `limit` is a plain `422`; a day outside the plan's dates is `200` with `slots: []` | **[not live]** | `test_care_plan_tasks.py`, `test_care_plan_observations.py` |
+| Progress rounding, Lagos date of a visit that starts near midnight, a visit past midnight, a closed plan, removed or late-added tasks, weekdays | **[not live]** | `app/tests/test_care_plan_progress.py` |
+| The midnight cut-off (23:59:59 vs 00:00:00 Lagos), and a tick racing a plan being completed or a visit ending | **[not live]** | `app/tests/test_care_plan_tasks.py` (clock frozen; real row locks with two sessions) |
+| Many callers ticking at once leave one row | **[not live]** | `app/tests/test_care_plan_tasks.py` |
+| Unticking writes a history event; ticks and notes do not change `version`; notes cannot be edited or deleted | **[not live]** | `test_care_plan_tasks.py`, `test_care_plan_observations.py` |
+| Note text is encrypted, survives key rotation, is wiped by account erasure while the ticks stay | **[not live]** | `test_care_plans_b2_security.py` |
+| `401` with no token, `403` for a patient token on the new routes | **[not live]** | `app/tests/test_care_plans_b2_access.py` |
+| Real device behaviour, push, offline | **No** | Not built (no push for plan changes in v1; the app never queues writes) |

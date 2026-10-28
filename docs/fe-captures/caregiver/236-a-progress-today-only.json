@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/progress",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "overall_percent": 33,
+      "scheduled": 3,
+      "completed": 1,
+      "visit_days": 1,
+      "day": 1,
+      "of_days": 30,
+      "review_due_on": "2026-11-11",
+      "by_day": [
+        {
+          "date": "2026-10-28",
+          "scheduled": 3,
+          "completed": 1
+        }
+      ],
+      "goals": {
+        "active": 1,
+        "achieved": 0,
+        "discontinued": 0
+      },
+      "last_observation_at": "2026-10-28T10:10:52.834517"
+    }
+  },
+  "note": "Only today has a visit so far, so only today is counted."
+}

@@ -1,0 +1,59 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/tasks",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "title": "",
+      "time_slot": "noon",
+      "days_of_week": [
+        1,
+        1
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "body",
+            "title"
+          ],
+          "msg": "String should have at least 1 character",
+          "ctx": {
+            "min_length": 1
+          }
+        },
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "time_slot"
+          ],
+          "msg": "Input should be 'morning', 'afternoon', 'evening' or 'night'",
+          "ctx": {
+            "expected": "'morning', 'afternoon', 'evening' or 'night'"
+          }
+        },
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "days_of_week"
+          ],
+          "msg": "Value error, days_of_week must be unique numbers from 1 (Monday) to 7 (Sunday)",
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  "note": "Field limits: the standard 422 list, no value echoed."
+}

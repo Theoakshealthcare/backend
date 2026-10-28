@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/caregiver/bookings/d89dba59-cae8-488d-a958-132fc3f7e14b/care-plan",
+    "path": "/api/v1/caregiver/bookings/bd787ad8-949e-4cb5-a428-39c61cd5fd03/care-plan",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,7 +12,7 @@
       "cache-control": "no-store"
     },
     "body": {
-      "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+      "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
       "subject_ready": true,
       "can_author": true,
       "plan": null

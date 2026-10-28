@@ -12,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, Time,
-    text,
+    UniqueConstraint, text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB, UUID
 
@@ -25,6 +25,7 @@ GOAL_STATUSES = ("active", "achieved", "discontinued")
 TIME_SLOTS = ("morning", "afternoon", "evening", "night")
 REVIEW_STATUSES = ("pending", "approved")
 ACTOR_TYPES = ("caregiver", "admin", "system")
+OBSERVATION_CATEGORIES = ("observation", "special_note")
 
 
 def _in(column: str, values) -> str:
@@ -125,7 +126,8 @@ class CarePlanGoal(Base):
 
 
 class CarePlanTask(Base):
-    """A task definition ("Check blood pressure", morning, Mon-Fri). The ticks that complete it per day are B2."""
+    """A task definition ("Check blood pressure", morning, Mon-Fri). The ticks that complete it per day are
+    ``CarePlanTaskCompletion``."""
     __tablename__ = "care_plan_tasks"
     __table_args__ = (
         CheckConstraint(_in("time_slot", TIME_SLOTS), name="ck_care_plan_tasks_slot"),
@@ -160,4 +162,42 @@ class CarePlanEvent(Base):
     actor_id = Column(UUID(as_uuid=True), nullable=True)  # null for the system (erasure)
     action = Column(String, nullable=False)
     detail = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CarePlanTaskCompletion(Base):
+    """One tick: this task was done on this day, by this caregiver, during this visit. Unticking deletes the row and writes
+    a ``task.untick`` event. ``UNIQUE (task_id, for_date)`` makes two callers racing on the same tick one row."""
+    __tablename__ = "care_plan_task_completions"
+    __table_args__ = (
+        UniqueConstraint("task_id", "for_date", name="uq_care_plan_task_completions_task_date"),
+        Index("ix_care_plan_task_completions_booking", "booking_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("care_plan_tasks.id"), nullable=False)
+    for_date = Column(Date, nullable=False)  # the day in HOME_TIMEZONE; only today can be ticked
+    completed_by_caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=False)
+    completed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CarePlanObservation(Base):
+    """A visit note. Append-only: no edit and no delete (a correction is a new note), enforced in the service layer, not by
+    a trigger, because erasure must blank ``body_encrypted``. ``family_visible`` is groundwork: no v1 request sets it."""
+    __tablename__ = "care_plan_observations"
+    __table_args__ = (
+        CheckConstraint("num_nonnulls(author_caregiver_id, author_admin_id) = 1", name="ck_care_plan_observations_one_author"),
+        CheckConstraint(_in("category", OBSERVATION_CATEGORIES), name="ck_care_plan_observations_category"),
+        Index("ix_care_plan_observations_plan_created", "plan_id", text("created_at DESC")),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("care_plans.id"), nullable=False)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=True)
+    author_caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=True)
+    author_admin_id = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
+    category = Column(String, nullable=False, default="observation", server_default=text("'observation'"))
+    body_encrypted = Column(Text, nullable=True)  # required on write; null only after erasure
+    family_visible = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

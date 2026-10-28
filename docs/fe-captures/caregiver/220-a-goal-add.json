@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/caregiver/care-plans/b8be51f8-0837-4c4a-b994-2aa15f892f9d/goals",
+    "path": "/api/v1/caregiver/care-plans/34fe9218-f4df-4bca-8261-44a82a0f50db/goals",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "title": "Placeholder goal two",
@@ -16,7 +16,7 @@
     },
     "body": {
       "goal": {
-        "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+        "id": "d96c1f51-f657-4102-bac9-06ce60e068e2",
         "title": "Placeholder goal two",
         "target": null,
         "frequency": "weekly",

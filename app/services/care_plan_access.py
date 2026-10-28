@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.booking import Booking, BookingStatus
 from app.db.models.care import CareRecipient, CareRelationship
-from app.db.models.care_plan import CarePlan, CarePlanGoal, CarePlanTask
+from app.db.models.care_plan import CarePlan, CarePlanGoal, CarePlanObservation, CarePlanTask
 from app.db.models.caregiver import Caregiver, CaregiverSkill
 from app.db.models.consent import Consent
 from app.db.models.patient import Patient
@@ -166,6 +166,7 @@ class FamilyAccess:
     plan_id: UUID
     goals: List[CarePlanGoal] = field(default_factory=list)
     tasks: List[CarePlanTask] = field(default_factory=list)
+    observations: List[CarePlanObservation] = field(default_factory=list)
 
 
 def _latest_family_consent_granted(db: Session, recipient_id: UUID) -> bool:
@@ -199,4 +200,7 @@ def resolve_family_access(db: Session, user: User, plan_id: UUID) -> FamilyAcces
              .order_by(CarePlanGoal.sort_order).all())
     tasks = (db.query(CarePlanTask).filter(CarePlanTask.plan_id == plan.id, CarePlanTask.family_visible.is_(True),
                                            CarePlanTask.is_active.is_(True)).order_by(CarePlanTask.sort_order).all())
-    return FamilyAccess(plan.id, goals, tasks)
+    notes = (db.query(CarePlanObservation)
+             .filter(CarePlanObservation.plan_id == plan.id, CarePlanObservation.family_visible.is_(True))
+             .order_by(CarePlanObservation.created_at.desc()).all())
+    return FamilyAccess(plan.id, goals, tasks, notes)

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/caregiver/bookings/deafd784-4f22-495f-b86b-d9f65a43466a/care-plan",
+    "path": "/api/v1/caregiver/bookings/561d72b9-8f2e-45da-8418-7093b964ad66/care-plan",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,11 +12,11 @@
       "cache-control": "no-store"
     },
     "body": {
-      "booking_id": "deafd784-4f22-495f-b86b-d9f65a43466a",
+      "booking_id": "561d72b9-8f2e-45da-8418-7093b964ad66",
       "subject_ready": true,
       "can_author": false,
       "plan": {
-        "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+        "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
         "version": 1,
         "status": "active",
         "diagnosis": "Placeholder diagnosis",

@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/care-plan-tasks/47f653e2-e9e1-4c75-ad77-14d85aa53b7c/completion",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "date": "2026-10-28",
+      "done": false
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "task_id": "47f653e2-e9e1-4c75-ad77-14d85aa53b7c",
+      "date": "2026-10-28",
+      "done": false,
+      "done_by": null,
+      "done_at": null
+    }
+  },
+  "note": "Unticking what is not ticked is a no-op."
+}

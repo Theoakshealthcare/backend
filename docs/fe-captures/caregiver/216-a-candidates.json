@@ -14,14 +14,14 @@
     "body": {
       "items": [
         {
-          "booking_id": "f552c098-3b49-468d-b25f-426dcf56adf3",
+          "booking_id": "cadcc485-1d78-45df-901d-f22575f84e02",
           "client": {
             "full_name": "Placeholder Client Two",
             "age": null,
             "gender": "male"
           },
           "booking_status": "accepted",
-          "scheduled_date": "2026-10-28T22:30:56.365320"
+          "scheduled_date": "2026-10-29T10:10:49.287333"
         }
       ]
     }

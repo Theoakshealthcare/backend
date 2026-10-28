@@ -45,7 +45,7 @@ def test_a_nurse_creates_a_plan_for_a_client_booked_for_themselves(db, client):
     assert plan["tasks"][0]["title"] == SECRET_TASK and plan["tasks"][0]["time_of_day"] == "08:00"
     assert plan["tasks"][0]["days_of_week"] == [1, 3, 5]
     assert plan["author"] == {"name": nurse.full_name, "kind": "caregiver"}
-    assert plan["template"] is None and plan["capabilities"] == {"can_edit_plan": True}
+    assert plan["template"] is None and plan["capabilities"] == {"can_edit_plan": True, "can_tick_tasks": True, "can_add_observation": True}
     row = db.get(CarePlan, plan["id"])
     assert row.patient_id == patient.id and row.care_recipient_id is None
     assert row.created_by_caregiver_id == nurse.id and row.created_from_booking_id == booking.id
@@ -240,7 +240,7 @@ def test_a_non_nurse_reads_the_plan_but_cannot_edit(db, client):
     other = make_caregiver(db)  # specialization says "nurse" but there is no skill row
     make_booking(db, patient, other, status=BookingStatus.ACCEPTED, booking_for="myself")
     r = client.get(_plan_url(plan["id"]), headers=h(other))
-    assert r.status_code == 200 and r.json()["capabilities"] == {"can_edit_plan": False}
+    assert r.status_code == 200 and r.json()["capabilities"] == {"can_edit_plan": False, "can_tick_tasks": False, "can_add_observation": False}  # accepted, not started
     assert r.json()["diagnosis"] == SECRET_DIAGNOSIS
 
 
@@ -308,7 +308,7 @@ def test_completing_a_plan_makes_it_read_only_and_frees_the_client(db, client):
     nurse, patient, booking, plan = _created(client, db)
     done = client.patch(_plan_url(plan["id"]), headers=h(nurse), json={"expected_version": plan["version"], "status": "completed"})
     assert done.status_code == 200 and done.json()["status"] == "completed"
-    assert done.json()["capabilities"] == {"can_edit_plan": False}
+    assert done.json()["capabilities"] == {"can_edit_plan": False, "can_tick_tasks": False, "can_add_observation": False}
     row = db.get(CarePlan, plan["id"])
     db.refresh(row)
     assert row.completed_at is not None
@@ -439,7 +439,7 @@ def test_the_assigned_list_shows_plans_of_my_live_clients_and_searches_by_name(d
     assert r.status_code == 200
     assert r.json()["items"] == [{
         "id": plan["id"], "booking_id": str(booking.id), "client": plan["client"], "diagnosis": SECRET_DIAGNOSIS,
-        "risk_level": "high", "status": "active", "start_date": "2026-10-28"}]
+        "risk_level": "high", "status": "active", "start_date": "2026-10-28", "progress_percent": None}]
     assert client.get(f"{BASE}/care-plans?q=placeholder cl", headers=h(nurse)).json()["items"][0]["id"] == plan["id"]
     assert client.get(f"{BASE}/care-plans?q=nobody", headers=h(nurse)).json()["items"] == []
     assert client.get(f"{BASE}/care-plans?status=completed", headers=h(nurse)).json()["items"] == []

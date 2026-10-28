@@ -14,7 +14,7 @@
     "body": {
       "items": [
         {
-          "id": "ca9f836a-e5af-4ee4-b2bf-5ae468b4930e",
+          "id": "2085f83c-22a2-4d7a-9da1-111dbb6edef1",
           "key": "cardiac_rehabilitation",
           "name": "Cardiac Rehabilitation",
           "summary": "Light activity, resting readings and low-salt meals while recovering from a heart event.",
@@ -25,7 +25,7 @@
           "version": 1
         },
         {
-          "id": "cd0d173c-6816-4fae-8dcb-10fb215024d2",
+          "id": "8f59af4a-0829-471c-bfd0-5fcfa7ff6968",
           "key": "diabetes_management",
           "name": "Diabetes Management",
           "summary": "Meals, readings, foot care and gentle activity for a client living with diabetes.",
@@ -36,7 +36,7 @@
           "version": 1
         },
         {
-          "id": "6bb598c1-9a03-4687-abb0-7e5b5c1b75a9",
+          "id": "c02676fd-ebc3-4355-955a-abaaa3765f5a",
           "key": "elderly_daily_living_dementia",
           "name": "Elderly Daily Living and Dementia Support",
           "summary": "A calm daily routine with meals, fluids, safety and engagement for an older client or a client with dementia.",
@@ -47,7 +47,7 @@
           "version": 1
         },
         {
-          "id": "df66b2c6-1f37-4de6-8136-9d557b5cd636",
+          "id": "c90f5fb5-ae69-4ba5-954e-e4b5c2e89f43",
           "key": "post_surgery_recovery",
           "name": "Post-Surgery Recovery",
           "summary": "Wound care, comfort, gentle movement and nutrition while healing after an operation.",
@@ -58,7 +58,7 @@
           "version": 1
         },
         {
-          "id": "aaa0ff22-39db-41fe-8623-9ec0bce4d7bd",
+          "id": "957d1ed4-18a5-45b3-a53f-a8c8e701a163",
           "key": "stroke_recovery",
           "name": "Stroke Recovery",
           "summary": "Daily support after a stroke: safe movement, therapy exercises, swallowing and skin care.",

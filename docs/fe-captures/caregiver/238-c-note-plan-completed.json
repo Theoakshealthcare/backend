@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/86fcba20-5be2-4bd2-837c-aac20e9fb286/observations",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "body": "Placeholder late note"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "plan_not_editable",
+        "message": "This care plan is completed or archived and can no longer be changed."
+      }
+    }
+  }
+}

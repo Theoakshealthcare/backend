@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/3b297293-684c-4c8a-ad0d-fd9e3b2a84df/progress",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "overall_percent": null,
+      "scheduled": 0,
+      "completed": 0,
+      "visit_days": 0,
+      "day": 1,
+      "of_days": 30,
+      "review_due_on": null,
+      "by_day": [],
+      "goals": {
+        "active": 0,
+        "achieved": 0,
+        "discontinued": 0
+      },
+      "last_observation_at": null
+    }
+  },
+  "note": "No visit has started: `overall_percent` is null (show 'No visits yet')."
+}

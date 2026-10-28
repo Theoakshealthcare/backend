@@ -14,8 +14,8 @@
     "body": {
       "items": [
         {
-          "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
-          "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+          "id": "34fe9218-f4df-4bca-8261-44a82a0f50db",
+          "booking_id": "bd787ad8-949e-4cb5-a428-39c61cd5fd03",
           "client": {
             "full_name": "Placeholder Client",
             "age": 71,
@@ -24,7 +24,8 @@
           "diagnosis": "Placeholder diagnosis",
           "risk_level": "medium",
           "status": "completed",
-          "start_date": "2026-10-28"
+          "start_date": "2026-10-28",
+          "progress_percent": null
         }
       ]
     }
