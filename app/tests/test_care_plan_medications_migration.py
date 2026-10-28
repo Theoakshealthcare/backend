@@ -42,10 +42,10 @@ def _refused(db, row):
     db.rollback()
 
 
-def test_0018_follows_its_predecessor_and_is_the_head():
+def test_0018_follows_its_predecessor():
+    # "Single head" is asserted for the whole history by test_migrations.py; 0018 is no longer the head once 0019 exists.
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     assert script.get_revision(THIS).down_revision == PREVIOUS
-    assert script.get_heads() == [THIS]
 
 
 def test_upgrade_downgrade_round_trip(scratch):  # noqa: F811

@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plan-templates/9c04f684-dc4d-401c-abc1-fac28a708df3/review",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "status": "maybe"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "status"
+          ],
+          "msg": "Input should be 'approved' or 'pending'",
+          "ctx": {
+            "expected": "'approved' or 'pending'"
+          }
+        }
+      ]
+    }
+  }
+}

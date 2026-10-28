@@ -80,10 +80,12 @@ def test_roles_and_permissions_are_seeded(scratch):
     seeded = {}
     for key, perm in rows:
         seeded.setdefault(key, set()).add(perm)
-    # Later revisions only add to this seed (0013 gives Finance audit.read, 0014 gives the Super Admin refunds.approve_above_limit); this revision's own seed is the original table.
+    # Later revisions only add to this seed (0013 gives Finance audit.read, 0014 gives the Super Admin refunds.approve_above_limit, 0019 gives the Clinical Reviewer and Super Admin the careplans.* permissions); this revision's own seed is the original table.
     expected = {k: set(v) for k, v in ROLE_PERMISSIONS.items()}
     expected["finance"].discard("audit.read")
     expected["super_admin"].discard("refunds.approve_above_limit")  # added by 0014
+    for role in ("super_admin", "clinical_reviewer"):
+        expected[role] -= {"careplans.read", "careplans.write", "careplans.templates"}  # added by 0019
     assert seeded == expected
 
 

@@ -1,0 +1,48 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-plans?q=relative&status=active&limit=10&offset=0",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "3bf9e07a-f1e8-484e-a3af-766c3d2f9a7b",
+          "version": 1,
+          "status": "active",
+          "subject": {
+            "kind": "recipient",
+            "id": "9667032b-28ba-4ab3-934c-15841580d652"
+          },
+          "client": {
+            "full_name": "Placeholder Relative",
+            "age": 76,
+            "gender": "male"
+          },
+          "risk_level": "high",
+          "start_date": "2026-10-28",
+          "duration_days": 30,
+          "author": {
+            "name": "Placeholder Reviewer",
+            "kind": "admin"
+          },
+          "goal_count": 4,
+          "task_count": 8,
+          "medication_count": 0,
+          "updated_at": "2026-10-28T16:46:29.628468"
+        }
+      ],
+      "total": 1,
+      "limit": 10,
+      "offset": 0
+    }
+  },
+  "note": "`q` matches the client's name only (the diagnosis is encrypted); `status` is active, completed or archived."
+}

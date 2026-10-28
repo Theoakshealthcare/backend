@@ -19,7 +19,7 @@ from app.db.models.caregiver import Caregiver
 from app.schemas.care_plan import ObservationIn
 from app.services.care_plan_access import PlanAccess
 from app.services.care_plan_tasks import lock_active_plan, require_live_visit
-from app.services.care_plans import record_event, seal, unseal
+from app.services.care_plans import AdminActor, actor_event, seal, unseal
 
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 50
@@ -53,14 +53,31 @@ def add_observation(db: Session, caregiver: Caregiver, access: PlanAccess, plan:
                                   category=payload.category, body_encrypted=seal(payload.body))
         db.add(obs)
         db.flush()
-        record_event(db, plan.id, "caregiver", caregiver.id, "observation.add",
-                     {"observation_id": str(obs.id), "category": obs.category})
+        actor_event(db, plan.id, caregiver, "observation.add",
+                    {"observation_id": str(obs.id), "category": obs.category})
         db.commit()
     except Exception:
         db.rollback()
         raise
     db.refresh(obs)
     return _out(obs, plan.id, {f"c:{caregiver.id}": caregiver.full_name})
+
+
+def add_admin_observation(db: Session, actor: AdminActor, plan_id: UUID, payload: ObservationIn) -> Dict[str, Any]:
+    """A note from a Clinical Reviewer (slice B4): no visit, so no booking. The plan must still be active. Audited."""
+    try:
+        plan = lock_active_plan(db, plan_id)
+        obs = CarePlanObservation(plan_id=plan.id, booking_id=None, author_admin_id=actor.admin.id,
+                                  category=payload.category, body_encrypted=seal(payload.body))
+        db.add(obs)
+        db.flush()
+        actor_event(db, plan.id, actor, "observation.add", {"observation_id": str(obs.id), "category": obs.category})
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(obs)
+    return _out(obs, plan.id, {f"a:{actor.admin.id}": actor.admin.full_name})
 
 
 def list_observations(db: Session, plan: CarePlan, before: Optional[datetime], before_id: Optional[UUID], limit: int,

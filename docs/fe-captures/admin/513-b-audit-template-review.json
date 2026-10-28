@@ -1,0 +1,61 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/audit?entity_type=care_plan_template",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "57dfe7a2-6458-4c55-9b5c-dd50400202f7",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan_template.review",
+          "entity_type": "care_plan_template",
+          "entity_id": "9c04f684-dc4d-401c-abc1-fac28a708df3",
+          "before": {
+            "clinical_review_status": "approved"
+          },
+          "after": {
+            "clinical_review_status": "pending",
+            "key": "stroke_recovery",
+            "version": 1
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.527438"
+        },
+        {
+          "id": "bd0e82ab-0faf-41d0-8516-3251ebe959e2",
+          "admin_user_id": "aabd6152-acf0-4036-9978-1d42233bc271",
+          "admin_email": "admin-f1f86177c6@example.com",
+          "action": "care_plan_template.review",
+          "entity_type": "care_plan_template",
+          "entity_id": "9c04f684-dc4d-401c-abc1-fac28a708df3",
+          "before": {
+            "clinical_review_status": "pending"
+          },
+          "after": {
+            "clinical_review_status": "approved",
+            "key": "stroke_recovery",
+            "version": 1
+          },
+          "reason": null,
+          "ip": "testclient",
+          "user_agent": "testclient",
+          "created_at": "2026-10-28T16:46:30.508505"
+        }
+      ],
+      "total": 2,
+      "limit": 50,
+      "offset": 0
+    }
+  }
+}

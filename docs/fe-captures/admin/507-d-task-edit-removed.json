@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/care-plan-tasks/484cafdb-7efe-49d6-b19e-10c7ae567e23",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 8,
+      "title": "x"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Care plan not found"
+    }
+  },
+  "note": "A removed task is the plain 404."
+}

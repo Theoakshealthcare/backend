@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/admin/care-plan-goals/b8baffd9-9d58-4012-a6a4-938e5c8e521b?expected_version=4",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "goal": {
+        "id": "b8baffd9-9d58-4012-a6a4-938e5c8e521b",
+        "title": "Placeholder goal two",
+        "target": null,
+        "frequency": "weekly",
+        "status": "discontinued"
+      },
+      "plan_version": 5
+    }
+  },
+  "note": "The goal is marked `discontinued` and kept. `expected_version` is a query parameter."
+}

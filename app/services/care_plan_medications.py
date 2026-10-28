@@ -17,11 +17,10 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.models.care_plan import CarePlanMedication
-from app.db.models.caregiver import Caregiver
 from app.schemas.care_plan import MAX_MEDICATIONS, MedicationCreate, MedicationPatch
 from app.services import care_plans as base
 from app.services.care_plans import (
-    CarePlanError, InvalidPlan, local_today, record_event, seal_json, unseal_json,
+    Actor, CarePlanError, InvalidPlan, actor_event, local_today, seal_json, unseal_json,
 )
 
 DETAIL_COLUMN = "care_plan_medications.detail_encrypted"
@@ -46,7 +45,7 @@ def _check_dates(start, end) -> None:
         raise InvalidPlan("end_date cannot be before start_date")
 
 
-def add_medication(db: Session, caregiver: Caregiver, plan_id: UUID, payload: MedicationCreate) -> Tuple[CarePlanMedication, int]:
+def add_medication(db: Session, actor: Actor, plan_id: UUID, payload: MedicationCreate) -> Tuple[CarePlanMedication, int]:
     try:
         plan = base._lock_editable(db, plan_id, payload.expected_version)
         if _active_count(db, plan.id) >= MAX_MEDICATIONS:
@@ -58,7 +57,7 @@ def add_medication(db: Session, caregiver: Caregiver, plan_id: UUID, payload: Me
             frequency=payload.frequency, times_of_day=list(payload.times_of_day), start_date=start, end_date=payload.end_date)
         db.add(medication)
         db.flush()
-        record_event(db, plan.id, "caregiver", caregiver.id, "med.add", {"medication_id": str(medication.id)})
+        actor_event(db, plan.id, actor, "med.add", {"medication_id": str(medication.id)})
         base._touch(plan)
         version = plan.version
         db.commit()
@@ -69,7 +68,7 @@ def add_medication(db: Session, caregiver: Caregiver, plan_id: UUID, payload: Me
     return medication, version
 
 
-def update_medication(db: Session, caregiver: Caregiver, medication: CarePlanMedication,
+def update_medication(db: Session, actor: Actor, medication: CarePlanMedication,
                       payload: MedicationPatch) -> Tuple[CarePlanMedication, int]:
     sent = payload.model_fields_set - {"expected_version"}
     try:
@@ -95,7 +94,7 @@ def update_medication(db: Session, caregiver: Caregiver, medication: CarePlanMed
         _check_dates(medication.start_date, medication.end_date)
         if changed:
             medication.updated_at = datetime.utcnow()
-            record_event(db, plan.id, "caregiver", caregiver.id, "med.update",
+            actor_event(db, plan.id, actor, "med.update",
                          {"medication_id": str(medication.id), "fields": changed})
             base._touch(plan)
         version = plan.version
@@ -107,7 +106,7 @@ def update_medication(db: Session, caregiver: Caregiver, medication: CarePlanMed
     return medication, version
 
 
-def stop_medication(db: Session, caregiver: Caregiver, medication: CarePlanMedication,
+def stop_medication(db: Session, actor: Actor, medication: CarePlanMedication,
                     expected_version: int) -> Tuple[CarePlanMedication, int]:
     """Stopping keeps the row, so the plan still shows what the client was on. Stopping a stopped one changes nothing."""
     try:
@@ -116,7 +115,7 @@ def stop_medication(db: Session, caregiver: Caregiver, medication: CarePlanMedic
         if medication.status != "stopped":
             now = datetime.utcnow()
             medication.status, medication.stopped_at, medication.updated_at = "stopped", now, now
-            record_event(db, plan.id, "caregiver", caregiver.id, "med.stop", {"medication_id": str(medication.id)})
+            actor_event(db, plan.id, actor, "med.stop", {"medication_id": str(medication.id)})
             base._touch(plan)
         version = plan.version
         db.commit()

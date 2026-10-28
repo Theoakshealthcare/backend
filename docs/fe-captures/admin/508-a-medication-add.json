@@ -1,0 +1,53 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-plans/4de89fc7-ff0c-46ac-8256-c862607dc8ec/medications",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "name": "Placeholder medicine A",
+      "strength": "500 mg",
+      "dose_amount": "1",
+      "dose_unit": "tablet",
+      "route": "oral",
+      "reason": "Placeholder reason",
+      "prescribed_by": "Placeholder prescriber",
+      "frequency": "twice_daily",
+      "times_of_day": [
+        "20:00",
+        "08:00"
+      ],
+      "start_date": "2026-10-28"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "medication": {
+        "id": "98742aab-a8af-44b3-ab75-264ff132f693",
+        "name": "Placeholder medicine A",
+        "strength": "500 mg",
+        "dose_amount": "1",
+        "dose_unit": "tablet",
+        "route": "oral",
+        "reason": "Placeholder reason",
+        "prescribed_by": "Placeholder prescriber",
+        "note": null,
+        "frequency": "twice_daily",
+        "times_of_day": [
+          "08:00",
+          "20:00"
+        ],
+        "start_date": "2026-10-28",
+        "end_date": null,
+        "status": "active",
+        "stopped_at": null
+      },
+      "plan_version": 9
+    }
+  },
+  "note": "Record only. The medications notice from the caregiver guide (16.21) applies to this section too."
+}
