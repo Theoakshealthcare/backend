@@ -227,6 +227,19 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _require_kyc_keys_in_production(self):
+        # Caregiver KYC (design 9.3). An empty webhook key makes the signature forgeable by anyone, an empty secret key means no
+        # webhook can ever be confirmed by the pull, and an empty fingerprint key makes the duplicate-identity hash a plain hash of a
+        # NIN/BVN. All three are refused at boot. (The org id is not on this list: the design names three, and an empty org id is
+        # reported by the client as ``not_configured`` and raises the ops alert.)
+        if self.ENVIRONMENT.lower() == "production":
+            missing = [name for name in ("PREMBLY_WEBHOOK_KEY", "PREMBLY_SECRET_KEY", "KYC_FINGERPRINT_KEY")
+                       if not getattr(self, name)]
+            if missing:
+                raise ValueError(f"{', '.join(missing)} must be set when ENVIRONMENT=production")
+        return self
+
+    @model_validator(mode="after")
     def _pin_paystack_base_url_in_production(self):
         # The secret key goes out as a Bearer token to this URL and its "success" answer is trusted to mark a
         # booking paid, so in production it can only be Paystack. Other environments may point at a fake.

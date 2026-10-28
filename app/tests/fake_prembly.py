@@ -37,6 +37,9 @@ TEST_SECRET_KEY = "test-prembly-secret-key-placeholder"
 TEST_ORG_ID = "test-prembly-org-placeholder"
 TEST_WEBHOOK_KEY = "test-prembly-webhook-key-placeholder"
 TEST_FINGERPRINT_KEY = "test-kyc-fingerprint-key-placeholder"
+# The three keys a production Settings needs (the app refuses to boot without them): for tests that build a production Settings.
+PRODUCTION_KYC_KEYS = {"PREMBLY_WEBHOOK_KEY": TEST_WEBHOOK_KEY, "PREMBLY_SECRET_KEY": TEST_SECRET_KEY,
+                       "KYC_FINGERPRINT_KEY": TEST_FINGERPRINT_KEY}
 SANDBOX_NIN = "12345678909"  # Prembly's published test NIN
 SANDBOX_BVN = "54651333604"  # Prembly's published test BVN
 SESSIONS_PATH = "/api/v1/checker-widget/sdk/sessions/"
@@ -246,3 +249,32 @@ def kyc_availability():
         yield fake
     finally:
         app.dependency_overrides.pop(get_provider_availability, None)
+
+
+# --- the ARQ queue the K3 webhook enqueues on (the real one is Redis) --------------------------------------------------
+class FakeKycEventQueue:
+    def __init__(self) -> None:
+        self.jobs: list[dict] = []
+        self.fail: Optional[Exception] = None
+
+    async def enqueue(self, job: dict) -> None:
+        from app.services.kyc_queue import QueueRefused
+
+        if self.fail is not None:
+            raise self.fail
+        if any(j["event_id"] == job["event_id"] for j in self.jobs):  # ARQ refuses a second job with the same _job_id
+            raise QueueRefused("already queued")
+        self.jobs.append(job)
+
+
+@pytest.fixture
+def kyc_queue():
+    from app.main import app
+    from app.services.kyc_queue import get_kyc_event_queue
+
+    queue = FakeKycEventQueue()
+    app.dependency_overrides[get_kyc_event_queue] = lambda: queue
+    try:
+        yield queue
+    finally:
+        app.dependency_overrides.pop(get_kyc_event_queue, None)
