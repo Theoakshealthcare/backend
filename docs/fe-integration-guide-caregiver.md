@@ -1654,7 +1654,7 @@ _capture `191-a-client-profile-accepted.json`_
 ```
 _capture `192-a-client-profile-for-someone-else.json`_
 
-- `age`, `gender`, `emergency_contact` and `medical_history` are `null` when nothing is stored. There is **no** care plan, address, coordinates, phone number or booking condition in this response (care plans are not built; the rest is on the booking itself).
+- `age`, `gender`, `emergency_contact` and `medical_history` are `null` when nothing is stored. There is **no** care plan, address, coordinates, phone number or booking condition in this response (the care plan has its own call, section 16; the rest is on the booking itself).
 
 Errors:
 - `404` `{"detail": "Client not found"}` for every case above: another caregiver _(capture `193-a-client-profile-other-caregiver.json`)_, a completed visit _(`194-a-client-profile-completed.json`)_.
@@ -1905,6 +1905,7 @@ Fields:
 | `open_offers` | list | Offers this caregiver has not answered, for bookings still `pending`, unassigned and paid. **Empty unless the caregiver is `approved`.** Newest first. |
 | `wallet_balance_naira` | number | **Naira**, 2 decimals. `GET /caregiver/wallet` is in **kobo**. |
 | `currency` | string | `"NGN"` |
+| `can_author_care_plans` | boolean | `true` for a caregiver with the nurse skill (show the Care plan entry points). **Added with care plans**: the captures above predate it; see section 16.2 for current ones. |
 
 "Today" is the **Africa/Lagos** calendar day (`HOME_TIMEZONE`), not the device's and not UTC. Lists are capped at 50 items. The midnight boundary and the overdue rule are covered by an automated test, not by a capture.
 
@@ -2544,7 +2545,8 @@ The release job leaves a held earning alone even after `available_at` has passed
 | 400 | a sentence, see section 10.3 | bank-account resolve and save |
 | 429 | `Too many account checks. Please wait a minute and try again.` | bank-account resolve |
 | 503 | a sentence, see section 10.3 | banks, resolve, save (Paystack unreachable) |
-| 422 | list of `{"type","loc","msg","input",...}` | any invalid body |
+| 422 | list of `{"type","loc","msg","input",...}` | any invalid body (care plan routes omit `input`: section 16) |
+| 403 / 404 / 409 | `{"detail": {"code", "message"}}`, or the plain `"Care plan not found"` | care plans, see section 16 |
 
 The attempts-left and lock-minutes numbers are inside the string. Match on the prefix, or on the status code (`400` vs `423`), not on the whole string.
 
@@ -2615,6 +2617,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Cancel refused en route and in progress; allowed more than the lead out (booking reopens as `pending`); lead taken from the policy | **[not live]** | `app/tests/test_caregiver_cancel_window.py` |
 | Client profile: 200 for in progress, accepted (vitals `null`) and booked-for-someone-else; the same 404 for another caregiver and a completed visit; 403 for a patient token | Yes (test harness: real app and Postgres, not the compose stack) | `190`-`195` |
 | Client profile for a suspended caregiver, an erased patient, a patient grant, `Myself` capitalised | **[not live]** | `app/tests/test_caregiver_client_profile.py` |
+| Care plans (B1): templates, visit summary, create, read, lists, edit, goals, errors | Yes (test harness: real app and Postgres, not the compose stack) | Section 16.12, captures `200`-`222` |
 | Payment settlement starting dispatch | Yes | Signed webhook sent to the real route |
 | Wave 1 offers, unavailable caregiver skipped | Yes | `dispatch-5-who-was-offered` |
 | Wave 2 (+10 min), escalation to `unmatched` (30 min) | No | Automated tests only |
@@ -2645,3 +2648,701 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Delete account: `409` for an active booking (caregiver and patient) and a wallet balance, `200`, old tokens refused (`403`, `400`), login `401`, repeat delete `403`, same email registers again | Yes | 134-145 |
 | Delete account: `409` for a pending withdrawal or payout | **No** | Automated tests only (`test_caregiver_with_a_pending_withdrawal_is_refused`, `test_payouts.py`) |
 | What exactly is wiped (profile fields, bank account, transactions masked, WhatsApp contact, Cloudinary image) | **No (only the account row was queried live)** | Automated tests, `test_account_deletion.py` |
+
+## 16. Care plans (backend slice B1)
+
+A nurse records a care plan for a client; every caregiver on a live visit for that client can read it. This slice is the plan itself: create, read, edit the header, allergies and special instructions, complete or archive, and the goals. **Not built yet** (later slices, do not code against them): ticking tasks, adding or editing tasks after creation, notes and observations, progress, medications, the family view. Ignore unknown fields in responses: later slices add `medications` and more `capabilities` to the plan.
+
+**Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `200` to `222` come from `app/tests/test_capture_care_plans.py` (skipped unless `CAPTURE_CARE_PLANS=1`). The data is placeholder; the nurse skill, bookings and clients were seeded in the database.
+
+### 16.1 Who can do what
+
+| Caller | Read a plan | Create or edit | Notes |
+|---|---|---|---|
+| Caregiver **with the nurse skill** (assigned by an admin) | yes | yes | `can_author_care_plans` on Home is `true` |
+| Caregiver without it | yes | `403` `not_a_nurse` | the free-text "specialization" never counts |
+| A caregiver with no live visit for the client | `404` | `404` | see below |
+| Patient token | `403` | `403` | `{"detail": "Access denied. Caregiver account required."}`; no token is `401` |
+
+**Live visit** means a booking assigned to the caller whose status is `accepted`, `en_route` or `in_progress` (a suspended caregiver only `in_progress`) and whose patient account is active. This is the same rule as the client profile (section 7). **Access ends the moment the visit completes, is cancelled or the caregiver drops out**: the next call is a `404`, which is normal at clock-out, not an error to retry.
+
+**One 404 for everything without access**: `{"detail": "Care plan not found"}`, whether the booking, plan, goal or client exists or not. A `404` on a plan call means "not available to you"; show "This care plan isn't available. You can see a client's plan while their visit is accepted, on the way or in progress."
+
+Every successful care plan response carries `Cache-Control: no-store`. Health data: **do not write any care plan response to AsyncStorage or the query persister**; keep it in memory, with a short `gcTime`, and clear it on logout.
+
+**Errors carry a code.** Care plan refusals (other than the plain `404` above and the `422` validation list) are `{"detail": {"code": "...", "message": "..."}}`. Match on `code`.
+
+### 16.2 Is this caregiver a nurse? `GET /caregiver/home`
+
+Home gained one field, `can_author_care_plans` (boolean). Skills are not visible anywhere else in the app, so this is how the app knows to show the Care plan entry points. The field is `true` for a caregiver with the nurse skill, `false` otherwise. (The older Home captures in section 9 predate the field; these two are current.)
+
+<!-- capture: 200-a-home-can-author.json response.body keys=profile_status,can_author_care_plans -->
+```json
+{
+  "profile_status": "approved",
+  "can_author_care_plans": true
+}
+```
+_capture `200-a-home-can-author.json` (other fields trimmed)_
+
+<!-- capture: 200-b-home-not-author.json response.body keys=profile_status,can_author_care_plans -->
+```json
+{
+  "profile_status": "approved",
+  "can_author_care_plans": false
+}
+```
+_capture `200-b-home-not-author.json` (other fields trimmed)_
+
+### 16.3 Templates (nurses only)
+
+`GET /caregiver/care-plan-templates` lists the seeded templates; `GET /caregiver/care-plan-templates/{template_id}` previews one. Both are `403` `not_a_nurse` for anyone else. **Every seeded template is `clinical_review_status: "pending"`**: show "Not yet clinically reviewed" on the card and the preview until it is `approved`.
+
+<!-- capture: 201-a-templates-list.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "ca9f836a-e5af-4ee4-b2bf-5ae468b4930e",
+    "key": "cardiac_rehabilitation",
+    "name": "Cardiac Rehabilitation",
+    "summary": "Light activity, resting readings and low-salt meals while recovering from a heart event.",
+    "duration_days": 45,
+    "review_every_days": 14,
+    "default_risk_level": "high",
+    "clinical_review_status": "pending",
+    "version": 1
+  }
+]
+```
+_capture `201-a-templates-list.json` (first of 5 items; 5 items: `cardiac_rehabilitation`, `diabetes_management`, `elderly_daily_living_dementia`, `post_surgery_recovery`, `stroke_recovery`)_
+
+Preview (the first goal and the first two tasks shown; the real lists are longer). `time_of_day` is `"HH:MM"`, `days_of_week` is `1` (Monday) to `7` (Sunday).
+
+<!-- capture: 202-a-template-preview.json response.body keys=key,name,duration_days,review_every_days,default_risk_level,clinical_review_status,special_instructions -->
+```json
+{
+  "key": "stroke_recovery",
+  "name": "Stroke Recovery",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "default_risk_level": "high",
+  "clinical_review_status": "pending",
+  "special_instructions": [
+    "Follow the therapist's exercise sheet",
+    "Report new weakness, slurred speech or confusion at once"
+  ]
+}
+```
+<!-- capture: 202-a-template-preview.json response.body path=goals first=1 -->
+```json
+[
+  {
+    "title": "Safe mobility and transfers",
+    "target": null,
+    "frequency": "daily"
+  }
+]
+```
+<!-- capture: 202-a-template-preview.json response.body path=tasks first=2 -->
+```json
+[
+  {
+    "title": "Check and record BP and pulse",
+    "time_slot": "morning",
+    "time_of_day": "08:00",
+    "days_of_week": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  {
+    "title": "Check and record BP and pulse",
+    "time_slot": "evening",
+    "time_of_day": "18:00",
+    "days_of_week": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  }
+]
+```
+_capture `202-a-template-preview.json`_
+
+Errors: `403` for a non-nurse and `404` for an unknown template:
+
+<!-- capture: 203-a-templates-not-a-nurse.json response.body -->
+```json
+{
+  "detail": {
+    "code": "not_a_nurse",
+    "message": "Only nurses can create or change a care plan."
+  }
+}
+```
+<!-- capture: 204-a-template-not-found.json response.body -->
+```json
+{
+  "detail": {
+    "code": "template_not_found",
+    "message": "Care plan template not found."
+  }
+}
+```
+
+### 16.4 The plan for one visit: `GET /caregiver/bookings/{booking_id}/care-plan`
+
+Use it on the client profile and when a visit opens. Any caregiver on the visit may call it. **A `200` with `plan: null` means "access is fine, the client has no active plan yet"; a `404` means no access.** `subject_ready: false` means this visit's client cannot be identified (an app booking made for someone else), so no plan is possible: hide the create button and show "We can't tell who this visit is for, so a care plan isn't available. Contact support." `can_author` is `true` only for a nurse on a client who can have a plan.
+
+<!-- capture: 205-a-visit-summary-no-plan.json response.body -->
+```json
+{
+  "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+  "subject_ready": true,
+  "can_author": true,
+  "plan": null
+}
+```
+<!-- capture: 205-b-visit-summary-not-identified.json response.body -->
+```json
+{
+  "booking_id": "1eb237ae-3c4c-4ead-9c33-4d86060bdb8f",
+  "subject_ready": false,
+  "can_author": false,
+  "plan": null
+}
+```
+<!-- capture: 205-c-visit-summary-plain-caregiver.json response.body -->
+```json
+{
+  "booking_id": "deafd784-4f22-495f-b86b-d9f65a43466a",
+  "subject_ready": true,
+  "can_author": false,
+  "plan": null
+}
+```
+
+With a plan, `plan` is a summary (`goal_count` counts goals that are not discontinued; `task_count` active tasks). Another caregiver on the same client sees the same plan:
+
+<!-- capture: 207-a-visit-summary-with-plan.json response.body -->
+```json
+{
+  "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+  "subject_ready": true,
+  "can_author": true,
+  "plan": {
+    "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+    "version": 1,
+    "status": "active",
+    "diagnosis": "Placeholder diagnosis",
+    "risk_level": "high",
+    "start_date": "2026-10-28",
+    "duration_days": 30,
+    "review_every_days": 14,
+    "review_due_on": "2026-11-11",
+    "goal_count": 1,
+    "task_count": 1
+  }
+}
+```
+_capture `207-a-visit-summary-with-plan.json`_
+
+### 16.5 Create: `POST /caregiver/bookings/{booking_id}/care-plan` (nurse)
+
+The plan belongs to the **client**, not the booking, and stays with them across visits and caregivers. One active plan per client. Body:
+
+| Field | Rule |
+|---|---|
+| `diagnosis` | required, 1 to 200 characters |
+| `risk_level` | `low`, `medium` or `high`; required unless `template_id` supplies a default |
+| `start_date` | `YYYY-MM-DD`; defaults to today in Africa/Lagos |
+| `duration_days` | 1 to 365; defaults to the template's, else 30 |
+| `review_every_days` | 7 to 90 or `null`; defaults to the template's |
+| `goals` | up to 30: `{title (1-120), target (optional, 1-200), frequency: daily/weekly/ongoing/one_time}` |
+| `tasks` | up to 60: `{title (1-120), time_slot: morning/afternoon/evening/night, time_of_day: "HH:MM" or null, days_of_week: [1..7], unique}` |
+| `allergies`, `special_instructions` | up to 30 strings each, 1 to 1000 characters |
+| `template_id` | optional. The template only **fills what you leave out** (goals, tasks, special instructions, risk, duration, review). Anything you send wins. The plan is a **copy**: later template edits never change it. |
+
+For "Use template": open the create form pre-filled from the preview, let the nurse edit, and send the edited lists with `template_id`. Sending only `diagnosis` and `template_id` also works (capture `210`).
+
+<!-- capture: 206-a-create-blank.json request.body -->
+```json
+{
+  "diagnosis": "Placeholder diagnosis",
+  "risk_level": "high",
+  "start_date": "2026-10-28",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "goals": [
+    {
+      "title": "Placeholder goal",
+      "target": "Placeholder target",
+      "frequency": "daily"
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Placeholder task",
+      "time_slot": "morning",
+      "time_of_day": "08:00",
+      "days_of_week": [
+        1,
+        3,
+        5
+      ]
+    }
+  ],
+  "allergies": [
+    "Placeholder allergen"
+  ],
+  "special_instructions": [
+    "Placeholder instruction"
+  ]
+}
+```
+Response `201` (the full plan; also the `GET /caregiver/care-plans/{plan_id}` shape):
+
+<!-- capture: 206-a-create-blank.json response.body -->
+```json
+{
+  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "version": 1,
+  "status": "active",
+  "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+  "client": {
+    "full_name": "Placeholder Client",
+    "age": 71,
+    "gender": "female"
+  },
+  "diagnosis": "Placeholder diagnosis",
+  "risk_level": "high",
+  "start_date": "2026-10-28",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "review_due_on": "2026-11-11",
+  "template": null,
+  "author": {
+    "name": "Placeholder Nurse",
+    "kind": "caregiver"
+  },
+  "allergies": [
+    "Placeholder allergen"
+  ],
+  "special_instructions": [
+    "Placeholder instruction"
+  ],
+  "goals": [
+    {
+      "id": "2d2b2dc7-e951-4655-830a-96050f25f4a9",
+      "title": "Placeholder goal",
+      "target": "Placeholder target",
+      "frequency": "daily",
+      "status": "active"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "5ab63e26-15c2-43d3-a811-d37620020c0a",
+      "title": "Placeholder task",
+      "time_slot": "morning",
+      "time_of_day": "08:00",
+      "days_of_week": [
+        1,
+        3,
+        5
+      ]
+    }
+  ],
+  "capabilities": {
+    "can_edit_plan": true
+  },
+  "created_at": "2026-10-27T22:30:57.133041",
+  "updated_at": "2026-10-27T22:30:57.133047"
+}
+```
+_capture `206-a-create-blank.json`_
+
+A plan created from a template for a client booked by someone else (WhatsApp; the client is the care recipient). Trimmed: the goal and task lists are copied from the template.
+
+<!-- capture: 210-a-create-from-template.json response.body keys=version,status,client,diagnosis,risk_level,start_date,duration_days,review_every_days,review_due_on,template,special_instructions -->
+```json
+{
+  "version": 1,
+  "status": "active",
+  "client": {
+    "full_name": "Placeholder Relative",
+    "age": 82,
+    "gender": "female"
+  },
+  "diagnosis": "Placeholder diagnosis two",
+  "risk_level": "high",
+  "start_date": "2026-10-27",
+  "duration_days": 30,
+  "review_every_days": 14,
+  "review_due_on": "2026-11-10",
+  "template": {
+    "id": "aaa0ff22-39db-41fe-8623-9ec0bce4d7bd",
+    "name": "Stroke Recovery",
+    "version": 1
+  },
+  "special_instructions": [
+    "Follow the therapist's exercise sheet",
+    "Report new weakness, slurred speech or confusion at once"
+  ]
+}
+```
+_capture `210-a-create-from-template.json`_
+
+Errors:
+
+| Status | `detail` | When | What the app does |
+|---|---|---|---|
+| `409` | `care_plan_exists`, with `plan_id` | the client already has an active plan | open `plan_id` |
+| `409` | `client_not_identified` | an app booking for someone else | show the message; no create button |
+| `403` | `not_a_nurse` | not a nurse | hide create (`can_author` is false) |
+| `422` | `invalid_care_plan` | e.g. no `risk_level` and no template | show the message |
+| `422` | list of `{type, loc, msg}` | a field limit | highlight the field in `loc`; **the value is never echoed** |
+| `404` | `template_not_found` | unknown or inactive `template_id` | |
+
+<!-- capture: 211-a-create-already-exists.json response.body -->
+```json
+{
+  "detail": {
+    "code": "care_plan_exists",
+    "message": "This client already has an active care plan.",
+    "plan_id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d"
+  }
+}
+```
+<!-- capture: 212-a-create-not-identified.json response.body -->
+```json
+{
+  "detail": {
+    "code": "client_not_identified",
+    "message": "We can't tell who this visit is for, so a care plan isn't available."
+  }
+}
+```
+<!-- capture: 213-a-create-needs-risk-level.json response.body -->
+```json
+{
+  "detail": {
+    "code": "invalid_care_plan",
+    "message": "risk_level is required"
+  }
+}
+```
+<!-- capture: 214-a-create-validation.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "string_too_short",
+      "loc": [
+        "body",
+        "diagnosis"
+      ],
+      "msg": "String should have at least 1 character",
+      "ctx": {
+        "min_length": 1
+      }
+    }
+  ]
+}
+```
+
+### 16.6 Read: `GET /caregiver/care-plans/{plan_id}`
+
+The full plan, for any caregiver with a live visit for the client (a completed or archived plan is still readable as history). `booking_id` is the live booking that gives **this caller** access today: it can differ between callers and between days, so use it only to call the client profile (`/bookings/{id}/client`). `capabilities.can_edit_plan` is `true` only for a nurse on an `active` plan. Same shape as the create response; for a caregiver without the nurse skill:
+
+<!-- capture: 209-b-get-plan-plain-caregiver.json response.body keys=id,version,status,capabilities -->
+```json
+{
+  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "version": 1,
+  "status": "active",
+  "capabilities": {
+    "can_edit_plan": false
+  }
+}
+```
+_capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
+
+- `review_due_on` is `start_date + review_every_days`, or `null`.
+- `author` is whoever created the plan. `template` is `null` for a blank plan.
+- `goals` keep their `status`; a removed goal stays in the list as `discontinued` (hide it, or show it greyed).
+- `allergies` and `special_instructions` are `[]` when empty, never `null`.
+
+### 16.7 Lists
+
+`GET /caregiver/care-plans?status=active|completed&q=` is the **Assigned Care Plan** tab: plans for the clients of the caller's live visits, newest change first (default `active`; `q` searches the client name; any other `status` is `422`). It carries the diagnosis and risk only.
+
+<!-- capture: 217-a-assigned-list.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "df2b0e55-f1d2-491c-9012-925327dbf16b",
+      "booking_id": "a0857ea0-9c60-48ed-85ec-c2714487f1f1",
+      "client": {
+        "full_name": "Placeholder Relative",
+        "age": 82,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis two",
+      "risk_level": "high",
+      "status": "active",
+      "start_date": "2026-10-27"
+    },
+    {
+      "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+      "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+      "client": {
+        "full_name": "Placeholder Client",
+        "age": 71,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "high",
+      "status": "active",
+      "start_date": "2026-10-28"
+    }
+  ]
+}
+```
+_capture `217-a-assigned-list.json` (two clients: one booked for themselves, one booked by a relative)_
+
+`GET /caregiver/care-plans/candidates` (nurse) feeds the client picker: identifiable clients on live visits with **no active plan** (a client whose visit has no recipient is left out). Nearest visit first.
+
+<!-- capture: 216-a-candidates.json response.body -->
+```json
+{
+  "items": [
+    {
+      "booking_id": "f552c098-3b49-468d-b25f-426dcf56adf3",
+      "client": {
+        "full_name": "Placeholder Client Two",
+        "age": null,
+        "gender": "male"
+      },
+      "booking_status": "accepted",
+      "scheduled_date": "2026-10-28T22:30:56.365320"
+    }
+  ]
+}
+```
+
+`GET /caregiver/care-plans?status=completed` after a plan is completed:
+
+<!-- capture: 221-c-assigned-completed.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+    "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+    "client": {
+      "full_name": "Placeholder Client",
+      "age": 71,
+      "gender": "female"
+    },
+    "diagnosis": "Placeholder diagnosis",
+    "risk_level": "medium",
+    "status": "completed",
+    "start_date": "2026-10-28"
+  }
+]
+```
+
+### 16.8 Edit: `PATCH /caregiver/care-plans/{plan_id}` (nurse)
+
+Send `expected_version` (required; the plan's `version`) and only the fields that change: `diagnosis`, `risk_level`, `start_date`, `duration_days`, `review_every_days`, `allergies`, `special_instructions`, `status`. `review_every_days`, `allergies` and `special_instructions` accept `null` (clear); the others cannot be `null`. `status` accepts only `completed` or `archived`; both are one-way, make the plan read-only and free the client for a new plan. Response `200`: the full plan, with `version` bumped.
+
+<!-- capture: 218-a-patch-plan.json request.body -->
+```json
+{
+  "expected_version": 1,
+  "risk_level": "medium",
+  "allergies": [
+    "Placeholder allergen",
+    "Placeholder allergen two"
+  ]
+}
+```
+<!-- capture: 218-a-patch-plan.json response.body keys=id,version,risk_level,allergies -->
+```json
+{
+  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "version": 2,
+  "risk_level": "medium",
+  "allergies": [
+    "Placeholder allergen",
+    "Placeholder allergen two"
+  ]
+}
+```
+_capture `218-a-patch-plan.json` (response trimmed)_
+
+**`version_conflict`**: someone else changed the plan since the app loaded it. The `409` body carries the current plan in `detail.plan` (trimmed here); reload from it and **keep the user's draft text in the form**.
+
+<!-- capture: 219-a-patch-version-conflict.json response.body path=detail keys=code,message -->
+```json
+{
+  "code": "version_conflict",
+  "message": "Someone just changed this plan. Reload it and try again."
+}
+```
+<!-- capture: 219-a-patch-version-conflict.json response.body path=detail.plan keys=id,version,risk_level -->
+```json
+{
+  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "version": 2,
+  "risk_level": "medium"
+}
+```
+_capture `219-a-patch-version-conflict.json` (the whole current plan is in `detail.plan`)_
+
+Completing a plan, then trying to change it:
+
+<!-- capture: 221-a-plan-complete.json response.body keys=id,version,status,capabilities -->
+```json
+{
+  "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+  "version": 6,
+  "status": "completed",
+  "capabilities": {
+    "can_edit_plan": false
+  }
+}
+```
+<!-- capture: 221-b-plan-not-editable.json response.body -->
+```json
+{
+  "detail": {
+    "code": "plan_not_editable",
+    "message": "This care plan is completed or archived and can no longer be changed."
+  }
+}
+```
+
+A non-nurse on any edit route gets `403` `not_a_nurse` (access is checked first: a caregiver with no access gets the plain `404`):
+
+<!-- capture: 219-b-patch-not-a-nurse.json response.body -->
+```json
+{
+  "detail": {
+    "code": "not_a_nurse",
+    "message": "Only nurses can create or change a care plan."
+  }
+}
+```
+
+### 16.9 Goals (nurse)
+
+| Call | Body | Notes |
+|---|---|---|
+| `POST /caregiver/care-plans/{plan_id}/goals` | `{title, target?, frequency, expected_version?}` | `201`; `expected_version` is optional (adding never overwrites anything) |
+| `PATCH /caregiver/care-plan-goals/{goal_id}` | `{expected_version, title?, target?, frequency?, status?}` | `status`: `active`, `achieved`, `discontinued`; `target: null` clears it |
+| `DELETE /caregiver/care-plan-goals/{goal_id}?expected_version=N` | none | **Marks the goal `discontinued`; it is kept.** `expected_version` is a **query parameter** |
+
+Every goal response is `{goal, plan_version}`. **`plan_version` is the plan's new `version`: use it as the next `expected_version`** (a goal write bumps the plan's version, so the plan you hold is now stale). At most 30 goals that are not discontinued (`422` `invalid_care_plan`).
+
+<!-- capture: 220-a-goal-add.json request.body -->
+```json
+{
+  "title": "Placeholder goal two",
+  "frequency": "weekly"
+}
+```
+<!-- capture: 220-a-goal-add.json response.body -->
+```json
+{
+  "goal": {
+    "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+    "title": "Placeholder goal two",
+    "target": null,
+    "frequency": "weekly",
+    "status": "active"
+  },
+  "plan_version": 3
+}
+```
+<!-- capture: 220-b-goal-edit.json response.body -->
+```json
+{
+  "goal": {
+    "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+    "title": "Placeholder goal two",
+    "target": "Placeholder target two",
+    "frequency": "weekly",
+    "status": "achieved"
+  },
+  "plan_version": 4
+}
+```
+<!-- capture: 220-c-goal-remove.json response.body -->
+```json
+{
+  "goal": {
+    "id": "83cdce91-d092-4adb-aa0a-cb795fc3c15d",
+    "title": "Placeholder goal two",
+    "target": "Placeholder target two",
+    "frequency": "weekly",
+    "status": "discontinued"
+  },
+  "plan_version": 5
+}
+```
+_captures `220-a`, `220-b`, `220-c`_
+
+### 16.10 No access
+
+<!-- capture: 222-a-no-access.json response.body -->
+```json
+{
+  "detail": "Care plan not found"
+}
+```
+<!-- capture: 222-b-no-access-patient-token.json response.body -->
+```json
+{
+  "detail": "Access denied. Caregiver account required."
+}
+```
+
+### 16.11 Traps and what the app must show
+
+1. **`404` and "no plan" are different.** `GET /bookings/{id}/care-plan` answers `200` with `plan: null` when there is no plan; every other call answers `404` when there is no access. At clock-out every plan call becomes `404`: say so plainly, do not retry.
+2. **`version` moves on every write**, including goal writes. After any write, take the new version from the response (`version` on the plan, `plan_version` on goals) before the next edit.
+3. **Present-but-empty, not absent:** `allergies`, `special_instructions`, `goals`, `tasks` are `[]` when empty. `template`, `review_every_days`, `review_due_on` and `client.age` are `null` when unknown.
+4. **`client`** is the person visited (the patient for a visit booked for themselves, the care recipient otherwise). There is no address, phone, email or booking condition in any care plan response.
+5. **Do not show the nurse-only actions to others**: use `can_author` (visit summary) and `capabilities.can_edit_plan` (plan). Show a read-only banner when `status` is `completed` or `archived`.
+6. **Seeded templates are drafts**: show "Not yet clinically reviewed" while `clinical_review_status` is `pending`.
+7. **Care plan responses are health data**: never persist them on the device.
+
+### 16.12 Verification
+
+| Behaviour | Verified live? | Evidence / reason |
+|---|---|---|
+| Home `can_author_care_plans` true and false | Yes (test harness: real app and Postgres) | `200` |
+| Templates list, preview, `403` for a non-nurse, `404` unknown | Yes (harness) | `201`-`204` |
+| Visit summary: no plan, not identified, non-nurse, with a plan | Yes (harness) | `205`, `207`, `209-a` |
+| Create blank, create from a template for a relative's visit, `409` exists, `409` not identified, `422` x2, `403` | Yes (harness) | `206`, `210`-`215` |
+| Get plan, as a non-nurse | Yes (harness) | `208`, `209-b` |
+| Assigned list (active, search, completed), candidates | Yes (harness) | `216`, `217`, `221-c` |
+| Patch, `409 version_conflict` with the current plan, complete, `409 plan_not_editable`, `403` | Yes (harness) | `218`, `219`, `221` |
+| Goal add, edit, remove | Yes (harness) | `220` |
+| `404` with no access; `403` for a patient token | Yes (harness) | `222` |
+| `401` with no token | No (tests) | `app/tests/test_care_plans_access.py` |
+| Suspended caregiver, erased client, dropped-out caregiver, `Myself` capitalised, other skills, unidentified client | **[not live]** | `app/tests/test_care_plans_access.py` |
+| Two simultaneous creates leave one plan (`409`), stale goal edit/delete `409` | **[not live]** | `app/tests/test_care_plans_core.py` |
+| Template with `clinical_review_status: "approved"` | **No** | None is approved yet; the field value comes from the schema (`pending` or `approved`) |
+| Compose stack, real device | **No** | Harness only, per the project's RAM rule |

@@ -1,0 +1,45 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "df2b0e55-f1d2-491c-9012-925327dbf16b",
+          "booking_id": "a0857ea0-9c60-48ed-85ec-c2714487f1f1",
+          "client": {
+            "full_name": "Placeholder Relative",
+            "age": 82,
+            "gender": "female"
+          },
+          "diagnosis": "Placeholder diagnosis two",
+          "risk_level": "high",
+          "status": "active",
+          "start_date": "2026-10-27"
+        },
+        {
+          "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+          "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+          "client": {
+            "full_name": "Placeholder Client",
+            "age": 71,
+            "gender": "female"
+          },
+          "diagnosis": "Placeholder diagnosis",
+          "risk_level": "high",
+          "status": "active",
+          "start_date": "2026-10-28"
+        }
+      ]
+    }
+  }
+}

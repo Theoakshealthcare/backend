@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plan-templates",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "not_a_nurse",
+        "message": "Only nurses can create or change a care plan."
+      }
+    }
+  },
+  "note": "A caregiver without the nurse skill."
+}

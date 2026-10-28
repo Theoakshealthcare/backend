@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/1eb237ae-3c4c-4ead-9c33-4d86060bdb8f/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "booking_id": "1eb237ae-3c4c-4ead-9c33-4d86060bdb8f",
+      "subject_ready": false,
+      "can_author": false,
+      "plan": null
+    }
+  },
+  "note": "An app booking for someone else: no identifiable client, so no care plan is possible."
+}

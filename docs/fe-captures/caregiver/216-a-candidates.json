@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/candidates",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "booking_id": "f552c098-3b49-468d-b25f-426dcf56adf3",
+          "client": {
+            "full_name": "Placeholder Client Two",
+            "age": null,
+            "gender": "male"
+          },
+          "booking_status": "accepted",
+          "scheduled_date": "2026-10-28T22:30:56.365320"
+        }
+      ]
+    }
+  },
+  "note": "Live-booking clients without an active plan. Only identifiable clients."
+}

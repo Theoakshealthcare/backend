@@ -54,4 +54,7 @@ class CaregiverHome(BaseModel):
     upcoming_visits: List[HomeVisit]
     open_offers: List[HomeOffer]
     wallet_balance_naira: float = Field(description="Wallet balance in NAIRA (the /caregiver/wallet endpoint is kobo).")
+    can_author_care_plans: bool = Field(
+        description="True for a caregiver with the admin-assigned nurse skill: show the Care plan entry points. The skill is "
+                    "not visible anywhere else in the app.")
     currency: str

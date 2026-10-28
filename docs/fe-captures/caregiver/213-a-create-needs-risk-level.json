@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bookings/f552c098-3b49-468d-b25f-426dcf56adf3/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "diagnosis": "Placeholder diagnosis"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "invalid_care_plan",
+        "message": "risk_level is required"
+      }
+    }
+  }
+}

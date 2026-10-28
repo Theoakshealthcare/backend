@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/d89dba59-cae8-488d-a958-132fc3f7e14b/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "booking_id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+      "subject_ready": true,
+      "can_author": true,
+      "plan": {
+        "id": "b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+        "version": 1,
+        "status": "active",
+        "diagnosis": "Placeholder diagnosis",
+        "risk_level": "high",
+        "start_date": "2026-10-28",
+        "duration_days": 30,
+        "review_every_days": 14,
+        "review_due_on": "2026-11-11",
+        "goal_count": 1,
+        "task_count": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plan-templates/aaa0ff22-39db-41fe-8623-9ec0bce4d7bd",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "id": "aaa0ff22-39db-41fe-8623-9ec0bce4d7bd",
+      "key": "stroke_recovery",
+      "name": "Stroke Recovery",
+      "summary": "Daily support after a stroke: safe movement, therapy exercises, swallowing and skin care.",
+      "duration_days": 30,
+      "review_every_days": 14,
+      "default_risk_level": "high",
+      "clinical_review_status": "pending",
+      "version": 1,
+      "goals": [
+        {
+          "title": "Safe mobility and transfers",
+          "target": null,
+          "frequency": "daily"
+        },
+        {
+          "title": "Daily range-of-motion practice",
+          "target": null,
+          "frequency": "daily"
+        },
+        {
+          "title": "Support speech and swallowing exercises as taught by the therapist",
+          "target": null,
+          "frequency": "daily"
+        },
+        {
+          "title": "Prevent falls",
+          "target": null,
+          "frequency": "ongoing"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "Check and record BP and pulse",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Check and record BP and pulse",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Assisted washing and dressing",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Prescribed exercises with the therapist's sheet",
+          "time_slot": "afternoon",
+          "time_of_day": "13:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Safe-swallow check at meals",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Safe-swallow check at meals",
+          "time_slot": "afternoon",
+          "time_of_day": "13:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Safe-swallow check at meals",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Skin and pressure-point check",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      ],
+      "special_instructions": [
+        "Follow the therapist's exercise sheet",
+        "Report new weakness, slurred speech or confusion at once"
+      ]
+    }
+  }
+}

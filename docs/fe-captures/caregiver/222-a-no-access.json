@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plans/b8be51f8-0837-4c4a-b994-2aa15f892f9d",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Care plan not found"
+    }
+  },
+  "note": "A caregiver with no live visit for this client: the same 404 as for a plan that does not exist."
+}
