@@ -28,6 +28,7 @@ os.environ.setdefault("PAYSTACK_WEBHOOK_SECRET", "whsec_test_placeholder")
 os.environ.setdefault("ENVIRONMENT", "test")
 
 _container = None
+_TEMPLATE_SEED = []
 if os.environ.get("TEST_DATABASE_URL"):
     os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 else:
@@ -43,6 +44,7 @@ from sqlalchemy import text  # noqa: E402
 
 import app.db.models  # noqa: E402,F401  (registers every model on Base.metadata)
 from app.db.base import Base  # noqa: E402
+from app.db.models.care_plan import CarePlanTemplate  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 from app.tests.guards import NetworkBlocked  # noqa: E402
@@ -63,6 +65,10 @@ def _schema():
     cfg = Config("alembic.ini")
     cfg.attributes["configure_logger"] = False  # keep pytest's logging setup
     command.upgrade(cfg, "head")
+    # care_plan_templates is seeded by its migration, but TRUNCATE admin_users CASCADE reaches it (reviewed_by_admin_id),
+    # so keep the seeded rows and put them back after every test.
+    with engine.begin() as conn:
+        _TEMPLATE_SEED[:] = [dict(r._mapping) for r in conn.execute(CarePlanTemplate.__table__.select())]
     yield
 
 
@@ -79,6 +85,8 @@ def _clean_tables(_schema):
         # that may bypass it, for this transaction only (replica role skips triggers).
         conn.execute(text("SET LOCAL session_replication_role = replica"))
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+        if _TEMPLATE_SEED:
+            conn.execute(CarePlanTemplate.__table__.insert(), _TEMPLATE_SEED)
 
 
 @pytest.fixture(autouse=True)

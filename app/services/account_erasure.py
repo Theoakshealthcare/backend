@@ -134,6 +134,7 @@ class AccountErasureService:
         if patient is not None:
             self._wipe_patient(patient, email)
         self._wipe_care_recipients(user)
+        self._wipe_care_plans(patient, user)
         self.db.query(PushToken).filter(PushToken.user_id == user.id).delete(synchronize_session=False)
         self._withdraw_whatsapp(user, phones, now)
         self._record_withdrawal(user)
@@ -384,6 +385,21 @@ class AccountErasureService:
             for field in ("date_of_birth", "gender", "phone_e164", "address", "city", "state", "lat", "lng",
                           "notes_encrypted"):
                 setattr(rec, field, None)
+
+    def _wipe_care_plans(self, patient: Optional[Patient], user: User) -> None:
+        """Care plans of the person themselves (as the patient, and as the 'self' recipient): archived, with the diagnosis,
+        allergies, instructions, goals and tasks wiped. Plans of recipients they booked for are other people's data."""
+        from app.services.care_plans import wipe_plans_for_subject
+
+        if patient is not None:
+            wipe_plans_for_subject(self.db, patient_id=patient.id)
+        self_recipients = (
+            self.db.query(CareRecipient.id)
+            .join(CareRelationship, CareRelationship.recipient_id == CareRecipient.id)
+            .filter(CareRelationship.contact_user_id == user.id, CareRelationship.role == "self")
+        )
+        for (recipient_id,) in self_recipients:
+            wipe_plans_for_subject(self.db, recipient_id=recipient_id)
 
     def _withdraw_whatsapp(self, user: User, phones: set, now: datetime) -> None:
         """Unlink and anonymise the person's WhatsApp contact the way STOP DATA does (consents withdrawn,

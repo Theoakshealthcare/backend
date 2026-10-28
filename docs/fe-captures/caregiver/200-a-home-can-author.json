@@ -1,0 +1,84 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/home",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile_status": "approved",
+      "is_available": false,
+      "location_updated_at": null,
+      "today_visits": [
+        {
+          "id": "d89dba59-cae8-488d-a958-132fc3f7e14b",
+          "booking_code": "8F7AD360",
+          "service_type": "nurse",
+          "status": "in_progress",
+          "dispatch_state": null,
+          "scheduled_date": "2026-10-28T22:30:56.098058",
+          "scheduled_end_date": "2026-10-29T02:30:56.098058",
+          "duration_hours": 4,
+          "patient_name": "Placeholder Client",
+          "patient_address": "1 Test Close, Lekki",
+          "patient_city": "Lagos",
+          "patient_state": "Lagos"
+        },
+        {
+          "id": "a0857ea0-9c60-48ed-85ec-c2714487f1f1",
+          "booking_code": "DDD4E24D",
+          "service_type": "nurse",
+          "status": "en_route",
+          "dispatch_state": null,
+          "scheduled_date": "2026-10-28T22:30:56.654808",
+          "scheduled_end_date": "2026-10-29T02:30:56.654808",
+          "duration_hours": 4,
+          "patient_name": "Placeholder Booker",
+          "patient_address": "1 Test Close, Lekki",
+          "patient_city": "Lagos",
+          "patient_state": "Lagos"
+        },
+        {
+          "id": "1eb237ae-3c4c-4ead-9c33-4d86060bdb8f",
+          "booking_code": "21856E37",
+          "service_type": "nurse",
+          "status": "in_progress",
+          "dispatch_state": null,
+          "scheduled_date": "2026-10-28T22:30:56.929129",
+          "scheduled_end_date": "2026-10-29T02:30:56.929129",
+          "duration_hours": 4,
+          "patient_name": "Placeholder Booker Two",
+          "patient_address": "1 Test Close, Lekki",
+          "patient_city": "Lagos",
+          "patient_state": "Lagos"
+        }
+      ],
+      "upcoming_visits": [
+        {
+          "id": "f552c098-3b49-468d-b25f-426dcf56adf3",
+          "booking_code": "8C87E656",
+          "service_type": "nurse",
+          "status": "accepted",
+          "dispatch_state": null,
+          "scheduled_date": "2026-10-28T22:30:56.365320",
+          "scheduled_end_date": "2026-10-29T02:30:56.365320",
+          "duration_hours": 4,
+          "patient_name": "Placeholder Client Two",
+          "patient_address": "1 Test Close, Lekki",
+          "patient_city": "Lagos",
+          "patient_state": "Lagos"
+        }
+      ],
+      "open_offers": [],
+      "wallet_balance_naira": 0.0,
+      "can_author_care_plans": true,
+      "currency": "NGN"
+    }
+  },
+  "note": "Home for a caregiver with the nurse skill: `can_author_care_plans` is true. Other fields trimmed in the guide."
+}

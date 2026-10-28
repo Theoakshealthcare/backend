@@ -35,6 +35,12 @@ COLUMNS = [
     EncryptedColumn("fallguard_assessments", "ai_summary_encrypted", plaintext_fallback=False),
     EncryptedColumn("fallguard_assessments", "ai_recommendations_encrypted", plaintext_fallback=False),
     EncryptedColumn("fallguard_answers", "answer_encrypted", plaintext_fallback=False),
+    EncryptedColumn("care_plans", "diagnosis_encrypted", plaintext_fallback=False),
+    EncryptedColumn("care_plans", "allergies_encrypted", plaintext_fallback=False),
+    EncryptedColumn("care_plans", "special_instructions_encrypted", plaintext_fallback=False),
+    EncryptedColumn("care_plan_goals", "title_encrypted", plaintext_fallback=False),
+    EncryptedColumn("care_plan_goals", "target_encrypted", plaintext_fallback=False),
+    EncryptedColumn("care_plan_tasks", "title_encrypted", plaintext_fallback=False),
 ]
 
 
