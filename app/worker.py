@@ -23,6 +23,7 @@ from app.services.booking_expiry import expire_unpaid_bookings
 from app.services.dispatch import dispatch_tick
 from app.services.dropout import tick as dropout_tick
 from app.services.earnings import release_due as release_due_earnings
+from app.services.kyc_events import KycRetry, process_event as process_kyc_event
 from app.services.payouts import create_scheduled_batch, dispatch_due as dispatch_payouts, reconcile as reconcile_payouts
 from app.services.refunds import dispatch_due as dispatch_refunds, reconcile as reconcile_refunds
 
@@ -146,6 +147,22 @@ async def process_whatsapp_inbound_job(ctx: dict, job: dict) -> None:
     await redis.delete(key)
 
 
+async def kyc_process_event(ctx: dict, job: dict) -> str:
+    """One Prembly webhook event, queued by the endpoint (app/api/v1/endpoints/kyc_webhook.py): find the attempt, PULL the session
+    from Prembly and record what it says (app/services/kyc_events.py). It decides nothing about the caregiver (that is K4). A pull
+    that fails in a retryable way is retried with a delay; after the last try the ledger row is closed as ``error`` and the
+    reconcile cron finds the attempt from Prembly's side. The job arguments are opaque ids only (no body, no personal data)."""
+    tries = ctx.get("job_try", 1)
+    final_try = tries >= WorkerSettings.max_tries
+    try:
+        result = await asyncio.to_thread(_run_with_session, lambda db: process_kyc_event(db, job, final_try=final_try))
+    except KycRetry as retry:
+        logger.warning("kyc_process_event: pull failed, retrying (try %d of %d)", tries, WorkerSettings.max_tries)
+        raise Retry(defer=retry.delay_seconds)
+    logger.info("kyc_process_event: %s", result.outcome)
+    return result.outcome
+
+
 def json_serializer(obj: Any) -> bytes:
     return json.dumps(obj, default=str).encode()
 
@@ -159,7 +176,8 @@ class WorkerSettings:
     functions = [expire_unpaid_bookings_job, dispatch_tick_job, dropout_tick_job, earnings_release_job,
                  payout_batch_job, payout_dispatch_job, payout_reconcile_job, refund_dispatch_job, refund_reconcile_job,
                  whatsapp_events_job,
-                 func(process_whatsapp_inbound_job, keep_result=0)]
+                 func(process_whatsapp_inbound_job, keep_result=0),
+                 func(kyc_process_event, keep_result=0)]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
     cron_jobs = [

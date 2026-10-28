@@ -214,7 +214,7 @@ class CaregiverIdentityService:
     def _remember_session_hint(self, row: IdentityVerification, session_id: str) -> None:
         """Keep the widget's session id as a hint to speed up the pull. ``provider_session_id`` is unique, so an id already on any
         attempt (a clash, or someone squatting a known id) is quietly not stored: the binding never depends on it (design 16.1 point 5)."""
-        if not _SESSION_ID.match(session_id) or row.provider_session_id == session_id:
+        if not _SESSION_ID.fullmatch(session_id) or row.provider_session_id == session_id:
             return
         try:
             with self.db.begin_nested():

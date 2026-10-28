@@ -330,7 +330,10 @@ class AccountErasureService:
         and the keyed NIN/BVN fingerprint. (Oakly's own ``reference``, which Prembly also holds, stays: doc 10.3.)
         An attempt still in flight is expired, so a late webhook or reconcile run meets a terminal attempt and is ignored. The webhook ledger's session ids go with them, including a ledger row
         that never matched an attempt (an orphan) but carries one of the caregiver's session ids."""
-        attempts = self.db.query(IdentityVerification).filter(IdentityVerification.caregiver_id == cg.id).all()
+        # LOCK ORDER (K3): the caregiver row is already locked by ``_check_caregiver``; the attempts come second, by id, exactly as the
+        # webhook worker takes them (``kyc_events.lock_caregiver_then_attempt``), so the two can wait on each other but never deadlock.
+        attempts = (self.db.query(IdentityVerification).filter(IdentityVerification.caregiver_id == cg.id)
+                    .order_by(IdentityVerification.id).populate_existing().with_for_update().all())
         session_ids = [a.provider_session_id for a in attempts if a.provider_session_id]
         now = datetime.utcnow()
         for attempt in attempts:

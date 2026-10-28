@@ -3,10 +3,11 @@
 import logging
 
 from app.core.config import Settings
+from app.tests.fake_prembly import PRODUCTION_KYC_KEYS
 
 
 def _settings(**overrides):
-    base = dict(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_test_placeholder")
+    base = dict(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_test_placeholder", **PRODUCTION_KYC_KEYS)
     base.update(overrides)
     return Settings(**base)
 

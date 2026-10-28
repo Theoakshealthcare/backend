@@ -243,7 +243,7 @@ class PremblyClient:
 
     def get_session(self, session_id: str, *, include_payload: bool = False) -> PremblySession:
         """The authoritative record of one widget session (design K-C1: the pull, made with the SECRET key)."""
-        if not _SESSION_ID.match(session_id or ""):
+        if not _SESSION_ID.fullmatch(session_id or ""):
             raise ValueError("invalid prembly session id")
         params = {"include_payload": "true"} if include_payload else None
         body = self._get(SESSION_PATH.format(session_id=session_id), params)

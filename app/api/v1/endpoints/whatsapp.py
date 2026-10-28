@@ -14,6 +14,7 @@ from app.channels.whatsapp.ingest import compensate, ingest, parse_webhook
 from app.channels.whatsapp.queue import InboundQueue, get_inbound_queue
 from app.channels.whatsapp.signature import verify_signature, verify_token_matches
 from app.core.config import settings
+from app.core.http_body import read_capped_body
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -23,21 +24,7 @@ MAX_BODY_BYTES = 1_000_000  # Meta's payloads are a few KB; refuse anything absu
 
 
 async def _read_capped_body(request: Request) -> bytes:
-    """The raw body, or a 413 as soon as it passes the cap: a declared Content-Length is checked up front
-    and the stream is counted as it arrives, so a chunked body (no Content-Length) cannot push the whole
-    thing into memory before anyone looks at the size."""
-    too_large = HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Payload too large")
-    declared = request.headers.get("content-length")
-    if declared and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
-        raise too_large
-    chunks: list[bytes] = []
-    total = 0
-    async for chunk in request.stream():
-        total += len(chunk)
-        if total > MAX_BODY_BYTES:
-            raise too_large
-        chunks.append(chunk)
-    return b"".join(chunks)
+    return await read_capped_body(request, MAX_BODY_BYTES)
 
 
 @router.get("/webhook", include_in_schema=False)

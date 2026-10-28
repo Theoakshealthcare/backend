@@ -16,6 +16,7 @@ from app.services.booking import BookingService
 from app.services.booking_payment import expected_kobo
 from app.services.paystack import PaystackService
 from app.tests.factories import make_booking, make_patient
+from app.tests.fake_prembly import PRODUCTION_KYC_KEYS
 
 
 def test_to_kobo_rounds_half_up():
@@ -120,8 +121,8 @@ def test_webhook_rejected_when_secret_key_empty(db, client, monkeypatch):
 
 def test_production_startup_requires_paystack_key():
     with pytest.raises(ValueError):
-        Settings(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="")
-    assert Settings(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_live_placeholder").ENVIRONMENT == "production"
+        Settings(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="", **PRODUCTION_KYC_KEYS)
+    assert Settings(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_live_placeholder", **PRODUCTION_KYC_KEYS).ENVIRONMENT == "production"
     assert Settings(ENVIRONMENT="development", PAYSTACK_SECRET_KEY="").PAYSTACK_SECRET_KEY == ""
 
 
@@ -154,7 +155,7 @@ def test_webhook_db_work_runs_off_the_event_loop(db, client, monkeypatch):
 
 def test_production_startup_pins_the_paystack_base_url():
     # The secret key is sent as a Bearer token to this URL and its "success" is trusted: it must be Paystack.
-    good = dict(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_live_placeholder")
+    good = dict(ENVIRONMENT="production", PAYSTACK_SECRET_KEY="sk_live_placeholder", **PRODUCTION_KYC_KEYS)
     assert Settings(**good).PAYSTACK_BASE_URL == "https://api.paystack.co"
     assert Settings(**good, PAYSTACK_BASE_URL="https://api.paystack.co/").ENVIRONMENT == "production"
     for bad in ("http://evil.example", "https://api.paystack.co.evil.example", "http://localhost:9999"):
