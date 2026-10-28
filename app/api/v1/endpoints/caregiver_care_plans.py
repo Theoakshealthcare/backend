@@ -6,6 +6,7 @@ client exists, so a response never works as an oracle. A caregiver who has acces
 every response is ``Cache-Control: no-store``.
 """
 
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
@@ -15,13 +16,16 @@ from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_caregiver, get_db
-from app.db.models.care_plan import CarePlan, CarePlanGoal
+from app.db.models.care_plan import CarePlan, CarePlanGoal, CarePlanTask
 from app.db.models.caregiver import Caregiver
 from app.db.models.user import User
 from app.schemas.care_plan import (
-    CandidateList, CarePlanCreate, CarePlanList, CarePlanOut, CarePlanPatch, GoalCreate, GoalPatch, GoalWriteResult,
-    TemplateDetail, TemplateList, VisitCarePlan,
+    CandidateList, CarePlanCreate, CarePlanList, CarePlanOut, CarePlanPatch, CompletionIn, CompletionOut, GoalCreate,
+    GoalPatch, GoalWriteResult, ObservationCategory, ObservationIn, ObservationList, ObservationOut, Progress, TaskCreate,
+    TaskDay, TaskPatch, TaskWriteResult, TemplateDetail, TemplateList, VisitCarePlan,
 )
+from app.services import care_plan_observations as notes
+from app.services import care_plan_tasks as tasks
 from app.services import care_plans as svc
 from app.services.care_plan_access import (
     NotANurse, PlanAccess, PlanNotAvailable, require_author, resolve_plan_access, resolve_plan_access_for_plan,
@@ -94,6 +98,8 @@ def _refuse(exc: svc.CarePlanError, **extra: Any) -> HTTPException:
         svc.PlanNotEditable: status.HTTP_409_CONFLICT, svc.VersionConflict: status.HTTP_409_CONFLICT,
         svc.CarePlanExists: status.HTTP_409_CONFLICT, svc.ClientNotIdentified: status.HTTP_409_CONFLICT,
         svc.TemplateNotFound: status.HTTP_404_NOT_FOUND, svc.InvalidPlan: status.HTTP_422_UNPROCESSABLE_ENTITY,
+        svc.VisitNotInProgress: status.HTTP_409_CONFLICT, svc.TaskDateNotToday: status.HTTP_422_UNPROCESSABLE_ENTITY,
+        svc.TaskNotScheduled: status.HTTP_422_UNPROCESSABLE_ENTITY,
     }
     return HTTPException(status_code=codes[type(exc)], detail={"code": exc.code, "message": exc.message, **extra})
 
@@ -266,3 +272,144 @@ def remove_goal(goal_id: UUID, expected_version: int = Query(ge=1), current_user
         raise _conflict(db, caregiver, plan_id, exc)
     except svc.CarePlanError as exc:
         raise _refuse(exc)
+
+
+# --- tasks: definitions (nurses), the day view and ticks (slice B2) ----------------------------------------------------
+
+def _task_access(db: Session, caregiver: Caregiver, task_id: UUID) -> tuple[CarePlanTask, CarePlan, PlanAccess]:
+    task = db.get(CarePlanTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    plan, access = _plan_access(db, caregiver, task.plan_id)
+    return task, plan, access
+
+
+def _task_result(task: CarePlanTask, version: int) -> dict:
+    return {"task": tasks.task_out(task), "plan_version": version}
+
+
+def _gone() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+
+
+@router.post("/care-plans/{plan_id}/tasks", response_model=TaskWriteResult, status_code=status.HTTP_201_CREATED,
+             responses={**NO_ACCESS, **NURSE_ONLY})
+def add_task(plan_id: UUID, body: TaskCreate, current_user: User = Depends(get_current_caregiver),
+             db: Session = Depends(get_db)) -> Any:
+    """Add a daily task to the plan. `expected_version` is optional here: adding never overwrites anything. The task is
+    scheduled from today on (it never appears on earlier days)."""
+    caregiver = _caregiver(db, current_user)
+    _plan_access(db, caregiver, plan_id)
+    _nurse(db, caregiver)
+    try:
+        return _task_result(*tasks.add_task(db, caregiver, plan_id, body))
+    except svc.VersionConflict as exc:
+        raise _conflict(db, caregiver, plan_id, exc)
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)
+
+
+@router.patch("/care-plan-tasks/{task_id}", response_model=TaskWriteResult, responses={**NO_ACCESS, **NURSE_ONLY})
+def update_task(task_id: UUID, body: TaskPatch, current_user: User = Depends(get_current_caregiver),
+                db: Session = Depends(get_db)) -> Any:
+    """Edit a task: title, slot, display time or days. Needs the plan's `expected_version`. A removed task is 404."""
+    caregiver = _caregiver(db, current_user)
+    task, _, _ = _task_access(db, caregiver, task_id)
+    _nurse(db, caregiver)
+    plan_id = task.plan_id
+    try:
+        return _task_result(*tasks.update_task(db, caregiver, task, body))
+    except svc.TaskRemoved:
+        raise _gone()
+    except svc.VersionConflict as exc:
+        raise _conflict(db, caregiver, plan_id, exc)
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)
+
+
+@router.delete("/care-plan-tasks/{task_id}", response_model=TaskWriteResult, responses={**NO_ACCESS, **NURSE_ONLY})
+def remove_task(task_id: UUID, expected_version: int = Query(ge=1), current_user: User = Depends(get_current_caregiver),
+                db: Session = Depends(get_db)) -> Any:
+    """Remove a task from the plan: it stops being scheduled and leaves `tasks`; its ticks are kept. Needs the plan's
+    `expected_version` as a query parameter."""
+    caregiver = _caregiver(db, current_user)
+    task, _, _ = _task_access(db, caregiver, task_id)
+    _nurse(db, caregiver)
+    plan_id = task.plan_id
+    try:
+        return _task_result(*tasks.remove_task(db, caregiver, task, expected_version))
+    except svc.VersionConflict as exc:
+        raise _conflict(db, caregiver, plan_id, exc)
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)
+
+
+@router.get("/care-plans/{plan_id}/tasks", response_model=TaskDay, responses=NO_ACCESS)
+def get_task_day(plan_id: UUID, day: Optional[date] = Query(None, alias="date", description="YYYY-MM-DD; default today "
+                                                                                             "(Africa/Lagos)."),
+                 current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db)) -> Any:
+    """The day view: the tasks due that day, grouped by slot, with who ticked each. Any day can be read; only today can be
+    ticked (`can_tick`)."""
+    caregiver = _caregiver(db, current_user)
+    plan, access = _plan_access(db, caregiver, plan_id)
+    return tasks.day_view(db, access, plan, day)
+
+
+@router.put("/care-plan-tasks/{task_id}/completion", response_model=CompletionOut,
+            responses={**NO_ACCESS,
+                       409: {"description": "`visit_not_in_progress` or `plan_not_editable` (completed/archived plan)."},
+                       422: {"description": "`task_date_not_today`, `task_not_scheduled`, or validation."}})
+def set_completion(task_id: UUID, body: CompletionIn, current_user: User = Depends(get_current_caregiver),
+                   db: Session = Depends(get_db)) -> Any:
+    """Tick (`done: true`) or untick (`done: false`) a task. Idempotent: repeating a call changes nothing. Only for today
+    (Africa/Lagos) and only during a visit of yours that is in progress. Any caregiver on the client may tick, not only a
+    nurse. Unticking someone else's tick is allowed and recorded."""
+    caregiver = _caregiver(db, current_user)
+    task, _, access = _task_access(db, caregiver, task_id)
+    try:
+        return tasks.set_completion(db, caregiver, access, task, body.date, body.done)
+    except svc.TaskRemoved:
+        raise _gone()
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)
+
+
+# --- observations and progress (slice B2) -------------------------------------------------------------------------------
+
+@router.get("/care-plans/{plan_id}/observations", response_model=ObservationList, responses=NO_ACCESS)
+def list_observations(
+    plan_id: UUID,
+    before: Optional[datetime] = Query(None, description="Return notes older than this timestamp (the previous page's "
+                                                         "`next_before`)."),
+    limit: int = Query(notes.DEFAULT_LIMIT, ge=1, le=notes.MAX_LIMIT),
+    category: Optional[ObservationCategory] = Query(None, description="Only this category."),
+    current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db),
+) -> Any:
+    """Visit notes, newest first. A completed plan keeps its notes as history."""
+    caregiver = _caregiver(db, current_user)
+    plan, _ = _plan_access(db, caregiver, plan_id)
+    if before is not None and before.tzinfo is not None:
+        before = before.astimezone(timezone.utc).replace(tzinfo=None)
+    return notes.list_observations(db, plan, before, limit, category)
+
+
+@router.post("/care-plans/{plan_id}/observations", response_model=ObservationOut, status_code=status.HTTP_201_CREATED,
+             responses={**NO_ACCESS, 409: {"description": "`visit_not_in_progress` or `plan_not_editable`."}})
+def add_observation(plan_id: UUID, body: ObservationIn, current_user: User = Depends(get_current_caregiver),
+                    db: Session = Depends(get_db)) -> Any:
+    """Add a note during a visit of yours that is in progress. Any caregiver on the client may, not only a nurse. Notes
+    cannot be edited or deleted: a correction is a new note."""
+    caregiver = _caregiver(db, current_user)
+    plan, access = _plan_access(db, caregiver, plan_id)
+    try:
+        return notes.add_observation(db, caregiver, access, plan, body)
+    except svc.CarePlanError as exc:
+        raise _refuse(exc)
+
+
+@router.get("/care-plans/{plan_id}/progress", response_model=Progress, responses=NO_ACCESS)
+def get_progress(plan_id: UUID, current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db)) -> Any:
+    """View Progress: ticked / scheduled tasks over the days that had a visit for this client, day N of M, goal counts."""
+    caregiver = _caregiver(db, current_user)
+    plan, _ = _plan_access(db, caregiver, plan_id)
+    return tasks.progress(db, plan)

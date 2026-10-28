@@ -23,6 +23,9 @@ Target = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, m
 FreeText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
 Duration = Annotated[int, Field(ge=1, le=365)]
 ReviewEvery = Annotated[int, Field(ge=7, le=90)]
+Day = date  # an alias, so a field called `date` does not shadow the type inside its own class
+ObservationText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+ObservationCategory = Literal["observation", "special_note"]
 
 
 def _check_days(days: List[int]) -> List[int]:
@@ -87,6 +90,44 @@ class CarePlanPatch(BaseModel):
         return self
 
 
+class TaskCreate(TaskIn):
+    expected_version: Optional[int] = Field(None, ge=1, description="Optional: adding never overwrites anything.")
+
+
+class TaskPatch(BaseModel):
+    """Only the fields sent change. ``time_of_day`` accepts null to clear it. Editing the days or the slot applies to every
+    day, including days already past (the plan keeps one definition of a task)."""
+    expected_version: int = Field(ge=1)
+    title: Optional[Title] = None
+    time_slot: Optional[TimeSlot] = None
+    time_of_day: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["08:00"],
+                                       description="Display time, HH:MM. null clears it.")
+    days_of_week: Optional[List[int]] = Field(None, min_length=1, max_length=7, description="1 = Monday .. 7 = Sunday.")
+
+    @field_validator("days_of_week")
+    @classmethod
+    def _days(cls, days: Optional[List[int]]) -> Optional[List[int]]:
+        return _check_days(days) if days is not None else None
+
+    @model_validator(mode="after")
+    def _required_fields_are_not_cleared(self):
+        for name in ("title", "time_slot", "days_of_week"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class CompletionIn(BaseModel):
+    date: Day = Field(description="The day to tick, YYYY-MM-DD. Only today (Africa/Lagos) is accepted.")
+    done: bool = Field(description="true ticks the task, false unticks it. Repeating a call changes nothing.")
+
+
+class ObservationIn(BaseModel):
+    body: ObservationText
+    category: ObservationCategory = Field("observation", description="`special_note` shows under Allergies and Special "
+                                                                     "Instructions; `observation` under Notes.")
+
+
 class GoalCreate(GoalIn):
     expected_version: Optional[int] = Field(None, ge=1, description="Optional: adding never overwrites anything.")
 
@@ -142,7 +183,9 @@ class TaskOut(BaseModel):
 
 
 class Capabilities(BaseModel):
-    can_edit_plan: bool
+    can_edit_plan: bool = Field(description="A nurse, and the plan is active.")
+    can_tick_tasks: bool = Field(description="The plan is active and the caller has a visit for this client in progress.")
+    can_add_observation: bool = Field(description="Same rule as `can_tick_tasks`.")
 
 
 class CarePlanOut(BaseModel):
@@ -213,6 +256,80 @@ class Candidate(BaseModel):
 
 class CandidateList(BaseModel):
     items: List[Candidate]
+
+
+class TaskWriteResult(BaseModel):
+    task: TaskOut
+    plan_version: int = Field(description="The plan's version after this write; use it as the next expected_version.")
+
+
+class DayTask(BaseModel):
+    id: UUID
+    title: str
+    time_of_day: Optional[str] = Field(None, description="HH:MM")
+    done: bool
+    done_by: Optional[str] = Field(None, description="Name of the caregiver who ticked it; null when not done.")
+    done_at: Optional[datetime] = None
+
+
+class DaySlot(BaseModel):
+    slot: TimeSlot
+    time_of_day: Optional[str] = Field(None, description="The earliest task time in this slot, for the heading.")
+    tasks: List[DayTask]
+
+
+class TaskDay(BaseModel):
+    date: Day
+    is_today: bool
+    can_tick: bool = Field(description="Today, the plan is active, and the caller has a visit for this client in progress.")
+    slots: List[DaySlot] = Field(description="Only slots that have a task that day, in day order.")
+
+
+class CompletionOut(BaseModel):
+    task_id: UUID
+    date: Day
+    done: bool
+    done_by: Optional[str] = None
+    done_at: Optional[datetime] = None
+
+
+class ObservationOut(BaseModel):
+    id: UUID
+    category: ObservationCategory
+    body: str
+    author: AuthorOut
+    created_at: datetime
+
+
+class ObservationList(BaseModel):
+    items: List[ObservationOut]
+    next_before: Optional[datetime] = Field(None, description="Pass as `before` for the next (older) page; null on the last.")
+
+
+class ProgressDay(BaseModel):
+    date: Day
+    scheduled: int
+    completed: int
+
+
+class GoalCounts(BaseModel):
+    active: int
+    achieved: int
+    discontinued: int
+
+
+class Progress(BaseModel):
+    overall_percent: Optional[int] = Field(None, description="Ticked / scheduled task occurrences over visit days only; "
+                                                              "null when there is nothing to measure yet.")
+    scheduled: int
+    completed: int
+    visit_days: int
+    day: int = Field(description="Day number of the plan, 0 before it starts, never above `of_days`.")
+    of_days: int
+    review_due_on: Optional[date] = None
+    by_day: List[ProgressDay] = Field(description="The last 14 visit days, oldest first.")
+    goals: GoalCounts
+    last_observation_at: Optional[datetime] = None
 
 
 class GoalWriteResult(BaseModel):
