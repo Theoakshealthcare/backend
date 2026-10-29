@@ -24,6 +24,8 @@ from app.services.dispatch import dispatch_tick
 from app.services.dropout import tick as dropout_tick
 from app.services.earnings import release_due as release_due_earnings
 from app.services.kyc_events import KycRetry, process_event as process_kyc_event
+from app.services.kyc_hooks import KycHooks
+from app.services.kyc_reconcile import reconcile as kyc_reconcile
 from app.services.payouts import create_scheduled_batch, dispatch_due as dispatch_payouts, reconcile as reconcile_payouts
 from app.services.refunds import dispatch_due as dispatch_refunds, reconcile as reconcile_refunds
 
@@ -155,12 +157,20 @@ async def kyc_process_event(ctx: dict, job: dict) -> str:
     tries = ctx.get("job_try", 1)
     final_try = tries >= WorkerSettings.max_tries
     try:
-        result = await asyncio.to_thread(_run_with_session, lambda db: process_kyc_event(db, job, final_try=final_try))
+        result = await asyncio.to_thread(
+            _run_with_session, lambda db: process_kyc_event(db, job, final_try=final_try, hooks=KycHooks.production()))
     except KycRetry as retry:
         logger.warning("kyc_process_event: pull failed, retrying (try %d of %d)", tries, WorkerSettings.max_tries)
         raise Retry(defer=retry.delay_seconds)
     logger.info("kyc_process_event: %s", result.outcome)
     return result.outcome
+
+
+async def kyc_reconcile_job(ctx: dict) -> dict:
+    """The backstop for lost webhooks (app/services/kyc_reconcile.py): finish attempts whose result was never processed, bind finished
+    sessions Prembly never delivered, and expire attempts nobody answered. Idempotent and lock-safe; it never raises Retry."""
+    stats = await asyncio.to_thread(_run_with_session, lambda db: kyc_reconcile(db, hooks=KycHooks.production()))
+    return stats.as_dict()
 
 
 def json_serializer(obj: Any) -> bytes:
@@ -177,7 +187,8 @@ class WorkerSettings:
                  payout_batch_job, payout_dispatch_job, payout_reconcile_job, refund_dispatch_job, refund_reconcile_job,
                  whatsapp_events_job,
                  func(process_whatsapp_inbound_job, keep_result=0),
-                 func(kyc_process_event, keep_result=0)]
+                 func(kyc_process_event, keep_result=0),
+                 kyc_reconcile_job]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
     cron_jobs = [
@@ -193,6 +204,7 @@ class WorkerSettings:
         cron(refund_dispatch_job, second=40),
         cron(refund_reconcile_job, minute={7, 22, 37, 52}, second=45),
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
+        cron(kyc_reconcile_job, minute={3, 13, 23, 33, 43, 53}, second=15),  # every 10 minutes (design 6)
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     job_serializer = staticmethod(json_serializer)

@@ -20,5 +20,5 @@
       }
     }
   },
-  "note": "[seeded] Identity already verified."
+  "note": "[engine] Identity already verified by a pull-confirmed pass."
 }

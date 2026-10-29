@@ -1,7 +1,9 @@
-"""K3: the worker side of the Prembly webhook. Locate the attempt, PULL the session, record the raw outcome.
+"""K3: the worker side of the Prembly webhook. Locate the attempt, bind it, PULL the session, record the raw outcome.
 
-K3 changes NO caregiver status and no attempt status (K4 does that), so most tests assert what stays the same. Design:
-docs/plans/2026-10-27-caregiver-kyc-design.md sections 8.3, 8.4 and 16.1. Names, ids and numbers are placeholders.
+Since K4 the same locked section also DECIDES (kyc_engine; the rules and the decision matrix are tested in test_kyc_decision.py and
+test_kyc_engine.py), so a final pull moves the attempt and the caregiver. These tests keep their K3 job: binding, trust, idempotency,
+retries and lock order. Design: docs/plans/2026-10-27-caregiver-kyc-design.md sections 8.3, 8.4 and 16.1. Names, ids and numbers
+are placeholders.
 """
 import asyncio
 import json
@@ -10,7 +12,7 @@ import re
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 import httpx
 import pytest
@@ -41,6 +43,7 @@ def env(fake_prembly, kyc_queue):  # noqa: F811
 
 
 def cg(db, **kw):
+    kw.setdefault("date_of_birth", date(1990, 4, 12))
     return make_caregiver(db, approved=False, profile_completion_step=2, **kw)
 
 
@@ -77,27 +80,28 @@ def snapshot(a):
 
 
 # --- a pull-confirmed result is recorded, nothing is decided ---------------------------------------------------------
-def test_a_confirmed_result_is_recorded_from_the_pull_and_decides_nothing(client, db, kyc_queue, fake_prembly):
+def test_a_confirmed_result_is_recorded_from_the_pull_and_decided_in_the_same_section(client, db, kyc_queue, fake_prembly):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=92.5, liveness_confidence=0.9,
-                                total_cost="310.00",
-                                payload={"face_data": {"confidence": 92.5}, "biometric_results": {"liveness_confidence": 0.9},
-                                         "verification": {"reference": "prem-ref-1"}})
+    session = fake_prembly.script_clean_pass("sdk_session_a", caregiver, face_confidence=92.5, liveness_confidence=0.9,
+                                             total_cost="310.00")
+    session["_payload"]["verification"] = {"reference": "prem-ref-1"}
     job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
 
     result = process_event(db, job)
 
     assert result.outcome == "applied" and result.verification_id == a.id and result.observation.verdict == "pass"
+    assert result.notice is not None and result.notice.kind == "verified"
     a = fresh(db, a)
     assert (a.provider_session_id, a.provider_reference) == ("sdk_session_a", "prem-ref-1")
     assert (float(a.face_confidence), float(a.liveness_confidence), float(a.provider_cost)) == (92.5, 90.0, 310.0)
     assert a.completed_at is not None and a.reason_codes == []
-    # K4's job, not K3's: no attempt status, no decision, no caregiver status, no step change, no system-decision trail
-    assert a.status == "awaiting_result" and a.decided_via is None and a.face_threshold is None
+    assert (a.status, a.decided_via, a.face_threshold, a.id_type) == ("passed", "provider", 85, "nin")
+    assert (a.name_match, a.dob_match) == (True, True) and a.id_fingerprint and SANDBOX_NIN not in a.id_fingerprint
     c = fresh(db, caregiver)
-    assert (c.identity_verification_status, c.profile_completion_step, c.profile_status) == ("pending", 2, "under_review")
-    assert db.query(IdentityVerificationEvent).count() == 0
+    assert (c.identity_verification_status, c.profile_completion_step, c.profile_status) == ("verified", 3, "under_review")
+    (trail,) = db.query(IdentityVerificationEvent).all()
+    assert (trail.actor, trail.from_status, trail.to_status, trail.reason_codes) == ("provider", "awaiting_result", "passed", [])
     event = ledger(db, job)
     assert (event.outcome, event.verification_id) == ("applied", a.id) and event.processed_at is not None
 
@@ -113,12 +117,12 @@ def test_the_pull_uses_the_secret_key_and_asks_for_the_payload(client, db, kyc_q
 
 
 @pytest.mark.parametrize("status", VERIFICATION_ACTIVE_STATUSES)
-def test_no_active_status_is_changed(client, db, kyc_queue, fake_prembly, status):
+def test_every_active_status_can_be_decided(client, db, kyc_queue, fake_prembly, status):
     caregiver = cg(db)
     a = attempt(db, caregiver, status=status)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=95)
+    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
     assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)).outcome == "applied"
-    assert fresh(db, a).status == status
+    assert fresh(db, a).status == "passed"
 
 
 def test_a_session_that_is_not_final_is_only_bound(client, db, kyc_queue, fake_prembly):
@@ -164,15 +168,16 @@ def test_scores_outside_their_scale_are_dropped_not_clamped(client, db, kyc_queu
 
 
 # --- trust: the webhook alone is never believed -----------------------------------------------------------------------
-def test_a_webhook_pass_over_a_pulled_failure_is_a_disagreement_and_records_no_result(client, db, kyc_queue, fake_prembly):
+def test_a_webhook_pass_over_a_pulled_failure_is_a_disagreement_that_goes_to_review_not_to_verified(client, db, kyc_queue, fake_prembly):
     caregiver = cg(db)
     a = attempt(db, caregiver)
     fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="failed", face_confidence=10)
     job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="VERIFIED")
     assert process_event(db, job).outcome == "disagreement"
     a = fresh(db, a)
-    assert a.reason_codes == ["provider_disagreement"] and a.provider_session_id is None and a.face_confidence is None
-    assert a.status == "awaiting_result" and ledger(db, job).outcome == "disagreement"
+    assert a.reason_codes == ["provider_disagreement", "face_mismatch"] and a.provider_session_id == "sdk_session_a"
+    assert (a.status, a.decided_via) == ("needs_review", "provider") and ledger(db, job).outcome == "disagreement"
+    assert fresh(db, caregiver).identity_verification_status == "needs_review"
 
 
 def test_a_webhook_failure_over_a_pulled_pass_is_a_disagreement_too(client, db, kyc_queue, fake_prembly):
@@ -180,6 +185,7 @@ def test_a_webhook_failure_over_a_pulled_pass_is_a_disagreement_too(client, db, 
     a = attempt(db, caregiver)
     fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="passed")
     assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="FAILED")).outcome == "disagreement"
+    assert fresh(db, caregiver).identity_verification_status == "needs_review"  # a webhook can never talk a pull into "verified"
 
 
 def test_a_forged_webhook_cannot_attach_someone_elses_session(client, db, kyc_queue, fake_prembly):
@@ -281,16 +287,17 @@ def test_a_terminal_attempt_ignores_events_and_costs_no_pull(client, db, kyc_que
 def test_a_replay_under_a_new_token_changes_nothing_the_second_time(client, db, kyc_queue, fake_prembly):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=91)
+    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
     first = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
     assert process_event(db, first).outcome == "applied"
     recorded = snapshot(fresh(db, a))
     replay = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
     assert replay["event_id"] != first["event_id"]
-    assert process_event(db, replay).outcome == "applied"
+    again = process_event(db, replay)
+    assert again.outcome == "ignored_terminal" and again.notice is None  # the attempt is finished: inert, nobody is told twice
     assert snapshot(fresh(db, a)) == recorded
-    assert len(fake_prembly.requests) == 1  # a result is already recorded: the replay cost no pull
-    assert db.query(IdentityVerificationEvent).count() == 0
+    assert len(fake_prembly.requests) == 1  # a finished attempt costs no pull
+    assert db.query(IdentityVerificationEvent).count() == 1
 
 
 def test_a_recorded_result_is_never_overwritten_inside_the_lock(client, db, kyc_queue, fake_prembly):
@@ -299,7 +306,8 @@ def test_a_recorded_result_is_never_overwritten_inside_the_lock(client, db, kyc_
     a = attempt(db, caregiver, provider_session_id="sdk_session_a", face_confidence=91, completed_at=datetime(2026, 10, 27, 10, 0))
     fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=12)
     session = fake_prembly_session(fake_prembly, "sdk_session_a")
-    assert kyc_events.confirm_and_record(db, a.id, session) == ("applied", None)
+    recorded = kyc_events.confirm_and_record(db, a.id, session)
+    assert (recorded.outcome, recorded.observation, recorded.notice) == ("applied", None, None)
     db.commit()
     after = fresh(db, a)
     assert float(after.face_confidence) == 91.0 and after.completed_at == datetime(2026, 10, 27, 10, 0)
@@ -500,8 +508,8 @@ def test_the_worker_holding_its_locks_makes_erasure_wait_and_erasure_wins_withou
         assert locked_attempt.status == "awaiting_result"
         eraser_thread, box = _in_thread(lambda s: AccountErasureService(s).erase(user_id))
         assert _is_waiting_on_a_lock(), "erasure should be waiting on the worker's caregiver lock"
-        outcome, _ = kyc_events.confirm_and_record(worker_db, attempt_id, fake_prembly_session(fake_prembly, "sdk_session_a"))
-        assert outcome == "applied"
+        recorded = kyc_events.confirm_and_record(worker_db, attempt_id, fake_prembly_session(fake_prembly, "sdk_session_a"))
+        assert recorded.outcome == "applied"
         worker_db.commit()
     finally:
         worker_db.close()
@@ -509,7 +517,8 @@ def test_the_worker_holding_its_locks_makes_erasure_wait_and_erasure_wins_withou
     assert not eraser_thread.is_alive() and "error" not in box, box.get("error")
 
     after = fresh(db, a)
-    assert (after.status, after.provider_session_id) == ("expired", None)  # what the worker bound is gone with the erasure
+    # The worker decided first (no registry data in this session, so a person looks), then erasure scrubbed what it bound and wrote
+    assert (after.status, after.provider_session_id, after.id_fingerprint, after.provider_reference) == ("needs_review", None, None, None)
 
 
 def fake_prembly_session(fake, session_id):
@@ -521,14 +530,16 @@ def fake_prembly_session(fake, session_id):
 def test_two_workers_on_one_attempt_do_not_both_record(client, db, kyc_queue, fake_prembly):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=93)
+    fake_prembly.script_clean_pass("sdk_session_a", caregiver, face_confidence=93)
     jobs = [deliver(client, kyc_queue, "sdk_session_a", ref=a.reference) for _ in range(3)]
     threads = [_in_thread(lambda s, j=j: process_event(s, j).outcome) for j in jobs]
     for t, _ in threads:
         t.join(timeout=30)
     assert [b.get("error") for _, b in threads] == [None, None, None]
-    assert [b["result"] for _, b in threads] == ["applied"] * 3  # the same pull, recorded idempotently
-    assert float(fresh(db, a).face_confidence) == 93.0
+    assert sorted(b["result"] for _, b in threads) == ["applied", "ignored_terminal", "ignored_terminal"]  # one decides, two find it done
+    after = fresh(db, a)
+    assert (after.status, float(after.face_confidence)) == ("passed", 93.0)
+    assert db.query(IdentityVerificationEvent).count() == 1  # decided once
 
 
 def _lock_sequence(run):

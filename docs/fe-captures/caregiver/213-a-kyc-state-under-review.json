@@ -23,5 +23,5 @@
       "policy_version": "kyc-2026-10"
     }
   },
-  "note": "[seeded] A case with a person. The reason (here a duplicate identity) is not returned."
+  "note": "[engine] A case with a person (here the name on the ID differs from the profile). The reason is not returned."
 }
