@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/a212ac96-46e6-4803-9b1f-aab0cdf66b63/identity-reset",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "notes": "Placeholder: second account closed, allow the first."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+      "profile_status": "under_review",
+      "identity_verification_status": "pending",
+      "background_check_status": "pending",
+      "attempts_used": 0,
+      "attempts_max": 3
+    }
+  },
+  "note": "Reset also works on a caregiver an admin failed."
+}

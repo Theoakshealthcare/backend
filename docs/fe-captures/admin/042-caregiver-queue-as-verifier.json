@@ -14,8 +14,10 @@
       "items": [],
       "total": 0,
       "limit": 25,
-      "offset": 0
+      "offset": 0,
+      "needs_review_count": 0,
+      "stuck_count": 0
     }
   },
-  "note": "A route the Verification role may use."
+  "note": "A route the Verification role may use. Since K5 the list also carries the identity badges."
 }

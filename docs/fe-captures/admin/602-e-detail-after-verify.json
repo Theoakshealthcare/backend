@@ -1,0 +1,113 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/f515f69b-7162-4f62-8286-f5637e3d61c9",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+        "user_id": "23c7965e-04cb-451a-af0c-6134ded09a3d",
+        "email": "caregiver-bcf6c117f1@example.com",
+        "full_name": "Placeholder Chidi Nwosu",
+        "phone_number": "+2348613208706",
+        "date_of_birth": "1990-04-12",
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "nurse",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "profile_completion_step": 3,
+        "identity_verification_status": "verified",
+        "background_check_status": "pending",
+        "profile_status": "under_review",
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "created_at": "2026-10-29T13:53:07.430220",
+        "updated_at": "2026-10-29T13:53:09.273799"
+      },
+      "consents": {
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "verified",
+        "review_reason": null,
+        "attempts_used": 1,
+        "attempts_max": 3,
+        "can_reset": false,
+        "attempts": [
+          {
+            "id": "48f2105f-3e36-45a9-8e66-04ef2b63776e",
+            "attempt_no": 1,
+            "status": "passed",
+            "created_at": "2026-10-29T13:53:07.436913",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": "bvn",
+            "face_confidence": 92.0,
+            "liveness_confidence": 90.0,
+            "face_threshold": 85,
+            "name_match": false,
+            "dob_match": true,
+            "reason_codes": [
+              "name_mismatch"
+            ],
+            "provider_reference": null,
+            "decided_via": "admin"
+          }
+        ],
+        "duplicate_of_caregiver_id": null
+      },
+      "background_check": {
+        "status": "pending",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "audit_history": [
+        {
+          "id": "61b6e034-9836-4133-81be-382758fde61e",
+          "action": "caregiver.identity_decision",
+          "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+          "entity_type": "caregiver",
+          "entity_id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+          "reason": "Placeholder: married name, checked on the Prembly dashboard.",
+          "created_at": "2026-10-29T13:53:09.271541"
+        },
+        {
+          "id": "822a6daf-9eb1-40fc-916b-8bf013b68bfa",
+          "action": "caregiver.view",
+          "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+          "entity_type": "caregiver",
+          "entity_id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+          "reason": null,
+          "created_at": "2026-10-29T13:53:09.126620"
+        }
+      ]
+    }
+  },
+  "note": "The review attempt is now `passed`, `decided_via` `admin`; its reason codes stay so the override is visible; `review_reason` is null."
+}

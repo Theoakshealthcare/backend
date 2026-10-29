@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/identity-verification",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "status": "pending",
+      "attempts_used": 0,
+      "attempts_max": 3,
+      "active_verification_id": null,
+      "last_attempt_status": null,
+      "can_start": true,
+      "failure_hint": null,
+      "provider_available": true,
+      "review_eta_hours": null,
+      "policy_version": "kyc-2026-10"
+    }
+  },
+  "note": "What the caregiver's app sees: `can_start` is true and `attempts_used` is 0."
+}

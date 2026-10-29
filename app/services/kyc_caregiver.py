@@ -53,10 +53,16 @@ FAILURE_HINTS = {
 GENERIC_FAILURE_HINT = "mismatch_generic"
 
 
+# K5: ``identity-reset`` marks every attempt that existed at the time with this reason code. A marked attempt stays in the history
+# (and in the admin's list) but no longer counts against the cap. No column: reason codes are free text (no CHECK, no migration).
+RESET_MARK = "admin_reset"
+
+
 def attempts_used(attempts) -> int:
     """How many of a caregiver's attempts count against ``KYC_MAX_ATTEMPTS``. THE counting rule: the state endpoint, the session
-    creation and the K4 engine all call it, so K5's ``identity-reset`` (a fresh set of attempts) changes one place."""
-    return sum(1 for a in attempts if a.status not in UNCOUNTED_STATUSES)
+    creation, the K4 engine and the admin detail all call it, so ``identity-reset`` (a fresh set of attempts) lives in this one place:
+    an attempt carrying ``RESET_MARK`` was wiped by an admin and does not count."""
+    return sum(1 for a in attempts if a.status not in UNCOUNTED_STATUSES and RESET_MARK not in (a.reason_codes or ()))
 
 _SESSION_ID = re.compile(SESSION_ID_PATTERN)
 
@@ -79,7 +85,8 @@ class CaregiverIdentityService:
     # --- reads -------------------------------------------------------------------------------------------------------
     def state(self, caregiver: Caregiver, available: Optional[bool] = None) -> Dict:
         attempts = self._attempts(caregiver)  # newest first
-        latest = attempts[0] if attempts else None
+        # an attempt wiped by an admin reset is history: the app starts over from the caregiver's status
+        latest = next((a for a in attempts if RESET_MARK not in (a.reason_codes or ())), None)
         active = next((a for a in attempts if a.status in VERIFICATION_ACTIVE_STATUSES), None)
         used = attempts_used(attempts)
         if available is None:

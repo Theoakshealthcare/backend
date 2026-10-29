@@ -19,6 +19,7 @@ ADMIN_ONLY = {
     ("GET", f"{API}/admin/caregivers/{{caregiver_id}}"): "caregivers.read",
     ("POST", f"{API}/admin/caregivers/documents/{{doc_id}}/decision"): "caregivers.approve",
     ("POST", f"{API}/admin/caregivers/{{caregiver_id}}/identity-decision"): "caregivers.approve",
+    ("POST", f"{API}/admin/caregivers/{{caregiver_id}}/identity-reset"): "caregivers.approve",
     ("POST", f"{API}/admin/caregivers/{{caregiver_id}}/background-check-decision"): "caregivers.approve",
     ("PUT", f"{API}/admin/caregivers/{{caregiver_id}}/skills"): "caregivers.approve",
     ("POST", f"{API}/admin/caregivers/{{caregiver_id}}/approve"): "caregivers.approve",

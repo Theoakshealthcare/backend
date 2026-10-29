@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/37b7a2a8-cb69-4e1c-bc78-4ed8d1f7678e/identity-reset",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "notes": "Placeholder note"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "message": "Identity can only be reset when it has failed or its attempts ran out",
+        "unmet": [
+          {
+            "code": "IDENTITY_RESET_NOT_ALLOWED",
+            "message": "Identity is needs_review"
+          }
+        ]
+      }
+    }
+  },
+  "note": "[engine] A review that is about the evidence (here a face score in the grey band) needs a verdict, not another go: the same 409. Only `failed` and an exhausted review can be reset."
+}

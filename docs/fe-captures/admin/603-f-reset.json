@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/46a35ae6-f39c-4cdc-983d-cde534695045/identity-reset",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "notes": "Placeholder: photos were dark, allow another go."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+      "profile_status": "under_review",
+      "identity_verification_status": "pending",
+      "background_check_status": "pending",
+      "attempts_used": 0,
+      "attempts_max": 3
+    }
+  },
+  "note": "The caregiver is `pending` again with a fresh set of attempts. They are not verified, approved or reinstated."
+}

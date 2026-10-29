@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/f515f69b-7162-4f62-8286-f5637e3d61c9/identity-decision",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "decision": "verified",
+      "notes": "Placeholder note"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: caregivers.approve"
+    }
+  },
+  "note": "Finance holds `caregivers.read` but not `caregivers.approve`: 403, nothing changes."
+}

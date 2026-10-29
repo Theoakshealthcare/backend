@@ -1,0 +1,94 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/f515f69b-7162-4f62-8286-f5637e3d61c9",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+        "user_id": "23c7965e-04cb-451a-af0c-6134ded09a3d",
+        "email": "caregiver-bcf6c117f1@example.com",
+        "full_name": "Placeholder Chidi Nwosu",
+        "phone_number": "+2348613208706",
+        "date_of_birth": "1990-04-12",
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "nurse",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "profile_completion_step": 3,
+        "identity_verification_status": "needs_review",
+        "background_check_status": "pending",
+        "profile_status": "under_review",
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "created_at": "2026-10-29T13:53:07.430220",
+        "updated_at": "2026-10-29T13:53:07.452170"
+      },
+      "consents": {
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "needs_review",
+        "review_reason": "name_mismatch",
+        "attempts_used": 1,
+        "attempts_max": 3,
+        "can_reset": false,
+        "attempts": [
+          {
+            "id": "48f2105f-3e36-45a9-8e66-04ef2b63776e",
+            "attempt_no": 1,
+            "status": "needs_review",
+            "created_at": "2026-10-29T13:53:07.436913",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": "bvn",
+            "face_confidence": 92.0,
+            "liveness_confidence": 90.0,
+            "face_threshold": 85,
+            "name_match": false,
+            "dob_match": true,
+            "reason_codes": [
+              "name_mismatch"
+            ],
+            "provider_reference": null,
+            "decided_via": "provider"
+          }
+        ],
+        "duplicate_of_caregiver_id": null
+      },
+      "background_check": {
+        "status": "pending",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "audit_history": []
+    }
+  },
+  "note": "[engine] The name on the ID differs from the profile: `name_match` is false."
+}

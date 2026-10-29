@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/7c1a82d1-923e-4fc4-860a-d308103f87f2/identity-reset",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "notes": "Placeholder note"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "message": "Identity can only be reset when it has failed or its attempts ran out",
+        "unmet": [
+          {
+            "code": "IDENTITY_RESET_NOT_ALLOWED",
+            "message": "Identity is verified"
+          }
+        ]
+      }
+    }
+  },
+  "note": "A verified caregiver cannot be reset: 409, `unmet[0].code` `IDENTITY_RESET_NOT_ALLOWED`. Fail them first if the verification is to be undone."
+}

@@ -1,0 +1,44 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/identity-verification/sessions",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "consent": true,
+      "policy_version": "kyc-2026-10"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "verification_id": "1bbdc1e9-45ad-42da-b138-52e2c019fe47",
+      "attempt_no": 4,
+      "widget": {
+        "widget_id": "placeholder-widget-id",
+        "widget_key": "placeholder-widget-key",
+        "email": "caregiver-cb970c0182@example.com",
+        "first_name": "Placeholder",
+        "last_name": "Funmi Lawal",
+        "metadata": {
+          "oakly_ref": "0e8fa773-7713-4215-ab7d-1339f9d17b4e"
+        }
+      },
+      "state": {
+        "status": "in_progress",
+        "attempts_used": 1,
+        "attempts_max": 3,
+        "active_verification_id": "1bbdc1e9-45ad-42da-b138-52e2c019fe47",
+        "last_attempt_status": "created",
+        "can_start": true,
+        "failure_hint": null,
+        "provider_available": true,
+        "review_eta_hours": null,
+        "policy_version": "kyc-2026-10"
+      }
+    }
+  },
+  "note": "The next attempt continues the numbering (`attempt_no` 4)."
+}

@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_permission
+from app.core.config import settings
 from app.db.models.admin import AdminUser
 from app.db.models.caregiver import Caregiver
 from app.db.models.user import User
@@ -17,6 +18,7 @@ from app.schemas.admin_caregiver import (
     BackgroundCheckDecision,
     DocumentDecision,
     IdentityDecision,
+    IdentityReset,
     ReasonIn,
     RequestChangesIn,
     SkillsIn,
@@ -35,6 +37,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ListStatus = Literal["incomplete", "under_review", "changes_requested", "approved", "rejected", "suspended"]
+IdentityFilter = Literal["needs_review", "stuck", "failed"]  # the buckets kyc_admin.queue_condition knows
 
 
 def get_service(db: Session = Depends(get_db)) -> CaregiverApprovalService:
@@ -94,12 +97,13 @@ def _summary(cg: Caregiver) -> Dict[str, Any]:
 @router.get("/", include_in_schema=False, response_model=ApplicationList)
 def list_applications(
     profile_status: ListStatus = "under_review",
+    identity: Optional[IdentityFilter] = None,
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
     _admin: AdminUser = Depends(require_permission("caregivers.read")),
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
-    return service.list_applications(profile_status, limit, offset)
+    return service.list_applications(profile_status, limit, offset, identity)
 
 
 @router.post("/documents/{doc_id}/decision")
@@ -135,9 +139,19 @@ def identity_decision(
     service: CaregiverApprovalService = Depends(get_service),
 ) -> Any:
     cg, affected = _run(lambda: service.decide_identity(
-        caregiver_id, admin.id, body.decision, body.notes, request))
+        caregiver_id, admin.id, body.decision, body.notes, request, body.expected_status))
     _after_decision(background, cg, affected)
     return {**_summary(cg), **_auto_suspend_fields(affected)}
+
+
+@router.post("/{caregiver_id}/identity-reset")
+def identity_reset(
+    caregiver_id: UUID, body: IdentityReset, request: Request,
+    admin: AdminUser = Depends(require_permission("caregivers.approve")),
+    service: CaregiverApprovalService = Depends(get_service),
+) -> Any:
+    cg = _run(lambda: service.reset_identity(caregiver_id, admin.id, body.notes, request))
+    return {**_summary(cg), "attempts_used": 0, "attempts_max": settings.KYC_MAX_ATTEMPTS}
 
 
 @router.post("/{caregiver_id}/background-check-decision")

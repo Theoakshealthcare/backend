@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/46a35ae6-f39c-4cdc-983d-cde534695045/identity-reset",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "notes": "Placeholder note"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: caregivers.approve"
+    }
+  },
+  "note": "403 for Finance, nothing changes."
+}

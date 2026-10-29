@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/f515f69b-7162-4f62-8286-f5637e3d61c9/identity-decision",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "decision": "verified",
+      "notes": "Placeholder: married name, checked on the Prembly dashboard."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+      "profile_status": "under_review",
+      "identity_verification_status": "verified",
+      "background_check_status": "pending",
+      "auto_suspended": false,
+      "affected_bookings": []
+    }
+  },
+  "note": "A person resolves the name mismatch. The response is the same summary as before."
+}

@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/1b968f29-4c90-4ebe-ab94-a9639316d763/identity-decision",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "decision": "verified",
+      "notes": "Placeholder: verified by hand."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "1b968f29-4c90-4ebe-ab94-a9639316d763",
+      "profile_status": "under_review",
+      "identity_verification_status": "verified",
+      "background_check_status": "pending",
+      "auto_suspended": false,
+      "affected_bookings": []
+    }
+  },
+  "note": "[seeded] A caregiver with an attempt still open (the stuck one)."
+}

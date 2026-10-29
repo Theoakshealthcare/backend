@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers?identity=everything",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "query",
+            "identity"
+          ],
+          "msg": "Input should be 'needs_review', 'stuck' or 'failed'",
+          "input": "everything",
+          "ctx": {
+            "expected": "'needs_review', 'stuck' or 'failed'"
+          }
+        }
+      ]
+    }
+  },
+  "note": "An unknown bucket is a 422."
+}

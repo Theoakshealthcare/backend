@@ -1,8 +1,8 @@
-# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy, pricing, earnings, payouts, refunds, care plans)
+# FE integration guide: admin console (sign-in, admin management, bookings operations, booking policy, pricing, earnings, payouts, refunds, care plans, caregiver identity review)
 
 | | |
 |---|---|
-| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers`. Pricing settings (section 13), branch `fix/booking-settings-audit`, no migration. Refunds (section 12.12), branch `feat/refunds-v2`, migration `0014_refunds_v2`. Care plans (section 12.13), branch `feat/care-plans-admin`, migration `0019_care_plan_admin_permissions` (data only) |
+| **Backend work package** | A0 (sections 3 to 11), branch `feat/admin-auth`, migration `0003_admin_identity`. A2 (section 12), branch `feat/admin-bookings-ops`, migration `0006_admin_bookings_ops`. Booking policy (section 12.9), branch `feat/whatsapp-dropout-redispatch-fee-tiers`. Pricing settings (section 13), branch `fix/booking-settings-audit`, no migration. Refunds (section 12.12), branch `feat/refunds-v2`, migration `0014_refunds_v2`. Care plans (section 12.13), branch `feat/care-plans-admin`, migration `0019_care_plan_admin_permissions` (data only). Caregiver identity review (section 12.14), branch `feat/kyc-admin-api`, no migration |
 | **Audience** | `apps/admin` (the console): A1, A2 |
 | **Base URL** | `http://127.0.0.1:8000` for the local stack; every path below starts with `/api/v1` |
 | **Source of truth** | Every request and response body, status code and error string below was **copied from a real response** captured by `scripts/capture_admin_flow.py` against the running docker compose stack. The files are in [`docs/fe-captures/admin/`](fe-captures/admin/); each example names its file. Anything that could not be exercised live is marked **[not live]** with the reason. |
@@ -465,14 +465,16 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
   "items": [],
   "total": 0,
   "limit": 25,
-  "offset": 0
+  "offset": 0,
+  "needs_review_count": 0,
+  "stuck_count": 0
 }
 ```
 
 | Route | Permission |
 |---|---|
-| `GET /admin/caregivers`, `GET /admin/caregivers/{id}` | `caregivers.read` |
-| `POST /admin/caregivers/documents/{id}/decision`, `.../identity-decision`, `.../background-check-decision`, `PUT .../skills`, `.../approve`, `.../reject`, `.../request-changes` | `caregivers.approve` |
+| `GET /admin/caregivers` (with `?identity=`), `GET /admin/caregivers/{id}` | `caregivers.read` |
+| `POST /admin/caregivers/documents/{id}/decision`, `.../identity-decision`, `.../identity-reset`, `.../background-check-decision`, `PUT .../skills`, `.../approve`, `.../reject`, `.../request-changes` | `caregivers.approve` |
 | `POST /admin/caregivers/{id}/suspend`, `.../reinstate` | `caregivers.suspend` |
 | `GET /booking-settings/`, `GET /booking-settings/latest` | `bookings.read` (section 13) |
 | `POST`/`PUT`/`DELETE /booking-settings/...` | `pricing.write` (section 13) |
@@ -5949,6 +5951,858 @@ Every write is an `admin_audit_log` row with `entity_type` `care_plan` and `enti
 | The audit row and the change roll back together | Test only | `test_admin_care_plans_audit.py` |
 | `invalid_care_plan` (no risk level, end before start, 41st active medication) on the admin routes | Test only | `test_admin_care_plans.py` |
 | Anything against the compose stack, a browser, or a real authenticator-signed sign-in | **[not live]** | not run |
+
+## 12.14 Caregiver identity review (K5): `/api/v1/admin/caregivers`
+
+A caregiver proves who they are in the app (an ID number, a selfie, a liveness check) through the identity provider. The backend decides what the result means. **Most caregivers never reach you.** A person is needed when the result is doubtful (a face score in the grey band, a name or date of birth that differs from the profile, an identity already used on another account, a watch-listed number, three failed tries), and the system never rejects anybody by itself. This section is what the console shows and does for those cases. The caregiver's side is in the [caregiver guide](fe-integration-guide-caregiver.md).
+
+**Nothing here has met the real provider.** The app, the routes, the database, the admin responses and the decision engine below are real, but the identity sessions were served by a fake that follows the provider's documented shapes. So the scores and reason codes are what the engine does with the fake's values. Two things can differ with the real provider and the console should not hide either: if it does not return the registry name, date of birth or face score where the backend looks, **every pass lands in review with `identity_data_missing`**; and the real score scales are not confirmed (the thresholds, 85 for a pass and 70 as the floor, are placeholders). Images are **not stored** by Oakly. To see the person, an admin opens the provider's own dashboard with `provider_reference` (when the provider supplies one).
+
+| Route | Permission | What it does |
+|---|---|---|
+| `GET /admin/caregivers?identity=needs_review\|stuck\|failed` | `caregivers.read` | The queue, filtered by identity bucket; the response also carries two badge counts |
+| `GET /admin/caregivers/{id}` | `caregivers.read` | The detail; its `identity` block now lists the attempts. An audited read, as before |
+| `POST /admin/caregivers/{id}/identity-decision` | `caregivers.approve` | Verify or fail. Body unchanged. Now also closes the attempt that was waiting for review |
+| `POST /admin/caregivers/{id}/identity-reset` | `caregivers.approve` | **New.** Give a failed caregiver, or one whose three attempts ran out, a fresh set of tries |
+
+No new permission was added. `caregivers.read` is held by Operations, Verification, Finance, Support and the Clinical Reviewer (so all of them can see the identity block, including `duplicate_of_caregiver_id`); `caregivers.approve` only by Verification and the Super Admin. **Finance can read but not decide or reset.**
+
+### The queue: a filter and two badges
+
+`profile_status` still picks the tab (default `under_review`). `identity` narrows it further:
+
+| `identity` | Caregivers listed |
+|---|---|
+| `needs_review` | Identity `needs_review`: a person has to look |
+| `stuck` | Identity `pending` or `in_progress` with an attempt open for longer than the session lifetime (24 hours) plus one hour. The cron normally closes those within minutes, so this lists the ones it could not (a provider outage) |
+| `failed` | Identity `failed`: an admin failed them; the only bucket where a reset is the usual next step |
+
+<!-- capture: 600-a-queue-all.json response.body keys=total,limit,offset,needs_review_count,stuck_count -->
+```json
+{
+  "total": 8,
+  "limit": 25,
+  "offset": 0,
+  "needs_review_count": 4,
+  "stuck_count": 1
+}
+```
+
+`needs_review_count` and `stuck_count` are **per tab and independent of the `identity` filter**, so a badge on the "Identity needs review" chip always equals the `total` that chip returns on the same tab. They are present on every list response (also an empty one).
+
+<!-- capture: 600-b-queue-needs-review.json response.body path=items first=1 -->
+```json
+[
+  {
+    "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+    "full_name": "Placeholder Bola Adeyemi",
+    "state": "Lagos",
+    "specialization": "nurse",
+    "years_of_experience": 5,
+    "submitted_at": "2026-10-29T13:53:07.153979",
+    "age_in_days": 0,
+    "document_count": 0,
+    "identity_verification_status": "needs_review",
+    "background_check_status": "pending",
+    "profile_status": "under_review"
+  }
+]
+```
+
+The rows are the same as before. The row's `identity_verification_status` is the caregiver's identity status; the reason is only on the detail.
+
+<!-- capture: 600-e-queue-bad-filter.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "literal_error",
+      "loc": [
+        "query",
+        "identity"
+      ],
+      "msg": "Input should be 'needs_review', 'stuck' or 'failed'",
+      "input": "everything",
+      "ctx": {
+        "expected": "'needs_review', 'stuck' or 'failed'"
+      }
+    }
+  ]
+}
+```
+
+### The identity block on the detail
+
+`GET /admin/caregivers/{id}` keeps its shape except for `identity`, which is now:
+
+<!-- capture: 601-a-detail-duplicate.json response.body path=identity -->
+```json
+{
+  "status": "needs_review",
+  "review_reason": "duplicate_identity",
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "can_reset": false,
+  "attempts": [
+    {
+      "id": "afd4a984-4d91-4393-a40e-7ee35f6b0d2e",
+      "attempt_no": 1,
+      "status": "needs_review",
+      "created_at": "2026-10-29T13:53:07.157428",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": "nin",
+      "face_confidence": 92.0,
+      "liveness_confidence": 90.0,
+      "face_threshold": 85,
+      "name_match": true,
+      "dob_match": true,
+      "reason_codes": [
+        "duplicate_identity"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    }
+  ],
+  "duplicate_of_caregiver_id": "7c1a82d1-923e-4fc4-860a-d308103f87f2"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `status` | The caregiver's identity status: `pending`, `in_progress`, `needs_review`, `verified`, `failed` |
+| `review_reason` | **Only while `status` is `needs_review`**, otherwise `null`. The single most serious reason on the attempt waiting for review (order of seriousness: `watchlisted`, `duplicate_identity`, `provider_disagreement`, `identity_data_missing`, `attempts_exhausted`, `face_grey_band`, `name_mismatch`, `dob_mismatch`); the full list is on the attempt |
+| `attempts_used`, `attempts_max` | What counts against the cap: expired and errored attempts do not count, and attempts before an admin reset do not count |
+| `can_reset` | True when `status` is `failed`, or `needs_review` because the attempts ran out (`review_reason` `attempts_exhausted`); show "Allow another attempt" only then |
+| `attempts` | Every attempt, **newest first** (`attempt_no` descending). An empty list, never an absent key, when nothing was started |
+| `duplicate_of_caregiver_id` | Another caregiver whose attempt **passed** with the same ID number, or `null`. Always present. It stays after you decide, so keep showing it |
+
+Each attempt:
+
+| Field | Meaning |
+|---|---|
+| `status` | `created`, `started`, `awaiting_result` (open); `passed`, `failed`, `needs_review`, `expired`, `error` (finished). `expired` and `error` mean nothing was decided about the person |
+| `face_confidence`, `liveness_confidence`, `face_threshold` | JSON **numbers** (not strings), `null` when not known. The face score is 0 to 100. `face_threshold` is the pass mark that was applied |
+| `name_match`, `dob_match` | `true`, `false` or `null` (`null` = could not be compared). The name and date of birth themselves are **not** returned or stored |
+| `id_type` | `nin`, `bvn`, `drivers_licence`, `voters_card`, `passport` or `null`. The ID number is never returned |
+| `reason_codes` | Why the attempt ended as it did (words below). May also hold `admin_reset` (see the reset section) |
+| `provider_reference` | The provider's own reference for this check, so the admin can look the person up in the provider dashboard. It is not a secret and not a number of the person's. **`null` in every example here:** the fake provider sends none, and whether the real one does is not confirmed. Show "no reference" when it is `null` |
+| `decided_via` | `provider` (the engine) or `admin`; `null` while open or when nothing was decided |
+| `created_at`, `started_at`, `completed_at` | `started_at` is set when the widget reports it opened; `completed_at` when a result arrived or an admin decided |
+
+**Reason codes, in plain words** (the codes are ours; show the words, keep the code in a tooltip). The list can grow, so show an unknown code as it is.
+
+| Code | Meaning for the admin |
+|---|---|
+| `watchlisted` | The ID number is on a watch list. Do not let this caregiver retry with the same number |
+| `duplicate_identity` | The same ID number already passed for another account (`duplicate_of_caregiver_id`) |
+| `provider_disagreement` | The webhook and the provider's own record disagreed about the result. Look the person up in the provider dashboard |
+| `identity_data_missing` | The provider said "pass" but did not return a score, name or date of birth the check needs, or the caregiver's profile has no date of birth |
+| `attempts_exhausted` | Three clean failures in a row |
+| `face_grey_band` | The face score is between the floor and the pass mark |
+| `name_mismatch`, `dob_mismatch` | The name or date of birth on the ID differs from the profile (a married name and a typo are the usual causes) |
+| `face_mismatch`, `liveness_failed` | The selfie does not match the ID photo, or the liveness check failed (clean failure: the caregiver is told to try again) |
+| `record_not_found`, `document_unreadable`, `provider_failed` | The ID was not found, could not be read, or the provider failed it without a clearer reason |
+| `admin_decision`, `admin_reset` | Added by an admin action (below), never by the provider |
+
+The same detail for a name mismatch (an `identity` block is the same shape in every case; only `identity` is shown):
+
+<!-- capture: 601-b-detail-name-mismatch.json response.body path=identity -->
+```json
+{
+  "status": "needs_review",
+  "review_reason": "name_mismatch",
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "can_reset": false,
+  "attempts": [
+    {
+      "id": "48f2105f-3e36-45a9-8e66-04ef2b63776e",
+      "attempt_no": 1,
+      "status": "needs_review",
+      "created_at": "2026-10-29T13:53:07.436913",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": "bvn",
+      "face_confidence": 92.0,
+      "liveness_confidence": 90.0,
+      "face_threshold": 85,
+      "name_match": false,
+      "dob_match": true,
+      "reason_codes": [
+        "name_mismatch"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    }
+  ],
+  "duplicate_of_caregiver_id": null
+}
+```
+
+Three clean failures end in review, not in a failed caregiver (the app shows "under review", `attempts_used` equals `attempts_max`):
+
+<!-- capture: 601-f-detail-exhausted.json response.body path=identity -->
+```json
+{
+  "status": "needs_review",
+  "review_reason": "attempts_exhausted",
+  "attempts_used": 3,
+  "attempts_max": 3,
+  "can_reset": true,
+  "attempts": [
+    {
+      "id": "d47f1d27-9f42-44cf-bbae-7fd2c08cc55f",
+      "attempt_no": 3,
+      "status": "needs_review",
+      "created_at": "2026-10-29T13:53:08.450558",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": null,
+      "face_confidence": 20.0,
+      "liveness_confidence": null,
+      "face_threshold": 85,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [
+        "face_mismatch",
+        "attempts_exhausted"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    },
+    {
+      "id": "29f54eff-3514-4cef-91ff-44a90f0d5352",
+      "attempt_no": 2,
+      "status": "failed",
+      "created_at": "2026-10-29T13:53:08.413385",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": null,
+      "face_confidence": 20.0,
+      "liveness_confidence": null,
+      "face_threshold": 85,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [
+        "face_mismatch"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    },
+    {
+      "id": "34b665ac-50f9-46fc-9afd-dd632044fc62",
+      "attempt_no": 1,
+      "status": "failed",
+      "created_at": "2026-10-29T13:53:08.347538",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": null,
+      "face_confidence": 20.0,
+      "liveness_confidence": null,
+      "face_threshold": 85,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [
+        "face_mismatch"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    }
+  ],
+  "duplicate_of_caregiver_id": null
+}
+```
+
+A caregiver who has not started:
+
+<!-- capture: 601-g-detail-no-attempts.json response.body path=identity -->
+```json
+{
+  "status": "pending",
+  "review_reason": null,
+  "attempts_used": 0,
+  "attempts_max": 3,
+  "can_reset": false,
+  "attempts": [],
+  "duplicate_of_caregiver_id": null
+}
+```
+
+An attempt still open after 30 hours (seeded: the app cannot produce one without a provider outage):
+
+<!-- capture: 601-h-detail-stuck.json response.body path=identity -->
+```json
+{
+  "status": "in_progress",
+  "review_reason": null,
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "can_reset": false,
+  "attempts": [
+    {
+      "id": "042ad8ee-0c2e-4c92-90e3-3106bb0443b3",
+      "attempt_no": 1,
+      "status": "awaiting_result",
+      "created_at": "2026-10-28T07:53:08.737428",
+      "started_at": null,
+      "completed_at": null,
+      "id_type": null,
+      "face_confidence": null,
+      "liveness_confidence": null,
+      "face_threshold": null,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [],
+      "provider_reference": null,
+      "decided_via": null
+    }
+  ],
+  "duplicate_of_caregiver_id": null
+}
+```
+
+**Breaking change for the console.** `identity.document_verification_result`, `identity.face_verification_status` and `identity.face_verification_result` are **gone**. They had been `null` for every caregiver since the old verification provider was removed. Read `identity.attempts` instead. `identity.status` is unchanged.
+
+### Deciding: `POST /admin/caregivers/{id}/identity-decision`
+
+The body is `{"decision": "verified" | "failed", "notes": "..."}`; `notes` is required and is stored as the audit `reason`. It works on a caregiver in any identity state, as before. **New and optional: `expected_status`**, the `identity.status` the admin was looking at. **Always send it.** If the case moved in between (the provider decided it, or another admin did), nothing is decided and the answer is a 409 `IDENTITY_CASE_CHANGED`; without it a click can resolve a review the admin never saw. What is new is what it does to the attempts:
+
+- The attempt **waiting for review** becomes `passed` (verify) or `failed` (fail), with `decided_via` `admin`. Its `reason_codes` are left as they were, so the detail still shows what the admin overrode.
+- Any attempt still **open** is closed as `expired`, so a late provider result cannot settle it. (The provider can no longer change a caregiver an admin has decided in any case.)
+- An append-only event row is written for each (the system's decision trail), and the usual `admin_audit_log` row, which now also records the attempt that was resolved.
+- Failing a caregiver whose identity the provider had **passed** is an override: the passed attempt is left as it was, an event row is written on it, and the audit row names it as `overridden_verification_id`.
+- Verifying moves a caregiver who was stuck on the identity step on to the next one; it never moves anyone back.
+
+A role without `caregivers.approve`, here Finance:
+
+<!-- capture: 602-a-decision-as-finance.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: caregivers.approve"
+}
+```
+
+<!-- capture: 602-b-decision-no-notes.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "notes"
+      ],
+      "msg": "Field required",
+      "input": {
+        "decision": "verified"
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 602-c-decision-unknown-caregiver.json response.body -->
+```json
+{
+  "detail": "Caregiver not found"
+}
+```
+
+<!-- capture: 602-k-decision-case-changed.json response.body -->
+```json
+{
+  "detail": {
+    "message": "The identity case changed since you opened it. Reload and decide again",
+    "unmet": [
+      {
+        "code": "IDENTITY_CASE_CHANGED",
+        "message": "Identity is now needs_review"
+      }
+    ]
+  }
+}
+```
+
+Verify (the response is the same summary as before):
+
+<!-- capture: 602-d-verify.json response.body -->
+```json
+{
+  "id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+  "profile_status": "under_review",
+  "identity_verification_status": "verified",
+  "background_check_status": "pending",
+  "auto_suspended": false,
+  "affected_bookings": []
+}
+```
+
+and the detail afterwards: the attempt is `passed` by the `admin`, with the reason it was in review still on it, and `review_reason` is `null`:
+
+<!-- capture: 602-e-detail-after-verify.json response.body path=identity -->
+```json
+{
+  "status": "verified",
+  "review_reason": null,
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "can_reset": false,
+  "attempts": [
+    {
+      "id": "48f2105f-3e36-45a9-8e66-04ef2b63776e",
+      "attempt_no": 1,
+      "status": "passed",
+      "created_at": "2026-10-29T13:53:07.436913",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": "bvn",
+      "face_confidence": 92.0,
+      "liveness_confidence": 90.0,
+      "face_threshold": 85,
+      "name_match": false,
+      "dob_match": true,
+      "reason_codes": [
+        "name_mismatch"
+      ],
+      "provider_reference": null,
+      "decided_via": "admin"
+    }
+  ],
+  "duplicate_of_caregiver_id": null
+}
+```
+
+Fail (`auto_suspended` as before: failing an approved caregiver suspends them):
+
+<!-- capture: 602-f-fail.json response.body -->
+```json
+{
+  "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+  "profile_status": "under_review",
+  "identity_verification_status": "failed",
+  "background_check_status": "pending",
+  "auto_suspended": false,
+  "affected_bookings": []
+}
+```
+
+<!-- capture: 602-g-detail-after-fail.json response.body path=identity -->
+```json
+{
+  "status": "failed",
+  "review_reason": null,
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "can_reset": true,
+  "attempts": [
+    {
+      "id": "afd4a984-4d91-4393-a40e-7ee35f6b0d2e",
+      "attempt_no": 1,
+      "status": "failed",
+      "created_at": "2026-10-29T13:53:07.157428",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": "nin",
+      "face_confidence": 92.0,
+      "liveness_confidence": 90.0,
+      "face_threshold": 85,
+      "name_match": true,
+      "dob_match": true,
+      "reason_codes": [
+        "duplicate_identity"
+      ],
+      "provider_reference": null,
+      "decided_via": "admin"
+    }
+  ],
+  "duplicate_of_caregiver_id": "7c1a82d1-923e-4fc4-860a-d308103f87f2"
+}
+```
+
+Deciding for a caregiver who still has an open attempt closes it (seeded: the stuck caregiver):
+
+<!-- capture: 602-i-detail-after-open-attempt.json response.body path=identity -->
+```json
+{
+  "status": "verified",
+  "review_reason": null,
+  "attempts_used": 0,
+  "attempts_max": 3,
+  "can_reset": false,
+  "attempts": [
+    {
+      "id": "042ad8ee-0c2e-4c92-90e3-3106bb0443b3",
+      "attempt_no": 1,
+      "status": "expired",
+      "created_at": "2026-10-28T07:53:08.737428",
+      "started_at": null,
+      "completed_at": null,
+      "id_type": null,
+      "face_confidence": null,
+      "liveness_confidence": null,
+      "face_threshold": null,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [],
+      "provider_reference": null,
+      "decided_via": null
+    }
+  ],
+  "duplicate_of_caregiver_id": null
+}
+```
+
+The new bucket after that failure:
+
+<!-- capture: 602-j-queue-failed.json response.body keys=total,needs_review_count,stuck_count -->
+```json
+{
+  "total": 1,
+  "needs_review_count": 2,
+  "stuck_count": 0
+}
+```
+
+### Allowing another attempt: `POST /admin/caregivers/{id}/identity-reset`
+
+For a caregiver the system could not verify: `failed` (an admin failed them) or `needs_review` **because the three attempts ran out** (`review_reason` `attempts_exhausted`). A review about the evidence (watch list, duplicate, mismatch, grey-band face) needs a verdict, not another go: fail the caregiver first if that is the verdict, then reset. Body `{"notes": "..."}` (required). It sets the identity status back to `pending` and gives a **fresh set of attempts**.
+
+- Nothing is verified, approved or reinstated. A suspended caregiver stays suspended; approval still needs a verified identity.
+- The old attempts stay as history. Each gets `admin_reset` added to its `reason_codes` and stops counting, which is how `attempts_used` goes back to 0. **Show `admin_reset` as "before reset", not as a failure reason.** The attempt numbers carry on (the next attempt is number 4 after three), so numbers are not a count.
+- An attempt still open is closed. The caregiver's `profile_completion_step` is left as it is.
+- From any other state the answer is a 409 with a code. If a **verified** caregiver's verification must be undone, fail them first (an audited decision), then reset.
+
+Not allowed for Finance, and a missing `notes`:
+
+<!-- capture: 603-a-reset-as-finance.json response.body -->
+```json
+{
+  "detail": "Access denied. Missing permission: caregivers.approve"
+}
+```
+
+<!-- capture: 603-b-reset-no-notes.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "notes"
+      ],
+      "msg": "Field required",
+      "input": {}
+    }
+  ]
+}
+```
+
+The 409 (the `unmet[0].message` names the current status; show the `message`, switch on the `code`). A doubtful review gets the same answer:
+
+<!-- capture: 603-c-reset-verified.json response.body -->
+```json
+{
+  "detail": {
+    "message": "Identity can only be reset when it has failed or its attempts ran out",
+    "unmet": [
+      {
+        "code": "IDENTITY_RESET_NOT_ALLOWED",
+        "message": "Identity is verified"
+      }
+    ]
+  }
+}
+```
+
+<!-- capture: 603-k-reset-doubtful-review.json response.body -->
+```json
+{
+  "detail": {
+    "message": "Identity can only be reset when it has failed or its attempts ran out",
+    "unmet": [
+      {
+        "code": "IDENTITY_RESET_NOT_ALLOWED",
+        "message": "Identity is needs_review"
+      }
+    ]
+  }
+}
+```
+
+What the caregiver's app shows **before** (three failures, in review, nothing to tap) and after:
+
+<!-- capture: 603-e-app-state-before-reset.json response.body -->
+```json
+{
+  "status": "needs_review",
+  "attempts_used": 3,
+  "attempts_max": 3,
+  "active_verification_id": null,
+  "last_attempt_status": "needs_review",
+  "can_start": false,
+  "failure_hint": null,
+  "provider_available": true,
+  "review_eta_hours": 24,
+  "policy_version": "kyc-2026-10"
+}
+```
+
+The reset:
+
+<!-- capture: 603-f-reset.json response.body -->
+```json
+{
+  "id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+  "profile_status": "under_review",
+  "identity_verification_status": "pending",
+  "background_check_status": "pending",
+  "attempts_used": 0,
+  "attempts_max": 3
+}
+```
+
+The response is the same summary plus `attempts_used` (always 0 here) and `attempts_max`. The detail afterwards: every attempt carries `admin_reset`, `attempts_used` is 0, `can_reset` is false:
+
+<!-- capture: 603-g-detail-after-reset.json response.body path=identity -->
+```json
+{
+  "status": "pending",
+  "review_reason": null,
+  "attempts_used": 0,
+  "attempts_max": 3,
+  "can_reset": false,
+  "attempts": [
+    {
+      "id": "d47f1d27-9f42-44cf-bbae-7fd2c08cc55f",
+      "attempt_no": 3,
+      "status": "needs_review",
+      "created_at": "2026-10-29T13:53:08.450558",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": null,
+      "face_confidence": 20.0,
+      "liveness_confidence": null,
+      "face_threshold": 85,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [
+        "face_mismatch",
+        "attempts_exhausted",
+        "admin_reset"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    },
+    {
+      "id": "29f54eff-3514-4cef-91ff-44a90f0d5352",
+      "attempt_no": 2,
+      "status": "failed",
+      "created_at": "2026-10-29T13:53:08.413385",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": null,
+      "face_confidence": 20.0,
+      "liveness_confidence": null,
+      "face_threshold": 85,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [
+        "face_mismatch",
+        "admin_reset"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    },
+    {
+      "id": "34b665ac-50f9-46fc-9afd-dd632044fc62",
+      "attempt_no": 1,
+      "status": "failed",
+      "created_at": "2026-10-29T13:53:08.347538",
+      "started_at": null,
+      "completed_at": "2026-10-27T10:01:30",
+      "id_type": null,
+      "face_confidence": 20.0,
+      "liveness_confidence": null,
+      "face_threshold": 85,
+      "name_match": null,
+      "dob_match": null,
+      "reason_codes": [
+        "face_mismatch",
+        "admin_reset"
+      ],
+      "provider_reference": null,
+      "decided_via": "provider"
+    }
+  ],
+  "duplicate_of_caregiver_id": null
+}
+```
+
+The caregiver's app now (`can_start` is true):
+
+<!-- capture: 603-h-app-state-after-reset.json response.body -->
+```json
+{
+  "status": "pending",
+  "attempts_used": 0,
+  "attempts_max": 3,
+  "active_verification_id": null,
+  "last_attempt_status": null,
+  "can_start": true,
+  "failure_hint": null,
+  "provider_available": true,
+  "review_eta_hours": null,
+  "policy_version": "kyc-2026-10"
+}
+```
+
+and the next attempt carries on the numbering:
+
+<!-- capture: 603-i-app-starts-new-attempt.json response.body path=attempt_no -->
+```json
+4
+```
+
+### The audit trail
+
+Both actions write `admin_audit_log` rows (`caregiver.identity_decision`, `caregiver.identity_reset`; `reason` is the notes; `after` lists the attempts resolved or wiped), and so does opening a caregiver (`caregiver.view`). They are in `GET /admin/audit?entity_type=caregiver` for the Super Admin and Finance:
+
+<!-- capture: 604-a-audit-identity-actions.json response.body path=items first=3 -->
+```json
+[
+  {
+    "id": "489df431-b290-4fe0-a208-bd87c874c020",
+    "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+    "admin_email": "admin-48925f1a41@example.com",
+    "action": "caregiver.identity_reset",
+    "entity_type": "caregiver",
+    "entity_id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+    "before": {
+      "profile_status": "under_review",
+      "identity_verification_status": "failed",
+      "background_check_status": "pending",
+      "approved_by": null,
+      "approved_at": null,
+      "suspended_at": null,
+      "suspension_reason": null,
+      "rejection_reason": null,
+      "changes_requested": null
+    },
+    "after": {
+      "profile_status": "under_review",
+      "identity_verification_status": "pending",
+      "background_check_status": "pending",
+      "approved_by": null,
+      "approved_at": null,
+      "suspended_at": null,
+      "suspension_reason": null,
+      "rejection_reason": null,
+      "changes_requested": null,
+      "attempts_reset": [
+        "afd4a984-4d91-4393-a40e-7ee35f6b0d2e"
+      ]
+    },
+    "reason": "Placeholder: second account closed, allow the first.",
+    "ip": "testclient",
+    "user_agent": "testclient",
+    "created_at": "2026-10-29T13:53:09.482724"
+  },
+  {
+    "id": "2efecc7d-8e50-4cdb-b7ab-2a76c73cf621",
+    "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+    "admin_email": "admin-48925f1a41@example.com",
+    "action": "caregiver.view",
+    "entity_type": "caregiver",
+    "entity_id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+    "before": null,
+    "after": null,
+    "reason": null,
+    "ip": "testclient",
+    "user_agent": "testclient",
+    "created_at": "2026-10-29T13:53:09.448781"
+  },
+  {
+    "id": "ee4d3dd6-859e-4b4b-acbe-8e043b2a5c4f",
+    "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+    "admin_email": "admin-48925f1a41@example.com",
+    "action": "caregiver.identity_reset",
+    "entity_type": "caregiver",
+    "entity_id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+    "before": {
+      "profile_status": "under_review",
+      "identity_verification_status": "needs_review",
+      "background_check_status": "pending",
+      "approved_by": null,
+      "approved_at": null,
+      "suspended_at": null,
+      "suspension_reason": null,
+      "rejection_reason": null,
+      "changes_requested": null
+    },
+    "after": {
+      "profile_status": "under_review",
+      "identity_verification_status": "pending",
+      "background_check_status": "pending",
+      "approved_by": null,
+      "approved_at": null,
+      "suspended_at": null,
+      "suspension_reason": null,
+      "rejection_reason": null,
+      "changes_requested": null,
+      "attempts_reset": [
+        "29f54eff-3514-4cef-91ff-44a90f0d5352",
+        "34b665ac-50f9-46fc-9afd-dd632044fc62",
+        "d47f1d27-9f42-44cf-bbae-7fd2c08cc55f"
+      ]
+    },
+    "reason": "Placeholder: photos were dark, allow another go.",
+    "ip": "testclient",
+    "user_agent": "testclient",
+    "created_at": "2026-10-29T13:53:09.431693"
+  }
+]
+```
+
+### Every error the console must handle
+
+| Where | Status | Body | What to do |
+|---|---|---|---|
+| any | `401` | `{"detail": "Not authenticated"}` | Refresh once, then sign in again |
+| any | `403` | `{"detail": "Access denied. Missing permission: caregivers.approve"}` (or `.read`) | No-access message; keep the session; hide the buttons for admins whose `/admin/me` lacks the permission |
+| list | `422` | FastAPI validation list (`loc` `["query","identity"]`) | A bug in the console: the bucket name is wrong |
+| decision, reset | `404` | `{"detail": "Caregiver not found"}` | The row was removed; reload the queue |
+| decision, reset | `422` | FastAPI validation list (`loc` `["body","notes"]`) | `notes` missing or blank; require it before enabling the button |
+| decision | `409` | `{"detail": {"message": "...", "unmet": [{"code": "IDENTITY_CASE_CHANGED", "message": "..."}]}}` | The case moved since the admin opened it; reload the detail and let them decide again |
+| reset | `409` | `{"detail": {"message": "...", "unmet": [{"code": "IDENTITY_RESET_NOT_ALLOWED", "message": "..."}]}}` | Someone else already acted, or the case needs a verdict; reload the detail (`can_reset` shows the truth) |
+
+### UX consequences the console must surface
+
+- **A decision overrides the system, and is permanent in the history.** Ask for the notes in the admin's own words and say that they are recorded with the admin's name. Verify and Fail both need a confirmation.
+- **Failing an approved caregiver suspends them** (`auto_suspended` in the response), exactly as before. Say so on the confirmation.
+- **Reset is not a verification.** The button is "Allow another attempt", never "Verify". The caregiver gets a fresh set of tries and is asked to do the check again; they are not notified by this call (the app picks it up on its next poll).
+- **Never show or ask for an ID number.** None is stored and none is returned. To look at the person, send the admin to the provider's dashboard with `provider_reference`; the console must not try to render images.
+- **`duplicate_of_caregiver_id` is for admins only.** Link it to the other caregiver's detail (which is itself an audited read). The caregiver is never told a duplicate exists; do not put it in anything the caregiver can see.
+- **Opening a caregiver is audited**, including this block. Do not pre-fetch details for every row.
+- **The badge can lag by a poll.** Counts are read when the list is loaded; reload after a decision or reset.
+- **Both counts are per tab.** The badge on a chip must come from the response of the tab the admin is on, not from another tab's response.
+
+### Verification (identity review, K5)
+
+| Behaviour | Status | Evidence |
+|---|---|---|
+| Queue filter `needs_review`, `stuck`, `failed`, the two counts, unknown bucket `422`, no `caregivers.read` `403`, no token `401` | Verified live (test harness) | 600-a to 600-g, 602-j |
+| The identity block for a duplicate, name mismatch, grey band, pass, one failure, three failures, no attempts, a stuck attempt | Verified live (test harness); attempts are decided by the real engine over a **fake provider** (a stuck attempt is seeded) | 601-a to 601-h |
+| Verify and fail close the attempt waiting for review and any open attempt; `403` for Finance, `422`, `404` | Verified live (test harness) | 602-a to 602-i |
+| Reset from an exhausted `needs_review` and from `failed`; `409` from `verified`, `in_progress` and a doubtful review; `403` for Finance; `422` | Verified live (test harness) | 603-a to 603-d, 603-f, 603-j, 603-k |
+| A decision with a stale `expected_status` is refused | Verified live (test harness) | 602-k |
+| The caregiver app after a reset: `attempts_used` 0, `can_start` true, next attempt number 4 | Verified live (test harness) | 603-e, 603-h, 603-i |
+| Audit rows for decision, reset and view | Verified live (test harness) | 604-a |
+| Every route against every role | Test only | `test_admin_rbac.py` |
+| A late provider result cannot move a caregiver an admin decided; two resets at once have one winner | Test only | `test_kyc_admin_api.py` |
+| Real provider data: the fields the identity block shows (scores, name and date-of-birth match, ID type, `provider_reference`, reason codes) | **[not live]** | Nothing has met the real provider; the fake follows the documented shapes (design section 15). The first live pass (K8) will show whether they are filled |
+| A browser, the compose stack, a real authenticator-signed sign-in | **[not live]** | Not run; the calls above used the test client with a valid admin token |
 
 ## 13. Pricing settings: `/api/v1/booking-settings`
 

@@ -1,0 +1,94 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/b9bee79a-fcbc-4df2-8db4-8be8f021b2e4",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "b9bee79a-fcbc-4df2-8db4-8be8f021b2e4",
+        "user_id": "d53473e7-778f-4e8e-89cc-ccf61345a107",
+        "email": "caregiver-838cd81a9d@example.com",
+        "full_name": "Placeholder Efe Ojo",
+        "phone_number": "+2348718223741",
+        "date_of_birth": "1990-04-12",
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "nurse",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "profile_completion_step": 2,
+        "identity_verification_status": "in_progress",
+        "background_check_status": "pending",
+        "profile_status": "under_review",
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "created_at": "2026-10-29T13:53:08.021394",
+        "updated_at": "2026-10-29T13:53:08.035119"
+      },
+      "consents": {
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "in_progress",
+        "review_reason": null,
+        "attempts_used": 1,
+        "attempts_max": 3,
+        "can_reset": false,
+        "attempts": [
+          {
+            "id": "2b1f9eea-147a-407e-98dd-0b23ad9ce23a",
+            "attempt_no": 1,
+            "status": "failed",
+            "created_at": "2026-10-29T13:53:08.024938",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": null,
+            "face_confidence": 41.0,
+            "liveness_confidence": null,
+            "face_threshold": 85,
+            "name_match": null,
+            "dob_match": null,
+            "reason_codes": [
+              "face_mismatch"
+            ],
+            "provider_reference": null,
+            "decided_via": "provider"
+          }
+        ],
+        "duplicate_of_caregiver_id": null
+      },
+      "background_check": {
+        "status": "pending",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "audit_history": []
+    }
+  },
+  "note": "[engine] One clean failure; the caregiver is `in_progress` and can try again. `can_reset` is false."
+}

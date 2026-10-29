@@ -1,0 +1,94 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/37b7a2a8-cb69-4e1c-bc78-4ed8d1f7678e",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "37b7a2a8-cb69-4e1c-bc78-4ed8d1f7678e",
+        "user_id": "14ebc20a-ed13-48cb-8875-3672997ceb7f",
+        "email": "caregiver-bf90af7b6d@example.com",
+        "full_name": "Placeholder Dayo Bello",
+        "phone_number": "+2348137469924",
+        "date_of_birth": "1990-04-12",
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "nurse",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "profile_completion_step": 3,
+        "identity_verification_status": "needs_review",
+        "background_check_status": "pending",
+        "profile_status": "under_review",
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "created_at": "2026-10-29T13:53:07.724551",
+        "updated_at": "2026-10-29T13:53:07.751593"
+      },
+      "consents": {
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "needs_review",
+        "review_reason": "face_grey_band",
+        "attempts_used": 1,
+        "attempts_max": 3,
+        "can_reset": false,
+        "attempts": [
+          {
+            "id": "7a37f84c-eae4-4635-a961-24d02498e642",
+            "attempt_no": 1,
+            "status": "needs_review",
+            "created_at": "2026-10-29T13:53:07.732570",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": "nin",
+            "face_confidence": 77.0,
+            "liveness_confidence": null,
+            "face_threshold": 85,
+            "name_match": true,
+            "dob_match": true,
+            "reason_codes": [
+              "face_grey_band"
+            ],
+            "provider_reference": null,
+            "decided_via": "provider"
+          }
+        ],
+        "duplicate_of_caregiver_id": null
+      },
+      "background_check": {
+        "status": "pending",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "audit_history": []
+    }
+  },
+  "note": "[engine] Face score between the floor and the threshold."
+}

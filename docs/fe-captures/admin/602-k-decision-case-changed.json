@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/37b7a2a8-cb69-4e1c-bc78-4ed8d1f7678e/identity-decision",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "decision": "verified",
+      "notes": "Placeholder note",
+      "expected_status": "in_progress"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "message": "The identity case changed since you opened it. Reload and decide again",
+        "unmet": [
+          {
+            "code": "IDENTITY_CASE_CHANGED",
+            "message": "Identity is now needs_review"
+          }
+        ]
+      }
+    }
+  },
+  "note": "`expected_status` is optional: the status the admin was looking at. The case is `needs_review` now, so nothing is decided and the answer is a 409."
+}
