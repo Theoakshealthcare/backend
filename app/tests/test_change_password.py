@@ -263,3 +263,25 @@ def test_a_session_holding_a_stale_copy_of_the_user_still_sees_the_committed_cha
         assert changed.token_version == 2
     finally:
         other.close()
+
+
+def test_a_burst_of_guesses_cannot_get_past_the_limit(db, client):
+    """The check and the count happen under the user's row lock, so concurrent wrong guesses are counted one at a time:
+    exactly the free attempts are answered 400 and every other call 429 (not a handful of extra guesses)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    user = make_caregiver(db).user
+    headers = auth_headers(user)
+
+    def guess(_):
+        with TestClient(fastapi_app, raise_server_exceptions=False) as c:
+            return c.post(CHANGE, json=body(current="wrong-guess"), headers=headers).status_code
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        codes = list(pool.map(guess, range(10)))
+    assert codes.count(400) == settings.CHANGE_PASSWORD_FREE_ATTEMPTS, codes
+    assert codes.count(429) == 10 - settings.CHANGE_PASSWORD_FREE_ATTEMPTS, codes

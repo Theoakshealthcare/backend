@@ -81,16 +81,18 @@ class ChangePasswordService:
     def change(self, user_id: UUID, current_password: str, new_password: str) -> User:
         """Commits and returns the user (its ``token_version`` is the new one). Raises a ChangePasswordError."""
         key = self._key(user_id)
-        now = datetime.utcnow()
-        self._raise_if_throttled(key, now)
-        # Serialise two changes for the same user. The auth dependency already loaded this row into the session, so
-        # populate_existing makes the second change see the hash and version the first one committed, not stale ones.
+        # Lock first, then look at the throttle and count failures while still holding the lock: a burst of guesses is
+        # then checked and counted one at a time, so none can slip past the limit between the check and the count.
+        # The auth dependency already loaded this row into the session, so populate_existing makes a waiting change see
+        # the hash and version the previous one committed, not stale ones.
         user = self.db.execute(
             select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True)
         ).scalar_one()
+        now = datetime.utcnow()
+        self._raise_if_throttled(key, now)
         if not verify_password(current_password, user.hashed_password):
-            self.db.rollback()  # release the row lock before counting the failure
             self._register_failure(key, now)
+            self.db.commit()  # the count is durable before the lock is released
             logger.warning("change-password: wrong current password user=%s", user_id)
             raise WrongCurrentPassword()
         validate_new_password(new_password)
@@ -115,7 +117,7 @@ class ChangePasswordService:
 
     def _register_failure(self, key: str, now: datetime) -> None:
         """Count one wrong current password; past the free attempts start or extend the wait. A row nobody touched for
-        an hour starts again at one."""
+        an hour starts again at one. Does not commit: the caller does, while it still holds the user's row lock."""
         stale = AdminRateLimit.updated_at < now - timedelta(hours=1)
         count = self.db.execute(
             pg_insert(AdminRateLimit)
@@ -136,4 +138,3 @@ class ChangePasswordService:
                 update(AdminRateLimit)
                 .where(AdminRateLimit.key == key, AdminRateLimit.window_start == _EPOCH)
                 .values(blocked_until=now + timedelta(seconds=wait)))
-        self.db.commit()
