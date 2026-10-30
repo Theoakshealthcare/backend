@@ -77,7 +77,7 @@ No findings on the signature, the dedupe key, the binding, double-settle, refere
 | D9/D10 | NIN answers carry `date_of_birth` and the number; which ID types the owner's flow accepts | Missing data means `identity_data_missing` -> review |
 | D11 | No watch-list signal used (`aml.status` meaning unknown) | `watchlisted` cannot occur |
 | D12 | Failure `message` keywords | Falls back to `provider_failed` |
-| D14 | No price in the pull; sandbox base URL; how an empty wallet is worded (a 4xx mentioning balance is treated as `wallet_empty`) | `provider_cost` stays NULL; wallet alert may arrive as `rejected` |
+| D14 | No price in the pull; ~~sandbox base URL~~ (**settled 2026-10-30 in the live harness: `https://sandbox.dojah.io` with `test_` keys; `api.dojah.io` answers 401 `Your Secret Key could not be Authorized`; an unknown reference answers 404 `Verification not found`**); how an empty wallet is worded (a 4xx mentioning balance is treated as `wallet_empty`) | `provider_cost` stays NULL; wallet alert may arrive as `rejected` |
 
 ## Follow-ups
 - K7b: pass `widget.reference_id` unchanged; pre-fill `userData` from `widget.first_name/last_name/date_of_birth`; the Expo SDK 57 spike (delta section 3).

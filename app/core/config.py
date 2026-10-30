@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # (docs/plans/2026-10-30-caregiver-kyc-dojah-delta.md). The app id and public key are public (the API hands them to the app with
     # the widget id so they can rotate without a release); the secret key, the webhook secret and the fingerprint key live only in
     # server env. DOJAH_WEBHOOK_SECRET is the "Secret" of the webhook in the Dojah dashboard, NOT the API secret key.
-    DOJAH_BASE_URL: str = "https://api.dojah.io"  # UNVERIFIED: the sandbox host (K8)
+    DOJAH_BASE_URL: str = "https://api.dojah.io"  # live; sandbox (test_ keys) is https://sandbox.dojah.io (the live host answers 401 to test keys)
     DOJAH_APP_ID: str = ""
     DOJAH_PUBLIC_KEY: str = ""
     DOJAH_SECRET_KEY: str = ""
