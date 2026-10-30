@@ -8,6 +8,7 @@ field fails here. Regenerate deliberately with ``REGEN_SHAPES=1`` only when a sh
 
 import json
 import os
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -43,12 +44,13 @@ def _offered(db, caregiver, **overrides):
 
 @pytest.fixture
 def captured(db, client, monkeypatch, kyc_availability):
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_ID", "placeholder-widget-id")
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_KEY", "placeholder-widget-key")
+    monkeypatch.setattr(settings, "DOJAH_WIDGET_ID", "placeholder-widget-id")
+    monkeypatch.setattr(settings, "DOJAH_APP_ID", "placeholder-app-id")
+    monkeypatch.setattr(settings, "DOJAH_PUBLIC_KEY", "placeholder-public-key")
     out = {}
     cg = make_caregiver(db, approved=False)
     out["verification_status"] = client.get("/api/v1/caregiver/verification-status", headers=auth_headers(cg.user))
-    kyc = make_caregiver(db, approved=False, profile_completion_step=2)
+    kyc = make_caregiver(db, approved=False, profile_completion_step=2, date_of_birth=date(1990, 4, 12))
     kyc_url = "/api/v1/caregiver/identity-verification"
     consent = {"consent": True, "policy_version": settings.KYC_POLICY_VERSION}
     client.post(f"{kyc_url}/sessions", json=consent, headers=auth_headers(kyc.user))  # 201; the shape pinned is the 200 re-read

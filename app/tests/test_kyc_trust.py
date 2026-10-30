@@ -10,6 +10,7 @@ import time
 import uuid
 from datetime import date, datetime, timedelta
 
+import httpx
 import pytest
 from sqlalchemy import text
 
@@ -22,12 +23,12 @@ from app.services.kyc_hooks import KycHooks
 from app.services.kyc_matching import id_fingerprint
 from app.services.kyc_reconcile import MIN_AGE, reconcile
 from app.tests.factories import make_caregiver
-from app.tests.fake_prembly import FakeProviderAvailability, SANDBOX_NIN, fake_prembly  # noqa: F401
+from app.tests.fake_dojah import FakeProviderAvailability, SANDBOX_NIN, fake_dojah, new_reference  # noqa: F401
 
 
 @pytest.fixture(autouse=True)
-def env(fake_prembly):  # noqa: F811
-    return fake_prembly
+def env(fake_dojah):  # noqa: F811
+    return fake_dojah
 
 
 class Recorder:
@@ -61,6 +62,7 @@ def cg(db, **kw):
 
 def attempt(db, caregiver, status="awaiting_result", **kw):
     old = datetime.utcnow() - MIN_AGE - timedelta(minutes=1)
+    kw.setdefault("provider_session_id", new_reference())  # the reference the server minted at start
     row = IdentityVerification(caregiver_id=caregiver.id, attempt_no=kw.pop("attempt_no", 1), status=status, created_at=old,
                                updated_at=old, **kw)
     db.add(row)
@@ -73,15 +75,15 @@ def fresh(db, row):
     return db.get(type(row), row.id)
 
 
-def new_event(db, session_id):
-    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=session_id, signature_ok=True)
+def new_event(db, reference):
+    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=reference, signature_ok=True)
     db.add(event)
     db.commit()
     return event.id
 
 
-def run_event(db, rec, session_id, ref, claim=None):
-    return process_event(db, {"event_id": str(new_event(db, session_id)), "oakly_ref": str(ref), "claim": claim}, hooks=rec.hooks())
+def run_event(db, rec, reference, claim=None):
+    return process_event(db, {"event_id": str(new_event(db, reference)), "claim": claim, "settled": True}, hooks=rec.hooks())
 
 
 def in_thread(fn, barrier=None):
@@ -111,15 +113,15 @@ def waiting_on_advisory_locks() -> int:
 
 
 # --- forced races ----------------------------------------------------------------------------------------------------
-def test_the_webhook_job_and_the_cron_racing_on_one_attempt_decide_exactly_once(db, rec, fake_prembly):
+def test_the_webhook_job_and_the_cron_racing_on_one_attempt_decide_exactly_once(db, rec, fake_dojah):
     for round_no in range(4):
         caregiver = cg(db)
-        a = attempt(db, caregiver, provider_session_id=f"sdk_session_{round_no}")
-        fake_prembly.script_clean_pass(f"sdk_session_{round_no}", caregiver, id_number=f"{50_000_000_000 + round_no}")  # one number per round
-        ref, aid = a.reference, a.id
+        a = attempt(db, caregiver)
+        ref, aid = a.provider_session_id, a.id
+        fake_dojah.script_clean_pass(ref, caregiver, id_number=f"{50_000_000_000 + round_no}")  # one number per round
         barrier = threading.Barrier(2)
         before = len(rec.notices)
-        t1, b1 = in_thread(lambda s: run_event(s, rec, f"sdk_session_{round_no}", ref).outcome, barrier)
+        t1, b1 = in_thread(lambda s: run_event(s, rec, ref).outcome, barrier)
         t2, b2 = in_thread(lambda s: reconcile(s, hooks=rec.hooks(), now=datetime.utcnow()).decided, barrier)
         t1.join(timeout=30), t2.join(timeout=30)
         assert "error" not in b1 and "error" not in b2, (b1, b2)
@@ -130,17 +132,16 @@ def test_the_webhook_job_and_the_cron_racing_on_one_attempt_decide_exactly_once(
         assert db.get(Caregiver, caregiver.id).identity_verification_status == "verified"
 
 
-def test_two_accounts_presenting_one_nin_at_once_cannot_both_pass(db, rec, fake_prembly):
+def test_two_accounts_presenting_one_nin_at_once_cannot_both_pass(db, rec, fake_dojah):
     for round_no in range(5):
         first, second = cg(db), cg(db)
         a1, a2 = attempt(db, first), attempt(db, second)
         # a number unique to this round so earlier rounds do not interfere
         number = f"{20_000_000_000 + round_no}"
-        fake_prembly.script_clean_pass(f"sdk_session_{round_no}_1", first, id_number=number)
-        fake_prembly.script_clean_pass(f"sdk_session_{round_no}_2", second, id_number=number)
+        fake_dojah.script_clean_pass(a1.provider_session_id, first, id_number=number)
+        fake_dojah.script_clean_pass(a2.provider_session_id, second, id_number=number)
         barrier = threading.Barrier(2)
-        refs = [(a1.reference, f"sdk_session_{round_no}_1"), (a2.reference, f"sdk_session_{round_no}_2")]
-        threads = [in_thread(lambda s, r=r, sid=sid: run_event(s, rec, sid, r).outcome, barrier) for r, sid in refs]
+        threads = [in_thread(lambda s, r=r: run_event(s, rec, r).outcome, barrier) for r in (a1.provider_session_id, a2.provider_session_id)]
         for t, _ in threads:
             t.join(timeout=30)
         assert all("error" not in b for _, b in threads), [b for _, b in threads]
@@ -152,19 +153,18 @@ def test_two_accounts_presenting_one_nin_at_once_cannot_both_pass(db, rec, fake_
         assert sorted(db.get(Caregiver, c.id).identity_verification_status for c in (first, second)) == ["needs_review", "verified"]
 
 
-def test_the_advisory_lock_is_what_serialises_one_number(db, rec, fake_prembly):
+def test_the_advisory_lock_is_what_serialises_one_number(db, rec, fake_dojah):
     """A third session holds the number's advisory lock: both deciding workers must queue on it (proving the lock is taken), and
     once it is released exactly one of them passes."""
     first, second = cg(db), cg(db)
     a1, a2 = attempt(db, first), attempt(db, second)
-    fake_prembly.script_clean_pass("sdk_session_1", first)
-    fake_prembly.script_clean_pass("sdk_session_2", second)
+    fake_dojah.script_clean_pass(a1.provider_session_id, first)
+    fake_dojah.script_clean_pass(a2.provider_session_id, second)
     fingerprint = id_fingerprint("nin", SANDBOX_NIN)
     holder = SessionLocal()
     try:
         holder.execute(text("SELECT pg_advisory_xact_lock(:ns, hashtext(:fp))"), {"ns": ADVISORY_NAMESPACE, "fp": fingerprint})
-        threads = [in_thread(lambda s, r=a.reference, sid=sid: run_event(s, rec, sid, r).outcome)
-                   for a, sid in ((a1, "sdk_session_1"), (a2, "sdk_session_2"))]
+        threads = [in_thread(lambda s, r=a.provider_session_id: run_event(s, rec, r).outcome) for a in (a1, a2)]
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline and waiting_on_advisory_locks() < 2:
             time.sleep(0.05)
@@ -179,15 +179,15 @@ def test_the_advisory_lock_is_what_serialises_one_number(db, rec, fake_prembly):
     assert sorted(db.get(IdentityVerification, a.id).status for a in (a1, a2)) == ["needs_review", "passed"]
 
 
-def test_different_numbers_do_not_wait_for_each_other(db, rec, fake_prembly):
+def test_different_numbers_do_not_wait_for_each_other(db, rec, fake_dojah):
     first, second = cg(db), cg(db)
     a1, a2 = attempt(db, first), attempt(db, second)
-    fake_prembly.script_clean_pass("sdk_session_1", first, id_number="30000000001")
-    fake_prembly.script_clean_pass("sdk_session_2", second, id_number="30000000002")
+    fake_dojah.script_clean_pass(a1.provider_session_id, first, id_number="30000000001")
+    fake_dojah.script_clean_pass(a2.provider_session_id, second, id_number="30000000002")
     holder = SessionLocal()
     try:
         holder.execute(text("SELECT pg_advisory_xact_lock(:ns, hashtext(:fp))"), {"ns": ADVISORY_NAMESPACE, "fp": id_fingerprint("nin", "30000000001")})
-        thread, box = in_thread(lambda s: run_event(s, rec, "sdk_session_2", a2.reference).outcome)
+        thread, box = in_thread(lambda s: run_event(s, rec, a2.provider_session_id).outcome)
         thread.join(timeout=15)
         assert not thread.is_alive() and box["result"] == "applied"  # the other number's lock is not its lock
         holder.rollback()
@@ -197,30 +197,33 @@ def test_different_numbers_do_not_wait_for_each_other(db, rec, fake_prembly):
 
 
 # --- the trust property -----------------------------------------------------------------------------------------------
-MUTATIONS = ["none", "none", "none", "name", "dob", "low_face", "grey_face", "watchlisted", "not_final", "failed_verdict", "dup_number"]
+MUTATIONS = ["none", "none", "none", "name", "dob", "low_face", "grey_face", "liveness_failed", "not_final", "failed_verdict",
+             "dup_number", "no_government"]
 
 
-def _script(fake, seq, who, caregivers, mutation, sid):
+def _script(fake, seq, who, caregivers, mutation, reference):
     caregiver = caregivers[who]
     number = f"{40_000_000_000 + seq * 10 + who}"
     extra = {}
     if mutation == "name":
-        extra["registry_name"] = "CHINEDU OKAFOR"
+        extra.update(first_name="CHINEDU", middle_name=None, last_name="OKAFOR")
     elif mutation == "dob":
-        extra["registry_dob"] = "1991-04-12"
+        extra["date_of_birth"] = "12-Apr-1991"
     elif mutation == "low_face":
-        extra["face_confidence"] = 30.0
+        extra["confidence"] = 30.0
     elif mutation == "grey_face":
-        extra["face_confidence"] = 78.0
-    elif mutation == "watchlisted":
-        extra["watchlisted"] = True
+        extra["confidence"] = 78.0
+    elif mutation == "liveness_failed":
+        extra["selfie"] = False
     elif mutation == "not_final":
-        extra["overall_result"] = "in_progress"
+        extra["status"] = "Ongoing"
     elif mutation == "failed_verdict":
-        extra["overall_result"] = "failed"
+        extra["status"] = "Failed"
+    elif mutation == "no_government":
+        extra["government"] = False
     elif mutation == "dup_number":
         number = f"{40_000_000_000 + seq * 10 + (1 - who)}"  # the OTHER caregiver's number
-    fake.script_clean_pass(sid, caregiver, id_number=number, **extra)
+    fake.script_clean_pass(reference, caregiver, id_number=number, **extra)
     return mutation in ("none", "dup_number")  # a final, fully matching pass for ``who``
 
 
@@ -233,7 +236,7 @@ def _check(db, caregivers, admin, confirmed):
         events = db.query(IdentityVerificationEvent).filter_by(caregiver_id=c.id).all()
         # (1) never verified without a pull-confirmed pass (or an admin saying so)
         if status == "verified" and admin[who] != "verified":
-            assert confirmed[who], "verified without any passing session ever having been scripted for this caregiver"
+            assert confirmed[who], "verified without any passing verification ever having been scripted for this caregiver"
             assert any(e.to_status == "passed" and e.actor in ("provider", "reconcile") for e in events)
         # (2) failed only through an admin
         if status == "failed":
@@ -251,13 +254,12 @@ def _check(db, caregivers, admin, confirmed):
 
 
 @pytest.mark.parametrize("seed", [11, 22, 33, 44])
-def test_property_no_sequence_verifies_without_a_pull_confirmed_pass_or_overwrites_an_admin(db, rec, fake_prembly, seed):
+def test_property_no_sequence_verifies_without_a_pull_confirmed_pass_or_overwrites_an_admin(db, rec, fake_dojah, seed):
     rng = random.Random(seed)
     for seq in range(3):
         caregivers = [cg(db), cg(db)]
         attempts = [[attempt(db, c)] for c in caregivers]
         admin, confirmed = [None, None], [False, False]
-        counter = 0
         for _ in range(10):
             who = rng.randrange(2)
             op = rng.choice(["event", "event", "event", "forged", "reconcile", "expire", "admin", "new_attempt", "replay"])
@@ -265,22 +267,17 @@ def test_property_no_sequence_verifies_without_a_pull_confirmed_pass_or_overwrit
                 active = [a for a in db.query(IdentityVerification).filter_by(caregiver_id=caregivers[who].id).all()
                           if a.status in ("created", "started", "awaiting_result")]
                 target = active[0] if active else attempts[who][0]
-                counter += 1
-                sid = f"sdk_{seed}_{seq}_{counter}"
-                owner = who
+                reference = target.provider_session_id
                 if op == "forged":
-                    owner = 1 - who  # somebody else's perfect session, named against this caregiver's attempt
-                if op == "replay" and counter > 1:
-                    sid = f"sdk_{seed}_{seq}_{rng.randrange(1, counter)}"  # an old session again
-                    fake_prembly.sessions.setdefault(sid, None)
-                    if fake_prembly.sessions[sid] is None:
-                        del fake_prembly.sessions[sid]
-                        _script(fake_prembly, seq + 100 * seed, owner, caregivers, "none", sid)
-                else:
-                    ok = _script(fake_prembly, seq + 100 * seed, owner, caregivers, rng.choice(MUTATIONS), sid)
-                    confirmed[owner] = confirmed[owner] or ok
-                claim = rng.choice([None, "pass", "pass", "fail"])
-                run_event(db, rec, sid, target.reference, claim)
+                    # a signed event naming this caregiver's reference while the answer carries somebody else's perfect run
+                    stranger = new_reference()
+                    _script(fake_dojah, seq + 100 * seed, 1 - who, caregivers, "none", stranger)
+                    fake_dojah.script(httpx.Response(200, json={"entity": fake_dojah.verifications[stranger]}))
+                elif op == "event":
+                    ok = _script(fake_dojah, seq + 100 * seed, who, caregivers, rng.choice(MUTATIONS), reference)
+                    confirmed[who] = confirmed[who] or ok
+                # "replay": the event arrives again for whatever Dojah holds under the reference now (or nothing)
+                run_event(db, rec, reference, rng.choice([None, "fail"]))
             elif op == "reconcile":
                 reconcile(db, hooks=rec.hooks(), now=datetime.utcnow() + timedelta(minutes=10))
             elif op == "expire":

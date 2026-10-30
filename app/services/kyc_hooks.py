@@ -1,6 +1,6 @@
-"""The side effects the KYC worker runs around a Prembly call, injected so tests need neither Redis, Expo nor SMTP (K4).
+"""The side effects the KYC worker runs around a Dojah call, injected so tests need neither Redis, Expo nor SMTP (K4).
 
-* ``on_pull_ok`` / ``on_pull_error``: provider health (design 7.3). Three consecutive outage-kind errors flag Prembly unavailable for
+* ``on_pull_ok`` / ``on_pull_error``: provider health (design 7.3). Three consecutive outage-kind errors flag Dojah unavailable for
   15 minutes (the caregiver app then offers "continue without for now"); a wallet that is empty or a key that is refused flags it at
   once AND raises an ops alert (design 11.6), because retrying cannot fix it and it breaks every caregiver together. A good answer
   clears the streak and the flag.
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.services import kyc_notify
 from app.services.kyc_availability import ProviderAvailability, get_provider_availability
 from app.services.kyc_notify import Notice
-from app.services.prembly import PremblyError
+from app.services.dojah import DojahError
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class KycHooks:
         if self.availability is not None:
             self.availability.record_success()
 
-    def on_pull_error(self, exc: PremblyError) -> None:
+    def on_pull_error(self, exc: DojahError) -> None:
         if self.availability is None or not exc.outage:
             return
         if exc.needs_ops_alert:

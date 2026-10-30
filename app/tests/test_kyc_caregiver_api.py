@@ -4,6 +4,7 @@ Design: docs/plans/2026-10-27-caregiver-kyc-design.md sections 6, 7, 10.2 and 12
 ``caregivers.identity_verification_status`` to ``verified`` (or ``failed``), and a hint only touches the caregiver's own attempt.
 """
 import json
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -15,20 +16,20 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.consent import Consent
 from app.db.models.identity_verification import IdentityVerification, IdentityVerificationEvent
 from app.tests.factories import auth_headers, make_caregiver, make_patient, refresh_headers
-from app.tests.fake_prembly import TEST_FINGERPRINT_KEY, TEST_ORG_ID, TEST_SECRET_KEY, TEST_WEBHOOK_KEY
+from app.tests.fake_dojah import (
+    TEST_APP_ID, TEST_FINGERPRINT_KEY, TEST_PUBLIC_KEY, TEST_SECRET_KEY, TEST_WEBHOOK_SECRET, TEST_WIDGET_ID, new_reference,
+)
 
 BASE = "/api/v1/caregiver/identity-verification"
 POLICY = "kyc-2026-10"
-WIDGET_ID, WIDGET_KEY = "placeholder-widget-id", "placeholder-widget-key"
+REFERENCE = re.compile(r"OKL-[0-9a-f]{32}")
 STATE_KEYS = {"status", "attempts_used", "attempts_max", "active_verification_id", "last_attempt_status", "can_start",
               "failure_hint", "provider_available", "review_eta_hours", "policy_version"}
 
 
 @pytest.fixture(autouse=True)
-def env(monkeypatch, fake_prembly, kyc_availability):
-    """Prembly settings (secrets are placeholders from the fake), a configured public widget, and a controllable flag."""
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_ID", WIDGET_ID)
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_KEY", WIDGET_KEY)
+def env(fake_dojah, kyc_availability):
+    """Dojah settings (every key is a placeholder from the fake, the public widget included) and a controllable availability flag."""
     return kyc_availability
 
 
@@ -40,6 +41,7 @@ def cg(db, **kw):
 def attempt(db, caregiver, status="failed", **kw):
     n = (db.query(func.coalesce(func.max(IdentityVerification.attempt_no), 0))
          .filter(IdentityVerification.caregiver_id == caregiver.id).scalar()) + 1
+    kw.setdefault("provider_session_id", new_reference())  # the reference the server minted at start
     row = IdentityVerification(caregiver_id=caregiver.id, attempt_no=n, status=status, **kw)
     db.add(row)
     db.commit()
@@ -170,15 +172,42 @@ def test_a_session_is_created_with_widget_config_and_nothing_secret(db, client):
     r = start(client, caregiver)
     assert r.status_code == 201, r.text
     row = rows(db, IdentityVerification, caregiver_id=caregiver.id)[0]
-    assert (row.status, row.attempt_no, row.provider) == ("created", 1, "prembly")
+    assert (row.status, row.attempt_no, row.provider) == ("created", 1, "dojah")
     body = r.json()
     assert set(body) == {"verification_id", "attempt_no", "widget", "state"}
     assert body["verification_id"] == str(row.id) and body["attempt_no"] == 1
-    assert body["widget"] == {"widget_id": WIDGET_ID, "widget_key": WIDGET_KEY, "email": caregiver.user.email,
-                              "first_name": "Ada", "last_name": "Obi Eze", "metadata": {"oakly_ref": str(row.reference)}}
+    assert REFERENCE.fullmatch(row.provider_session_id)  # minted by the server BEFORE the widget opens, stored on the attempt
+    assert row.provider_reference == row.provider_session_id  # what the admin console shows, to find the run in Dojah
+    assert body["widget"] == {"app_id": TEST_APP_ID, "public_key": TEST_PUBLIC_KEY, "widget_id": TEST_WIDGET_ID,
+                              "reference_id": row.provider_session_id, "email": caregiver.user.email, "first_name": "Ada",
+                              "last_name": "Obi Eze",
+                              "date_of_birth": caregiver.date_of_birth.isoformat() if caregiver.date_of_birth else None}
     assert body["state"]["active_verification_id"] == str(row.id) and body["state"]["status"] == "in_progress"
-    for secret in (TEST_SECRET_KEY, TEST_ORG_ID, TEST_WEBHOOK_KEY, TEST_FINGERPRINT_KEY):
-        assert secret not in r.text
+    for secret in (TEST_SECRET_KEY, TEST_WEBHOOK_SECRET, TEST_FINGERPRINT_KEY, str(row.reference)):
+        assert secret not in r.text  # no secret, and not Oakly's own opaque attempt reference either
+
+
+def test_every_attempt_gets_its_own_reference_and_a_resumed_attempt_keeps_it(db, client):
+    caregiver = cg(db, identity_verification_status="in_progress")
+    first = start(client, caregiver)
+    again = start(client, caregiver)
+    assert first.status_code == 201 and again.status_code == 200
+    assert first.json()["widget"]["reference_id"] == again.json()["widget"]["reference_id"]
+    row = rows(db, IdentityVerification, caregiver_id=caregiver.id)[0]
+    row.status = "failed"
+    db.commit()
+    second = start(client, caregiver)
+    assert second.status_code == 201 and REFERENCE.fullmatch(second.json()["widget"]["reference_id"])
+    assert second.json()["widget"]["reference_id"] != first.json()["widget"]["reference_id"]
+
+
+def test_an_active_attempt_from_before_references_were_minted_gets_one_when_resumed(db, client):
+    caregiver = cg(db, identity_verification_status="in_progress")
+    row = attempt(db, caregiver, "created", provider_session_id=None)
+    r = start(client, caregiver)
+    assert r.status_code == 200
+    db.refresh(row)
+    assert REFERENCE.fullmatch(row.provider_session_id) and r.json()["widget"]["reference_id"] == row.provider_session_id
 
 
 def test_creating_a_session_records_the_separate_consent_trail_and_moves_to_in_progress(db, client):
@@ -256,7 +285,7 @@ def test_a_retry_after_a_failed_attempt_gets_a_new_reference_and_consent(db, cli
     old = attempt(db, caregiver, "failed")
     r = start(client, caregiver)
     assert r.status_code == 201 and r.json()["attempt_no"] == 2
-    assert r.json()["widget"]["metadata"]["oakly_ref"] != str(old.reference)
+    assert r.json()["widget"]["reference_id"] != old.provider_session_id
     assert len(rows(db, Consent, subject_user_id=caregiver.user_id, type="identity_verification")) == 1
     db.refresh(caregiver)
     assert caregiver.identity_verification_status == "in_progress"
@@ -299,7 +328,7 @@ def test_provider_outage_refuses_a_session_without_side_effects(db, client, env)
     assert caregiver.identity_verification_status == "pending"
 
 
-@pytest.mark.parametrize("setting", ["PREMBLY_WIDGET_ID", "PREMBLY_WIDGET_KEY"])
+@pytest.mark.parametrize("setting", ["DOJAH_APP_ID", "DOJAH_PUBLIC_KEY", "DOJAH_WIDGET_ID"])
 def test_an_unconfigured_widget_is_an_outage_not_a_half_session(db, client, monkeypatch, setting):
     monkeypatch.setattr(settings, setting, "")
     caregiver = cg(db)
@@ -314,16 +343,17 @@ def started(db, client):
     return caregiver, start(client, caregiver).json()["verification_id"]
 
 
-def test_opened_then_completed_advance_the_attempt_and_keep_the_session_id_as_a_hint(db, client):
+def test_opened_then_completed_advance_the_attempt_and_never_touch_the_reference(db, client):
     caregiver, vid = started(db, client)
+    reference = rows(db, IdentityVerification, id=uuid.UUID(vid))[0].provider_session_id
     r = hint(client, caregiver, vid, "opened")
     assert r.status_code == 200 and set(r.json()) == STATE_KEYS
     row = rows(db, IdentityVerification, id=uuid.UUID(vid))[0]
     assert row.status == "started" and row.started_at is not None
-    r = hint(client, caregiver, vid, "completed", session_id="sess_placeholder.01-A")
+    r = hint(client, caregiver, vid, "completed")
     assert r.status_code == 200 and r.json()["last_attempt_status"] == "awaiting_result"
     row = rows(db, IdentityVerification, id=uuid.UUID(vid))[0]
-    assert (row.status, row.provider_session_id) == ("awaiting_result", "sess_placeholder.01-A")
+    assert (row.status, row.provider_session_id) == ("awaiting_result", reference)
     steps = [(e.actor, e.from_status, e.to_status) for e in rows(db, IdentityVerificationEvent, verification_id=row.id)]
     assert ("client", "created", "started") in steps and ("client", "started", "awaiting_result") in steps
 
@@ -354,10 +384,11 @@ def test_a_hint_never_moves_backwards(db, client):
 def test_terminal_attempts_ignore_hints(db, client, terminal):
     caregiver = cg(db, identity_verification_status="in_progress")
     row = attempt(db, caregiver, terminal)
-    r = hint(client, caregiver, row.id, "completed", session_id="late-session")
+    reference = row.provider_session_id
+    r = hint(client, caregiver, row.id, "completed")
     assert r.status_code == 200
     db.refresh(row)
-    assert row.status == terminal and row.provider_session_id is None
+    assert row.status == terminal and row.provider_session_id == reference
     assert rows(db, IdentityVerificationEvent, verification_id=row.id) == []
 
 
@@ -377,11 +408,11 @@ def test_a_hint_never_changes_the_caregiver(db, client, identity, event):
 def test_another_caregivers_attempt_is_a_404_and_untouched(db, client):
     mine, theirs = cg(db), cg(db, identity_verification_status="in_progress")
     row = attempt(db, theirs, "created")
-    r = hint(client, mine, row.id, "completed", session_id="stolen-1")
+    r = hint(client, mine, row.id, "completed")
     unknown = hint(client, mine, uuid.uuid4(), "completed")
     assert r.status_code == 404 and unknown.status_code == 404 and r.json() == unknown.json()  # no oracle on which ids exist
     db.refresh(row)
-    assert row.status == "created" and row.provider_session_id is None
+    assert row.status == "created"
 
 
 def test_a_patient_cannot_post_a_hint_on_a_caregivers_attempt(db, client):
@@ -391,38 +422,22 @@ def test_a_patient_cannot_post_a_hint_on_a_caregivers_attempt(db, client):
     assert rows(db, IdentityVerification, id=uuid.UUID(vid))[0].status == "created"
 
 
-@pytest.mark.parametrize("session_id", ["a/b", "../x", "has space", "x" * 129, "", "tab\tx", "semi;colon"])
-def test_an_unsafe_session_id_is_refused(db, client, session_id):
+@pytest.mark.parametrize("field", ["session_id", "reference_id", "provider_session_id", "reference"])
+@pytest.mark.parametrize("value", ["OKL-" + "a" * 32, "a/b", "../x", "has space", "x" * 500, "", "semi;colon"])
+def test_a_reference_or_session_id_sent_by_the_client_is_ignored_never_stored(db, client, field, value):
+    """The server alone chooses an attempt's provider reference: whatever the app claims is dropped, not even validated."""
     caregiver, vid = started(db, client)
-    r = hint(client, caregiver, vid, "completed", session_id=session_id)
-    assert r.status_code == 422
+    before = rows(db, IdentityVerification, id=uuid.UUID(vid))[0].provider_session_id
+    r = client.post(f"{BASE}/{vid}/client-event", json={"event": "completed", field: value}, headers=auth_headers(caregiver.user))
+    assert r.status_code == 200
     row = rows(db, IdentityVerification, id=uuid.UUID(vid))[0]
-    assert row.status == "created" and row.provider_session_id is None
+    assert row.status == "awaiting_result" and row.provider_session_id == before
 
 
 def test_an_unknown_event_or_a_non_uuid_path_is_a_422(db, client):
     caregiver, vid = started(db, client)
     assert hint(client, caregiver, vid, "verified").status_code == 422
     assert hint(client, caregiver, "not-a-uuid", "opened").status_code == 422
-
-
-def test_a_session_id_already_on_another_attempt_is_not_stored_and_is_not_an_error(db, client):
-    caregiver, vid = started(db, client)
-    other = cg(db, identity_verification_status="in_progress")
-    taken = attempt(db, other, "awaiting_result", provider_session_id="sess-taken")
-    r = hint(client, caregiver, vid, "completed", session_id="sess-taken")
-    assert r.status_code == 200
-    mine = rows(db, IdentityVerification, id=uuid.UUID(vid))[0]
-    assert mine.provider_session_id is None and mine.status == "awaiting_result"  # the state hint still applies
-    db.refresh(taken)
-    assert taken.provider_session_id == "sess-taken"
-
-
-def test_the_latest_session_id_wins_while_the_attempt_is_active(db, client):
-    caregiver, vid = started(db, client)
-    hint(client, caregiver, vid, "opened", session_id="sess-a")
-    hint(client, caregiver, vid, "completed", session_id="sess-b")
-    assert rows(db, IdentityVerification, id=uuid.UUID(vid))[0].provider_session_id == "sess-b"
 
 
 # --- POST /identity-verification/defer --------------------------------------------------------------------------------------

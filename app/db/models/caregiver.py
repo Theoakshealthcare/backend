@@ -64,7 +64,7 @@ class Caregiver(Base):
     background_check_consent = Column(Boolean, default=False)
     consent_date = Column(DateTime, nullable=True)
     
-    # Identity verification attempts and results live in identity_verifications (Prembly); nothing the provider returned
+    # Identity verification attempts and results live in identity_verifications (Dojah); nothing the provider returned
     # about the person is stored on this row.
 
     created_at = Column(DateTime, default=datetime.utcnow)

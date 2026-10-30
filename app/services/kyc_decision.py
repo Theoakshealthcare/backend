@@ -1,7 +1,7 @@
 """The KYC decision rules (design 7.1-7.3, K4): what a pull-confirmed provider result means for ONE attempt.
 
 A pure function over plain values, so the rules can be read, tested exhaustively and fuzzed without a database. Nothing here
-knows Prembly: ``kyc_seam`` turns a pulled session into an ``Evidence`` and this module never sees the provider's own words.
+knows the provider: ``kyc_seam`` turns a pulled verification into an ``Evidence`` and this module never sees the provider's own words.
 
 The rules, in order of precedence:
 
@@ -43,13 +43,14 @@ class Evidence:
     only: ``repr`` hides them and nothing stores them (design 10.1)."""
     verdict: str  # PASS / FAIL
     face_confidence: Optional[Decimal] = None  # 0..100
-    liveness_confidence: Optional[Decimal] = None  # 0..100
+    liveness_passed: Optional[bool] = None  # a boolean only (Dojah gives no liveness score); None = the provider did not say
     watchlisted: bool = False
     failure_reason: Optional[str] = None  # a canonical reason code for a clean failure, when the provider says why
     id_type: Optional[str] = None
     id_number: Optional[str] = field(default=None, repr=False)
     registry_name: Optional[str] = field(default=None, repr=False)
     registry_dob: Optional[date] = field(default=None, repr=False)
+    incomplete: bool = False  # a finished flow whose government or selfie result was absent or unreadable: a person looks, never a pass
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,6 @@ class Profile:
 class Policy:
     face_threshold: int
     face_floor: int
-    liveness_floor: int
     max_attempts: int
 
 
@@ -95,7 +95,7 @@ def decide(evidence: Evidence, profile: Profile, *, duplicate: bool, disagreemen
     band = face_band(evidence.face_confidence, policy)
     name_ok = names_match(profile.full_name, evidence.registry_name) if passing else None
     dob_ok = dobs_match(profile.date_of_birth, evidence.registry_dob) if passing else None
-    liveness_failed = (evidence.liveness_confidence is not None and evidence.liveness_confidence < policy.liveness_floor)
+    liveness_failed = evidence.liveness_passed is False
 
     risky: list[str] = []
     if disagreement:
@@ -117,7 +117,7 @@ def decide(evidence: Evidence, profile: Profile, *, duplicate: bool, disagreemen
     if band == "grey":
         soft.append(FACE_GREY_BAND)
     if passing:
-        if band == "missing":
+        if band == "missing" or evidence.incomplete:
             soft.append(IDENTITY_DATA_MISSING)
         if name_ok is False:
             soft.append(NAME_MISMATCH)

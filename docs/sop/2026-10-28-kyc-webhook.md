@@ -1,5 +1,7 @@
 # SOP: Prembly webhook ingest and confirm (K3)
 
+> **Provider switched to Dojah on 2026-10-30 (slice KD1, [SOP](2026-10-30-kyc-dojah-adapter.md)).** The webhook is now `POST /api/v1/kyc/dojah/webhook`: header `x-dojah-signature` (hex HMAC-SHA256 of the raw body, keyed by `DOJAH_WEBHOOK_SECRET`), no `token` header (the ledger key is derived), binding by exact match of the server-minted `reference_id`; the e-mail binding, the squatted-hint clearing and the undelivered-list discovery are gone. The assumptions U1-U15 below are replaced by D1-D14 in `kyc_seam.py`. What stays: pull-only authority, raw-body signature before anything is read, no body stored, enqueue compensation, lock order. The rest of this document is the record of the original Prembly-era work.
+
 | | |
 |---|---|
 | **Date** | 2026-10-28 |

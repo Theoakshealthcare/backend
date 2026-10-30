@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/caregivers/7c1a82d1-923e-4fc4-860a-d308103f87f2",
+    "path": "/api/v1/admin/caregivers/d132b3d6-5c07-4220-b555-f1d1cf187a5e",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,11 +12,11 @@
     },
     "body": {
       "profile": {
-        "id": "7c1a82d1-923e-4fc4-860a-d308103f87f2",
-        "user_id": "048554c9-4961-4f96-ac3c-5a9f15bf17fc",
-        "email": "caregiver-291b7618bd@example.com",
+        "id": "d132b3d6-5c07-4220-b555-f1d1cf187a5e",
+        "user_id": "d1c84cf6-23ee-4784-9dde-27b76fd128d0",
+        "email": "caregiver-075742ecdb@example.com",
         "full_name": "Placeholder Amina Okafor",
-        "phone_number": "+2348869974413",
+        "phone_number": "+2348584489744",
         "date_of_birth": "1990-04-12",
         "gender": null,
         "state": "Lagos",
@@ -33,8 +33,8 @@
         "terms_accepted": false,
         "privacy_policy_accepted": false,
         "background_check_consent": false,
-        "created_at": "2026-10-29T13:53:06.833322",
-        "updated_at": "2026-10-29T13:53:06.886241"
+        "created_at": "2026-10-30T10:40:41.090828",
+        "updated_at": "2026-10-30T10:40:41.127907"
       },
       "consents": {
         "terms_accepted": false,
@@ -51,20 +51,20 @@
         "can_reset": false,
         "attempts": [
           {
-            "id": "d8355c78-3968-4907-a65e-a63306a5f363",
+            "id": "53ac37c0-7b7f-447a-a3bb-a48b5a1a7b2a",
             "attempt_no": 1,
             "status": "passed",
-            "created_at": "2026-10-29T13:53:06.847127",
+            "created_at": "2026-10-30T10:40:41.102350",
             "started_at": null,
-            "completed_at": "2026-10-27T10:01:30",
+            "completed_at": "2026-10-30T10:40:41.123988",
             "id_type": "nin",
             "face_confidence": 92.0,
-            "liveness_confidence": 90.0,
+            "liveness_confidence": null,
             "face_threshold": 85,
             "name_match": true,
             "dob_match": true,
             "reason_codes": [],
-            "provider_reference": null,
+            "provider_reference": "OKL-478b70c0d43f40f49018c778b11c838a",
             "decided_via": "provider"
           }
         ],

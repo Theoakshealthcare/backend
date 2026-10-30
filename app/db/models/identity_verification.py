@@ -1,4 +1,4 @@
-"""Caregiver KYC (Prembly): one row per verification attempt, the webhook ledger, and the system-decision trail.
+"""Caregiver KYC (Dojah): one row per verification attempt, the webhook ledger, and the system-decision trail.
 
 See docs/plans/2026-10-27-caregiver-kyc-design.md sections 7, 8 and 9.
 
@@ -71,10 +71,13 @@ class IdentityVerification(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
     attempt_no = Column(Integer, nullable=False)  # 1-based per caregiver; counted for the cap
-    # Opaque; sent to the provider as ``metadata.oakly_ref``. The binding key from the signed webhook body.
+    # Opaque; Oakly's own id for the attempt (the consent's evidence_ref). Not sent to the provider.
     reference = Column(UUID(as_uuid=True), nullable=False, unique=True, default=uuid.uuid4)
-    provider = Column(String, nullable=False, default="prembly", server_default="prembly")
-    provider_session_id = Column(String, nullable=True, unique=True)  # a client hint first, confirmed from the pull
+    provider = Column(String, nullable=False, default="dojah", server_default="dojah")
+    # The provider reference the SERVER minted for this attempt before the widget opened: ``OKL-<uuid4 hex>`` (``kyc_seam.mint_reference``).
+    # Dojah's webhook ``reference_id`` and the pull key; the webhook binds by exact match. (Column name kept from the Prembly era:
+    # no migration. Nulled on erasure.)
+    provider_session_id = Column(String, nullable=True, unique=True)
     status = Column(String, nullable=False, default=VERIFICATION_CREATED)
     reason_codes = Column(ARRAY(String), nullable=False, default=list, server_default=text("'{}'::varchar[]"))
     id_type = Column(String, nullable=True)
@@ -85,7 +88,8 @@ class IdentityVerification(Base):
     dob_match = Column(Boolean, nullable=True)
     # HMAC-SHA256(KYC_FINGERPRINT_KEY, type + ":" + normalised number); NULL if the payload carried no number. Nulled on erasure.
     id_fingerprint = Column(String, nullable=True)
-    provider_reference = Column(String, nullable=True)  # Prembly's ``verification.reference``; nulled on erasure
+    # The same reference, shown to admins so they can find the run in the Dojah dashboard (``provider_session_id`` is never exposed). Nulled on erasure.
+    provider_reference = Column(String, nullable=True)
     provider_cost = Column(Numeric(12, 2), nullable=True)
     decided_via = Column(String, nullable=True)  # provider | admin, once decided
     started_at = Column(DateTime, nullable=True)
@@ -95,7 +99,7 @@ class IdentityVerification(Base):
 
 
 class KycWebhookEvent(Base):
-    """The ledger of what Prembly sent: the dedupe key and the outcome. The BODY IS NOT STORED (it carries the registry record)."""
+    """The ledger of what Dojah sent: the dedupe key and the outcome. The BODY IS NOT STORED (it carries the registry record)."""
     __tablename__ = "kyc_webhook_events"
     __table_args__ = (
         CheckConstraint("outcome IS NULL OR " + _in("outcome", WEBHOOK_OUTCOMES), name="ck_kyc_webhook_events_outcome"),
@@ -104,8 +108,8 @@ class KycWebhookEvent(Base):
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    token = Column(String, nullable=False, unique=True)  # Prembly's per-webhook ``token`` header: the idempotency key
-    provider_session_id = Column(String, nullable=True)  # nulled on erasure
+    token = Column(String, nullable=False, unique=True)  # the delivery's dedupe key (``kyc_seam.dedupe_key``): Dojah sends no idempotency header
+    provider_session_id = Column(String, nullable=True)  # the webhook's ``reference_id``; nulled on erasure
     event_type = Column(String, nullable=True)
     signature_ok = Column(Boolean, nullable=False)
     body_sha256 = Column(String, nullable=True)

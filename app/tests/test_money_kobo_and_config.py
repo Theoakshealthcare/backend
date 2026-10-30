@@ -16,7 +16,7 @@ from app.services.booking import BookingService
 from app.services.booking_payment import expected_kobo
 from app.services.paystack import PaystackService
 from app.tests.factories import make_booking, make_patient
-from app.tests.fake_prembly import PRODUCTION_KYC_KEYS
+from app.tests.fake_dojah import PRODUCTION_KYC_KEYS
 
 
 def test_to_kobo_rounds_half_up():

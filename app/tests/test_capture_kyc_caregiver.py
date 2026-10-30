@@ -10,8 +10,8 @@ calls into it the next time it is run.
 
 What is real and what is not: the app, the routes, the database and every response are real, and since K4 so is the decision
 engine: the attempts below marked [engine] were decided by ``process_event`` / ``reconcile`` (the code that runs in production) from a
-session served by ``FakePrembly``. NOTHING here has met the real Prembly: the session shapes are the documented ones and the fake's
-guesses (design section 15). The "is Prembly up" flag is an in-memory stand-in for Redis (the engine wrote it, through the same
+session served by ``FakeDojah``. NOTHING here has met the real Dojah: the session shapes are the documented ones and the fake's
+guesses (design section 15). The "is Dojah up" flag is an in-memory stand-in for Redis (the engine wrote it, through the same
 ``KycHooks`` the worker uses); the widget id and key are placeholders. Attempt rows nothing can produce yet are seeded straight into
 the database and marked [seeded].
 """
@@ -27,6 +27,7 @@ from app.core.config import settings
 from app.db.models.identity_verification import IdentityVerification, KycWebhookEvent
 from app.services.kyc_events import process_event
 from app.services.kyc_hooks import KycHooks
+from app.services.kyc_seam import mint_reference
 from app.services.kyc_reconcile import reconcile
 from app.tests.factories import auth_headers, make_caregiver, make_patient
 
@@ -57,20 +58,22 @@ def _caregiver(db, **kw):
     return make_caregiver(db, approved=False, **kw)
 
 
-def _decided(db, fake_prembly, availability, caregiver, *, clean=True, **session):
-    """[engine] One attempt for ``caregiver`` decided by the real worker code from a fake Prembly session."""
+def _decided(db, fake_dojah, availability, caregiver, *, clean=True, **fields):
+    """[engine] One attempt for ``caregiver`` decided by the real worker code from a fake Dojah verification (``clean``: one that
+    matches the caregiver's profile; otherwise ``fields`` alone describe it)."""
     n = db.query(IdentityVerification).filter_by(caregiver_id=caregiver.id).count() + 1
     attempt = IdentityVerification(caregiver_id=caregiver.id, attempt_no=n, status="awaiting_result")
+    attempt.provider_session_id = attempt.provider_reference = mint_reference()
     db.add(attempt)
-    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=f"placeholder-session-{uuid.uuid4().hex[:8]}", signature_ok=True)
+    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=attempt.provider_session_id, signature_ok=True)
     db.add(event)
     db.commit()
     if clean:
-        fake_prembly.script_clean_pass(event.provider_session_id, caregiver, **session)
+        fake_dojah.script_clean_pass(attempt.provider_session_id, caregiver, **fields)
     else:
-        fake_prembly.script_session(event.provider_session_id, email=caregiver.email, **session)
+        fake_dojah.script_verification(attempt.provider_session_id, **fields)
     hooks = KycHooks(availability=availability, notify=lambda db_, notice: None, alert=lambda kind: None)
-    process_event(db, {"event_id": str(event.id), "oakly_ref": str(attempt.reference)}, hooks=hooks)
+    process_event(db, {"event_id": str(event.id), "claim": None, "settled": True}, hooks=hooks)
     db.expire_all()
     return attempt
 
@@ -81,9 +84,7 @@ def _seed(db, caregiver, status, **kw):
     db.commit()
 
 
-def test_capture(db, client, monkeypatch, fake_prembly, kyc_availability):
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_ID", "placeholder-widget-id")
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_KEY", "placeholder-widget-key")
+def test_capture(db, client, monkeypatch, fake_dojah, kyc_availability):
     OUT.mkdir(parents=True, exist_ok=True)
     consent = {"consent": True, "policy_version": settings.KYC_POLICY_VERSION}
 
@@ -103,10 +104,12 @@ def test_capture(db, client, monkeypatch, fake_prembly, kyc_availability):
     ev = f"{BASE}/{vid}/client-event"
     _save("205-a-kyc-client-event-opened.json", client.post(ev, json={"event": "opened"}, headers=h))
     _save("206-a-kyc-client-event-completed.json",
-          client.post(ev, json={"event": "completed", "session_id": "placeholder-session-001"}, headers=h),
+          client.post(ev, json={"event": "completed"}, headers=h),
           "A hint only: the response shows the attempt waiting for the provider; the caregiver status is still in_progress.")
     _save("207-a-kyc-state-checking.json", client.get(BASE, headers=h), "What the app polls while it waits for the provider.")
-    _save("208-a-kyc-client-event-bad-session-id.json", client.post(ev, json={"event": "completed", "session_id": "../x"}, headers=h))
+    _save("208-a-kyc-client-event-ignores-client-reference.json",
+          client.post(ev, json={"event": "completed", "reference_id": "OKL-" + "0" * 32, "session_id": "../x"}, headers=h),
+          "A reference or session id sent by the app is ignored (not validated, not stored): the server chose the reference when it created the attempt.")
     other = _caregiver(db)
     _save("209-a-kyc-client-event-someone-elses-attempt.json",
           client.post(ev, json={"event": "completed"}, headers=auth_headers(other.user)),
@@ -114,9 +117,9 @@ def test_capture(db, client, monkeypatch, fake_prembly, kyc_availability):
 
     # States only the webhook and decision engine (K3/K4) can reach: attempts seeded into the database.
     retry = _caregiver(db, identity_verification_status="in_progress")
-    _decided(db, fake_prembly, kyc_availability, retry, clean=False, overall_result="failed", face_confidence=41)
+    _decided(db, fake_dojah, kyc_availability, retry, clean=False, status="Failed", confidence=41)
     _save("210-a-kyc-state-try-again.json", client.get(BASE, headers=auth_headers(retry.user)),
-          "[engine] One clean failure (face mismatch, decided from a fake Prembly session): a coarse tip and a retry. The scores and reason are not returned.")
+          "[engine] One clean failure (face mismatch, decided from a fake Dojah session): a coarse tip and a retry. The scores and reason are not returned.")
 
     capped = _caregiver(db, identity_verification_status="in_progress")
     for _ in range(3):
@@ -127,14 +130,14 @@ def test_capture(db, client, monkeypatch, fake_prembly, kyc_availability):
     _save("212-a-kyc-sessions-attempts-exhausted.json", client.post(f"{BASE}/sessions", json=consent, headers=ch))
 
     review = _caregiver(db, identity_verification_status="in_progress")
-    _decided(db, fake_prembly, kyc_availability, review, registry_name="PLACEHOLDER OTHER NAME")
+    _decided(db, fake_dojah, kyc_availability, review, first_name="PLACEHOLDER", middle_name=None, last_name="OTHER")
     rh = auth_headers(review.user)
     _save("213-a-kyc-state-under-review.json", client.get(BASE, headers=rh),
           "[engine] A case with a person (here the name on the ID differs from the profile). The reason is not returned.")
     _save("214-a-kyc-sessions-under-review.json", client.post(f"{BASE}/sessions", json=consent, headers=rh))
 
     done = _caregiver(db, identity_verification_status="in_progress")
-    _decided(db, fake_prembly, kyc_availability, done)
+    _decided(db, fake_dojah, kyc_availability, done)
     dh2 = auth_headers(done.user)
     _save("215-a-kyc-sessions-already-verified.json", client.post(f"{BASE}/sessions", json=consent, headers=dh2),
           "[engine] Identity already verified by a pull-confirmed pass.")
@@ -148,7 +151,7 @@ def test_capture(db, client, monkeypatch, fake_prembly, kyc_availability):
     # Three clean failures: the engine ends in review, never in a failed caregiver.
     third = _caregiver(db, identity_verification_status="in_progress")
     for _ in range(3):
-        _decided(db, fake_prembly, kyc_availability, third, clean=False, overall_result="failed", face_confidence=20)
+        _decided(db, fake_dojah, kyc_availability, third, clean=False, status="Failed", confidence=20)
     th = auth_headers(third.user)
     _save("228-a-kyc-state-attempts-used-up-review.json", client.get(BASE, headers=th),
           "[engine] The third clean failure hands the case to a person: needs_review, attempts_used 3, can_start false.")
@@ -158,7 +161,8 @@ def test_capture(db, client, monkeypatch, fake_prembly, kyc_availability):
     # An attempt nobody answered is expired by the cron.
     stale = _caregiver(db, identity_verification_status="in_progress")
     old = datetime.utcnow() - timedelta(hours=25)
-    db.add(IdentityVerification(caregiver_id=stale.id, attempt_no=1, status="awaiting_result", created_at=old, updated_at=old))
+    db.add(IdentityVerification(caregiver_id=stale.id, attempt_no=1, status="awaiting_result", created_at=old, updated_at=old,
+                               provider_session_id=mint_reference()))
     db.commit()
     reconcile(db, hooks=KycHooks(availability=kyc_availability, notify=lambda db_, n: None, alert=lambda k: None))
     _save("230-a-kyc-state-expired.json", client.get(BASE, headers=auth_headers(stale.user)),
@@ -166,11 +170,11 @@ def test_capture(db, client, monkeypatch, fake_prembly, kyc_availability):
 
     # A wallet that is empty: found by the engine, which flags the provider and the app sees it.
     walled = _caregiver(db, identity_verification_status="in_progress")
-    fake_prembly.wallet_empty()
-    _decided(db, fake_prembly, kyc_availability, walled)
+    fake_dojah.wallet_empty()
+    _decided(db, fake_dojah, kyc_availability, walled)
     _save("231-a-kyc-state-wallet-empty.json", client.get(BASE, headers=auth_headers(walled.user)),
           "[engine] A pull answered 'wallet empty': the engine flagged the provider unavailable at once (and alerts ops).")
-    fake_prembly.recover()
+    fake_dojah.recover()
     kyc_availability.available = True
 
     # Outage path.

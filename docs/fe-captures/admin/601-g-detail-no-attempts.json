@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/caregivers/f4177f40-65b4-441d-b16b-9473ac1690e3",
+    "path": "/api/v1/admin/caregivers/a1bf345e-4b82-48e7-ab68-55734a098dce",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,11 +12,11 @@
     },
     "body": {
       "profile": {
-        "id": "f4177f40-65b4-441d-b16b-9473ac1690e3",
-        "user_id": "fb0a1be2-717d-42aa-8f96-b86bb8e57ea4",
-        "email": "caregiver-067f9372ec@example.com",
+        "id": "a1bf345e-4b82-48e7-ab68-55734a098dce",
+        "user_id": "be3996bf-480c-40e8-9bdc-94c55fb3a6ce",
+        "email": "caregiver-0e6b5d5950@example.com",
         "full_name": "Placeholder Hauwa Musa",
-        "phone_number": "+2348464986603",
+        "phone_number": "+2348483294370",
         "date_of_birth": "1990-04-12",
         "gender": null,
         "state": "Lagos",
@@ -33,8 +33,8 @@
         "terms_accepted": false,
         "privacy_policy_accepted": false,
         "background_check_consent": false,
-        "created_at": "2026-10-29T13:53:08.996618",
-        "updated_at": "2026-10-29T13:53:08.996622"
+        "created_at": "2026-10-30T10:40:43.003698",
+        "updated_at": "2026-10-30T10:40:43.003702"
       },
       "consents": {
         "terms_accepted": false,

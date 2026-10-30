@@ -1,9 +1,9 @@
-"""Is Prembly usable right now? One shared flag, read by the caregiver KYC API and written by the K4 reconcile/decision code.
+"""Is Dojah usable right now? One shared flag, read by the caregiver KYC API and written by the K4 reconcile/decision code.
 
 The flag lives in Redis (``kyc:provider_unavailable`` with a TTL, design 7.3) so every API worker and the ARQ worker agree, and it
 heals by itself. A Redis problem must not lock caregivers out of onboarding, so a failed read counts as *available* (the app then
-opens the widget and finds out; note that with Redis AND Prembly both down, ``defer`` is refused); a failed write is logged. ``get_provider_availability`` is a FastAPI
-dependency so tests replace it with an in-memory fake (``app/tests/fake_prembly.py``).
+opens the widget and finds out; note that with Redis AND Dojah both down, ``defer`` is refused); a failed write is logged. ``get_provider_availability`` is a FastAPI
+dependency so tests replace it with an in-memory fake (``app/tests/fake_dojah.py``).
 """
 import logging
 from typing import Optional, Protocol
@@ -47,7 +47,7 @@ class RedisProviderAvailability:
         try:
             return not self._redis().exists(UNAVAILABLE_KEY)
         except Exception:  # noqa: BLE001 - any Redis trouble means "do not block the caregiver"
-            logger.warning("kyc availability flag unreadable; treating Prembly as available", exc_info=True)
+            logger.warning("kyc availability flag unreadable; treating Dojah as available", exc_info=True)
             return True
 
     def mark_unavailable(self, ttl_seconds: int = DEFAULT_UNAVAILABLE_TTL_SECONDS) -> None:

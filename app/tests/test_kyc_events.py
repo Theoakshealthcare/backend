@@ -1,9 +1,9 @@
-"""K3: the worker side of the Prembly webhook. Locate the attempt, bind it, PULL the session, record the raw outcome.
+"""K3/KD1: the worker side of the Dojah webhook. Locate the attempt by its minted reference, bind it, PULL the verification, record it.
 
 Since K4 the same locked section also DECIDES (kyc_engine; the rules and the decision matrix are tested in test_kyc_decision.py and
 test_kyc_engine.py), so a final pull moves the attempt and the caregiver. These tests keep their K3 job: binding, trust, idempotency,
-retries and lock order. Design: docs/plans/2026-10-27-caregiver-kyc-design.md sections 8.3, 8.4 and 16.1. Names, ids and numbers
-are placeholders.
+retries and lock order. Design: docs/plans/2026-10-27-caregiver-kyc-design.md sections 8.3, 8.4 and 16.1; the Dojah delta. Names,
+ids and numbers are placeholders.
 """
 import asyncio
 import json
@@ -22,24 +22,23 @@ from sqlalchemy import text
 from app import worker
 from app.db.models.caregiver import Caregiver
 from app.db.models.identity_verification import (
-    VERIFICATION_ACTIVE_STATUSES, VERIFICATION_STATUSES, VERIFICATION_TERMINAL_STATUSES, IdentityVerification,
-    IdentityVerificationEvent, KycWebhookEvent,
+    VERIFICATION_ACTIVE_STATUSES, VERIFICATION_TERMINAL_STATUSES, IdentityVerification, IdentityVerificationEvent, KycWebhookEvent,
 )
 from app.db.session import SessionLocal
 from app.services import kyc_events
+from app.services.dojah import DojahClient
 from app.services.kyc_events import KycRetry, lock_caregiver_then_attempt, process_event
 from app.tests.factories import make_caregiver
-from app.tests.fake_prembly import (  # noqa: F401
-    SANDBOX_NIN, TEST_WEBHOOK_KEY, fake_prembly, kyc_queue, signed_webhook, webhook_payload,
+from app.tests.fake_dojah import (  # noqa: F401
+    SANDBOX_NIN, SENTINEL_PHOTO, FakeDojah, fake_dojah, kyc_queue, new_reference, signed_webhook, webhook_payload,
 )
 
-URL = "/api/v1/kyc/prembly/webhook"
-SENTINEL_PHOTO = "data:image/jpeg;base64,SENTINEL-PHOTO-do-not-store"
+URL = "/api/v1/kyc/dojah/webhook"
 
 
 @pytest.fixture(autouse=True)
-def env(fake_prembly, kyc_queue):  # noqa: F811
-    return fake_prembly
+def env(fake_dojah, kyc_queue):  # noqa: F811
+    return fake_dojah
 
 
 def cg(db, **kw):
@@ -48,17 +47,18 @@ def cg(db, **kw):
 
 
 def attempt(db, caregiver, status="awaiting_result", **kw):
+    """An attempt as ``start_session`` leaves it: with the reference the server minted. ``a.provider_session_id`` is that reference."""
+    kw.setdefault("provider_session_id", new_reference())
     row = IdentityVerification(caregiver_id=caregiver.id, attempt_no=kw.pop("attempt_no", 1), status=status, **kw)
     db.add(row)
     db.commit()
     return row
 
 
-def deliver(client, kyc_queue, session_id, *, ref=None, status="VERIFIED", token=None, **payload_kw):
+def deliver(client, kyc_queue, reference, *, status="Completed", entity=None, **extra):
     """POST a signed webhook through the real endpoint; returns the job the endpoint queued."""
     before = len(kyc_queue.jobs)
-    payload = webhook_payload(session_id, status=status, oakly_ref=str(ref) if ref else None, **payload_kw)
-    body, headers = signed_webhook(payload, TEST_WEBHOOK_KEY, token=token)
+    body, headers = signed_webhook(webhook_payload(reference, status=status, entity=entity, **extra))
     assert client.post(URL, content=body, headers=headers).status_code == 200
     assert len(kyc_queue.jobs) == before + 1
     return kyc_queue.jobs[-1]
@@ -79,22 +79,25 @@ def snapshot(a):
             a.provider_cost, a.completed_at, a.decided_via)
 
 
-# --- a pull-confirmed result is recorded, nothing is decided ---------------------------------------------------------
-def test_a_confirmed_result_is_recorded_from_the_pull_and_decided_in_the_same_section(client, db, kyc_queue, fake_prembly):
+def pulled(reference):
+    return DojahClient.from_settings().get_verification(reference)
+
+
+# --- a pull-confirmed result is recorded and decided ------------------------------------------------------------------
+def test_a_confirmed_result_is_recorded_from_the_pull_and_decided_in_the_same_section(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    session = fake_prembly.script_clean_pass("sdk_session_a", caregiver, face_confidence=92.5, liveness_confidence=0.9,
-                                             total_cost="310.00")
-    session["_payload"]["verification"] = {"reference": "prem-ref-1"}
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    ref = a.provider_session_id
+    fake_dojah.script_clean_pass(ref, caregiver, confidence=92.5)
+    job = deliver(client, kyc_queue, ref)
 
     result = process_event(db, job)
 
     assert result.outcome == "applied" and result.verification_id == a.id and result.observation.verdict == "pass"
     assert result.notice is not None and result.notice.kind == "verified"
     a = fresh(db, a)
-    assert (a.provider_session_id, a.provider_reference) == ("sdk_session_a", "prem-ref-1")
-    assert (float(a.face_confidence), float(a.liveness_confidence), float(a.provider_cost)) == (92.5, 90.0, 310.0)
+    assert a.provider_session_id == ref  # unchanged: the reference the server minted
+    assert (float(a.face_confidence), a.liveness_confidence, a.provider_cost, a.provider_reference) == (92.5, None, None, None)
     assert a.completed_at is not None and a.reason_codes == []
     assert (a.status, a.decided_via, a.face_threshold, a.id_type) == ("passed", "provider", 85, "nin")
     assert (a.name_match, a.dob_match) == (True, True) and a.id_fingerprint and SANDBOX_NIN not in a.id_fingerprint
@@ -106,302 +109,296 @@ def test_a_confirmed_result_is_recorded_from_the_pull_and_decided_in_the_same_se
     assert (event.outcome, event.verification_id) == ("applied", a.id) and event.processed_at is not None
 
 
-def test_the_pull_uses_the_secret_key_and_asks_for_the_payload(client, db, kyc_queue, fake_prembly):
+def test_the_pull_uses_the_secret_key_and_the_attempts_own_reference(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email)
-    process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference))
-    (request,) = fake_prembly.requests
-    assert request.url.path.endswith("/sdk_session_a/") and request.url.params["include_payload"] == "true"
-    assert request.headers["x-api-key"] and request.headers["x-organisation-id"]
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    process_event(db, deliver(client, kyc_queue, a.provider_session_id))
+    (request,) = fake_dojah.requests
+    assert request.url.params["reference_id"] == a.provider_session_id
+    assert request.headers["authorization"] and request.headers["appid"]
 
 
 @pytest.mark.parametrize("status", VERIFICATION_ACTIVE_STATUSES)
-def test_every_active_status_can_be_decided(client, db, kyc_queue, fake_prembly, status):
+def test_every_active_status_can_be_decided(client, db, kyc_queue, fake_dojah, status):
     caregiver = cg(db)
     a = attempt(db, caregiver, status=status)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)).outcome == "applied"
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    assert process_event(db, deliver(client, kyc_queue, a.provider_session_id)).outcome == "applied"
     assert fresh(db, a).status == "passed"
 
 
-def test_a_session_that_is_not_final_is_only_bound(client, db, kyc_queue, fake_prembly):
+@pytest.mark.parametrize("status", ["Pending", "Ongoing", "Abandoned"])
+def test_a_verification_that_is_not_final_records_nothing(client, db, kyc_queue, fake_dojah, status):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="in_progress", face_confidence=95)
-    result = process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="IN_PROGRESS"))
-    a = fresh(db, a)
-    assert result.outcome == "applied" and result.observation.final is False
-    assert a.provider_session_id == "sdk_session_a" and a.face_confidence is None and a.completed_at is None
+    fake_dojah.script_verification(a.provider_session_id, status=status, confidence=95)
+    result = process_event(db, deliver(client, kyc_queue, a.provider_session_id, status=status))
+    after = fresh(db, a)
+    assert result.outcome == "applied" and result.observation.final is False and result.notice is None
+    assert (after.status, after.face_confidence, after.completed_at, after.reason_codes) == ("awaiting_result", None, None, [])
+    assert fresh(db, caregiver).identity_verification_status == "pending" and db.query(IdentityVerificationEvent).count() == 0
 
 
-def test_a_claimed_verdict_the_pull_does_not_show_yet_is_retried_not_consumed(client, db, kyc_queue, fake_prembly):
+def test_a_completed_flow_the_pull_does_not_show_yet_is_retried_not_consumed(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="in_progress")
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="VERIFIED")  # the webhook claims a pass
+    ref = a.provider_session_id
+    fake_dojah.script_verification(ref, status="Ongoing")
+    job = deliver(client, kyc_queue, ref, status="Completed")  # the webhook says the flow ended
     with pytest.raises(KycRetry):
         process_event(db, job, final_try=False)
-    assert ledger(db, job).processed_at is None and fresh(db, a).provider_session_id is None  # nothing was kept
+    assert ledger(db, job).processed_at is None and fresh(db, a).completed_at is None  # nothing was kept
 
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="passed")  # the session caught up
+    fake_dojah.script_clean_pass(ref, caregiver)  # the pull caught up
     assert process_event(db, job, final_try=False).outcome == "applied"
     assert fresh(db, a).completed_at is not None
 
 
-def test_on_the_last_try_a_still_unfinished_session_is_recorded_as_bound_only(client, db, kyc_queue, fake_prembly):
+def test_on_the_last_try_a_still_unfinished_verification_is_recorded_as_nothing(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="in_progress")
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="VERIFIED")
+    fake_dojah.script_verification(a.provider_session_id, status="Pending")
+    job = deliver(client, kyc_queue, a.provider_session_id, status="Completed")
     assert process_event(db, job, final_try=True).outcome == "applied"
     assert fresh(db, a).completed_at is None
 
 
-def test_scores_outside_their_scale_are_dropped_not_clamped(client, db, kyc_queue, fake_prembly):
+def test_a_score_outside_its_scale_is_dropped_not_clamped_and_a_person_looks(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=140, liveness_confidence=90)
-    process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference))
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=140)
+    process_event(db, deliver(client, kyc_queue, a.provider_session_id))
     a = fresh(db, a)
-    assert a.face_confidence is None and a.liveness_confidence is None and a.completed_at is not None
+    assert a.face_confidence is None and a.completed_at is not None
+    assert (a.status, a.reason_codes) == ("needs_review", ["identity_data_missing"])  # no score is evidence we did not see
+
+
+def test_completed_is_not_a_pass(client, db, kyc_queue, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, government=False)
+    result = process_event(db, deliver(client, kyc_queue, a.provider_session_id))
+    assert result.observation.verdict == "fail" and fresh(db, a).status == "failed"
+    assert fresh(db, caregiver).identity_verification_status == "in_progress"  # try again, never failed by a machine
 
 
 # --- trust: the webhook alone is never believed -----------------------------------------------------------------------
-def test_a_webhook_pass_over_a_pulled_failure_is_a_disagreement_that_goes_to_review_not_to_verified(client, db, kyc_queue, fake_prembly):
+def test_a_webhook_failure_over_a_pulled_pass_is_a_disagreement_that_goes_to_review_not_to_verified(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="failed", face_confidence=10)
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="VERIFIED")
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    job = deliver(client, kyc_queue, a.provider_session_id, status="Failed")
     assert process_event(db, job).outcome == "disagreement"
     a = fresh(db, a)
-    assert a.reason_codes == ["provider_disagreement", "face_mismatch"] and a.provider_session_id == "sdk_session_a"
-    assert (a.status, a.decided_via) == ("needs_review", "provider") and ledger(db, job).outcome == "disagreement"
-    assert fresh(db, caregiver).identity_verification_status == "needs_review"
-
-
-def test_a_webhook_failure_over_a_pulled_pass_is_a_disagreement_too(client, db, kyc_queue, fake_prembly):
-    caregiver = cg(db)
-    a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="passed")
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="FAILED")).outcome == "disagreement"
+    assert a.reason_codes == ["provider_disagreement"] and (a.status, a.decided_via) == ("needs_review", "provider")
+    assert ledger(db, job).outcome == "disagreement"
     assert fresh(db, caregiver).identity_verification_status == "needs_review"  # a webhook can never talk a pull into "verified"
 
 
-def test_a_forged_webhook_cannot_attach_someone_elses_session(client, db, kyc_queue, fake_prembly):
-    """The signing key may be public (U1): someone who can sign can name any ref/session. The pull says whose session it is."""
-    victim = cg(db)
-    a = attempt(db, victim)
-    fake_prembly.script_session("sdk_session_friend", email="someone.else@example.com", face_confidence=99)
-    result = process_event(db, deliver(client, kyc_queue, "sdk_session_friend", ref=a.reference))
+def test_a_webhook_that_carries_a_pass_cannot_make_one(client, db, kyc_queue, fake_dojah):
+    """The signed body even carries a perfect ``data`` block; Dojah's own record (the pull) is a failed selfie: the pull wins."""
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    ref = a.provider_session_id
+    fake_dojah.script_clean_pass(ref, caregiver, selfie=False, confidence=30)
+    perfect = FakeDojah.entity(ref, confidence=99)
+    job = deliver(client, kyc_queue, ref, status="Completed", entity=perfect)
+    assert process_event(db, job).outcome == "applied"
     a = fresh(db, a)
-    assert result.outcome == "disagreement" and a.provider_session_id is None and a.face_confidence is None
-    assert a.reason_codes == []  # the victim's attempt is not even tainted: only the ledger row records the disagreement
-    assert fresh(db, victim).identity_verification_status == "pending"
+    assert a.status == "failed" and "face_mismatch" in a.reason_codes
+    assert fresh(db, caregiver).identity_verification_status == "in_progress"
 
 
-def test_an_echoed_ref_in_the_pull_is_the_binding_when_present(client, db, kyc_queue, fake_prembly):
+def test_a_pulled_answer_about_another_reference_is_never_used(client, db, kyc_queue, fake_dojah):
+    """The pull is made by the attempt's own reference, and what comes back must name it. An answer carrying someone else's perfect
+    run decides nothing and taints nothing."""
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email="other@example.com", payload={"metadata": {"oakly_ref": str(a.reference)}})
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)).outcome == "applied"
-
-
-def test_an_echoed_ref_that_is_someone_elses_is_a_disagreement_even_if_the_email_matches(client, db, kyc_queue, fake_prembly):
-    caregiver = cg(db)
-    a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, payload={"metadata": {"oakly_ref": str(uuid.uuid4())}})
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)).outcome == "disagreement"
-
-
-def test_the_clients_session_hint_alone_needs_the_providers_own_email(client, db, kyc_queue, fake_prembly):
-    caregiver = cg(db)
-    a = attempt(db, caregiver, provider_session_id="sdk_session_a")  # the K2 client-event hint
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email.upper())
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_a")).outcome == "applied"  # no oakly_ref in the body
-    assert fresh(db, a).completed_at is not None
-
-    other = cg(db)
-    b = attempt(db, other, provider_session_id="sdk_session_b")
-    fake_prembly.script_session("sdk_session_b", email="not.the.caregiver@example.com")
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_b")).outcome == "disagreement"
-    assert fresh(db, b).completed_at is None
-
-
-def test_a_newer_session_bound_by_the_pull_replaces_the_clients_older_hint(client, db, kyc_queue, fake_prembly):
-    """The caregiver reopened the widget: the app's stored hint is the old session, the webhook is for the new one."""
-    caregiver = cg(db)
-    a = attempt(db, caregiver, provider_session_id="sdk_session_hint")
-    fake_prembly.script_session("sdk_session_other", email=caregiver.email)
-    result = process_event(db, deliver(client, kyc_queue, "sdk_session_other", ref=a.reference))
-    assert result.outcome == "applied" and fresh(db, a).provider_session_id == "sdk_session_other"
-
-
-def test_a_conflicting_session_that_does_not_belong_to_the_attempt_changes_nothing(client, db, kyc_queue, fake_prembly):
-    caregiver = cg(db)
-    a = attempt(db, caregiver, provider_session_id="sdk_session_hint")
-    fake_prembly.script_session("sdk_session_other", email="someone.else@example.com")
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_other", ref=a.reference)).outcome == "disagreement"
+    stranger = new_reference()
+    fake_dojah.script_clean_pass(stranger, caregiver, confidence=99)
+    fake_dojah.script(httpx.Response(200, json={"entity": fake_dojah.verifications[stranger]}))
+    job = deliver(client, kyc_queue, a.provider_session_id)
+    assert process_event(db, job).outcome == "error"
     after = fresh(db, a)
-    assert after.provider_session_id == "sdk_session_hint" and after.reason_codes == []
+    assert (after.status, after.reason_codes, after.face_confidence, after.completed_at) == ("awaiting_result", [], None, None)
+    assert fresh(db, caregiver).identity_verification_status == "pending"
 
 
-def test_a_session_already_bound_to_another_attempt_is_never_bound_twice(client, db, kyc_queue, fake_prembly):
-    first, second = cg(db), cg(db)
-    attempt(db, first, status="passed", provider_session_id="sdk_session_a")
-    b = attempt(db, second)
-    fake_prembly.script_session("sdk_session_a", email=second.email)
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=b.reference)).outcome == "disagreement"
-    assert fresh(db, b).provider_session_id is None
-
-
-def test_a_signed_webhook_for_a_session_prembly_does_not_know_is_a_disagreement(client, db, kyc_queue, fake_prembly):
+def test_a_verification_that_does_not_name_the_attempts_reference_decides_nothing_inside_the_lock(client, db, fake_dojah):
     caregiver = cg(db)
-    a = attempt(db, caregiver)  # nothing scripted: the pull answers "01 record not found"
-    job = deliver(client, kyc_queue, "sdk_session_ghost", ref=a.reference)
+    a = attempt(db, caregiver)
+    stranger = new_reference()
+    fake_dojah.script_clean_pass(stranger, caregiver, confidence=99)
+    recorded = kyc_events.confirm_and_record(db, a.id, pulled(stranger))
+    db.commit()
+    assert (recorded.outcome, recorded.observation, recorded.notice) == ("disagreement", None, None)
+    after = fresh(db, a)
+    assert (after.status, after.reason_codes, after.face_confidence, after.completed_at) == ("awaiting_result", [], None, None)
+
+
+def test_an_attempt_without_a_reference_cannot_be_decided(client, db, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver, provider_session_id=None)
+    ref = new_reference()
+    fake_dojah.script_clean_pass(ref, caregiver)
+    assert kyc_events.confirm_and_record(db, a.id, pulled(ref)).outcome == "disagreement"
+    assert fresh(db, a).completed_at is None
+
+
+def test_a_signed_webhook_for_a_reference_dojah_does_not_know_is_a_disagreement(client, db, kyc_queue, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)  # nothing scripted: the pull answers 404
+    job = deliver(client, kyc_queue, a.provider_session_id)
     assert process_event(db, job).outcome == "disagreement"
-    # ledger only: a forged event naming a victim's ref and a made-up session must not taint the victim's attempt
-    assert fresh(db, a).reason_codes == [] and ledger(db, job).processed_at is not None
+    assert fresh(db, a).reason_codes == [] and ledger(db, job).processed_at is not None  # ledger only; the attempt is not tainted
+
+
+def test_the_binding_is_an_exact_match_of_the_reference(client, db, kyc_queue, fake_dojah):
+    """A neighbour's reference (one hex digit off) finds no attempt and costs no pull."""
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    ref = a.provider_session_id
+    near = ref[:-1] + ("0" if ref[-1] != "0" else "1")
+    assert re.fullmatch(r"OKL-[0-9a-f]{32}", near) and near != ref
+    fake_dojah.script_clean_pass(near, caregiver)
+    assert process_event(db, deliver(client, kyc_queue, near)).outcome == "orphan"
+    assert fresh(db, a).completed_at is None and fake_dojah.requests == []
 
 
 # --- orphans, terminal attempts, replays ------------------------------------------------------------------------------
-def test_an_orphan_event_is_recorded_without_a_pull(client, db, kyc_queue, fake_prembly):
-    job = deliver(client, kyc_queue, "sdk_session_nobody", ref=uuid.uuid4())
+def test_an_orphan_event_is_recorded_without_a_pull(client, db, kyc_queue, fake_dojah):
+    job = deliver(client, kyc_queue, new_reference())
     result = process_event(db, job)
-    assert result.outcome == "orphan" and result.verification_id is None and fake_prembly.requests == []
+    assert result.outcome == "orphan" and result.verification_id is None and fake_dojah.requests == []
     assert (ledger(db, job).outcome, ledger(db, job).verification_id) == ("orphan", None)
 
 
 @pytest.mark.parametrize("status", VERIFICATION_TERMINAL_STATUSES)
-def test_a_terminal_attempt_ignores_events_and_costs_no_pull(client, db, kyc_queue, fake_prembly, status):
+def test_a_terminal_attempt_ignores_events_and_costs_no_pull(client, db, kyc_queue, fake_dojah, status):
     caregiver = cg(db)
     a = attempt(db, caregiver, status=status, decided_via="admin" if status == "passed" else None)
     before = snapshot(a)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="failed")
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference, status="FAILED")
+    fake_dojah.script_verification(a.provider_session_id, status="Failed")
+    job = deliver(client, kyc_queue, a.provider_session_id, status="Failed")
     assert process_event(db, job).outcome == "ignored_terminal"
-    assert fake_prembly.requests == [] and snapshot(fresh(db, a)) == before
+    assert fake_dojah.requests == [] and snapshot(fresh(db, a)) == before
     assert ledger(db, job).outcome == "ignored_terminal"
 
 
-def test_a_replay_under_a_new_token_changes_nothing_the_second_time(client, db, kyc_queue, fake_prembly):
+def test_a_later_event_for_a_decided_attempt_changes_nothing_the_second_time(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    first = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    ref = a.provider_session_id
+    fake_dojah.script_clean_pass(ref, caregiver)
+    first = deliver(client, kyc_queue, ref, status="Completed")
     assert process_event(db, first).outcome == "applied"
     recorded = snapshot(fresh(db, a))
-    replay = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
-    assert replay["event_id"] != first["event_id"]
-    again = process_event(db, replay)
+    later = deliver(client, kyc_queue, ref, status="Failed")  # a different status is a different delivery (kyc_seam D2)
+    assert later["event_id"] != first["event_id"]
+    again = process_event(db, later)
     assert again.outcome == "ignored_terminal" and again.notice is None  # the attempt is finished: inert, nobody is told twice
     assert snapshot(fresh(db, a)) == recorded
-    assert len(fake_prembly.requests) == 1  # a finished attempt costs no pull
+    assert len(fake_dojah.requests) == 1  # a finished attempt costs no pull
     assert db.query(IdentityVerificationEvent).count() == 1
 
 
-def test_a_recorded_result_is_never_overwritten_inside_the_lock(client, db, kyc_queue, fake_prembly):
+def test_a_recorded_result_is_never_overwritten_inside_the_lock(client, db, kyc_queue, fake_dojah):
     """The pre-check in process_event is unlocked; a second worker that got past it must still find the result and leave it."""
     caregiver = cg(db)
-    a = attempt(db, caregiver, provider_session_id="sdk_session_a", face_confidence=91, completed_at=datetime(2026, 10, 27, 10, 0))
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=12)
-    session = fake_prembly_session(fake_prembly, "sdk_session_a")
-    recorded = kyc_events.confirm_and_record(db, a.id, session)
+    a = attempt(db, caregiver, face_confidence=91, completed_at=datetime(2026, 10, 27, 10, 0))
+    fake_dojah.script_verification(a.provider_session_id, confidence=12, selfie=False)
+    recorded = kyc_events.confirm_and_record(db, a.id, pulled(a.provider_session_id))
     assert (recorded.outcome, recorded.observation, recorded.notice) == ("applied", None, None)
     db.commit()
     after = fresh(db, a)
     assert float(after.face_confidence) == 91.0 and after.completed_at == datetime(2026, 10, 27, 10, 0)
 
 
-def test_a_job_delivered_twice_is_processed_once(client, db, kyc_queue, fake_prembly):
+def test_a_job_delivered_twice_is_processed_once(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email)
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    fake_dojah.script_verification(a.provider_session_id, status="Pending")
+    job = deliver(client, kyc_queue, a.provider_session_id, status="Pending")
     assert process_event(db, job).outcome == "applied"
     assert process_event(db, job).outcome == "applied"
-    assert len(fake_prembly.requests) == 1
+    assert len(fake_dojah.requests) == 1
 
 
 def test_a_missing_ledger_row_is_not_an_error(db):
     assert process_event(db, {"event_id": str(uuid.uuid4())}).outcome == "error"
 
 
-def test_a_ledger_row_whose_session_id_was_erased_is_an_orphan(client, db, kyc_queue, fake_prembly):
+def test_a_ledger_row_whose_reference_was_erased_is_an_orphan(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    job = deliver(client, kyc_queue, "sdk_session_a")
+    job = deliver(client, kyc_queue, a.provider_session_id)
     db.query(KycWebhookEvent).update({"provider_session_id": None})
     db.commit()
-    assert process_event(db, {**job, "oakly_ref": None}).outcome == "orphan" and fake_prembly.requests == []
-    assert fresh(db, a).provider_session_id is None
+    assert process_event(db, job).outcome == "orphan" and fake_dojah.requests == []
 
 
 # --- the pull fails ---------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize("fail", ["outage", "rate_limited", "server_error", "timeout"])
-def test_a_retryable_pull_failure_asks_for_a_retry_and_leaves_the_row_open(client, db, kyc_queue, fake_prembly, fail):
+def test_a_retryable_pull_failure_asks_for_a_retry_and_leaves_the_row_open(client, db, kyc_queue, fake_dojah, fail):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email)
-    getattr(fake_prembly, fail)()
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    getattr(fake_dojah, fail)()
+    job = deliver(client, kyc_queue, a.provider_session_id)
     with pytest.raises(KycRetry) as retry:
         process_event(db, job, final_try=False)
     assert 0 < retry.value.delay_seconds <= kyc_events.MAX_RETRY_SECONDS
-    assert ledger(db, job).processed_at is None and snapshot(fresh(db, a))[1] is None
+    assert ledger(db, job).processed_at is None and fresh(db, a).completed_at is None
 
-    fake_prembly.recover()  # the retry
+    fake_dojah.recover()  # the retry
     assert process_event(db, job, final_try=False).outcome == "applied"
 
 
-def test_the_last_try_closes_the_row_as_an_error_and_never_raises(client, db, kyc_queue, fake_prembly):
+def test_the_last_try_closes_the_row_as_an_error_and_never_raises(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.outage()
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    fake_dojah.outage()
+    job = deliver(client, kyc_queue, a.provider_session_id)
     assert process_event(db, job, final_try=True).outcome == "error"
     assert ledger(db, job).outcome == "error" and fresh(db, a).status == "awaiting_result"
 
 
 @pytest.mark.parametrize("fail", ["wallet_empty", "unauthorised"])
-def test_a_pull_failure_retrying_cannot_fix_is_an_error_at_once_and_is_logged_for_ops(client, db, kyc_queue, fake_prembly, caplog, fail):
+def test_a_pull_failure_retrying_cannot_fix_is_an_error_at_once_and_is_logged_for_ops(client, db, kyc_queue, fake_dojah, caplog, fail):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    getattr(fake_prembly, fail)()
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    getattr(fake_dojah, fail)()
+    job = deliver(client, kyc_queue, a.provider_session_id)
     assert process_event(db, job, final_try=False).outcome == "error"
     assert "ops attention" in caplog.text
 
 
-def test_a_watchlisted_code_on_the_pull_closes_the_row_as_an_error_and_taints_nothing(client, db, kyc_queue, fake_prembly):
+def test_another_rejection_closes_the_row_as_an_error_and_taints_nothing(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script(httpx.Response(200, json={"status": False, "response_code": "07", "message": "blocked"}))
-    assert process_event(db, deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)).outcome == "error"
+    fake_dojah.script(httpx.Response(422, json={"error": "bad reference"}))
+    assert process_event(db, deliver(client, kyc_queue, a.provider_session_id)).outcome == "error"
     assert fresh(db, a).reason_codes == []
 
 
 # --- privacy ----------------------------------------------------------------------------------------------------------
-def test_nothing_the_provider_says_about_the_person_is_stored_or_logged(client, db, kyc_queue, fake_prembly, caplog):
+def test_nothing_the_provider_says_about_the_person_is_stored_or_logged(client, db, kyc_queue, fake_dojah, caplog):
     caplog.set_level(logging.DEBUG)
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session(
-        "sdk_session_a", email=caregiver.email, full_name="SENTINEL FULL NAME", phone="+2340000000SENT", face_confidence=93,
-        payload={"face_data": {"confidence": 93}, "verification_response": {"number": SANDBOX_NIN, "photo": SENTINEL_PHOTO,
-                                                                            "address": "SENTINEL ADDRESS"},
-                 "verification": {"reference": "prem-ref-1"}})
-    payload = webhook_payload("sdk_session_a", oakly_ref=str(a.reference))
-    payload["data"]["verification_response"] = {"number": SANDBOX_NIN, "photo": SENTINEL_PHOTO}
-    body, headers = signed_webhook(payload)
+    ref = a.provider_session_id
+    fake_dojah.script_clean_pass(ref, caregiver, confidence=93, first_name="SENTINELFIRST", last_name="SENTINELLAST")
+    entity = FakeDojah.entity(ref, first_name="SENTINELFIRST", last_name="SENTINELLAST")
+    body, headers = signed_webhook(webhook_payload(ref, entity=entity))
     assert client.post(URL, content=body, headers=headers).status_code == 200
-    assert process_event(db, kyc_queue.jobs[-1]).outcome == "applied"
+    process_event(db, kyc_queue.jobs[-1])
 
     dumped = ""
     for table in ("identity_verifications", "kyc_webhook_events", "identity_verification_events"):
         dumped += "".join(r[0] for r in db.execute(text(f"SELECT row_to_json(t)::text FROM {table} t")))
     dumped += json.dumps(kyc_queue.jobs) + caplog.text
-    for sentinel in (SANDBOX_NIN, "SENTINEL", "base64", "photo", "address", "+2340000000"):
+    for sentinel in (SANDBOX_NIN, "SENTINEL", SENTINEL_PHOTO, "base64", "images.dojah.invalid", "12-Apr"):
         assert sentinel not in dumped, sentinel
 
 
@@ -412,19 +409,19 @@ def test_the_job_is_registered_without_a_kept_result():
     assert registered["kyc_process_event"].coroutine is worker.kyc_process_event
 
 
-def test_the_job_runs_process_event_and_returns_the_outcome(client, db, kyc_queue, fake_prembly):
+def test_the_job_runs_process_event_and_returns_the_outcome(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email)
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    job = deliver(client, kyc_queue, a.provider_session_id)
     assert asyncio.run(worker.kyc_process_event({"job_try": 1}, job)) == "applied"
 
 
-def test_the_job_retries_with_a_delay_then_gives_up_quietly(client, db, kyc_queue, fake_prembly):
+def test_the_job_retries_with_a_delay_then_gives_up_quietly(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.outage()
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    fake_dojah.outage()
+    job = deliver(client, kyc_queue, a.provider_session_id)
     with pytest.raises(Retry) as retry:
         asyncio.run(worker.kyc_process_event({"job_try": 1}, job))
     assert retry.value.defer_score > 0
@@ -462,15 +459,15 @@ def _is_waiting_on_a_lock(timeout=5.0) -> bool:
     return False
 
 
-def test_erasure_holding_the_caregiver_makes_the_worker_wait_and_then_find_the_attempt_finished(client, db, kyc_queue, fake_prembly):
+def test_erasure_holding_the_caregiver_makes_the_worker_wait_and_then_find_the_attempt_finished(client, db, kyc_queue, fake_dojah):
     """Erasure takes user -> caregiver -> attempts and expires an in-flight attempt. The worker queues behind it on the CAREGIVER row
-    and, once it gets in, re-reads the attempt: it is expired, so nothing is written (in particular no session id is put back)."""
+    and, once it gets in, re-reads the attempt: it is expired, so nothing is written (in particular no reference is put back)."""
     from app.services.account_erasure import AccountErasureService
 
     caregiver = cg(db)
-    a = attempt(db, caregiver, provider_session_id="sdk_session_a")
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=93)
-    job = deliver(client, kyc_queue, "sdk_session_a", ref=a.reference)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=93)
+    job = deliver(client, kyc_queue, a.provider_session_id)
     user_id, caregiver_id, attempt_id = caregiver.user_id, caregiver.id, a.id
 
     eraser = SessionLocal()
@@ -491,7 +488,7 @@ def test_erasure_holding_the_caregiver_makes_the_worker_wait_and_then_find_the_a
     assert fresh(db, db.get(Caregiver, caregiver_id)).full_name == "Deleted user"
 
 
-def test_the_worker_holding_its_locks_makes_erasure_wait_and_erasure_wins_without_a_deadlock(client, db, kyc_queue, fake_prembly):
+def test_the_worker_holding_its_locks_makes_erasure_wait_and_erasure_wins_without_a_deadlock(client, db, kyc_queue, fake_dojah):
     """The other direction: the worker is inside its locked section (caregiver, then attempt) when erasure starts. Erasure waits on
     the caregiver row, the worker finishes and commits, erasure then wipes what the worker wrote. Two sessions, opposite starting
     points, one lock order: they cannot deadlock."""
@@ -499,7 +496,8 @@ def test_the_worker_holding_its_locks_makes_erasure_wait_and_erasure_wins_withou
 
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, face_confidence=93)
+    ref = a.provider_session_id
+    fake_dojah.script_verification(ref, confidence=93)
     user_id, attempt_id = caregiver.user_id, a.id
 
     worker_db = SessionLocal()
@@ -508,7 +506,7 @@ def test_the_worker_holding_its_locks_makes_erasure_wait_and_erasure_wins_withou
         assert locked_attempt.status == "awaiting_result"
         eraser_thread, box = _in_thread(lambda s: AccountErasureService(s).erase(user_id))
         assert _is_waiting_on_a_lock(), "erasure should be waiting on the worker's caregiver lock"
-        recorded = kyc_events.confirm_and_record(worker_db, attempt_id, fake_prembly_session(fake_prembly, "sdk_session_a"))
+        recorded = kyc_events.confirm_and_record(worker_db, attempt_id, pulled(ref))
         assert recorded.outcome == "applied"
         worker_db.commit()
     finally:
@@ -521,17 +519,11 @@ def test_the_worker_holding_its_locks_makes_erasure_wait_and_erasure_wins_withou
     assert (after.status, after.provider_session_id, after.id_fingerprint, after.provider_reference) == ("needs_review", None, None, None)
 
 
-def fake_prembly_session(fake, session_id):
-    from app.services.prembly import PremblyClient
-
-    return PremblyClient.from_settings().get_session(session_id, include_payload=True)
-
-
-def test_two_workers_on_one_attempt_do_not_both_record(client, db, kyc_queue, fake_prembly):
+def test_two_workers_on_one_attempt_do_not_both_record(client, db, kyc_queue, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver, face_confidence=93)
-    jobs = [deliver(client, kyc_queue, "sdk_session_a", ref=a.reference) for _ in range(3)]
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=93)
+    jobs = [deliver(client, kyc_queue, a.provider_session_id, note=n) for n in range(3)]
     threads = [_in_thread(lambda s, j=j: process_event(s, j).outcome) for j in jobs]
     for t, _ in threads:
         t.join(timeout=30)
@@ -562,7 +554,7 @@ def _lock_sequence(run):
     return seen
 
 
-def test_both_paths_issue_the_caregiver_lock_before_the_attempt_lock(client, db, kyc_queue, fake_prembly):
+def test_both_paths_issue_the_caregiver_lock_before_the_attempt_lock(client, db, kyc_queue, fake_dojah):
     """The deterministic half of the lock-order proof (the two race tests above prove the outcomes): in the worker and in erasure the
     caregiver row is locked first and the attempts after it. Swapping the two in either place makes this fail."""
     from app.services.account_erasure import AccountErasureService
@@ -576,3 +568,15 @@ def test_both_paths_issue_the_caregiver_lock_before_the_attempt_lock(client, db,
 
     erasure_order = _lock_sequence(lambda: (AccountErasureService(db).erase(user_id), db.rollback()))
     assert erasure_order.index("caregivers") < erasure_order.index("identity_verifications")
+
+
+def test_a_late_webhook_after_erasure_does_not_write_the_erased_reference_back(client, db, kyc_queue, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    ref = a.provider_session_id
+    a.provider_session_id = a.provider_reference = None  # what erasure does
+    db.commit()
+    job = deliver(client, kyc_queue, ref)  # the signed, well-formed webhook still arrives
+    assert db.get(KycWebhookEvent, uuid.UUID(job["event_id"])).provider_session_id == ref  # held only until the worker looks at it
+    assert process_event(db, job).outcome == "orphan" and fake_dojah.requests == []
+    assert ledger(db, job).provider_session_id is None

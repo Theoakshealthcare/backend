@@ -4,23 +4,22 @@ Design: docs/plans/2026-10-27-caregiver-kyc-design.md sections 6, 7, 10.2 and 12
 
 The trust rule that shapes everything here: the client's word never decides anything. This service can
 
-* create an attempt (and, with it, move a ``pending`` caregiver to ``in_progress``),
-* record a *hint* about the caregiver's own active attempt (``created`` -> ``started`` -> ``awaiting_result``, plus the provider
-  session id the widget reported), and
-* let a caregiver continue onboarding without verification while Prembly is down (step 3; the identity status is untouched).
+* create an attempt (and, with it, move a ``pending`` caregiver to ``in_progress``) and MINT its provider reference
+  (``kyc_seam.mint_reference``: ``OKL-<uuid4 hex>``) before the widget is launched,
+* record a *hint* about the caregiver's own active attempt (``created`` -> ``started`` -> ``awaiting_result``), and
+* let a caregiver continue onboarding without verification while Dojah is down (step 3; the identity status is untouched).
 
 It never sets ``verified``, ``failed`` or ``needs_review`` on a caregiver, and never closes an attempt: the signed webhook and the
-authenticated pull (K3/K4) are the only evidence. It makes no call to Prembly: the widget is configured from our own row and the
-public widget id/key, and images go phone to Prembly. Errors are ``KycError`` carrying the API's machine code.
+authenticated pull (K3/K4) are the only evidence. It makes no call to Dojah: the widget is configured from our own row and the
+public app id / public key / widget id, and images go phone to Dojah. Nothing the client reports can change which reference an
+attempt has. Errors are ``KycError`` carrying the API's machine code.
 """
 import logging
-import re
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -31,7 +30,7 @@ from app.db.models.identity_verification import (
 )
 from app.services.consent import ConsentService
 from app.services.kyc_availability import ProviderAvailability
-from app.services.prembly import SESSION_ID_PATTERN
+from app.services.kyc_seam import is_our_reference, mint_reference
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +42,7 @@ REVIEW_ETA_HOURS = 24  # "usually within 24 hours" (design 11.3 state 7)
 # Attempts that do not count against the cap: nothing was decided about the person (design 7.1)
 UNCOUNTED_STATUSES = (VERIFICATION_EXPIRED, VERIFICATION_ERROR)
 RETRYABLE_IDENTITY_STATUSES = ("pending", "in_progress")
+PROVIDER = "dojah"
 
 # A coarse tip for the "try again" screen, from the latest clean failure. Anything else (duplicate, watch-list, mismatch, the
 # provider disagreeing with itself) ends in review and is never shown (design 12.1 and 11.3).
@@ -63,8 +63,6 @@ def attempts_used(attempts) -> int:
     creation, the K4 engine and the admin detail all call it, so ``identity-reset`` (a fresh set of attempts) lives in this one place:
     an attempt carrying ``RESET_MARK`` was wiped by an admin and does not count."""
     return sum(1 for a in attempts if a.status not in UNCOUNTED_STATUSES and RESET_MARK not in (a.reason_codes or ()))
-
-_SESSION_ID = re.compile(SESSION_ID_PATTERN)
 
 
 class KycError(Exception):
@@ -117,20 +115,22 @@ class CaregiverIdentityService:
         if policy_version != settings.KYC_POLICY_VERSION:
             raise _conflict("POLICY_VERSION_MISMATCH",
                             "The identity-check consent text has changed. Reload and agree to the current version.")
-        widget_id, widget_key = settings.PREMBLY_WIDGET_ID, settings.PREMBLY_WIDGET_KEY
+        app_id, public_key, widget_id = settings.DOJAH_APP_ID, settings.DOJAH_PUBLIC_KEY, settings.DOJAH_WIDGET_ID
         available = self.availability.is_available()
-        if not (widget_id and widget_key) or not available:
+        if not (app_id and public_key and widget_id) or not available:
             raise KycError(503, "PROVIDER_UNAVAILABLE", "Identity verification is temporarily unavailable. Please try again later.")
 
         attempts = self._attempts(caregiver)
         row = next((a for a in attempts if a.status in VERIFICATION_ACTIVE_STATUSES), None)
         created = row is None
         if created:
+            reference = mint_reference()
             if attempts_used(attempts) >= settings.KYC_MAX_ATTEMPTS:
                 raise _conflict("ATTEMPTS_EXHAUSTED", "You have used all your identity verification attempts. Our team will review your case.")
             row = IdentityVerification(
                 caregiver_id=caregiver.id, attempt_no=max((a.attempt_no for a in attempts), default=0) + 1,
-                reference=uuid.uuid4(), status=VERIFICATION_CREATED,
+                reference=uuid.uuid4(), provider=PROVIDER, provider_session_id=reference, provider_reference=reference,
+                status=VERIFICATION_CREATED,
             )
             self.db.add(row)
             self.db.flush()
@@ -142,20 +142,23 @@ class CaregiverIdentityService:
             if caregiver.identity_verification_status == "pending":
                 caregiver.identity_verification_status = "in_progress"
             caregiver.updated_at = datetime.utcnow()
+        elif not is_our_reference(row.provider_session_id):
+            row.provider_session_id = row.provider_reference = mint_reference()  # an attempt from before references were minted at creation
         self.db.commit()
 
         first, _, last = (caregiver.full_name or "").strip().partition(" ")
         widget = {
-            "widget_id": widget_id, "widget_key": widget_key,  # the key is public by Prembly's design; every other key stays server-side
+            # app id and public key ship in the app bundle by Dojah's design; the secret key and the webhook secret never leave the server
+            "app_id": app_id, "public_key": public_key, "widget_id": widget_id, "reference_id": row.provider_session_id,
             "email": caregiver.email or caregiver.user.email, "first_name": first, "last_name": last.strip(),
-            "metadata": {"oakly_ref": str(row.reference)},
+            "date_of_birth": caregiver.date_of_birth,  # so the widget need not ask again (a retyped date caused DOB_MISMATCH in Weysure)
         }
         return {"verification_id": row.id, "attempt_no": row.attempt_no, "widget": widget, "state": self.state(caregiver, available)}, created
 
     # --- POST /{id}/client-event -------------------------------------------------------------------------------------
-    def client_event(self, user_id: UUID, verification_id: UUID, event: str, session_id: Optional[str]) -> Dict:
-        """A hint from the widget. Moves the caregiver's own active attempt forward and remembers the session id; nothing else."""
-        caregiver = self._caregiver(user_id)
+    def client_event(self, user_id: UUID, verification_id: UUID, event: str) -> Dict:
+        """A hint from the widget. Moves the caregiver's own active attempt forward; nothing else (it never names a reference)."""
+        caregiver = self._caregiver(user_id, lock=True)  # caregiver row first, as every KYC writer (erasure takes it before the attempts)
         row = (self.db.query(IdentityVerification)
                .filter(IdentityVerification.id == verification_id, IdentityVerification.caregiver_id == caregiver.id)
                .with_for_update().first())
@@ -168,8 +171,6 @@ class CaregiverIdentityService:
                 row.status = target
                 if target == VERIFICATION_STARTED and row.started_at is None:
                     row.started_at = datetime.utcnow()
-            if session_id:
-                self._remember_session_hint(row, session_id)
             row.updated_at = datetime.utcnow()
         self.db.commit()
         return self.state(caregiver)
@@ -223,18 +224,6 @@ class CaregiverIdentityService:
         if event == "opened":
             return VERIFICATION_STARTED if current == VERIFICATION_CREATED else None
         return VERIFICATION_AWAITING  # completed: from created or started
-
-    def _remember_session_hint(self, row: IdentityVerification, session_id: str) -> None:
-        """Keep the widget's session id as a hint to speed up the pull. ``provider_session_id`` is unique, so an id already on any
-        attempt (a clash, or someone squatting a known id) is quietly not stored: the binding never depends on it (design 16.1 point 5)."""
-        if not _SESSION_ID.fullmatch(session_id) or row.provider_session_id == session_id:
-            return
-        try:
-            with self.db.begin_nested():
-                row.provider_session_id = session_id
-                self.db.flush()
-        except IntegrityError:
-            logger.info("kyc session hint ignored: id already on another attempt verification=%s", row.id)
 
     def _event(self, row: IdentityVerification, actor: str, from_status: Optional[str], to_status: str) -> None:
         self.db.add(IdentityVerificationEvent(verification_id=row.id, caregiver_id=row.caregiver_id, actor=actor,

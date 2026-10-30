@@ -658,9 +658,9 @@ _capture `031-admin-approve-no-skills.json`_
 
 ### Identity verification (KYC): `/caregiver/identity-verification/...`
 
-**What it is.** After Step 2 the caregiver proves who they are with a hosted check (ID or NIN/BVN plus a live selfie) run by our verification partner, Prembly. The check runs inside Prembly's widget; the photos go from the phone to Prembly and never reach Oakly. **The app never decides the outcome.** The result reaches the backend from Prembly directly; the app only reads the status. Everything the widget reports back to the app (opened, completed, closed, error) is sent to the backend as a *hint* and changes nothing about the caregiver's identity status.
+**What it is.** After Step 2 the caregiver proves who they are with a hosted check (BVN or NIN plus a live selfie) run by our verification partner, **Dojah** (the partner was Prembly until 2026-10-30; nothing in the app's contract mentions a partner name). The check runs inside Dojah's widget; the photos go from the phone to Dojah and never reach Oakly. **The app never decides the outcome.** The result reaches the backend from Dojah directly (a signed webhook, plus a periodic check by the backend itself); the app only reads the status. Everything the widget reports back to the app (opened, completed, closed, error) is sent to the backend as a *hint* and changes nothing about the caregiver's identity status. **The backend creates the widget's `reference_id` when it creates the attempt, before the widget opens; the app passes it to the widget and never makes one up.**
 
-**Captured by the backend test harness (the real app and a real Postgres), not the compose stack: captures `200` to `231` come from `app/tests/test_capture_kyc_caregiver.py`. NOT live against Prembly, and this matters:** the decision engine (backend slice K4, built) is real code, and the captures marked **[engine]** were produced by running it (the same functions the worker and the cron run) over sessions served by a **fake Prembly** whose shapes come from Prembly's public docs and our guesses. Nobody has yet seen a real Prembly session, webhook or widget callback (the K0 spike and K8 live pass are still ahead), so *what real results look like, how many real caregivers land in review, and the exact scores* are unconfirmed. Captures marked **[seeded]** put an attempt row straight into the database. The "is Prembly up" flag was an in-memory stand-in for the Redis flag (the engine wrote it through the same code path). The widget id and key in the examples are placeholders. The widget itself (app slices K7a/K7b) is not built.
+**Captured by the backend test harness (the real app and a real Postgres), not the compose stack: captures `200` to `231` come from `app/tests/test_capture_kyc_caregiver.py`. NOT live against Dojah, and this matters:** the decision engine (backend slices K4 and KD1) is real code, and the captures marked **[engine]** were produced by running it (the same functions the worker and the cron run) over verifications served by a **fake Dojah** whose shapes come from Dojah's public docs and from the Timp and Weysure integrations. Nobody at Oakly has yet seen a real Dojah verification, webhook or widget callback (the K8 live pass is still ahead), so *what real results look like, how many real caregivers land in review, the exact face scores, and whether the widget accepts our `reference_id` as given* are unconfirmed. Captures marked **[seeded]** put an attempt row straight into the database. The "is Dojah up" flag was an in-memory stand-in for the Redis flag (the engine wrote it through the same code path). The app id, public key and widget id in the examples are placeholders, and so is the `reference_id` (its `OKL-` + 32 hex shape is real, the value is not). The widget itself (app slices K7a/K7b) is not built.
 
 All five calls need a caregiver token. A patient token gets `403 Access denied. Caregiver account required.` and no token gets `401 Not authenticated` (captures `224`, `225`).
 
@@ -756,7 +756,7 @@ _capture `210-a-kyc-state-try-again.json`_
 
 _capture `213-a-kyc-state-under-review.json`_
 
-#### What the backend decides, and what the app sees (K4, **[engine]**, over a fake Prembly)
+#### What the backend decides, and what the app sees (K4/KD1, **[engine]**, over a fake Dojah)
 
 The app never sends a result; it reads the state. This is how the backend turns the provider's confirmed result into the state you poll:
 
@@ -766,7 +766,7 @@ The app never sends a result; it reads the state. This is how the backend turns 
 | A clean failure with attempts left (face mismatch, liveness, unreadable ID, record not found) | `in_progress` | `failed` | "Try again" with `failure_hint` (capture `210`); the step stays 2 |
 | The third clean failure (capture `228`) | `needs_review` | `needs_review` | The step moves to 3: a person looks; the caregiver can continue |
 | Anything doubtful: name or date of birth differs from the profile, face score in the grey band, the same ID on another account, a watch-list hit, a result that could not be checked (capture `213`) | `needs_review` | `needs_review` | The step moves to 3: a person looks. The reason is never returned |
-| Nobody answered within 24 hours and Prembly has no result for it (capture `230`; during a Prembly outage the attempt simply stays as it is) | unchanged | `expired` | Not counted as an attempt; `can_start` is `true` again |
+| Nobody answered within 24 hours and Dojah has no result for it (capture `230`; during a Dojah outage the attempt simply stays as it is). This is also what happens when the caregiver never opened the widget | unchanged | `expired` | Not counted as an attempt; `can_start` is `true` again |
 | The provider's wallet is empty or its key is refused (capture `231`) | unchanged | unchanged | `provider_available` is `false` for 15 minutes; offer "Continue without for now" |
 
 **`failed` is never produced by the backend on its own.** Only our team sets it (after a review). A caregiver the team has decided (`verified` or `failed`) is never changed by a later provider result.
@@ -851,7 +851,7 @@ When the provider's wallet is empty, `provider_available` flips to `false` (here
   "status": "in_progress",
   "attempts_used": 1,
   "attempts_max": 3,
-  "active_verification_id": "cc93de0e-cc4a-43a8-8110-9bc65e8f2dbe",
+  "active_verification_id": "69a62b3a-caf4-4622-a8b9-ad27a2fd7fe2",
   "last_attempt_status": "awaiting_result",
   "can_start": false,
   "failure_hint": null,
@@ -882,23 +882,23 @@ Request and response `201`:
 <!-- capture: 203-a-kyc-sessions-create.json response.body -->
 ```json
 {
-  "verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
+  "verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
   "attempt_no": 1,
   "widget": {
-    "widget_id": "placeholder-widget-id",
-    "widget_key": "placeholder-widget-key",
-    "email": "caregiver-7a3968665b@example.com",
+    "app_id": "test-dojah-app-id-placeholder",
+    "public_key": "test-dojah-public-key-placeholder",
+    "widget_id": "test-dojah-widget-id-placeholder",
+    "reference_id": "OKL-bd45aa917b684bf5b45ceb1e5f9f81a5",
+    "email": "caregiver-8ac1f2e9c0@example.com",
     "first_name": "Placeholder",
     "last_name": "Caregiver",
-    "metadata": {
-      "oakly_ref": "590006a8-5097-4d41-8f02-924e8147f036"
-    }
+    "date_of_birth": "1990-04-12"
   },
   "state": {
     "status": "in_progress",
     "attempts_used": 1,
     "attempts_max": 3,
-    "active_verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
+    "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
     "last_attempt_status": "created",
     "can_start": true,
     "failure_hint": null,
@@ -911,7 +911,7 @@ Request and response `201`:
 
 _capture `203-a-kyc-sessions-create.json`_
 
-Open the Prembly widget with `widget.*` exactly as given (the key is public by Prembly's design; the app should not hard-code it). `widget.metadata.oakly_ref` must be passed through to the widget as its `metadata`: it is how the backend recognises the attempt. The repeat call returns the same body with `200` (capture `204-a-kyc-sessions-again.json`).
+Launch Dojah's widget with `widget.*` exactly as given: `app_id`, `public_key` and `widget_id` configure it, and **`widget.reference_id` is the reference you must pass to the widget unchanged** (it is how Dojah's result finds this attempt; the backend minted it and stored it, and the app must not generate its own). `first_name`, `last_name` and `date_of_birth` (the caregiver's Step 1 answers; `date_of_birth` is `null` if none) are for the widget's pre-filled details, so the caregiver does not retype them: a date that differs from the one on the BVN/NIN record sends the case to a person. `app_id` and `public_key` are public by Dojah's design but the app should not hard-code them (they can rotate). No secret is ever returned. The repeat call returns the same body (the same `reference_id`) with `200` (capture `204-a-kyc-sessions-again.json`); after a failed attempt the next `201` carries a different `reference_id`. **Not verified against the real widget: whether `DojahKycSdk.launch` and the hosted widget accept this reference as given (K7b spike / K8).**
 
 **Field-nesting trap:** `verification_id` and `attempt_no` are at the top level of the session response, the widget config is under `widget`, and the state object is under `state`. On `client-event` and `defer` the state is the whole body.
 
@@ -964,13 +964,12 @@ _capture `212-a-kyc-sessions-attempts-exhausted.json`_
 
 #### Hints: `POST .../{verification_id}/client-event`
 
-Call it from the widget's callbacks. `event` is `opened`, `completed`, `closed` or `error`; `session_id` (optional, `[A-Za-z0-9_.-]`, up to 128 characters) is the id the widget reports. The backend moves the attempt forward (`opened` then `completed`) and remembers the session id to speed up its own check. `closed` and `error` change nothing and do not use up an attempt: let the caregiver tap Start again, which reopens the same attempt. A hint on a finished attempt is accepted and ignored. **Nothing in the body can change the caregiver's identity status, whatever it claims.** Extra fields are ignored and not stored.
+Call it from the widget's callbacks. `event` is `opened`, `completed`, `closed` or `error`. The backend moves the attempt forward (`opened` then `completed`). `closed` and `error` change nothing and do not use up an attempt: let the caregiver tap Start again, which reopens the same attempt with the same `reference_id`. A hint on a finished attempt is accepted and ignored. **Nothing in the body can change the caregiver's identity status, whatever it claims, and the body cannot name a reference or a session: a `session_id` or `reference_id` sent here is ignored and not stored (capture `208`).** Extra fields are ignored and not stored. (Earlier drafts of this guide let the app send a `session_id`; that field is gone.)
 
 <!-- capture: 206-a-kyc-client-event-completed.json request.body -->
 ```json
 {
-  "event": "completed",
-  "session_id": "placeholder-session-001"
+  "event": "completed"
 }
 ```
 
@@ -980,7 +979,7 @@ Call it from the widget's callbacks. `event` is `opened`, `completed`, `closed` 
   "status": "in_progress",
   "attempts_used": 1,
   "attempts_max": 3,
-  "active_verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
+  "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
   "last_attempt_status": "awaiting_result",
   "can_start": true,
   "failure_hint": null,
@@ -992,7 +991,35 @@ Call it from the widget's callbacks. `event` is `opened`, `completed`, `closed` 
 
 _capture `206-a-kyc-client-event-completed.json`_
 
-After `completed`, show "Checking..." and poll `GET .../identity-verification` (capture `207`, the same body). A `session_id` that breaks the pattern is `422` (capture `208`). **An attempt that is not yours looks the same as an id that does not exist: `404`** with the object below; do not retry.
+After `completed`, show "Checking..." and poll `GET .../identity-verification` (capture `207`, the same body). **An attempt that is not yours looks the same as an id that does not exist: `404`** with the object below; do not retry.
+
+A `session_id` or `reference_id` in the body is ignored, not rejected (capture `208`; the request below carries two made-up values and the attempt keeps the reference the backend minted):
+
+<!-- capture: 208-a-kyc-client-event-ignores-client-reference.json request.body -->
+```json
+{
+  "event": "completed",
+  "reference_id": "OKL-00000000000000000000000000000000",
+  "session_id": "../x"
+}
+```
+
+<!-- capture: 208-a-kyc-client-event-ignores-client-reference.json response.body -->
+```json
+{
+  "status": "in_progress",
+  "attempts_used": 1,
+  "attempts_max": 3,
+  "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+  "last_attempt_status": "awaiting_result",
+  "can_start": true,
+  "failure_hint": null,
+  "provider_available": true,
+  "review_eta_hours": null,
+  "policy_version": "kyc-2026-10"
+}
+```
+
 
 <!-- capture: 209-a-kyc-client-event-someone-elses-attempt.json response.body -->
 ```json
@@ -3060,12 +3087,12 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Caregiver earnings credited on completion (pending), held by an admin, released by the job, payable only once released | Yes | 154-165 (**[db-simulated]** 24-hour wait: 159; the release job is the real function run once in the worker container) |
 | Earnings: rounding, snapshot of the terms at booking creation, double-complete and concurrent-complete idempotency, late-cancel compensation, the ARQ cron schedule | No (tests) | `test_caregiver_earnings.py` |
 | Account deletion refused while earnings are pending or held, or a payout is in flight | No (tests) | `test_caregiver_earnings.py`, `test_payouts.py` |
-| Identity verification: state (fresh, checking, try again, attempts exhausted, under review, provider down), session create `201` and repeat `200`, hints, defer and `verified` status unchanged, the `409`/`422`/`503` errors, the `404` on someone else's attempt, `403`, `401`, the removed result call (`410`) | Yes (test harness: real app and Postgres, not the compose stack; **no Prembly call exists in these endpoints**) | `200`-`225` |
-| Identity verification: the engine's outcomes (verified, try again, under review, the third failure ending in review, expiry by the cron, the provider flagged down by an empty wallet) and `ALREADY_VERIFIED` / `UNDER_REVIEW` after them | **Yes, [engine] over a fake Prembly** | `210`, `213`, `215`, `226`-`231`: the real decision code, the real database and the real endpoints; the Prembly session was served by `FakePrembly` (its shapes are the public docs' and our guesses), so this is verified for our logic and **not** for real Prembly data |
+| Identity verification: state (fresh, checking, try again, attempts exhausted, under review, provider down), session create `201` and repeat `200`, hints, defer and `verified` status unchanged, the `409`/`422`/`503` errors, the `404` on someone else's attempt, `403`, `401`, the removed result call (`410`) | Yes (test harness: real app and Postgres, not the compose stack; **no Dojah call exists in these endpoints**) | `200`-`225` |
+| Identity verification: the engine's outcomes (verified, try again, under review, the third failure ending in review, expiry by the cron, the provider flagged down by an empty wallet) and `ALREADY_VERIFIED` / `UNDER_REVIEW` after them | **Yes, [engine] over a fake Dojah** | `210`, `213`, `215`, `226`-`231`: the real decision code, the real database and the real endpoints; the Dojah verification was served by `FakeDojah` (its shapes are the public docs' and the Timp/Weysure parsers'), so this is verified for our logic and **not** for real Dojah data |
 | Identity verification: the exhausted state with the caregiver still `in_progress` | **[seeded]** | `211`, `212`: a row inserted by hand; the engine never produces it |
-| Identity verification: the widget, the real Prembly session id and callbacks, a real signed webhook, a real session pull, how a real result maps to `verified` / `needs_review`, real push and e-mail delivery | **No** | The webhook and engine are built (K3, K4) and tested against the fake; the widget (K7) and the live pass (K0, K8) are not done. The `client-event` and `sessions` shapes are the backend's own; what Prembly's widget calls back with and what its real sessions contain are unconfirmed |
+| Identity verification: the widget, the real Dojah reference round-trip and callbacks, a real signed webhook, a real verification pull, how a real result maps to `verified` / `needs_review`, real push and e-mail delivery | **No** | The webhook and engine are built (K3, K4, KD1) and tested against the fake; the widget (K7) and the live sandbox pass (K8) are not done. The `client-event` and `sessions` shapes are the backend's own; what Dojah's widget calls back with and what its real verifications contain are unconfirmed |
 | Identity verification: `IDENTITY_REJECTED`, `UNDER_REVIEW` from `defer`, the parallel-start race, consent rows | **[not live]** | `app/tests/test_kyc_caregiver_api.py` |
-| `provider_available` flipping from the engine's outage detection | **Partly** | Capture `231` is the engine setting the flag from a fake Prembly answer. The flag is a Redis key in production; the harness used an in-memory stand-in, and the Redis calls themselves are unit-tested with a fake client, never against a real Redis |
+| `provider_available` flipping from the engine's outage detection | **Partly** | Capture `231` is the engine setting the flag from a fake Dojah answer. The flag is a Redis key in production; the harness used an in-memory stand-in, and the Redis calls themselves are unit-tested with a fake client, never against a real Redis |
 | Chat, notes, tracking for the caregiver | No | Out of scope for C3 |
 | Delete account: `409` for an active booking (caregiver and patient) and a wallet balance, `200`, old tokens refused (`403`, `400`), login `401`, repeat delete `403`, same email registers again | Yes | 134-145 |
 | Delete account: `409` for a pending withdrawal or payout | **No** | Automated tests only (`test_caregiver_with_a_pending_withdrawal_is_refused`, `test_payouts.py`) |

@@ -5954,9 +5954,9 @@ Every write is an `admin_audit_log` row with `entity_type` `care_plan` and `enti
 
 ## 12.14 Caregiver identity review (K5): `/api/v1/admin/caregivers`
 
-A caregiver proves who they are in the app (an ID number, a selfie, a liveness check) through the identity provider. The backend decides what the result means. **Most caregivers never reach you.** A person is needed when the result is doubtful (a face score in the grey band, a name or date of birth that differs from the profile, an identity already used on another account, a watch-listed number, three failed tries), and the system never rejects anybody by itself. This section is what the console shows and does for those cases. The caregiver's side is in the [caregiver guide](fe-integration-guide-caregiver.md).
+A caregiver proves who they are in the app (an ID number, a selfie, a liveness check) through the identity provider (Dojah since 2026-10-30). The backend decides what the result means. **Most caregivers never reach you.** A person is needed when the result is doubtful (a face score in the grey band, a name or date of birth that differs from the profile, an identity already used on another account, three failed tries), and the system never rejects anybody by itself. This section is what the console shows and does for those cases. The caregiver's side is in the [caregiver guide](fe-integration-guide-caregiver.md).
 
-**Nothing here has met the real provider.** The app, the routes, the database, the admin responses and the decision engine below are real, but the identity sessions were served by a fake that follows the provider's documented shapes. So the scores and reason codes are what the engine does with the fake's values. Two things can differ with the real provider and the console should not hide either: if it does not return the registry name, date of birth or face score where the backend looks, **every pass lands in review with `identity_data_missing`**; and the real score scales are not confirmed (the thresholds, 85 for a pass and 70 as the floor, are placeholders). Images are **not stored** by Oakly. To see the person, an admin opens the provider's own dashboard with `provider_reference` (when the provider supplies one).
+**Nothing here has met the real provider.** The app, the routes, the database, the admin responses and the decision engine below are real, but the identity verifications were served by a fake that follows Dojah's documented shapes and the Timp/Weysure parsers. So the scores and reason codes are what the engine does with the fake's values. Two things can differ with the real provider and the console should not hide either: if it does not return the registry name, date of birth or face score where the backend looks, **every pass lands in review with `identity_data_missing`**; and the real score scale is not confirmed (the thresholds, 85 for a pass and 70 as the floor, are placeholders). **Dojah gives no liveness score**, only a pass/fail flag, so `liveness_confidence` is `null` in every attempt; a failed liveness shows as the reason `liveness_failed`. There is no watch-list signal either (the `watchlisted` reason cannot occur for now). Images are **not stored** by Oakly. To see the person, an admin opens the Dojah dashboard and looks the run up by `provider_reference`.
 
 | Route | Permission | What it does |
 |---|---|---|
@@ -5994,12 +5994,12 @@ No new permission was added. `caregivers.read` is held by Operations, Verificati
 ```json
 [
   {
-    "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+    "id": "fd225b4a-45ca-411e-8992-9bf4175ac17c",
     "full_name": "Placeholder Bola Adeyemi",
     "state": "Lagos",
     "specialization": "nurse",
     "years_of_experience": 5,
-    "submitted_at": "2026-10-29T13:53:07.153979",
+    "submitted_at": "2026-10-30T10:40:41.390562",
     "age_in_days": 0,
     "document_count": 0,
     "identity_verification_status": "needs_review",
@@ -6045,26 +6045,26 @@ The rows are the same as before. The row's `identity_verification_status` is the
   "can_reset": false,
   "attempts": [
     {
-      "id": "afd4a984-4d91-4393-a40e-7ee35f6b0d2e",
+      "id": "d2db4b73-61d0-4db5-bcf2-7567bab3907b",
       "attempt_no": 1,
       "status": "needs_review",
-      "created_at": "2026-10-29T13:53:07.157428",
+      "created_at": "2026-10-30T10:40:41.395720",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
+      "completed_at": "2026-10-30T10:40:41.405487",
       "id_type": "nin",
       "face_confidence": 92.0,
-      "liveness_confidence": 90.0,
+      "liveness_confidence": null,
       "face_threshold": 85,
       "name_match": true,
       "dob_match": true,
       "reason_codes": [
         "duplicate_identity"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-7c45be0a1311414f8852cfcde2f6119a",
       "decided_via": "provider"
     }
   ],
-  "duplicate_of_caregiver_id": "7c1a82d1-923e-4fc4-860a-d308103f87f2"
+  "duplicate_of_caregiver_id": "d132b3d6-5c07-4220-b555-f1d1cf187a5e"
 }
 ```
 
@@ -6086,7 +6086,7 @@ Each attempt:
 | `name_match`, `dob_match` | `true`, `false` or `null` (`null` = could not be compared). The name and date of birth themselves are **not** returned or stored |
 | `id_type` | `nin`, `bvn`, `drivers_licence`, `voters_card`, `passport` or `null`. The ID number is never returned |
 | `reason_codes` | Why the attempt ended as it did (words below). May also hold `admin_reset` (see the reset section) |
-| `provider_reference` | The provider's own reference for this check, so the admin can look the person up in the provider dashboard. It is not a secret and not a number of the person's. **`null` in every example here:** the fake provider sends none, and whether the real one does is not confirmed. Show "no reference" when it is `null` |
+| `provider_reference` | The reference our server created for this check (`OKL-` followed by 32 hex characters) and gave to Dojah's widget, so the admin can look the run up in the Dojah dashboard. It is not a secret and not a number of the person's. Set when the attempt is created; `null` only for an attempt erased by an account deletion or seeded without one. **Not verified: that the Dojah dashboard searches by it (K8)** |
 | `decided_via` | `provider` (the engine) or `admin`; `null` while open or when nothing was decided |
 | `created_at`, `started_at`, `completed_at` | `started_at` is set when the widget reports it opened; `completed_at` when a result arrived or an admin decided |
 
@@ -6117,22 +6117,22 @@ The same detail for a name mismatch (an `identity` block is the same shape in ev
   "can_reset": false,
   "attempts": [
     {
-      "id": "48f2105f-3e36-45a9-8e66-04ef2b63776e",
+      "id": "35ec66ba-3e97-46f3-ae72-15ce67c58cca",
       "attempt_no": 1,
       "status": "needs_review",
-      "created_at": "2026-10-29T13:53:07.436913",
+      "created_at": "2026-10-30T10:40:41.665341",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
+      "completed_at": "2026-10-30T10:40:41.673081",
       "id_type": "bvn",
       "face_confidence": 92.0,
-      "liveness_confidence": 90.0,
+      "liveness_confidence": null,
       "face_threshold": 85,
       "name_match": false,
       "dob_match": true,
       "reason_codes": [
         "name_mismatch"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-b31e67c64e1f4300b6d60955b8ab73e8",
       "decided_via": "provider"
     }
   ],
@@ -6152,13 +6152,13 @@ Three clean failures end in review, not in a failed caregiver (the app shows "un
   "can_reset": true,
   "attempts": [
     {
-      "id": "d47f1d27-9f42-44cf-bbae-7fd2c08cc55f",
+      "id": "9942ebd2-455b-4021-b3f9-5b6401ffbaf7",
       "attempt_no": 3,
       "status": "needs_review",
-      "created_at": "2026-10-29T13:53:08.450558",
+      "created_at": "2026-10-30T10:40:42.490176",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
-      "id_type": null,
+      "completed_at": "2026-10-30T10:40:42.496824",
+      "id_type": "nin",
       "face_confidence": 20.0,
       "liveness_confidence": null,
       "face_threshold": 85,
@@ -6168,17 +6168,17 @@ Three clean failures end in review, not in a failed caregiver (the app shows "un
         "face_mismatch",
         "attempts_exhausted"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-1ebd9a80cc0642b185c9249e667235df",
       "decided_via": "provider"
     },
     {
-      "id": "29f54eff-3514-4cef-91ff-44a90f0d5352",
+      "id": "47f73f40-07fe-4c51-8fe1-6a415d5f1cbd",
       "attempt_no": 2,
       "status": "failed",
-      "created_at": "2026-10-29T13:53:08.413385",
+      "created_at": "2026-10-30T10:40:42.478018",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
-      "id_type": null,
+      "completed_at": "2026-10-30T10:40:42.484374",
+      "id_type": "nin",
       "face_confidence": 20.0,
       "liveness_confidence": null,
       "face_threshold": 85,
@@ -6187,17 +6187,17 @@ Three clean failures end in review, not in a failed caregiver (the app shows "un
       "reason_codes": [
         "face_mismatch"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-5290cfe9985949d8971f6a958746e0b6",
       "decided_via": "provider"
     },
     {
-      "id": "34b665ac-50f9-46fc-9afd-dd632044fc62",
+      "id": "0f12b41b-9ced-4a01-8ce4-416a4e72a74a",
       "attempt_no": 1,
       "status": "failed",
-      "created_at": "2026-10-29T13:53:08.347538",
+      "created_at": "2026-10-30T10:40:42.465070",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
-      "id_type": null,
+      "completed_at": "2026-10-30T10:40:42.472825",
+      "id_type": "nin",
       "face_confidence": 20.0,
       "liveness_confidence": null,
       "face_threshold": 85,
@@ -6206,11 +6206,11 @@ Three clean failures end in review, not in a failed caregiver (the app shows "un
       "reason_codes": [
         "face_mismatch"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-cb4533ba06d44fbfac0345e889041144",
       "decided_via": "provider"
     }
   ],
-  "duplicate_of_caregiver_id": null
+  "duplicate_of_caregiver_id": "d132b3d6-5c07-4220-b555-f1d1cf187a5e"
 }
 ```
 
@@ -6241,10 +6241,10 @@ An attempt still open after 30 hours (seeded: the app cannot produce one without
   "can_reset": false,
   "attempts": [
     {
-      "id": "042ad8ee-0c2e-4c92-90e3-3106bb0443b3",
+      "id": "25d4be22-37f5-42a4-84da-f1b7d8981f49",
       "attempt_no": 1,
       "status": "awaiting_result",
-      "created_at": "2026-10-28T07:53:08.737428",
+      "created_at": "2026-10-29T04:40:42.754993",
       "started_at": null,
       "completed_at": null,
       "id_type": null,
@@ -6329,7 +6329,7 @@ Verify (the response is the same summary as before):
 <!-- capture: 602-d-verify.json response.body -->
 ```json
 {
-  "id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+  "id": "09c9f2dc-29e6-4caa-980f-6af168a93f0a",
   "profile_status": "under_review",
   "identity_verification_status": "verified",
   "background_check_status": "pending",
@@ -6350,22 +6350,22 @@ and the detail afterwards: the attempt is `passed` by the `admin`, with the reas
   "can_reset": false,
   "attempts": [
     {
-      "id": "48f2105f-3e36-45a9-8e66-04ef2b63776e",
+      "id": "35ec66ba-3e97-46f3-ae72-15ce67c58cca",
       "attempt_no": 1,
       "status": "passed",
-      "created_at": "2026-10-29T13:53:07.436913",
+      "created_at": "2026-10-30T10:40:41.665341",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
+      "completed_at": "2026-10-30T10:40:41.673081",
       "id_type": "bvn",
       "face_confidence": 92.0,
-      "liveness_confidence": 90.0,
+      "liveness_confidence": null,
       "face_threshold": 85,
       "name_match": false,
       "dob_match": true,
       "reason_codes": [
         "name_mismatch"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-b31e67c64e1f4300b6d60955b8ab73e8",
       "decided_via": "admin"
     }
   ],
@@ -6378,7 +6378,7 @@ Fail (`auto_suspended` as before: failing an approved caregiver suspends them):
 <!-- capture: 602-f-fail.json response.body -->
 ```json
 {
-  "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+  "id": "fd225b4a-45ca-411e-8992-9bf4175ac17c",
   "profile_status": "under_review",
   "identity_verification_status": "failed",
   "background_check_status": "pending",
@@ -6397,26 +6397,26 @@ Fail (`auto_suspended` as before: failing an approved caregiver suspends them):
   "can_reset": true,
   "attempts": [
     {
-      "id": "afd4a984-4d91-4393-a40e-7ee35f6b0d2e",
+      "id": "d2db4b73-61d0-4db5-bcf2-7567bab3907b",
       "attempt_no": 1,
       "status": "failed",
-      "created_at": "2026-10-29T13:53:07.157428",
+      "created_at": "2026-10-30T10:40:41.395720",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
+      "completed_at": "2026-10-30T10:40:41.405487",
       "id_type": "nin",
       "face_confidence": 92.0,
-      "liveness_confidence": 90.0,
+      "liveness_confidence": null,
       "face_threshold": 85,
       "name_match": true,
       "dob_match": true,
       "reason_codes": [
         "duplicate_identity"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-7c45be0a1311414f8852cfcde2f6119a",
       "decided_via": "admin"
     }
   ],
-  "duplicate_of_caregiver_id": "7c1a82d1-923e-4fc4-860a-d308103f87f2"
+  "duplicate_of_caregiver_id": "d132b3d6-5c07-4220-b555-f1d1cf187a5e"
 }
 ```
 
@@ -6432,10 +6432,10 @@ Deciding for a caregiver who still has an open attempt closes it (seeded: the st
   "can_reset": false,
   "attempts": [
     {
-      "id": "042ad8ee-0c2e-4c92-90e3-3106bb0443b3",
+      "id": "25d4be22-37f5-42a4-84da-f1b7d8981f49",
       "attempt_no": 1,
       "status": "expired",
-      "created_at": "2026-10-28T07:53:08.737428",
+      "created_at": "2026-10-29T04:40:42.754993",
       "started_at": null,
       "completed_at": null,
       "id_type": null,
@@ -6554,7 +6554,7 @@ The reset:
 <!-- capture: 603-f-reset.json response.body -->
 ```json
 {
-  "id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+  "id": "b0f156a5-a092-417a-896b-1c58efcaddba",
   "profile_status": "under_review",
   "identity_verification_status": "pending",
   "background_check_status": "pending",
@@ -6575,13 +6575,13 @@ The response is the same summary plus `attempts_used` (always 0 here) and `attem
   "can_reset": false,
   "attempts": [
     {
-      "id": "d47f1d27-9f42-44cf-bbae-7fd2c08cc55f",
+      "id": "9942ebd2-455b-4021-b3f9-5b6401ffbaf7",
       "attempt_no": 3,
       "status": "needs_review",
-      "created_at": "2026-10-29T13:53:08.450558",
+      "created_at": "2026-10-30T10:40:42.490176",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
-      "id_type": null,
+      "completed_at": "2026-10-30T10:40:42.496824",
+      "id_type": "nin",
       "face_confidence": 20.0,
       "liveness_confidence": null,
       "face_threshold": 85,
@@ -6592,17 +6592,17 @@ The response is the same summary plus `attempts_used` (always 0 here) and `attem
         "attempts_exhausted",
         "admin_reset"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-1ebd9a80cc0642b185c9249e667235df",
       "decided_via": "provider"
     },
     {
-      "id": "29f54eff-3514-4cef-91ff-44a90f0d5352",
+      "id": "47f73f40-07fe-4c51-8fe1-6a415d5f1cbd",
       "attempt_no": 2,
       "status": "failed",
-      "created_at": "2026-10-29T13:53:08.413385",
+      "created_at": "2026-10-30T10:40:42.478018",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
-      "id_type": null,
+      "completed_at": "2026-10-30T10:40:42.484374",
+      "id_type": "nin",
       "face_confidence": 20.0,
       "liveness_confidence": null,
       "face_threshold": 85,
@@ -6612,17 +6612,17 @@ The response is the same summary plus `attempts_used` (always 0 here) and `attem
         "face_mismatch",
         "admin_reset"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-5290cfe9985949d8971f6a958746e0b6",
       "decided_via": "provider"
     },
     {
-      "id": "34b665ac-50f9-46fc-9afd-dd632044fc62",
+      "id": "0f12b41b-9ced-4a01-8ce4-416a4e72a74a",
       "attempt_no": 1,
       "status": "failed",
-      "created_at": "2026-10-29T13:53:08.347538",
+      "created_at": "2026-10-30T10:40:42.465070",
       "started_at": null,
-      "completed_at": "2026-10-27T10:01:30",
-      "id_type": null,
+      "completed_at": "2026-10-30T10:40:42.472825",
+      "id_type": "nin",
       "face_confidence": 20.0,
       "liveness_confidence": null,
       "face_threshold": 85,
@@ -6632,11 +6632,11 @@ The response is the same summary plus `attempts_used` (always 0 here) and `attem
         "face_mismatch",
         "admin_reset"
       ],
-      "provider_reference": null,
+      "provider_reference": "OKL-cb4533ba06d44fbfac0345e889041144",
       "decided_via": "provider"
     }
   ],
-  "duplicate_of_caregiver_id": null
+  "duplicate_of_caregiver_id": "d132b3d6-5c07-4220-b555-f1d1cf187a5e"
 }
 ```
 
@@ -6673,12 +6673,12 @@ Both actions write `admin_audit_log` rows (`caregiver.identity_decision`, `careg
 ```json
 [
   {
-    "id": "489df431-b290-4fe0-a208-bd87c874c020",
-    "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
-    "admin_email": "admin-48925f1a41@example.com",
+    "id": "82eec944-5366-4e45-b33b-68a5fe3da864",
+    "admin_user_id": "f9db366c-f263-4a68-ab09-d53f9fdf6f0b",
+    "admin_email": "admin-de502e3f9c@example.com",
     "action": "caregiver.identity_reset",
     "entity_type": "caregiver",
-    "entity_id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+    "entity_id": "fd225b4a-45ca-411e-8992-9bf4175ac17c",
     "before": {
       "profile_status": "under_review",
       "identity_verification_status": "failed",
@@ -6701,35 +6701,35 @@ Both actions write `admin_audit_log` rows (`caregiver.identity_decision`, `careg
       "rejection_reason": null,
       "changes_requested": null,
       "attempts_reset": [
-        "afd4a984-4d91-4393-a40e-7ee35f6b0d2e"
+        "d2db4b73-61d0-4db5-bcf2-7567bab3907b"
       ]
     },
     "reason": "Placeholder: second account closed, allow the first.",
     "ip": "testclient",
     "user_agent": "testclient",
-    "created_at": "2026-10-29T13:53:09.482724"
+    "created_at": "2026-10-30T10:40:43.487745"
   },
   {
-    "id": "2efecc7d-8e50-4cdb-b7ab-2a76c73cf621",
-    "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
-    "admin_email": "admin-48925f1a41@example.com",
+    "id": "7eca3322-db53-40dd-8d55-90e2f7fe0263",
+    "admin_user_id": "f9db366c-f263-4a68-ab09-d53f9fdf6f0b",
+    "admin_email": "admin-de502e3f9c@example.com",
     "action": "caregiver.view",
     "entity_type": "caregiver",
-    "entity_id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+    "entity_id": "b0f156a5-a092-417a-896b-1c58efcaddba",
     "before": null,
     "after": null,
     "reason": null,
     "ip": "testclient",
     "user_agent": "testclient",
-    "created_at": "2026-10-29T13:53:09.448781"
+    "created_at": "2026-10-30T10:40:43.447118"
   },
   {
-    "id": "ee4d3dd6-859e-4b4b-acbe-8e043b2a5c4f",
-    "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
-    "admin_email": "admin-48925f1a41@example.com",
+    "id": "e2a642f1-21bd-42c2-809e-d1251fe07f3d",
+    "admin_user_id": "f9db366c-f263-4a68-ab09-d53f9fdf6f0b",
+    "admin_email": "admin-de502e3f9c@example.com",
     "action": "caregiver.identity_reset",
     "entity_type": "caregiver",
-    "entity_id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+    "entity_id": "b0f156a5-a092-417a-896b-1c58efcaddba",
     "before": {
       "profile_status": "under_review",
       "identity_verification_status": "needs_review",
@@ -6752,15 +6752,15 @@ Both actions write `admin_audit_log` rows (`caregiver.identity_decision`, `careg
       "rejection_reason": null,
       "changes_requested": null,
       "attempts_reset": [
-        "29f54eff-3514-4cef-91ff-44a90f0d5352",
-        "34b665ac-50f9-46fc-9afd-dd632044fc62",
-        "d47f1d27-9f42-44cf-bbae-7fd2c08cc55f"
+        "0f12b41b-9ced-4a01-8ce4-416a4e72a74a",
+        "47f73f40-07fe-4c51-8fe1-6a415d5f1cbd",
+        "9942ebd2-455b-4021-b3f9-5b6401ffbaf7"
       ]
     },
     "reason": "Placeholder: photos were dark, allow another go.",
     "ip": "testclient",
     "user_agent": "testclient",
-    "created_at": "2026-10-29T13:53:09.431693"
+    "created_at": "2026-10-30T10:40:43.426144"
   }
 ]
 ```

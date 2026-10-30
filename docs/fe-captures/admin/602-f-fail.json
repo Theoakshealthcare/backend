@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/a212ac96-46e6-4803-9b1f-aab0cdf66b63/identity-decision",
+    "path": "/api/v1/admin/caregivers/fd225b4a-45ca-411e-8992-9bf4175ac17c/identity-decision",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": {
       "decision": "failed",
@@ -14,7 +14,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+      "id": "fd225b4a-45ca-411e-8992-9bf4175ac17c",
       "profile_status": "under_review",
       "identity_verification_status": "failed",
       "background_check_status": "pending",

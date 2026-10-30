@@ -101,7 +101,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [ ] Service calls: throw on failure, or check `.success`; unwrap `.data`
 - [ ] Bookings status filter; register the `BookingDetails`, chat and notes screens
 - [ ] Real Home: earnings, wallet, availability, job requests
-- [ ] Identity verification against the real backend flow (now section 14, KYC with Prembly)
+- [ ] Identity verification against the real backend flow (now section 14, KYC with Dojah)
 
 ## 5. Cross-repo — ⚪ planned
 - [ ] Shared package: UI kit, theme, auth store, API client (about 30 files are duplicated today)
@@ -214,7 +214,7 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
   - [ ] Chat relay via WhatsApp
   - [ ] Masked calling (no recording)
   - [ ] Change password (needs a backend endpoint)
-  - [ ] KYC: ID and face (Prembly; section 14 below, slices K0–K8, [design](../plans/2026-10-27-caregiver-kyc-design.md))
+  - [ ] KYC: ID and face (Dojah; section 14 below, slices K0–K8, [design](../plans/2026-10-27-caregiver-kyc-design.md))
   - [ ] Learn
   - [ ] Refer and earn
   - [ ] Complaints
@@ -381,11 +381,11 @@ Plan: [`docs/plans/2026-10-06-whatsapp-channel.md`](../plans/2026-10-06-whatsapp
 - [x] Both `GET`s need an admin with `bookings.read` (no client calls them)
 - [x] Admin FE guide section 13 captured live (132 to 149)
 
-## 14. Caregiver KYC (identity verification with Prembly) — 🟡 K1–K4 merged; K5 built 2026-10-29 (branch `feat/kyc-admin-api`, not pushed); K0, K6–K8 open
-Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/2026-10-27-caregiver-kyc-design.md). Owner decisions 2026-10-27: Prembly; mandatory before approval with the admin override kept; failures to the review queue, never auto-reject; store only the provider reference and result (no images); the provider's signed webhook is the source of truth. Order and parallelism are in design section 14. K1, K2, K3, K4 and K5 are ticked.
-- [ ] **K0** Spike and provider setup: owner gets a Prembly account, a dashboard widget, sandbox keys and a funded wallet; spike the RN SDK on Expo 57 in a dev build; capture a real webhook and session body; settle the open questions Q1–Q10 and decide widget vs own-camera fallback
-  - [ ] ⚠️ Confirm how the webhook is signed (the docs say HMAC with the *public* key) and whether `metadata` is echoed
-  - [ ] Confirm the exact session-retrieval call and the face confidence scale
+## 14. Caregiver KYC (identity verification; provider is **Dojah** as of 2026-10-30, was Prembly) — 🟡 K1–K5 merged; KD1 (Dojah backend adapter) built 2026-10-30 (branch `feat/kyc-dojah-adapter`, not pushed); K6, K7a, K7b, K8 open
+Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/2026-10-27-caregiver-kyc-design.md). **Provider change 2026-10-30:** the owner dropped Prembly (unresponsive) and chose Dojah; the design stands and the delta is [docs/plans/2026-10-30-caregiver-kyc-dojah-delta.md](../plans/2026-10-30-caregiver-kyc-dojah-delta.md). Owner decisions 2026-10-27: (provider was Prembly); mandatory before approval with the admin override kept; failures to the review queue, never auto-reject; store only the provider reference and result (no images); the provider's signed webhook is the source of truth. Order and parallelism are in design section 14. K1, K2, K3, K4 and K5 are ticked.
+- [x] **K0** ~~Spike and provider setup~~ **closed 2026-10-30: Prembly dropped** (unresponsive); replaced by KD1 below, the K7b spike and the K8 live pass. (Original text: owner gets a Prembly account, a dashboard widget, sandbox keys and a funded wallet; spike the RN SDK on Expo 57 in a dev build; capture a real webhook and session body; settle the open questions Q1–Q10 and decide widget vs own-camera fallback)
+- [x] ⚠️ **KD1** Dojah backend adapter (2026-10-30, branch `feat/kyc-dojah-adapter`, no migration (0015 edited in place, greenfield), [SOP](../sop/2026-10-30-kyc-dojah-adapter.md); Opus review done on webhook auth, pull authority, reference binding and PII; built against a fake from the Timp/Weysure shapes, **nothing verified against real Dojah**): `app/services/dojah.py` (client, whitelisted parse) replaces `prembly.py`; `x-dojah-signature` hex HMAC over the raw body, derived ledger dedupe key (no idempotency header exists), server-minted `OKL-<uuid4 hex>` reference stored on the attempt before the widget opens and bound by exact match, `Completed` is not a pass (government + selfie + `DOJAH_FACE_MATCH_THRESHOLD`), liveness is a boolean, reconcile pulls every quiet attempt by its own reference (undelivered-list discovery removed), `POST .../sessions` returns `{app_id, public_key, widget_id, reference_id, ...}`, `DOJAH_*` config and boot guard, fake Dojah, tests, both FE guides re-captured
+  - [ ] Owner: Dojah sandbox account, App ID / public key / secret key / widget id and the webhook Secret (K8)
 - [x] **K1** Foundation (2026-10-27, branch `feat/kyc-foundation`, [SOP](../sop/2026-10-27-kyc-foundation.md); built against the public docs, nothing verified against real Prembly) (migration `0015_caregiver_kyc`): `identity_verifications`, `kyc_webhook_events`, `identity_verification_events`; CHECK on `identity_verification_status` (adds `needs_review`); drop the Onfido columns and the client-JSON columns; `consents` type `identity_verification`; `app/services/prembly.py`; `FakePrembly`; delete `onfido.py` and `ONFIDO_*`; erasure update
 - [x] **K2** Caregiver API (2026-10-28, branch `feat/kyc-caregiver-api`, [SOP](../sop/2026-10-28-kyc-caregiver-api.md); no Prembly call exists yet, FE guide captured against the test harness with seeded attempt rows): `GET /identity-verification`, `POST .../sessions` (consent recorded, attempt cap, one active attempt), `client-event` (non-authoritative), `defer`; `POST .../result` answers 410; FE guide section
 - [x] ⚠️ **K3** Webhook ingest and confirm (2026-10-28, branch `feat/kyc-webhook` stacked on K2, [SOP](../sop/2026-10-28-kyc-webhook.md); Opus review done; built against documented shapes, nothing verified against real Prembly): `POST /api/v1/kyc/prembly/webhook`, HMAC over the raw body, capped body, `token` dedupe, ARQ job `kyc_process_event` that PULLS the session and records scores/reason codes (no status changes: K4), compensation on enqueue failure, caregiver-then-attempt lock order, production boot refusal for empty Prembly/fingerprint keys
@@ -393,10 +393,10 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [x] ⚠️ **K5** Admin API (2026-10-29, branch `feat/kyc-admin-api`, no migration, [SOP](../sop/2026-10-28-kyc-admin-api.md); Opus quick pass on reset and permissions; the attempts are decided by the real engine over a fake provider, **nothing verified against real Prembly**): `identity` block on `GET /admin/caregivers/{id}` (attempts, scores, yes/no matches, reason codes, `review_reason`, `duplicate_of_caregiver_id`, never an ID number or image), `?identity=needs_review|stuck|failed` queue filter plus `needs_review_count`/`stuck_count`, `identity-decision` closes the review attempt and any open one and writes the event rows, `identity-reset` (`caregivers.approve`; fresh set of attempts via the `admin_reset` marker that `attempts_used` skips), audit rows, admin FE guide section 12.14 from live captures 600-604, permission tests (Finance denied)
 - [ ] **K6** Admin console (monorepo): queue filter and badge, identity card with the provider summary, reset action
 - [ ] **K7a** Caregiver app screens and states (monorepo): identity route after Step 2, intro and consent, checking, verified, try again, under review, unavailable, expired, error; `setupRouteFor` and gate tests
-- [ ] **K7b** Caregiver app widget integration (monorepo): `react-native-webview` and the Prembly package in a new dev build, camera permissions, client events
-- [ ] **K8** Live sandbox pass on a device, one live-key check by the owner, FE guide rows marked verified live, SOP, reconcile this section
-- [ ] Owner: a Data Processing Agreement and processing location from Prembly; counsel check of the NDPA lawful basis and the consent wording; retention after erasure (proposed 12 months of status + timestamp + reference); keep or drop the NIN/BVN fingerprint
-- [ ] Owner: a person and channel for the "Prembly wallet low or empty" alert (an empty wallet fails every verification at once)
+- [ ] **K7b** Caregiver app widget integration (monorepo): `dojah-kyc-sdk-react-expo` (or the hosted widget in `react-native-webview` as fallback) in a new dev build, Expo SDK 57 spike on a Release build first, camera permissions, client events, pass `widget.reference_id` unchanged
+- [ ] **K8** Live sandbox pass on a device, one live-key check by the owner, FE guide rows marked verified live, SOP, reconcile this section; settle every UNCONFIRMED item D1-D14 in `kyc_seam.py` and the KD1 SOP
+- [ ] Owner: a Data Processing Agreement and processing location from Dojah; counsel check of the NDPA lawful basis and the consent wording; retention after erasure (proposed 12 months of status + timestamp + reference); keep or drop the NIN/BVN fingerprint
+- [ ] Owner: a person and channel for the "Dojah wallet low or empty" alert (an empty wallet fails every verification at once)
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit

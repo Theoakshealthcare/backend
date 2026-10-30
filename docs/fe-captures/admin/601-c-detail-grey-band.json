@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/caregivers/37b7a2a8-cb69-4e1c-bc78-4ed8d1f7678e",
+    "path": "/api/v1/admin/caregivers/d575b79d-9466-4cd2-a7c0-3efa788076ec",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,11 +12,11 @@
     },
     "body": {
       "profile": {
-        "id": "37b7a2a8-cb69-4e1c-bc78-4ed8d1f7678e",
-        "user_id": "14ebc20a-ed13-48cb-8875-3672997ceb7f",
-        "email": "caregiver-bf90af7b6d@example.com",
+        "id": "d575b79d-9466-4cd2-a7c0-3efa788076ec",
+        "user_id": "ccc73185-243d-4a80-bee6-95281f9490bf",
+        "email": "caregiver-3687dcb94b@example.com",
         "full_name": "Placeholder Dayo Bello",
-        "phone_number": "+2348137469924",
+        "phone_number": "+2348467564840",
         "date_of_birth": "1990-04-12",
         "gender": null,
         "state": "Lagos",
@@ -33,8 +33,8 @@
         "terms_accepted": false,
         "privacy_policy_accepted": false,
         "background_check_consent": false,
-        "created_at": "2026-10-29T13:53:07.724551",
-        "updated_at": "2026-10-29T13:53:07.751593"
+        "created_at": "2026-10-30T10:40:41.926063",
+        "updated_at": "2026-10-30T10:40:41.943994"
       },
       "consents": {
         "terms_accepted": false,
@@ -51,12 +51,12 @@
         "can_reset": false,
         "attempts": [
           {
-            "id": "7a37f84c-eae4-4635-a961-24d02498e642",
+            "id": "22c985b2-88c4-41d4-bdda-cf90cc539d4a",
             "attempt_no": 1,
             "status": "needs_review",
-            "created_at": "2026-10-29T13:53:07.732570",
+            "created_at": "2026-10-30T10:40:41.931061",
             "started_at": null,
-            "completed_at": "2026-10-27T10:01:30",
+            "completed_at": "2026-10-30T10:40:41.942038",
             "id_type": "nin",
             "face_confidence": 77.0,
             "liveness_confidence": null,
@@ -66,7 +66,7 @@
             "reason_codes": [
               "face_grey_band"
             ],
-            "provider_reference": null,
+            "provider_reference": "OKL-ff434add2b4a42a4aa3d3751e3f41cfe",
             "decided_via": "provider"
           }
         ],

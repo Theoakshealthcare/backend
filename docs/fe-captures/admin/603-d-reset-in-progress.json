@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/b9bee79a-fcbc-4df2-8db4-8be8f021b2e4/identity-reset",
+    "path": "/api/v1/admin/caregivers/73d72a73-ea33-430d-991f-e11ef201920d/identity-reset",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": {
       "notes": "Placeholder note"

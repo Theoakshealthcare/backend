@@ -1,9 +1,9 @@
-"""The ARQ queue the Prembly webhook hands events to (the Meta webhook's ``InboundQueue`` pattern, app/channels/whatsapp/queue.py).
+"""The ARQ queue the Dojah webhook hands events to (the Meta webhook's ``InboundQueue`` pattern, app/channels/whatsapp/queue.py).
 
-The ARQ job carries ONLY opaque facts from the signed body: the ledger row id, the provider session id, our own ``oakly_ref`` and
-the webhook's verdict. No name, e-mail or registry data ever goes through Redis (ARQ keeps arguments there and logs them), and
-results are not kept. If a job is lost (Redis wiped), the ledger row stays unprocessed and the K4 reconcile cron finds the attempt
-from Prembly's side. ``get_kyc_event_queue`` is a FastAPI dependency so tests replace it with an in-memory fake.
+The ARQ job carries ONLY opaque facts from the signed body: the ledger row id and two flags (the webhook says "Failed", the webhook
+says the flow ended). Not even the reference: the worker reads it from the ledger row. No name, e-mail, registry data or image link
+ever goes through Redis (ARQ keeps arguments there and logs them), and results are not kept. If a job is lost (Redis wiped), the
+ledger row stays unprocessed and the K4 reconcile cron runs it again, and pulls the attempt by its own reference anyway. ``get_kyc_event_queue`` is a FastAPI dependency so tests replace it with an in-memory fake.
 """
 import logging
 from typing import Optional, Protocol

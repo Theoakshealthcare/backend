@@ -10,9 +10,9 @@ stack) rewrites the whole directory, so fold these calls into it the next time i
 
 What is real and what is not: the app, the routes, the database, the admin API responses and, since K4, the decision engine are
 real: the attempts marked [engine] were decided by ``process_event`` (the code that runs in production) from a session served by
-``FakePrembly``. NOTHING here has met the real Prembly (the session shapes are the documented ones, design section 15), so the
+``FakeDojah``. NOTHING here has met the real Dojah (the session shapes are the documented ones, design section 15), so the
 scores and reason codes are what the engine does with the fake's values. Rows nothing can produce yet (a stuck attempt) are
-seeded into the database and marked [seeded]. All names are placeholders; the ID number comes from Prembly's published sandbox.
+seeded into the database and marked [seeded]. All names are placeholders; the ID number comes from a placeholder.
 """
 import json
 import os
@@ -26,7 +26,8 @@ from app.core.config import settings
 from app.db.models.identity_verification import IdentityVerification, KycWebhookEvent
 from app.services.kyc_events import process_event
 from app.services.kyc_hooks import KycHooks
-from app.tests.fake_prembly import SANDBOX_BVN
+from app.services.kyc_seam import mint_reference
+from app.tests.fake_dojah import SANDBOX_BVN
 from app.tests.factories import auth_headers, make_admin, make_caregiver
 
 pytestmark = pytest.mark.skipif(not os.environ.get("CAPTURE_KYC_ADMIN"), reason="capture run only")
@@ -59,28 +60,28 @@ def _caregiver(db, name, **kw):
     return make_caregiver(db, approved=False, full_name=name, **kw)
 
 
-def _decided(db, fake_prembly, availability, caregiver, *, clean=True, **session):
-    """[engine] One attempt for ``caregiver`` decided by the real worker code from a fake Prembly session."""
+def _decided(db, fake_dojah, availability, caregiver, *, clean=True, **fields):
+    """[engine] One attempt for ``caregiver`` decided by the real worker code from a fake Dojah verification (``clean``: one that
+    matches the caregiver's profile; otherwise ``fields`` alone describe it)."""
     n = db.query(IdentityVerification).filter_by(caregiver_id=caregiver.id).count() + 1
     attempt = IdentityVerification(caregiver_id=caregiver.id, attempt_no=n, status="awaiting_result")
+    attempt.provider_session_id = attempt.provider_reference = mint_reference()
     db.add(attempt)
-    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=f"placeholder-session-{uuid.uuid4().hex[:8]}", signature_ok=True)
+    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=attempt.provider_session_id, signature_ok=True)
     db.add(event)
     db.commit()
     if clean:
-        fake_prembly.script_clean_pass(event.provider_session_id, caregiver, **session)
+        fake_dojah.script_clean_pass(attempt.provider_session_id, caregiver, **fields)
     else:
-        fake_prembly.script_session(event.provider_session_id, email=caregiver.email, **session)
+        fake_dojah.script_verification(attempt.provider_session_id, **fields)
     hooks = KycHooks(availability=availability, notify=lambda db_, notice: None, alert=lambda kind: None)
-    process_event(db, {"event_id": str(event.id), "oakly_ref": str(attempt.reference)}, hooks=hooks)
+    process_event(db, {"event_id": str(event.id), "claim": None, "settled": True}, hooks=hooks)
     db.expire_all()
     return attempt
 
 
-def test_capture_admin_kyc(db, client, monkeypatch, fake_prembly, kyc_availability):
+def test_capture_admin_kyc(db, client, monkeypatch, fake_dojah, kyc_availability):
     OUT.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_ID", "placeholder-widget-id")
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_KEY", "placeholder-widget-key")
     reviewer = make_admin(db, ["verification"], password=None, full_name="Placeholder Reviewer")
     finance = make_admin(db, ["finance"], password=None, full_name="Placeholder Finance")
     analyst = make_admin(db, ["read_only_analyst"], password=None, full_name="Placeholder Analyst")
@@ -93,22 +94,22 @@ def test_capture_admin_kyc(db, client, monkeypatch, fake_prembly, kyc_availabili
 
     # --- the cases -----------------------------------------------------------------------------------------------------
     passed = _caregiver(db, "Placeholder Amina Okafor")
-    _decided(db, fake_prembly, kyc_availability, passed)  # [engine] a clean pass: verified, holds the sandbox NIN
+    _decided(db, fake_dojah, kyc_availability, passed)  # [engine] a clean pass: verified, holds the sandbox NIN
     duplicate = _caregiver(db, "Placeholder Bola Adeyemi")
-    _decided(db, fake_prembly, kyc_availability, duplicate)  # [engine] the same NIN again: duplicate_identity -> review
+    _decided(db, fake_dojah, kyc_availability, duplicate)  # [engine] the same NIN again: duplicate_identity -> review
     mismatch = _caregiver(db, "Placeholder Chidi Nwosu")
-    _decided(db, fake_prembly, kyc_availability, mismatch, registry_name="PLACEHOLDER OTHER NAME", id_number=SANDBOX_BVN, id_type="bvn")
+    _decided(db, fake_dojah, kyc_availability, mismatch, first_name="PLACEHOLDER", middle_name=None, last_name="OTHER", id_number=SANDBOX_BVN, id_type="bvn")
     grey = _caregiver(db, "Placeholder Dayo Bello")
-    _decided(db, fake_prembly, kyc_availability, grey, clean=False, overall_result="passed", face_confidence=77, id_number="11111111112",
-             id_type="nin", registry_name="Placeholder Dayo Bello", registry_dob="1990-04-12")  # [engine] grey band -> review
+    _decided(db, fake_dojah, kyc_availability, grey, confidence=77, id_number="11111111112", id_type="nin")  # [engine] grey band -> review
     retry = _caregiver(db, "Placeholder Efe Ojo")
-    _decided(db, fake_prembly, kyc_availability, retry, clean=False, overall_result="failed", face_confidence=41)  # [engine] try again
+    _decided(db, fake_dojah, kyc_availability, retry, clean=False, status="Failed", confidence=41)  # [engine] try again
     exhausted = _caregiver(db, "Placeholder Funmi Lawal")
     for _ in range(3):
-        _decided(db, fake_prembly, kyc_availability, exhausted, clean=False, overall_result="failed", face_confidence=20)  # [engine]
+        _decided(db, fake_dojah, kyc_availability, exhausted, clean=False, status="Failed", confidence=20)  # [engine]
     stuck = _caregiver(db, "Placeholder Gbenga Ade")
     old = datetime.utcnow() - timedelta(hours=30)
-    db.add(IdentityVerification(caregiver_id=stuck.id, attempt_no=1, status="awaiting_result", created_at=old, updated_at=old))  # [seeded]
+    db.add(IdentityVerification(caregiver_id=stuck.id, attempt_no=1, status="awaiting_result", created_at=old, updated_at=old,
+                               provider_session_id=mint_reference()))  # [seeded]
     fresh = _caregiver(db, "Placeholder Hauwa Musa", identity_verification_status="pending")
     db.commit()
 
@@ -150,7 +151,7 @@ def test_capture_admin_kyc(db, client, monkeypatch, fake_prembly, kyc_availabili
                                                           json={"decision": "verified", "notes": "Placeholder note", "expected_status": "in_progress"}),
           "`expected_status` is optional: the status the admin was looking at. The case is `needs_review` now, so nothing is decided and the answer is a 409.")
     _save("602-d-verify.json", client.post(url(mismatch, "identity-decision"), headers=hr,
-                                           json={"decision": "verified", "notes": "Placeholder: married name, checked on the Prembly dashboard."}),
+                                           json={"decision": "verified", "notes": "Placeholder: married name, checked on the Dojah dashboard."}),
           "A person resolves the name mismatch. The response is the same summary as before.")
     _save("602-e-detail-after-verify.json", client.get(f"{CG}/{mismatch.id}", headers=hr),
           "The review attempt is now `passed`, `decided_via` `admin`; its reason codes stay so the override is visible; `review_reason` is null.")

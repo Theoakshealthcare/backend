@@ -1,5 +1,7 @@
 # SOP: caregiver KYC API (K2)
 
+> **Provider switched to Dojah on 2026-10-30 (slice KD1, [SOP](2026-10-30-kyc-dojah-adapter.md)).** The widget block of `POST .../sessions` changed: `{app_id, public_key, widget_id, reference_id, email, first_name, last_name, date_of_birth}` (was `widget_key` + `metadata.oakly_ref`); the attempt gets a server-minted `OKL-<uuid4 hex>` reference at creation; `client-event` no longer accepts a `session_id` (ignored, not stored). The K2 decision about the client's session-id hint is retired. The rest of this document is the record of the original Prembly-era work.
+
 | | |
 |---|---|
 | **Date** | 2026-10-28 |

@@ -1,4 +1,4 @@
-"""Caregiver KYC (Prembly): attempts, webhook ledger, system-decision trail; drop the Onfido-era columns.
+"""Caregiver KYC (Dojah, was Prembly until 2026-10-30): attempts, webhook ledger, system-decision trail; drop the Onfido-era columns.
 
 Revision ID: 0015_caregiver_kyc
 Revises: 0014_refunds_v2
@@ -62,7 +62,7 @@ def upgrade() -> None:
         sa.Column('caregiver_id', sa.UUID(), nullable=False),
         sa.Column('attempt_no', sa.Integer(), nullable=False),
         sa.Column('reference', sa.UUID(), nullable=False),
-        sa.Column('provider', sa.String(), server_default='prembly', nullable=False),
+        sa.Column('provider', sa.String(), server_default='dojah', nullable=False),
         sa.Column('provider_session_id', sa.String(), nullable=True),
         sa.Column('status', sa.String(), nullable=False),
         sa.Column('reason_codes', postgresql.ARRAY(sa.String()), server_default=sa.text("'{}'::varchar[]"), nullable=False),

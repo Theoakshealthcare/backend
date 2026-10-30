@@ -2,7 +2,7 @@
 the caregiver's identity status, in the caller's locked section.
 
 ``kyc_decision`` holds the rules (pure); this module applies them to rows. It is provider-neutral: it reads an ``Evidence`` from
-the seam and never looks at anything Prembly-shaped.
+the seam and never looks at anything provider-shaped.
 
 TRUST (design 16.1 #2, #4): the ONLY place a provider result can set ``caregivers.identity_verification_status`` is
 ``decide_and_apply``, and its only caller is ``kyc_events.confirm_and_record``, after
@@ -56,7 +56,7 @@ class Applied:
 
 def policy() -> Policy:
     return Policy(face_threshold=settings.KYC_FACE_THRESHOLD, face_floor=settings.KYC_FACE_FLOOR,
-                  liveness_floor=settings.KYC_LIVENESS_FLOOR, max_attempts=settings.KYC_MAX_ATTEMPTS)
+                  max_attempts=settings.KYC_MAX_ATTEMPTS)
 
 
 def may_decide(caregiver: Caregiver) -> bool:
