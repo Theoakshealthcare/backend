@@ -158,6 +158,11 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD_BACKOFF_MAX_SECONDS: int = 900
     ADMIN_AUTH_IP_LIMIT: int = 30  # login/MFA/invite calls per client IP per window
     ADMIN_AUTH_IP_WINDOW_SECONDS: int = 60
+    # App users changing their password (POST /auth/change-password): per user, never a hard lock. Same shape as the
+    # admin password stage: after this many wrong current passwords every call is answered 429 for a doubling wait.
+    CHANGE_PASSWORD_FREE_ATTEMPTS: int = 5
+    CHANGE_PASSWORD_BACKOFF_SECONDS: int = 30
+    CHANGE_PASSWORD_BACKOFF_MAX_SECONDS: int = 900
     # Reverse proxies whose X-Forwarded-For is believed (CIDRs or addresses, comma-separated or
     # JSON list). Empty = trust nobody: the client IP is the direct peer.
     TRUSTED_PROXIES: Annotated[List[str], NoDecode] = []

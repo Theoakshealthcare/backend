@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, String, Text, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,8 @@ class User(Base):
     verification_code_expires_at = Column(DateTime, nullable=True)
     password_reset_token = Column(String, nullable=True)
     password_reset_expires_at = Column(DateTime, nullable=True)
+    # Carried in every access/refresh token as ``tv``; a password change adds one, which ends all older tokens.
+    token_version = Column(Integer, nullable=False, default=0, server_default=text("0"))
     profile_image_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

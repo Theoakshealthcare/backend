@@ -1,10 +1,11 @@
 import logging
 
 import anyio.from_thread
+import jwt
 from datetime import timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -12,7 +13,8 @@ from app.core.config import settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
-    verify_refresh_token,
+    decode_app_token,
+    token_version_is_current,
     generate_password_reset_token,
     verify_password_reset_token,
 )
@@ -31,8 +33,11 @@ from app.schemas.user import (
     UserProfileUpdate,
     UserProfileResponse,
     RefreshTokenRequest,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     DetailResponse,
 )
+from app.services.change_password import ChangePasswordError, ChangePasswordService, TooManyAttempts
 from app.services.email import send_verification_email, send_password_reset_email
 from app.db.models.media_purge import PendingMediaPurge
 from app.services.websocket_manager import websocket_manager
@@ -53,6 +58,19 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 
 def get_user_service(db: Session = Depends(get_db)) -> UserService:
     return UserService(db)
+
+
+def _token_pair(user: User) -> dict:
+    """A fresh access/refresh pair for ``user``, stamped with the user's current token version."""
+    return {
+        "access_token": create_access_token(
+            user.id, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+            token_version=user.token_version or 0),
+        "refresh_token": create_refresh_token(
+            user.id, expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+            token_version=user.token_version or 0),
+        "token_type": "bearer",
+    }
 
 
 @router.post("/register", response_model=UserSchema)
@@ -110,17 +128,7 @@ def login(
             detail="Inactive user",
         )
     
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    return {
-        "access_token": create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
-        "refresh_token": create_refresh_token(
-            user.id, expires_delta=refresh_token_expires
-        ),
-        "token_type": "bearer",
-    }
+    return _token_pair(user)
 
 
 @router.post("/login/mobile", response_model=Token)
@@ -143,17 +151,7 @@ def login_mobile(
             detail="Inactive user",
         )
     
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    return {
-        "access_token": create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
-        "refresh_token": create_refresh_token(
-            user.id, expires_delta=refresh_token_expires
-        ),
-        "token_type": "bearer",
-    }
+    return _token_pair(user)
 
 
 @router.post("/refresh", response_model=Token)
@@ -164,15 +162,22 @@ def refresh_token(
     """
     Refresh access token using refresh token.
     """
-    user_id = verify_refresh_token(refresh_request.refresh_token)
-    if not user_id:
+    try:
+        claims = decode_app_token(refresh_request.refresh_token, "refresh")
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
         )
     
     # Verify user still exists and is active
-    user = user_service.get_user(user_id)
+    user = user_service.get_user(claims["sub"])
+    if user and not token_version_is_current(claims, user.token_version):
+        # issued before the user's last password change
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -185,17 +190,7 @@ def refresh_token(
         )
     
     # Generate new tokens
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    return {
-        "access_token": create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
-        "refresh_token": create_refresh_token(
-            user.id, expires_delta=refresh_token_expires
-        ),
-        "token_type": "bearer",
-    }
+    return _token_pair(user)
 
 
 @router.get("/me", response_model=UserWithTypeData)
@@ -306,6 +301,28 @@ def reset_password_route(
         )
     
     return {"message": "Password updated successfully"}
+
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+def change_password(
+    change_in: ChangePasswordRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Change the signed-in user's password. Every token issued before this call stops working (other devices are
+    signed out); the response carries a new pair, so the caller stays signed in. 400 with
+    ``detail = {"code", "message"}`` for ``wrong_current_password``, ``weak_password`` and ``same_password``;
+    429 ``too_many_attempts`` (with Retry-After) after repeated wrong current passwords."""
+    try:
+        user = ChangePasswordService(db).change(current_user.id, change_in.current_password, change_in.new_password)
+    except ChangePasswordError as exc:
+        db.rollback()
+        headers = {"Retry-After": str(exc.retry_after)} if isinstance(exc, TooManyAttempts) else None
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message},
+                            headers=headers)
+    response.headers["Cache-Control"] = "no-store"  # the body carries credentials
+    return {**_token_pair(user), "detail": "Password changed."}
 
 
 @router.put("/profile", response_model=UserProfileResponse)

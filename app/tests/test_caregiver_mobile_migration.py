@@ -19,7 +19,6 @@ from app.db.models.booking import BookingStatus, PaymentStatus
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.push_token import PushToken
-from app.db.models.user import User
 from app.db.session import engine as suite_engine
 
 THIS, PREVIOUS = "0002_caregiver_mobile", "0001_baseline"
@@ -66,12 +65,16 @@ def _seed(eng, status):
     Session = sessionmaker(bind=eng)
     with Session() as s:
         tag = uuid.uuid4().hex[:8]
-        pu = User(email=f"p{tag}@example.com", full_name="P", hashed_password="x", user_type="patient")
-        cu = User(email=f"c{tag}@example.com", full_name="C", hashed_password="x", user_type="caregiver")
-        s.add_all([pu, cu])
-        s.flush()
-        patient = Patient(user_id=pu.id, email=pu.email, full_name="P", city="Lagos", state="Lagos")
-        cg = Caregiver(user_id=cu.id, email=cu.email, full_name="C")
+        # Raw SQL for the users too: the model has gained users.token_version (0020), which does not exist at 0002.
+        pu_id, cu_id = uuid.uuid4(), uuid.uuid4()
+        for uid, kind in ((pu_id, "p"), (cu_id, "c")):
+            s.execute(text(
+                "INSERT INTO users (id, email, full_name, hashed_password, user_type, is_active, is_verified) "
+                "VALUES (:i, :e, :n, 'x', :t, true, false)"),
+                {"i": uid, "e": f"{kind}{tag}@example.com", "n": kind.upper(),
+                 "t": "patient" if kind == "p" else "caregiver"})
+        patient = Patient(user_id=pu_id, email=f"p{tag}@example.com", full_name="P", city="Lagos", state="Lagos")
+        cg = Caregiver(user_id=cu_id, email=f"c{tag}@example.com", full_name="C")
         s.add_all([patient, cg])
         s.flush()
         start = datetime.utcnow() + timedelta(days=1)
@@ -87,7 +90,7 @@ def _seed(eng, status):
             "100, 90, 10, 'myself', :status, :payment, :code4821)"),
             {"id": booking_id, "code": tag.upper(), "patient": patient.id, "caregiver": cg.id, "start": start,
              "status": status.name, "payment": PaymentStatus.PAID.name, "code4821": encrypt("4821")})
-        s.add(PushToken(user_id=pu.id, token=f"ExponentPushToken[placeholder-{tag}]", platform="ios"))
+        s.add(PushToken(user_id=pu_id, token=f"ExponentPushToken[placeholder-{tag}]", platform="ios"))
         s.commit()
         return booking_id
 

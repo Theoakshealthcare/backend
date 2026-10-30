@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.admin_security import AdminTokenError, decode_admin_token
 from app.core.config import settings
-from app.core.security import decode_app_token
+from app.core.security import decode_app_token, token_version_is_current
 from app.db.session import SessionLocal
 from app.db.models.admin import AdminRefreshToken, AdminUser
 from app.db.models.user import User
@@ -41,13 +41,14 @@ def _user_from_token(db: Session, token: str) -> User:
 
     try:
         # refresh, reset and untyped tokens must never authenticate API calls
-        user_id: str = decode_app_token(token, "access")["sub"]
+        claims = decode_app_token(token, "access")
+        user_id: str = claims["sub"]
     except jwt.PyJWTError:
         raise credentials_exception
 
     user_service = UserService(db)
     user = user_service.get_user(user_id)
-    if user is None:
+    if user is None or not token_version_is_current(claims, user.token_version):
         raise credentials_exception
     if not user.is_active:
         raise HTTPException(
@@ -267,12 +268,12 @@ async def authenticate_websocket(
         await reject(WS_CLOSE_UNAUTHENTICATED, "Authentication required")
         return None
     try:
-        user_id = decode_app_token(token, "access")["sub"]
-        user = UserService(db).get_user(user_id)
+        claims = decode_app_token(token, "access")
+        user = UserService(db).get_user(claims["sub"])
     except (jwt.PyJWTError, ValueError):
         await reject(WS_CLOSE_UNAUTHENTICATED, "Invalid token")
         return None
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or not token_version_is_current(claims, user.token_version):
         await reject(WS_CLOSE_UNAUTHENTICATED, "Invalid token")
         return None
     if required_user_type and user.user_type != required_user_type:
