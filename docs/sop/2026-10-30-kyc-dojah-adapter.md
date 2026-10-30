@@ -70,19 +70,43 @@ No findings on the signature, the dedupe key, the binding, double-settle, refere
 ## UNCONFIRMED (the K8 live-pass list; each is a code comment in `kyc_seam.py`)
 | # | Unconfirmed | Where it bites |
 |---|---|---|
-| D1 | The dashboard "Secret" is the HMAC key and the signature is lower-case hex over the raw body | Every webhook would be `401` |
-| D2/D3 | Whether Dojah retries, on what schedule, and whether a session finished on another device (QR) fires a webhook | Covered by the reconcile cron either way; latency only |
-| D4 | Webhook field names (`reference_id`, `verification_status`) and no `entity` wrapper | A different name means `400`; the defensive spellings are read |
-| D5 | The widget accepts our `reference_id` as given, and the pull's `entity` echoes it | If not, every pull is `bad_response` and nothing settles (visible as `error` attempts and ops noise) |
-| D6 | Status words and their meaning; whether a relaunch with the same reference after `Abandoned` is allowed | A caregiver could be stuck until the 24 h expiry |
+| D1 | ~~The dashboard "Secret" is the HMAC key and the signature is lower-case hex over the raw body~~ **CONFIRMED live (sandbox)** | |
+| D2/D3 | **OPEN.** Whether Dojah retries, on what schedule, whether a QR / other-device session fires a webhook. Run 2 had no webhook at all; the cron settled it ~6 min later | Covered by the reconcile cron either way; latency only |
+| D4 | ~~Webhook field names and no `entity` wrapper~~ **CONFIRMED live (sandbox)** | |
+| D5 | ~~The widget accepts our `reference_id` as given, and the pull's `entity` echoes it~~ **CONFIRMED live (sandbox)** | |
+| D6 | `Completed` **CONFIRMED live**. **OPEN:** the other status words and their meaning; whether a relaunch with the same reference after `Abandoned` is allowed | A caregiver could be stuck until the 24 h expiry |
 | D7 | ~~`selfie.confidence_value`~~ **Live sandbox run 2026-10-30: the pull has no `confidence_value`; `selfie.data.match_score` and `selfie.data.liveness_score` are null; only `selfie.status` (true) and `message`s.** Whether production returns scores: unknown (then read `selfie.data.match_score`, scale unknown) | With no number, the owner decision below applies; the bands only act on a numeric score |
 | D8 | `selfie.status` is liveness AND match in one flag | A face mismatch with a high number would be reported as `liveness_failed` |
-| D9/D10 | NIN answers carry `date_of_birth` and the number; which ID types the owner's flow accepts | Missing data means `identity_data_missing` -> review |
-| D11 | No watch-list signal used (`aml.status` meaning unknown) | `watchlisted` cannot occur |
+| D9/D10 | BVN: **CONFIRMED live** (names, `DD-Mon-YYYY` date of birth, number; canned person in the sandbox). **OPEN:** NIN answers; which ID types the owner's flow accepts | Missing data means `identity_data_missing` -> review |
+| D11 | **OPEN.** The BVN entity has a `watch_listed` string (empty in the sandbox, values unknown) and `aml.status` is false; neither is read | `watchlisted` cannot occur |
 | D12 | Failure `message` keywords | Falls back to `provider_failed` |
 | D14 | No price in the pull; ~~sandbox base URL~~ (**settled 2026-10-30 in the live harness: `https://sandbox.dojah.io` with `test_` keys; `api.dojah.io` answers 401 `Your Secret Key could not be Authorized`; an unknown reference answers 404 `Verification not found`**); how an empty wallet is worded (a 4xx mentioning balance is treated as `wallet_empty`) | `provider_cost` stays NULL; wallet alert may arrive as `rejected` |
 
+## Live sandbox pass (2026-10-30)
+Three runs on a real phone through the harness (scratch only, nothing of it is in the repo): the real API, worker and cron on a scratch Postgres/Redis behind a tunnel, Dojah's hosted widget opened with the server-minted reference, sandbox keys.
+
+| Run | Caregiver | What happened |
+|---|---|---|
+| 1 | Placeholder name and DOB | Webhook arrived, hex signature verified, pull `200`; decision `needs_review` with `identity_data_missing` (no face score) + `name_mismatch` + `dob_mismatch` |
+| 2 | Name and DOB made to match the sandbox person | Dojah finished (`Completed`) but **no webhook reached us at all** (the tunnel inspector showed no POST); the reconcile cron settled it about 6 minutes after the attempt: `needs_review` / `identity_data_missing` (before the face rule below) |
+| 3 | Same matching identity, after the owner's face rule | Webhook within seconds (applied 12:51:30 UTC), decision 12:51:33 UTC: `passed`, caregiver `verified`, `name_match` and `dob_match` true |
+
+**Confirmed live (sandbox):**
+- **D1** `x-dojah-signature` is 64 lower-case hex characters, an HMAC-SHA256 of the raw body under the webhook secret (not base64); `x-dojah-signature-v2` is also sent and is ignored. The documented source IP (`135.119.89.106`) was seen.
+- **D4** The webhook body is flat (`reference_id`, `verification_status`, `status`, `verification_type`, `data`, `metadata`, ...), no `entity` wrapper. The pull is the same object wrapped in `entity`, and `entity.reference_id` echoes our reference: the widget accepted the server-minted `OKL-` reference (**D5**).
+- **D6** `Completed` with `status: true`, `verification_mode: LIVENESS`.
+- **D9** BVN entity: `first_name`, `middle_name` (may be empty), `last_name`, `date_of_birth` as `DD-Mon-YYYY`. The sandbox returns a **canned person unrelated to the BVN typed** (`value` and `verification_value` echo what was typed; the registry entity does not), stable across runs.
+- **D7/D8** `selfie.status: true` with `selfie.message` "Successfully validated your liveness"; `selfie.data.match_score` and `selfie.data.liveness_score` are **null**, there is **no** `confidence_value`. Hence the owner rule in the decision log.
+- **D14** Base URL for sandbox keys is `https://sandbox.dojah.io`. `api.dojah.io` answers 401 `Your Secret Key could not be Authorized`, and a Cloudflare 403 to the default `python-urllib` User-Agent (use `httpx`). An unknown reference answers 404 `Verification not found`.
+- The widget's callbacks (`onSuccess` / `onClose` / `onError`) never reached the harness page's log, so nothing can be said about their payload; the backend does not depend on them.
+
+**Still open (production or later):** the score fields in production (and whether `selfie.data.match_score` carries one, scale unknown); the webhook retry schedule and the QR / other-device case; **why run 2 had no webhook** (not explained: the secret, URL and signature path worked in runs 1 and 3); wallet cost per session; image retention and location; the BVN entity's `watch_listed` string (empty in the sandbox; the value set is unknown, so it is **not read**) and `aml.status` (false); failure `message` texts (only success texts seen).
+
+**Found and fixed during the pass:** a passing block's message was joined into the failure text, so a government-check failure next to the success message "Successfully validated your liveness" would have been mapped to `liveness_failed`. `dojah._messages` now uses only the messages of blocks whose status is not true. Regression fixtures built from the real shape with fake values: `app/tests/dojah_real_shapes.py`, `test_kyc_real_shapes.py`.
+
 ## Follow-ups
+- Read the BVN `watch_listed` string once its values are known (production or a failing sandbox BVN) and wire it to `Evidence.watchlisted`.
+- Investigate run 2's missing webhook in K8 (ask Dojah whether a webhook can be skipped, and how the delivery log reads).
 - K7b: pass `widget.reference_id` unchanged; pre-fill `userData` from `widget.first_name/last_name/date_of_birth`; the Expo SDK 57 spike (delta section 3).
 - K8 (above), then mark the FE guide rows verified live and replace `FakeDojah` shapes with the captures.
 - Log (do not enforce) a mismatch with Dojah's published source IP once the proxy chain is trusted for it.

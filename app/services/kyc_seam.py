@@ -9,6 +9,15 @@ The model: the app launches Dojah's hosted widget with a reference the SERVER mi
 ``provider_session_id``). Dojah signs a webhook that names that ``reference_id``; the webhook is only a trigger. The worker PULLS
 ``GET /api/v1/kyc/verification?reference_id=...`` with the secret key and trusts the pull, never the webhook body (K-C1).
 
+LIVE SANDBOX PASS (2026-10-30, three runs on a phone; SOP section "Live sandbox pass"). CONFIRMED live (sandbox keys): D1 (hex
+``x-dojah-signature`` over the raw body, keyed by the webhook secret, plus an ignored ``-v2`` header), D4 (flat body: ``reference_id`` and
+``verification_status`` at the top level, no ``entity`` wrapper), D5 (the widget took our ``reference_id``; the pull's ``entity`` echoes it),
+D6 (``Completed`` seen), D9 (BVN entity with ``first_name`` / ``middle_name`` / ``last_name`` / ``date_of_birth`` as ``DD-Mon-YYYY``; the
+sandbox returns a canned person unrelated to the BVN typed), D14's sandbox host (``https://sandbox.dojah.io``; ``api.dojah.io`` answers 401
+to test keys). STILL OPEN: production score fields (D7), webhook retry schedule and the QR / other-device case (D2/D3; run 2 produced NO
+webhook at all and only the reconcile cron settled it), ``Abandoned`` and relaunch (D6), the BVN entity's ``watch_listed`` string (empty in
+the sandbox, values unknown) and ``aml.status`` (D11), failure ``message`` texts (D12), price per session, image retention.
+
 UNCONFIRMED assumptions (each is also listed in the KD1 SOP for the K8 pass):
 
   D1  Signature. ``x-dojah-signature`` is the HEX HMAC-SHA256 of the RAW body keyed by the webhook SECRET (Developers -> Webhooks,

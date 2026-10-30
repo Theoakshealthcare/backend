@@ -159,7 +159,9 @@ def _id_type(entity: dict, records: dict) -> Optional[str]:
 
 
 def _messages(*blocks: dict) -> Optional[str]:
-    parts = [m for m in (_text(b.get("message")) for b in blocks) if m]
+    """The free text of the blocks that did NOT succeed. A passing block's message ("Successfully validated your liveness", seen in the
+    live sandbox) must never be read as the reason for another block's failure."""
+    parts = [m for m in (_text(b.get("message")) for b in blocks if b.get("status") is not True) if m]
     return " | ".join(parts)[:MAX_MESSAGE_CHARS] or None
 
 
