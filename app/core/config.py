@@ -2,9 +2,16 @@ import json
 import logging
 import os
 from typing import Annotated, Any, Dict, List, Optional, Union
+from urllib.parse import urlsplit
 
 from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, model_validator, validator
 from pydantic_settings import BaseSettings, NoDecode
+
+
+# Deep-link schemes the hosted KYC widget page may send the caregiver back to (KD2). The app's own scheme only in production; Expo's
+# development schemes elsewhere. Never a web scheme.
+KYC_RETURN_SCHEMES = ("oaklycarecaregivermobile", "oaklycaregiver")
+KYC_RETURN_DEV_SCHEMES = ("exp", "exps")
 
 
 class Settings(BaseSettings):
@@ -78,6 +85,12 @@ class Settings(BaseSettings):
     DOJAH_WEBHOOK_SECRET: str = ""
     DOJAH_FACE_MATCH_THRESHOLD: int = 70  # Dojah's selfie confidence_value (0-100) a face step must reach; as Timp and Weysure
     KYC_FINGERPRINT_KEY: str = ""
+    # KD2, the hosted widget page. The absolute origin a phone can reach this API at (https in production, where it is required);
+    # POST .../identity-verification/sessions returns "<this>/api/v1/kyc/widget/<signed token>" as widget_url. KYC_RETURN_URL is the
+    # deep link the page sends the caregiver back to; it is only ever read from here, never from a request, and its scheme must be in
+    # an allow-list (see _check_kyc_widget_urls).
+    KYC_WIDGET_PUBLIC_BASE_URL: str = ""
+    KYC_RETURN_URL: str = "oaklycarecaregivermobile://kyc/return"
     KYC_MAX_ATTEMPTS: int = 3
     KYC_SESSION_TTL_HOURS: int = 24
     KYC_FACE_THRESHOLD: int = 85  # a placeholder until the K0 spike tunes it
@@ -238,10 +251,32 @@ class Settings(BaseSettings):
         # NIN/BVN. All three are refused at boot. (The app id, public key and widget id are not on this list: an empty one is
         # reported by the client as ``not_configured`` and raises the ops alert, or makes the start endpoint answer 503.)
         if self.ENVIRONMENT.lower() == "production":
-            missing = [name for name in ("DOJAH_WEBHOOK_SECRET", "DOJAH_SECRET_KEY", "KYC_FINGERPRINT_KEY")
+            missing = [name for name in ("DOJAH_WEBHOOK_SECRET", "DOJAH_SECRET_KEY", "KYC_FINGERPRINT_KEY", "KYC_WIDGET_PUBLIC_BASE_URL")
                        if not getattr(self, name)]
             if missing:
                 raise ValueError(f"{', '.join(missing)} must be set when ENVIRONMENT=production")
+        return self
+
+    @model_validator(mode="after")
+    def _check_kyc_widget_urls(self):
+        # The widget page's public origin (KD2) and the deep link it returns to. Both end up in a page a phone opens, so a wrong value
+        # is refused at boot rather than discovered by a caregiver: the origin must be an absolute http(s) origin (https only, and
+        # required, in production), and the return link's scheme must be on a fixed allow-list (no open redirect to a web page).
+        production = self.ENVIRONMENT.lower() == "production"
+        base = self.KYC_WIDGET_PUBLIC_BASE_URL
+        if base:
+            parts = urlsplit(base)
+            schemes = ("https",) if production else ("https", "http")
+            if (parts.scheme not in schemes or not parts.hostname or parts.username is not None or parts.password is not None
+                    or parts.query or parts.fragment or any(c.isspace() or ord(c) < 32 or c in "\"'<>\\" for c in base)):
+                raise ValueError("KYC_WIDGET_PUBLIC_BASE_URL must be an absolute " + ("https" if production else "http(s)")
+                                 + " origin without credentials, query or fragment")
+        link = self.KYC_RETURN_URL
+        allowed = KYC_RETURN_SCHEMES if production else KYC_RETURN_SCHEMES + KYC_RETURN_DEV_SCHEMES
+        scheme, sep, rest = link.partition("://")
+        if (not sep or scheme not in allowed or not rest or len(link) > 200 or "@" in rest.split("/", 1)[0]
+                or any(c.isspace() or ord(c) < 32 or c in "\"'<>\\`" for c in link)):
+            raise ValueError("KYC_RETURN_URL must be <scheme>://<path> with a scheme from " + ", ".join(allowed))
         return self
 
     @model_validator(mode="after")

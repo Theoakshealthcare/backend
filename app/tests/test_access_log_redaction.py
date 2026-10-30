@@ -80,3 +80,12 @@ def test_the_app_installs_the_filter_on_uvicorns_access_logger_exactly_once(capl
     logging.getLogger("uvicorn.access").info(
         '%s - "%s %s HTTP/%s" %d', "127.0.0.1:50000", "GET", f"{WEBHOOK}?hub.verify_token={SECRET}", "1.1", 200)
     assert SECRET not in caplog.text and REDACTED in caplog.text
+
+
+@pytest.mark.parametrize("suffix", ["", "?x=1", "/extra"])
+def test_the_widget_page_token_is_redacted_from_its_access_line(suffix):
+    token = "1800000000.OKL-" + "a" * 32 + "." + "b" * 64
+    record = access_record(f"/api/v1/kyc/widget/{token}{suffix}")
+    assert AccessLogRedactionFilter().filter(record) is True
+    line = rendered(record)
+    assert token not in line and "a" * 32 not in line and f"/api/v1/kyc/widget/{REDACTED}" in line

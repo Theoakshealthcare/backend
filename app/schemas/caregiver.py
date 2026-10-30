@@ -153,6 +153,9 @@ class IdentityVerificationSessionOut(BaseModel):
     attempt_no: int
     widget: IdentityWidgetConfig
     state: IdentityVerificationStateOut
+    # KD2: the absolute https link of the hosted widget page the app opens in the in-app browser. It carries a signed token that lasts
+    # 30 minutes; ask again (POST this endpoint resumes the attempt) for a fresh one. Opening it needs no auth header.
+    widget_url: str
 
 
 class CaregiverWalletSummary(BaseModel):

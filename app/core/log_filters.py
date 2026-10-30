@@ -3,6 +3,9 @@
 Uvicorn's access logger prints each request's full path *including the query string*. Meta's webhook
 subscription handshake is ``GET /whatsapp/webhook?hub.mode=subscribe&hub.verify_token=<shared secret>&...``,
 so without this filter the verify token is written to the logs on every (re)subscription.
+
+The KYC widget page (KD2) carries its signed link in the PATH (``GET /api/v1/kyc/widget/<token>``); the token is a 30-minute
+credential and names the attempt's reference, so its segment is blanked too.
 """
 
 import logging
@@ -32,12 +35,15 @@ class AccessLogRedactionFilter(logging.Filter):
     def __init__(self) -> None:
         super().__init__()
         self._webhook_path = f"{settings.API_V1_STR}/whatsapp/webhook"
+        self._widget_prefix = f"{settings.API_V1_STR}/kyc/widget/"
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
         if isinstance(args, tuple) and len(args) == 5 and isinstance(args[2], str):
             path, sep, query = args[2].partition("?")
-            if sep and path == self._webhook_path:
+            if path.startswith(self._widget_prefix):
+                record.args = (*args[:2], f"{self._widget_prefix}{REDACTED}", *args[3:])
+            elif sep and path == self._webhook_path:
                 record.args = (*args[:2], f"{path}?{_redact_query(query)}", *args[3:])
         return True
 

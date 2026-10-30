@@ -1,8 +1,8 @@
-"""K3: in production the app refuses to boot with an empty Dojah webhook secret, secret key or fingerprint key (design 9.3).
+"""K3 (+KD2): in production the app refuses to boot with an empty Dojah webhook secret, secret key, fingerprint key or widget base URL (design 9.3).
 
 An empty webhook secret makes every signature forgeable (HMAC with an empty key is something anyone can compute), an empty secret key
 means no webhook can ever be confirmed by the pull, and an empty fingerprint key turns the duplicate-identity hash into a plain
-hash of a NIN/BVN. Other environments may leave them empty (the suite and local development do)."""
+hash of a NIN/BVN. An empty widget base URL means the app has no page to open (KD2). Other environments may leave them empty (the suite and local development do)."""
 import pytest
 
 from app.core.config import Settings
@@ -31,7 +31,7 @@ def test_the_refusal_names_every_missing_key():
 @pytest.mark.parametrize("environment", ["development", "test", "staging"])
 def test_other_environments_may_leave_the_keys_empty(environment):
     s = Settings(**{**BASE, "ENVIRONMENT": environment})
-    assert (s.DOJAH_WEBHOOK_SECRET, s.DOJAH_SECRET_KEY, s.KYC_FINGERPRINT_KEY) == ("", "", "")
+    assert (s.DOJAH_WEBHOOK_SECRET, s.DOJAH_SECRET_KEY, s.KYC_FINGERPRINT_KEY, s.KYC_WIDGET_PUBLIC_BASE_URL) == ("", "", "", "")
 
 
 def test_the_environment_name_is_case_insensitive():

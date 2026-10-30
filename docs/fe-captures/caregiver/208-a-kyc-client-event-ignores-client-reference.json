@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/caregiver/identity-verification/0574ba7c-1236-4e31-a9d9-9885260ebb36/client-event",
+    "path": "/api/v1/caregiver/identity-verification/fba4a99d-9053-4ba1-bcde-4a533b498a2b/client-event",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "event": "completed",
@@ -18,7 +18,7 @@
       "status": "in_progress",
       "attempts_used": 1,
       "attempts_max": 3,
-      "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+      "active_verification_id": "fba4a99d-9053-4ba1-bcde-4a533b498a2b",
       "last_attempt_status": "awaiting_result",
       "can_start": true,
       "failure_hint": null,

@@ -105,6 +105,7 @@ Three runs on a real phone through the harness (scratch only, nothing of it is i
 **Found and fixed during the pass:** a passing block's message was joined into the failure text, so a government-check failure next to the success message "Successfully validated your liveness" would have been mapped to `liveness_failed`. `dojah._messages` now uses only the messages of blocks whose status is not true. Regression fixtures built from the real shape with fake values: `app/tests/dojah_real_shapes.py`, `test_kyc_real_shapes.py`.
 
 ## Follow-ups
+- **KD2 (2026-10-30)** added the hosted widget page the app opens instead of Dojah's native SDK: [2026-10-30-kyc-widget-page.md](2026-10-30-kyc-widget-page.md). `POST .../sessions` gained `widget_url` (everything else above is unchanged).
 - Read the BVN `watch_listed` string once its values are known (production or a failing sandbox BVN) and wire it to `Evidence.watchlisted`.
 - Investigate run 2's missing webhook in K8 (ask Dojah whether a webhook can be skipped, and how the delivery log reads).
 - K7b: pass `widget.reference_id` unchanged; pre-fill `userData` from `widget.first_name/last_name/date_of_birth`; the Expo SDK 57 spike (delta section 3).
