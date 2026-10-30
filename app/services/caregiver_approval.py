@@ -17,6 +17,7 @@ from app.db.models.audit import AdminAuditLog
 from app.db.models.booking import Booking, BookingStatus
 from app.db.models.user import User
 from app.db.models.caregiver import Caregiver, CaregiverDocument, CaregiverSkill
+from app.services import kyc_admin
 from app.services.audit import AuditService
 
 PROFILE_STATUSES = (
@@ -70,18 +71,21 @@ class CaregiverApprovalService:
 
     # --- reads ---------------------------------------------------------------
 
-    def list_applications(self, profile_status: str, limit: int, offset: int) -> Dict[str, Any]:
+    def list_applications(self, profile_status: str, limit: int, offset: int, identity: Optional[str] = None) -> Dict[str, Any]:
         doc_counts = (
             self.db.query(CaregiverDocument.caregiver_id, func.count(CaregiverDocument.id).label("n"))
             .group_by(CaregiverDocument.caregiver_id)
             .subquery()
         )
-        total = self.db.query(Caregiver).filter(Caregiver.profile_status == profile_status).count()
+        conditions = [Caregiver.profile_status == profile_status]
+        if identity is not None:
+            conditions.append(kyc_admin.queue_condition(identity))
+        total = self.db.query(Caregiver).filter(*conditions).count()
         submitted = func.coalesce(Caregiver.consent_date, Caregiver.created_at)
         rows = (
             self.db.query(Caregiver, func.coalesce(doc_counts.c.n, 0))
             .outerjoin(doc_counts, doc_counts.c.caregiver_id == Caregiver.id)
-            .filter(Caregiver.profile_status == profile_status)
+            .filter(*conditions)
             .order_by(submitted.asc(), Caregiver.id.asc())
             .limit(limit)
             .offset(offset)
@@ -104,7 +108,8 @@ class CaregiverApprovalService:
                 "background_check_status": cg.background_check_status,
                 "profile_status": cg.profile_status,
             })
-        return {"items": items, "total": total, "limit": limit, "offset": offset}
+        return {"items": items, "total": total, "limit": limit, "offset": offset,
+                **kyc_admin.queue_counts(self.db, profile_status)}
 
     def get_detail(self, caregiver_id: UUID, admin_user_id: UUID, request: Request) -> Dict[str, Any]:
         cg = self.db.get(Caregiver, caregiver_id)
@@ -159,14 +164,7 @@ class CaregiverApprovalService:
                 }
                 for d in docs
             ],
-            "identity": {
-                "status": cg.identity_verification_status,
-                # The provider results moved to identity_verifications; K5 reshapes this block. The keys stay (null) so the
-                # response shape the admin console reads does not change in between.
-                "document_verification_result": None,
-                "face_verification_status": None,
-                "face_verification_result": None,
-            },
+            "identity": kyc_admin.identity_block(self.db, cg),
             "background_check": {
                 "status": cg.background_check_status,
                 "evidence": cg.background_check_evidence,
@@ -264,17 +262,39 @@ class CaregiverApprovalService:
         return doc, cg, affected
 
     def decide_identity(self, caregiver_id: UUID, admin_user_id: UUID, decision: str, notes: str,
-                        request: Request) -> tuple[Caregiver, Optional[List[UUID]]]:
+                        request: Request, expected_status: Optional[str] = None) -> tuple[Caregiver, Optional[List[UUID]]]:
         cg = self._lock(caregiver_id)
+        if expected_status is not None and cg.identity_verification_status != expected_status:
+            # the case moved (the provider decided it, or another admin did) between the admin's read and this click
+            raise StateConflict(
+                "The identity case changed since you opened it. Reload and decide again",
+                [_unmet("IDENTITY_CASE_CHANGED", f"Identity is now {cg.identity_verification_status}")])
         before = _snapshot(cg)
         cg.identity_verification_status = decision
+        closed = kyc_admin.apply_decision(self.db, cg, admin_user_id, decision)  # the attempts and their events (K5)
         self.audit.record(admin_user_id=admin_user_id, action="caregiver.identity_decision",
                           entity_type="caregiver", entity_id=cg.id, before=before,
-                          after=_snapshot(cg), reason=notes, request=request)
+                          after={**_snapshot(cg), **closed}, reason=notes, request=request)
         affected = None
         if decision == "failed":
             affected = self._auto_suspend_if_unqualified(cg, admin_user_id, "identity failed", request)
         return self._finish(cg), affected
+
+    def reset_identity(self, caregiver_id: UUID, admin_user_id: UUID, notes: str, request: Request) -> Caregiver:
+        """Allow another set of attempts to a caregiver whose identity failed or ran out of attempts (design 7.2, 12.3). It does not
+        verify, approve or reinstate anyone: the caregiver is ``pending`` again and goes through the check from the start."""
+        cg = self._lock(caregiver_id)
+        if not kyc_admin.can_reset(cg, kyc_admin.attempts_of(self.db, cg.id)):
+            raise StateConflict(
+                "Identity can only be reset when it has failed or its attempts ran out",
+                [_unmet("IDENTITY_RESET_NOT_ALLOWED", f"Identity is {cg.identity_verification_status}")])
+        before = _snapshot(cg)
+        wiped = kyc_admin.apply_reset(self.db, cg, admin_user_id)
+        cg.identity_verification_status = "pending"
+        self.audit.record(admin_user_id=admin_user_id, action="caregiver.identity_reset",
+                          entity_type="caregiver", entity_id=cg.id, before=before,
+                          after={**_snapshot(cg), **wiped}, reason=notes, request=request)
+        return self._finish(cg)
 
     def decide_background_check(
         self, caregiver_id: UUID, admin_user_id: UUID, decision: str, notes: str,

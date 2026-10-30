@@ -36,6 +36,15 @@ class DocumentDecision(_Strict):
 class IdentityDecision(_Strict):
     decision: Literal["verified", "failed"]
     notes: str = Field(max_length=4000)
+    # The identity status the admin was looking at (``identity.status``). If the case has moved since, the answer is a 409 instead of
+    # a verdict on something the admin never saw. Optional: omitting it keeps the old behaviour.
+    expected_status: Optional[Literal["pending", "in_progress", "needs_review", "verified", "failed"]] = None
+
+    _notes = field_validator("notes")(_non_blank)
+
+
+class IdentityReset(_Strict):
+    notes: str = Field(max_length=4000)
 
     _notes = field_validator("notes")(_non_blank)
 
@@ -96,6 +105,9 @@ class ApplicationList(BaseModel):
     total: int
     limit: int
     offset: int
+    # Identity badges for the tab (``profile_status``) the list is on; they ignore the ``identity`` filter (K5, design 12.3)
+    needs_review_count: int
+    stuck_count: int
 
 
 class ConsentsOut(BaseModel):
@@ -120,11 +132,33 @@ class ApplicationDocument(BaseModel):
     download_url: str
 
 
+class IdentityAttemptOut(BaseModel):
+    """One verification attempt. Scores, yes/no results and reason codes only: no ID number, image or provider payload exists here."""
+    id: UUID
+    attempt_no: int
+    status: str
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    id_type: Optional[str] = None
+    face_confidence: Optional[float] = None
+    liveness_confidence: Optional[float] = None
+    face_threshold: Optional[int] = None
+    name_match: Optional[bool] = None
+    dob_match: Optional[bool] = None
+    reason_codes: List[str]
+    provider_reference: Optional[str] = None
+    decided_via: Optional[str] = None
+
+
 class IdentityOut(BaseModel):
     status: str
-    document_verification_result: Optional[Any] = None
-    face_verification_status: Optional[str] = None
-    face_verification_result: Optional[Any] = None
+    review_reason: Optional[str] = None
+    attempts_used: int
+    attempts_max: int
+    can_reset: bool
+    attempts: List[IdentityAttemptOut]
+    duplicate_of_caregiver_id: Optional[UUID] = None
 
 
 class BackgroundCheckOut(BaseModel):

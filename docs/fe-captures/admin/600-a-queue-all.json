@@ -1,0 +1,128 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "7c1a82d1-923e-4fc4-860a-d308103f87f2",
+          "full_name": "Placeholder Amina Okafor",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:06.833322",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "verified",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        },
+        {
+          "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+          "full_name": "Placeholder Bola Adeyemi",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:07.153979",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "needs_review",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        },
+        {
+          "id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+          "full_name": "Placeholder Chidi Nwosu",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:07.430220",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "needs_review",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        },
+        {
+          "id": "37b7a2a8-cb69-4e1c-bc78-4ed8d1f7678e",
+          "full_name": "Placeholder Dayo Bello",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:07.724551",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "needs_review",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        },
+        {
+          "id": "b9bee79a-fcbc-4df2-8db4-8be8f021b2e4",
+          "full_name": "Placeholder Efe Ojo",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:08.021394",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "in_progress",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        },
+        {
+          "id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+          "full_name": "Placeholder Funmi Lawal",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:08.328455",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "needs_review",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        },
+        {
+          "id": "1b968f29-4c90-4ebe-ab94-a9639316d763",
+          "full_name": "Placeholder Gbenga Ade",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:08.733208",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "in_progress",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        },
+        {
+          "id": "f4177f40-65b4-441d-b16b-9473ac1690e3",
+          "full_name": "Placeholder Hauwa Musa",
+          "state": "Lagos",
+          "specialization": "nurse",
+          "years_of_experience": 5,
+          "submitted_at": "2026-10-29T13:53:08.996618",
+          "age_in_days": 0,
+          "document_count": 0,
+          "identity_verification_status": "pending",
+          "background_check_status": "pending",
+          "profile_status": "under_review"
+        }
+      ],
+      "total": 8,
+      "limit": 25,
+      "offset": 0,
+      "needs_review_count": 4,
+      "stuck_count": 1
+    }
+  },
+  "note": "The Verification tab as before, plus `needs_review_count` and `stuck_count` for the badges. Both follow the `profile_status` tab and ignore `identity`."
+}

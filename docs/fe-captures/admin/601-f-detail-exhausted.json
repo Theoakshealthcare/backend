@@ -1,0 +1,133 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/46a35ae6-f39c-4cdc-983d-cde534695045",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+        "user_id": "6596ad1c-9bd4-4482-9974-3d24c13c3467",
+        "email": "caregiver-cb970c0182@example.com",
+        "full_name": "Placeholder Funmi Lawal",
+        "phone_number": "+2348910290133",
+        "date_of_birth": "1990-04-12",
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "nurse",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "profile_completion_step": 3,
+        "identity_verification_status": "needs_review",
+        "background_check_status": "pending",
+        "profile_status": "under_review",
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "created_at": "2026-10-29T13:53:08.328455",
+        "updated_at": "2026-10-29T13:53:08.464843"
+      },
+      "consents": {
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "needs_review",
+        "review_reason": "attempts_exhausted",
+        "attempts_used": 3,
+        "attempts_max": 3,
+        "can_reset": true,
+        "attempts": [
+          {
+            "id": "d47f1d27-9f42-44cf-bbae-7fd2c08cc55f",
+            "attempt_no": 3,
+            "status": "needs_review",
+            "created_at": "2026-10-29T13:53:08.450558",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": null,
+            "face_confidence": 20.0,
+            "liveness_confidence": null,
+            "face_threshold": 85,
+            "name_match": null,
+            "dob_match": null,
+            "reason_codes": [
+              "face_mismatch",
+              "attempts_exhausted"
+            ],
+            "provider_reference": null,
+            "decided_via": "provider"
+          },
+          {
+            "id": "29f54eff-3514-4cef-91ff-44a90f0d5352",
+            "attempt_no": 2,
+            "status": "failed",
+            "created_at": "2026-10-29T13:53:08.413385",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": null,
+            "face_confidence": 20.0,
+            "liveness_confidence": null,
+            "face_threshold": 85,
+            "name_match": null,
+            "dob_match": null,
+            "reason_codes": [
+              "face_mismatch"
+            ],
+            "provider_reference": null,
+            "decided_via": "provider"
+          },
+          {
+            "id": "34b665ac-50f9-46fc-9afd-dd632044fc62",
+            "attempt_no": 1,
+            "status": "failed",
+            "created_at": "2026-10-29T13:53:08.347538",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": null,
+            "face_confidence": 20.0,
+            "liveness_confidence": null,
+            "face_threshold": 85,
+            "name_match": null,
+            "dob_match": null,
+            "reason_codes": [
+              "face_mismatch"
+            ],
+            "provider_reference": null,
+            "decided_via": "provider"
+          }
+        ],
+        "duplicate_of_caregiver_id": null
+      },
+      "background_check": {
+        "status": "pending",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "audit_history": []
+    }
+  },
+  "note": "[engine] Three clean failures: `needs_review` with `attempts_exhausted`; `attempts_used` equals `attempts_max`."
+}

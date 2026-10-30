@@ -158,9 +158,12 @@
       }
     ],
     "identity": {
-      "document_verification_result": "null",
-      "face_verification_result": "null",
-      "face_verification_status": "null",
+      "attempts": [],
+      "attempts_max": "int",
+      "attempts_used": "int",
+      "can_reset": "bool",
+      "duplicate_of_caregiver_id": "null",
+      "review_reason": "null",
       "status": "str"
     },
     "profile": {
@@ -212,7 +215,9 @@
       }
     ],
     "limit": "int",
+    "needs_review_count": "int",
     "offset": "int",
+    "stuck_count": "int",
     "total": "int"
   },
   "form_options": {

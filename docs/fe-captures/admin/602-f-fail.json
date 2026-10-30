@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/a212ac96-46e6-4803-9b1f-aab0cdf66b63/identity-decision",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "decision": "failed",
+      "notes": "Placeholder: same person, second account."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+      "profile_status": "under_review",
+      "identity_verification_status": "failed",
+      "background_check_status": "pending",
+      "auto_suspended": false,
+      "affected_bookings": []
+    }
+  },
+  "note": "Failing is the admin's word only; the response carries `auto_suspended` as before."
+}

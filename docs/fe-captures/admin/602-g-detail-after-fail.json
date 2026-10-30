@@ -1,0 +1,113 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+        "user_id": "8d4eff60-615b-4f3d-98b4-98c9e521624a",
+        "email": "caregiver-3720394287@example.com",
+        "full_name": "Placeholder Bola Adeyemi",
+        "phone_number": "+2348599490659",
+        "date_of_birth": "1990-04-12",
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "nurse",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "profile_completion_step": 3,
+        "identity_verification_status": "failed",
+        "background_check_status": "pending",
+        "profile_status": "under_review",
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "created_at": "2026-10-29T13:53:07.153979",
+        "updated_at": "2026-10-29T13:53:09.302488"
+      },
+      "consents": {
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "failed",
+        "review_reason": null,
+        "attempts_used": 1,
+        "attempts_max": 3,
+        "can_reset": true,
+        "attempts": [
+          {
+            "id": "afd4a984-4d91-4393-a40e-7ee35f6b0d2e",
+            "attempt_no": 1,
+            "status": "failed",
+            "created_at": "2026-10-29T13:53:07.157428",
+            "started_at": null,
+            "completed_at": "2026-10-27T10:01:30",
+            "id_type": "nin",
+            "face_confidence": 92.0,
+            "liveness_confidence": 90.0,
+            "face_threshold": 85,
+            "name_match": true,
+            "dob_match": true,
+            "reason_codes": [
+              "duplicate_identity"
+            ],
+            "provider_reference": null,
+            "decided_via": "admin"
+          }
+        ],
+        "duplicate_of_caregiver_id": "7c1a82d1-923e-4fc4-860a-d308103f87f2"
+      },
+      "background_check": {
+        "status": "pending",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "audit_history": [
+        {
+          "id": "72e021f7-72a7-4169-9c81-393ddadcc9b0",
+          "action": "caregiver.identity_decision",
+          "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+          "entity_type": "caregiver",
+          "entity_id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+          "reason": "Placeholder: same person, second account.",
+          "created_at": "2026-10-29T13:53:09.300330"
+        },
+        {
+          "id": "a915cab5-3da2-4114-9793-294bf5a8d908",
+          "action": "caregiver.view",
+          "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+          "entity_type": "caregiver",
+          "entity_id": "a212ac96-46e6-4803-9b1f-aab0cdf66b63",
+          "reason": null,
+          "created_at": "2026-10-29T13:53:09.107401"
+        }
+      ]
+    }
+  },
+  "note": "The review attempt is `failed` by the admin; the caregiver is `failed`; `can_reset` is true; the duplicate link is still shown."
+}

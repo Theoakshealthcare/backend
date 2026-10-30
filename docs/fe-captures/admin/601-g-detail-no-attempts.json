@@ -1,0 +1,74 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/f4177f40-65b4-441d-b16b-9473ac1690e3",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "f4177f40-65b4-441d-b16b-9473ac1690e3",
+        "user_id": "fb0a1be2-717d-42aa-8f96-b86bb8e57ea4",
+        "email": "caregiver-067f9372ec@example.com",
+        "full_name": "Placeholder Hauwa Musa",
+        "phone_number": "+2348464986603",
+        "date_of_birth": "1990-04-12",
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "nurse",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "profile_completion_step": 2,
+        "identity_verification_status": "pending",
+        "background_check_status": "pending",
+        "profile_status": "under_review",
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "created_at": "2026-10-29T13:53:08.996618",
+        "updated_at": "2026-10-29T13:53:08.996622"
+      },
+      "consents": {
+        "terms_accepted": false,
+        "privacy_policy_accepted": false,
+        "background_check_consent": false,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "pending",
+        "review_reason": null,
+        "attempts_used": 0,
+        "attempts_max": 3,
+        "can_reset": false,
+        "attempts": [],
+        "duplicate_of_caregiver_id": null
+      },
+      "background_check": {
+        "status": "pending",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "audit_history": []
+    }
+  },
+  "note": "Nothing started: an empty list, not an absent key."
+}
