@@ -13,8 +13,11 @@ The rules, in order of precedence:
    ``needs_review``. Never auto-fail: a married name or a typo in Step 1 is common.
 4. Otherwise ``passed``.
 
-Anything that could not be checked counts against a pass, never for it: a missing face score, name or date of birth makes the
-result ``needs_review`` (``identity_data_missing``), because the alternative is verifying someone on evidence we did not see.
+Anything that could not be checked counts against a pass, never for it: a missing name or date of birth makes the result
+``needs_review`` (``identity_data_missing``), because the alternative is verifying someone on evidence we did not see. ONE exception,
+an owner decision (2026-10-30): when the provider gives no face NUMBER at all (``Evidence.face_flag_only``; Dojah's sandbox returns
+none), its own success flag for the selfie (liveness + face match, with the government check true) stands in for the face check. A
+number that is present but unusable (out of range) is still treated as missing.
 """
 from dataclasses import dataclass, field
 from datetime import date
@@ -50,6 +53,7 @@ class Evidence:
     id_number: Optional[str] = field(default=None, repr=False)
     registry_name: Optional[str] = field(default=None, repr=False)
     registry_dob: Optional[date] = field(default=None, repr=False)
+    face_flag_only: bool = False  # Dojah gave NO face number at all, only its own success flag (owner decision 2026-10-30: trust it)
     incomplete: bool = False  # a finished flow whose government or selfie result was absent or unreadable: a person looks, never a pass
 
 
@@ -93,6 +97,8 @@ def decide(evidence: Evidence, profile: Profile, *, duplicate: bool, disagreemen
     another caregiver; ``disagreement`` whether the webhook and the pull contradicted each other."""
     passing = evidence.verdict == PASS
     band = face_band(evidence.face_confidence, policy)
+    if band == "missing" and passing and evidence.face_flag_only and evidence.liveness_passed is True and not evidence.incomplete:
+        band = "ok"  # no number to judge, and Dojah's own liveness + face match said yes (government check true too: it is a pass)
     name_ok = names_match(profile.full_name, evidence.registry_name) if passing else None
     dob_ok = dobs_match(profile.date_of_birth, evidence.registry_dob) if passing else None
     liveness_failed = evidence.liveness_passed is False

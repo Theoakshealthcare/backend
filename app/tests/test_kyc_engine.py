@@ -148,7 +148,8 @@ def test_expired_and_error_attempts_do_not_count_toward_exhaustion(db, rec, fake
     (dict(date_of_birth="12-Apr-1991"), "dob_mismatch", True, False),
     (dict(confidence=78.0), "face_grey_band", True, True),
     (dict(first_name=None, middle_name=None, last_name=None), "identity_data_missing", None, True),
-    (dict(confidence=None), "identity_data_missing", True, True),
+    (dict(confidence=None, selfie=None), "identity_data_missing", True, True),  # no number AND no flag: nothing to trust
+    (dict(confidence=500.0), "identity_data_missing", True, True),  # a number that is present but unusable is not "no number"
     (dict(date_of_birth=None), "identity_data_missing", True, None),
 ])
 def test_ambiguous_results_go_to_the_review_queue_never_to_rejection(db, rec, fake_dojah, override, reason, name, dob):
@@ -624,3 +625,56 @@ def test_a_finished_flow_with_a_missing_result_goes_to_review_and_costs_no_try(d
     a = fresh(db, a)
     assert (a.status, a.reason_codes) == ("needs_review", ["identity_data_missing"])
     assert fresh(db, caregiver).identity_verification_status == "needs_review"
+
+
+# --- Dojah gives no face number (sandbox finding 2026-10-30; owner decision: its own success flag stands in) ----------------
+def test_a_boolean_only_pass_with_matching_name_and_dob_is_verified(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None)  # selfie.status true, no confidence_value
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes, a.face_confidence, a.liveness_confidence) == ("passed", [], None, None)
+    assert (a.name_match, a.dob_match) == (True, True) and fresh(db, caregiver).identity_verification_status == "verified"
+
+
+@pytest.mark.parametrize("override, reason", [
+    (dict(first_name="CHINEDU", middle_name=None, last_name="OKAFOR"), "name_mismatch"),
+    (dict(date_of_birth="12-Apr-1991"), "dob_mismatch"),
+])
+def test_a_boolean_only_pass_with_a_name_or_dob_mismatch_goes_to_review_without_data_missing(db, rec, fake_dojah, override, reason):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None, **override)
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes) == ("needs_review", [reason])
+
+
+def test_a_boolean_only_failed_selfie_is_a_failed_try(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None, selfie=False)
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes) == ("failed", ["liveness_failed"])
+    assert fresh(db, caregiver).identity_verification_status == "in_progress"
+
+
+def test_a_boolean_only_pass_with_the_government_check_false_is_not_trusted(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None, government=False)
+    run(db, rec, a)
+    assert fresh(db, a).status == "failed"
+
+
+def test_a_numeric_score_still_rules_when_it_is_present(db, rec, fake_dojah):
+    low, grey = cg(db), cg(db)
+    a, b = attempt(db, low), attempt(db, grey)
+    fake_dojah.script_clean_pass(a.provider_session_id, low, confidence=40.0)
+    fake_dojah.script_clean_pass(b.provider_session_id, grey, confidence=78.0)
+    run(db, rec, a)
+    run(db, rec, b)
+    assert (fresh(db, a).status, fresh(db, a).reason_codes) == ("failed", ["face_mismatch"])
+    assert (fresh(db, b).status, fresh(db, b).reason_codes) == ("needs_review", ["face_grey_band"])

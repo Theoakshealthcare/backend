@@ -65,7 +65,22 @@ def test_the_threshold_is_a_setting(monkeypatch):
 
 def test_without_a_number_the_face_step_follows_the_selfie_flag_and_no_score_is_recorded():
     o = observe(FakeDojah.entity(REF, confidence=None))
-    assert (o.verdict, o.face_confidence) == ("pass", None)
+    assert (o.verdict, o.face_confidence, o.evidence.face_flag_only) == ("pass", None, True)
+
+
+def test_a_number_that_is_present_but_unusable_is_not_the_flag_standing_alone():
+    for raw in (500.0, -3.0):
+        o = observe(FakeDojah.entity(REF, confidence=raw))
+        assert o.face_confidence is None and o.evidence.face_flag_only is False
+    assert observe(FakeDojah.entity(REF, confidence=88.0)).evidence.face_flag_only is False
+
+
+def test_the_sandbox_shape_has_no_confidence_value_and_null_scores_under_selfie_data():
+    """What the live sandbox returned (2026-10-30): selfie.status true, selfie.data.match_score / liveness_score null, no confidence_value."""
+    entity = FakeDojah.entity(REF, confidence=None)
+    entity["data"]["selfie"]["data"] = {"match_score": None, "liveness_score": None, "human_reviewed": False}
+    o = observe(entity)
+    assert (o.verdict, o.face_confidence, o.evidence.face_flag_only, o.evidence.liveness_passed) == ("pass", None, True, True)
 
 
 @pytest.mark.parametrize("confidence", [-1, 100.01, 1e9])

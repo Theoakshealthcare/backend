@@ -35,8 +35,15 @@ UNCONFIRMED assumptions (each is also listed in the KD1 SOP for the K8 pass):
       the field NAME is [UNVERIFIED] in Weysure's own SOP. Dojah's pages quote 60/80/90 for different products. A value outside
       0-100 is dropped, never clamped. Without a number the face step follows ``selfie.status``. The engine's own bands
       (``KYC_FACE_FLOOR`` / ``KYC_FACE_THRESHOLD``) then apply to the same number.
+      SANDBOX FINDING (live run, 2026-10-30): the pull has NO ``confidence_value``; ``selfie.data.match_score`` and
+      ``selfie.data.liveness_score`` are null and only ``selfie.status`` (true) and ``message`` strings are present. OWNER DECISION
+      (2026-10-30 13:35 WAT): when Dojah gives no face number AT ALL (``Evidence.face_flag_only``: the field is absent or null),
+      ``selfie.status == True`` with the government check true stands in for the face check, so name/date of birth are what decide;
+      a number that is present but unusable is still "missing" (review), a numeric score keeps every threshold and band, and an
+      absent or false flag is missing / a fail as before. Reason: Dojah already runs liveness + face match and returns its own
+      success flag, as Timp and Weysure rely on. Revisit if production returns scores (and read ``selfie.data.match_score``).
   D8  Liveness. No separate score is known: liveness is ``selfie.status`` (a boolean, probably liveness AND match in one flag
-      [UNVERIFIED]). ``Evidence.liveness_passed`` carries it; ``identity_verifications.liveness_confidence`` stays NULL.
+      [UNVERIFIED]; the sandbox's ``selfie.data.liveness_score`` is null). ``Evidence.liveness_passed`` carries it; ``identity_verifications.liveness_confidence`` stays NULL.
   D9  Registry identity (K4). ``data.government_data.data.<bvn|nin>.entity`` with ``first_name``, ``middle_name``, ``last_name``,
       ``date_of_birth`` (``01-Jun-1982`` seen; ``kyc_matching.parse_dob`` takes seven formats) and the ID number under the type's
       own key [PORT, confirmed live on Timp 2026-07-11]. Whether a NIN answer carries ``date_of_birth`` and the number: [UNVERIFIED].
@@ -183,7 +190,8 @@ def observe(verification: DojahVerification) -> Observation:
         verdict=verdict, face_confidence=face, liveness_passed=verification.selfie_status, watchlisted=False,  # D8, D11
         failure_reason=_failure_code(verification.message), id_type=id_type,
         id_number=_text(registry.get(id_type)) if id_type else None, registry_name=_registry_name(registry),
-        registry_dob=parse_dob(_text(registry.get("date_of_birth"))), incomplete=incomplete)
+        registry_dob=parse_dob(_text(registry.get("date_of_birth"))), incomplete=incomplete,
+        face_flag_only=not verification.selfie_confidence_given)
     return Observation(final=True, verdict=verdict, face_confidence=face, evidence=evidence)
 
 

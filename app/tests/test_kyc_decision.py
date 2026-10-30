@@ -230,3 +230,35 @@ def test_incomplete_evidence_is_never_a_pass_and_never_a_failed_try():
     d = run(good(incomplete=True))
     assert (d.status, d.reasons) == ("needs_review", ("identity_data_missing",))
     assert run(good(incomplete=True), used=3).status == "needs_review"  # not a counted failure either
+
+
+# --- no face number from the provider (owner decision 2026-10-30) ----------------------------------------------------------
+def flag_only(**kw):
+    return good(face_confidence=None, face_flag_only=True, **kw)
+
+
+def test_without_a_face_number_the_providers_own_success_flag_stands_in():
+    d = run(flag_only())
+    assert (d.status, d.reasons) == ("passed", ())
+
+
+def test_flag_only_still_needs_the_name_and_date_of_birth_to_match():
+    assert run(flag_only(registry_name="OKAFOR CHINEDU")).reasons == ("name_mismatch",)
+    assert run(flag_only(registry_dob=date(1991, 4, 12))).reasons == ("dob_mismatch",)
+    assert run(flag_only(registry_name=None)).reasons == ("identity_data_missing",)
+
+
+def test_flag_only_needs_the_flag_to_be_true_and_the_pass_to_be_complete():
+    assert run(flag_only(liveness_passed=None, incomplete=True)).reasons == ("identity_data_missing",)
+    d = run(flag_only(verdict="fail", liveness_passed=False))
+    assert (d.status, d.reasons) == ("failed", ("liveness_failed",))
+    assert run(flag_only(verdict="fail", liveness_passed=True)).reasons == ("provider_failed",)
+
+
+def test_a_missing_number_that_is_not_flag_only_is_still_missing():
+    assert run(good(face_confidence=None)).reasons == ("identity_data_missing",)
+
+
+def test_flag_only_changes_nothing_when_a_number_is_present():
+    assert run(good(face_confidence=Decimal("40"), face_flag_only=True)).reasons == ("face_mismatch",)
+    assert run(good(face_confidence=Decimal("78"), face_flag_only=True)).reasons == ("face_grey_band",)

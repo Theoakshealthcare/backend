@@ -124,7 +124,8 @@ class DojahVerification:
     verification_type: Optional[str] = None  # "BVN" / "NIN"
     government_status: Optional[bool] = None  # ``data.government_data.status``
     selfie_status: Optional[bool] = None  # ``data.selfie.status``: liveness AND face match, as one flag [UNVERIFIED]
-    selfie_confidence: Optional[float] = None  # ``data.selfie.confidence_value``, 0-100 [UNVERIFIED field name]
+    selfie_confidence: Optional[float] = None  # ``data.selfie.confidence_value``, 0-100 [UNVERIFIED field name; the sandbox does not send it]
+    selfie_confidence_given: bool = False  # the field is present and not null (even if unusable): only its ABSENCE lets the flag stand alone
     registry_type: Optional[str] = None  # bvn | nin
     registry: dict = field(default_factory=dict, repr=False)
     message: Optional[str] = field(default=None, repr=False)
@@ -179,7 +180,8 @@ def _extract(body: Any, reference_id: str) -> DojahVerification:
     return DojahVerification(
         reference_id=reference_id, verification_status=_text(entity.get("verification_status")),
         verification_type=declared[:16] if declared else None, government_status=_bool(government.get("status")),
-        selfie_status=_bool(selfie.get("status")), selfie_confidence=_confidence(selfie), registry_type=id_type,
+        selfie_status=_bool(selfie.get("status")), selfie_confidence=_confidence(selfie),
+        selfie_confidence_given=selfie.get("confidence_value") is not None, registry_type=id_type,
         registry=registry, message=_messages(entity, government, selfie))
 
 
