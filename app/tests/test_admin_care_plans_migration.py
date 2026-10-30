@@ -18,10 +18,10 @@ def _perms(eng, role):
             {"k": role})}
 
 
-def test_0019_follows_its_predecessor_and_is_the_head():
+def test_0019_follows_its_predecessor():
+    # "Single head" is asserted for the whole history by test_migrations.py; 0019 is no longer the head once 0020 exists.
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     assert script.get_revision(THIS).down_revision == PREVIOUS
-    assert script.get_heads() == [THIS]
 
 
 def test_the_clinical_reviewer_and_super_admin_gain_the_permissions_and_downgrade_removes_only_those(scratch):

@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/auth/me",
+    "auth": "Bearer <ACCESS_TOKEN of the session named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Could not validate credentials"
+    }
+  },
+  "note": "THIS device's access token from before the change is dead too: the app must swap in the returned pair"
+}

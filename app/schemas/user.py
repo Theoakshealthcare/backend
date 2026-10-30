@@ -96,6 +96,16 @@ class Token(BaseModel):
     token_type: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ChangePasswordResponse(Token):
+    """The caller's replacement tokens: every token issued before the change is dead, this pair is the one to keep."""
+    detail: str
+
+
 class TokenPayload(BaseModel):
     sub: Optional[str] = None
 

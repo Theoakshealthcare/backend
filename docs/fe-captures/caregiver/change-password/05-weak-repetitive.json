@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/change-password",
+    "auth": "Bearer <ACCESS_TOKEN of the session named in the label>",
+    "body": {
+      "current_password": "<CURRENT_PASSWORD>",
+      "new_password": "aaaaaaaabbbb"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "weak_password",
+        "message": "Password is too repetitive."
+      }
+    }
+  }
+}

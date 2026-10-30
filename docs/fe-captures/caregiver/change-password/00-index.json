@@ -1,0 +1,110 @@
+{
+  "generated_by": "scripts/capture_change_password.py",
+  "captures": [
+    {
+      "file": "01-no-token.json",
+      "label": "no-token",
+      "status": 401
+    },
+    {
+      "file": "02-missing-field.json",
+      "label": "missing-field",
+      "status": 422
+    },
+    {
+      "file": "03-wrong-current.json",
+      "label": "wrong-current",
+      "status": 400
+    },
+    {
+      "file": "04-weak-too-short.json",
+      "label": "weak-too-short",
+      "status": 400
+    },
+    {
+      "file": "05-weak-repetitive.json",
+      "label": "weak-repetitive",
+      "status": 400
+    },
+    {
+      "file": "06-weak-too-long.json",
+      "label": "weak-too-long",
+      "status": 400
+    },
+    {
+      "file": "07-same-password.json",
+      "label": "same-password",
+      "status": 400
+    },
+    {
+      "file": "08-success.json",
+      "label": "success",
+      "status": 200
+    },
+    {
+      "file": "09-me-with-new-token.json",
+      "label": "me-with-new-token",
+      "status": 200
+    },
+    {
+      "file": "10-refresh-with-new-token.json",
+      "label": "refresh-with-new-token",
+      "status": 200
+    },
+    {
+      "file": "11-me-with-old-token-this-device.json",
+      "label": "me-with-old-token-this-device",
+      "status": 401
+    },
+    {
+      "file": "12-me-other-device.json",
+      "label": "me-other-device",
+      "status": 401
+    },
+    {
+      "file": "13-refresh-other-device.json",
+      "label": "refresh-other-device",
+      "status": 401
+    },
+    {
+      "file": "14-login-old-password.json",
+      "label": "login-old-password",
+      "status": 401
+    },
+    {
+      "file": "15-login-new-password.json",
+      "label": "login-new-password",
+      "status": 200
+    },
+    {
+      "file": "16-throttle-wrong-1.json",
+      "label": "throttle-wrong-1",
+      "status": 400
+    },
+    {
+      "file": "17-throttle-wrong-2.json",
+      "label": "throttle-wrong-2",
+      "status": 400
+    },
+    {
+      "file": "18-throttle-wrong-3.json",
+      "label": "throttle-wrong-3",
+      "status": 400
+    },
+    {
+      "file": "19-throttle-wrong-4.json",
+      "label": "throttle-wrong-4",
+      "status": 400
+    },
+    {
+      "file": "20-throttle-wrong-5.json",
+      "label": "throttle-wrong-5",
+      "status": 400
+    },
+    {
+      "file": "21-throttle-blocked-even-with-the-right-password.json",
+      "label": "throttle-blocked-even-with-the-right-password",
+      "status": 429
+    }
+  ]
+}

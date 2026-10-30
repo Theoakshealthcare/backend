@@ -51,8 +51,10 @@ def rotate_ciphertext(value: str) -> str:
     return fernet.rotate(value.encode()).decode()
 
 
-def _create_token(subject: Union[str, Any], token_type: str, expires_in: timedelta) -> str:
-    claims = {"exp": datetime.now(timezone.utc) + expires_in, "sub": str(subject), "type": token_type}
+def _create_token(subject: Union[str, Any], token_type: str, expires_in: timedelta, token_version: int = 0) -> str:
+    # ``tv`` is users.token_version when the token was issued; a password change bumps it, which ends every older token.
+    claims = {"exp": datetime.now(timezone.utc) + expires_in, "sub": str(subject), "type": token_type,
+              "tv": token_version}
     return jwt.encode(claims, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -74,19 +76,25 @@ def decode_app_token(token: str, expected_type: str) -> dict:
 
 
 def create_access_token(
-    subject: Union[str, Any], expires_delta: Optional[timedelta] = None
+    subject: Union[str, Any], expires_delta: Optional[timedelta] = None, token_version: int = 0
 ) -> str:
     return _create_token(
-        subject, "access", expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        subject, "access", expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES), token_version
     )
 
 
 def create_refresh_token(
-    subject: Union[str, Any], expires_delta: Optional[timedelta] = None
+    subject: Union[str, Any], expires_delta: Optional[timedelta] = None, token_version: int = 0
 ) -> str:
     return _create_token(
-        subject, "refresh", expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        subject, "refresh", expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS), token_version
     )
+
+
+def token_version_is_current(claims: dict, current_version: int) -> bool:
+    """False for a token issued before the user's last password change. A token minted before ``tv`` existed has no
+    claim and counts as version 0, so deploying this logs nobody out."""
+    return claims.get("tv", 0) == (current_version or 0)
 
 
 def verify_refresh_token(token: str) -> Optional[str]:

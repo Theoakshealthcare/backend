@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-10-30, change password):** the backend endpoint is built (migration `0020`: `users.token_version`; app-user tokens now carry a `tv` claim, so a password change ends every older session). The app screen waits for the backend PR to merge. Login for app users still has **no** lockout or rate limit (only this endpoint's wrong-current-password backoff); see the deferred follow-ups.
+
 **Update (2026-10-27, follow-ups):** WhatsApp and JWT follow-ups ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md), branch `fix/whatsapp-jwt-followups`, PR pending): the fake Meta carries the business-scoped user ids real payloads have, uvicorn's access log no longer prints the webhook's `hub.verify_token`, the 413 constant is no longer deprecated, and `get_user_or_admin` verifies a token before choosing its decoder (the Semgrep-flagged unverified peek is gone). The live Meta test of 2026-10-19 proved the pipeline end to end, but **WhatsApp delivery is still blocked by Meta business verification** (started 2026-10-27, takes days).
 
 **Update (2026-10-27, A3 slice 3):** refunds v2 is **MERGED** as Theoakshealthcare/backend#19 (`f4b2f80`, 2026-10-27, migration `0014`), on top of PR #18 (migration `0013`). One refund queue; a person approves every refund (Finance up to the ₦50,000 cumulative limit, a Super Admin above it or for wallet credit); one destination; Paystack refunds with webhooks, reconcile and bank details; caregiver take-back; the legacy refund routes answer `410`. Verified by tests, 100 random sequences, forced races and live captures against a **fake** Paystack ([SOP](../sop/2026-10-21-refunds-v2.md), admin FE guide 12.12); a live Paystack run and the console screens are open.
@@ -213,7 +215,9 @@ Plan: `docs/plans/2026-10-05-caregiver-app.md` in the caregiver monorepo. Goal: 
     - [ ] Device pass for the care plan screens (with the rest of the caregiver app)
   - [ ] Chat relay via WhatsApp
   - [ ] Masked calling (no recording)
-  - [ ] Change password (needs a backend endpoint)
+  - [ ] Change password
+    - [x] **Backend** `POST /api/v1/auth/change-password` (2026-10-30, `feature/change-password`, migration `0020_user_token_version`, not pushed or merged; [SOP](../sop/2026-10-30-change-password.md); FE guide section 17, live-captured): current password required, 8-72 byte policy, per-account backoff after 5 wrong current passwords, every older token revoked and a fresh pair returned
+    - [ ] **App** Change password screen (monorepo `feature/change-password-screen`, after the backend PR merges and `pnpm api:sync`): current / new / confirm, show-hide, an inline error per code, success toast, stay signed in
   - [ ] KYC: ID and face (Dojah; section 14 below, slices K0–K8, [design](../plans/2026-10-27-caregiver-kyc-design.md))
   - [ ] Learn
   - [ ] Refer and earn
@@ -405,6 +409,10 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (Change password) Password reset by email (`/auth/reset-password`) should also bump `token_version` so a reset ends every session; today only change-password does
+- [ ] (Change password) App-user `register` and `reset-password` have no server-side password policy (change-password enforces 8 characters, 72 bytes, 5 distinct); `register`'s 422 also still echoes the password in `input`
+- [ ] (Change password) App-user login and refresh have no lockout or rate limit (only admin login does); `/auth/login/mobile` can be guessed without a wait
+- [ ] (Change password) App-user auth events are not audited (`admin_audit_log` is admin-only); a password change is logged by user id only. Add an app-user audit table, and an email or push notice "your password was changed"
 - [ ] (Care plans, after v1) Family read-only view through W4; admin console screens for plans and templates, and template create/edit; medication reminders and a per-dose record (clinical sign-off); creating a `CareRecipient` for app bookings that have none (today they get no plan); merging the plan's allergies with the patient record's; per-recipient vitals (same subject problem); retention period for plans ([design](../plans/2026-10-27-caregiver-care-plans-design.md) section 15)
 - [ ] (WhatsApp) Business-scoped user ids (`contacts[].user_id`, `messages[].from_user_id`, `statuses[].recipient_user_id`, `NG.<digits>`) are accepted and ignored, not stored. Decide whether to store them (a stable id if Meta stops sending phone numbers) before relying on them ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md))
 - [ ] (WhatsApp) Rotate the webhook verify token (`WHATSAPP_VERIFY_TOKEN`): the current one was printed once in a live access log before the redaction filter existed (owner, at the next Meta test)

@@ -24,8 +24,9 @@ app = FastAPI(
 install_access_log_redaction()
 
 # FastAPI's 422 body echoes each rejected value back as ``input``. For these fields that would put a bank account number
-# into a response body (and the logs and traces that capture it), so the value is dropped from the error.
-NEVER_ECHO_FIELDS = {"account_number"}
+# into a response body (and the logs and traces that capture it), so the value is dropped from the error. A missing
+# field's error carries the whole body as ``input``, so naming a password field here also covers the other one.
+NEVER_ECHO_FIELDS = {"account_number", "current_password", "new_password"}
 
 
 @app.exception_handler(RequestValidationError)

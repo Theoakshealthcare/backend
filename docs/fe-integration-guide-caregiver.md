@@ -2988,6 +2988,7 @@ The release job leaves a held earning alone even after `available_at` has passed
 | 409 / 404 / 503 | **object** `{"code", "message"}`, with `code` one of `ALREADY_VERIFIED`, `UNDER_REVIEW`, `IDENTITY_REJECTED`, `ATTEMPTS_EXHAUSTED`, `PROFILE_INCOMPLETE`, `POLICY_VERSION_MISMATCH`, `PROVIDER_AVAILABLE`, `VERIFICATION_NOT_FOUND`, `PROVIDER_UNAVAILABLE` | identity verification (section 4); the exact bodies are in its error table |
 | 410 | `The app no longer reports identity verification results. Verification is completed in the verification step and confirmed by our verification partner.` | `POST /caregiver/identity-verification/result` (removed) |
 | 422 | list of `{"type","loc","msg","input",...}` | any invalid body (care plan routes omit `input`: section 16) |
+| 400 / 429 | **object** `{"code", "message"}`, `code` one of `wrong_current_password`, `weak_password`, `same_password` (400), `too_many_attempts` (429, with `Retry-After`) | `POST /auth/change-password` (section 17). `401 Invalid refresh token` / `Could not validate credentials` also follow a password change, on every token issued before it |
 | 403 / 404 / 409 | `{"detail": {"code", "message"}}`, or the plain `"Care plan not found"` | care plans, see section 16 |
 
 The attempts-left and lock-minutes numbers are inside the string. Match on the prefix, or on the status code (`400` vs `423`), not on the whole string.
@@ -3037,6 +3038,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 10. **Cancelling depends on `channel`.** An `app` or `admin` booking can be cancelled from `accepted`, `en_route` and `in_progress`, and no reason is stored: confirm with the caregiver before sending it. A `whatsapp` booking can be dropped only while `accepted` and more than the policy lead (120 minutes by default) before the start; later, en route or in progress it is `409` "It's too close to the visit to cancel in the app. Please contact support." (section 7, "Cancelling").
 11. **Deleting the account is permanent.** Warn before sending `DELETE /auth/profile`: the profile, bank details and verification data are erased and cannot be restored, and the same login cannot be used again unless they register from scratch. On `409`, show the `detail` text and send them to the booking or wallet screen it names. On `200`, sign out and clear everything stored on the device.
 12. **Identity verification is decided by our partner, not the app.** Do not show "Verified" because the widget said success; wait for `status: "verified"`. Show no reason for a review (`needs_review`), and never speculate about one. If verification is down, offer "Continue without for now": the caregiver can reach consent but cannot be approved until verified (section 4).
+13. **Changing the password signs out every other device**, and replaces this device's tokens too. Store the returned pair before anything else and say so in the success message (section 17).
 
 ## 15. Verification table
 
@@ -4967,3 +4969,221 @@ No access (`404`, the same body as everywhere):
 | The same `404` for every refused caller (not live, dropped out, erased, another client's medication id, unknown ids) | **[not live]** | `app/tests/test_care_plans_b3_access.py` |
 | Table constraints (frequency, status, stopped/`stopped_at` pair, end after start, at most 12 times) and the migration round trip | **[not live]** | `app/tests/test_care_plan_medications_migration.py` |
 | Real device behaviour, offline | **No** | Not built; the app never queues writes |
+
+
+## 17. Change password: `POST /api/v1/auth/change-password`
+
+Added with migration `0020_user_token_version`. **Source of these examples:** `scripts/capture_change_password.py` run against a real API process (uvicorn) on a real Postgres, not the compose stack used elsewhere in this guide; the files are in [`docs/fe-captures/caregiver/change-password/`](fe-captures/caregiver/change-password/). Tokens are replaced by `<TOKEN_n>` (the same `n` is the same token in every file) and passwords by `<CURRENT_PASSWORD>`, `<NEW_PASSWORD>`, `<THIRD_PASSWORD>`. The user's email, phone and ids in `me` are the throwaway ones the script registered.
+
+### 17.1 What it is, and when the app calls it
+
+A signed-in caregiver (the endpoint works for any app user) types their current password and a new one on a "Change password" screen. On success the backend **ends every session that existed before** (including this phone's own tokens) and answers with a **new token pair for this phone**, so the caregiver stays signed in here and is signed out everywhere else. Confirming the new password is the app's job: the backend takes two fields.
+
+- **Auth:** `Authorization: Bearer <access token>`. Without it: `401` (below). A refresh token used as the bearer is refused as everywhere else (`401 Could not validate credentials`; tests only).
+- **Request body:** `{"current_password": string, "new_password": string}`. Both required.
+- **Password rules (server side):** at least 8 characters, at most 72 **bytes** (not characters: an accented character is 2 bytes, an emoji 4), at least 5 different characters. It must differ from the current one. There is no other rule (no digit or symbol requirement); the app may be stricter, never looser.
+
+### 17.2 Success `200`
+
+<!-- capture: change-password/08-success.json request.body -->
+```json
+{
+  "current_password": "<CURRENT_PASSWORD>",
+  "new_password": "<NEW_PASSWORD>"
+}
+```
+
+<!-- capture: change-password/08-success.json response -->
+```json
+{
+  "status_code": 200,
+  "headers": {
+    "content-type": "application/json",
+    "cache-control": "no-store"
+  },
+  "body": {
+    "access_token": "<TOKEN_5>",
+    "refresh_token": "<TOKEN_6>",
+    "token_type": "bearer",
+    "detail": "Password changed."
+  }
+}
+```
+
+- The body is a **token pair plus a message**: `access_token`, `refresh_token`, `token_type`, `detail`. **Store both new tokens before doing anything else.** The `Cache-Control: no-store` header is there because the body carries credentials.
+- **The tokens this phone used a moment ago are already dead** (capture 11 below). Any other request still in flight on the old access token will come back `401`, and refreshing with the old refresh token fails too (`401 Invalid refresh token`), which the app's current refresh handling treats as "session over, sign out". See 17.6 for what the app must do about that race.
+
+### 17.3 Errors
+
+| Status | `detail` | When | Capture |
+|---|---|---|---|
+| 401 | `"Not authenticated"` | no `Authorization` header | `01-no-token` |
+| 401 | `"Could not validate credentials"` | expired, wrong-type or **revoked** access token | `11`, `12` |
+| 403 | `"Inactive user"` | the account was deleted or deactivated (tests only) | not captured |
+| 422 | list of `{"type","loc","msg"}` | a field missing | `02-missing-field` |
+| 400 | **object** `{"code": "wrong_current_password", "message"}` | the current password is wrong | `03-wrong-current` |
+| 400 | **object** `{"code": "weak_password", "message"}` | the new password breaks a rule; `message` says which | `04`, `05`, `06` |
+| 400 | **object** `{"code": "same_password", "message"}` | the new password equals the current one | `07-same-password` |
+| 429 | **object** `{"code": "too_many_attempts", "message"}` plus a `Retry-After` header (seconds) | too many wrong current passwords | `21` |
+
+Everything except the 401/403 and 422 rows is `{"detail": {"code", "message"}}`: **`detail` is an object here, not a string**, unlike most of this API (the identity-verification and care-plan routes do the same). Branch on `code`, never on `message`. The three `weak_password` messages are the only ones that vary:
+
+<!-- capture: change-password/03-wrong-current.json response.body -->
+```json
+{
+  "detail": {
+    "code": "wrong_current_password",
+    "message": "Your current password is incorrect."
+  }
+}
+```
+
+<!-- capture: change-password/04-weak-too-short.json response.body -->
+```json
+{
+  "detail": {
+    "code": "weak_password",
+    "message": "Password must be at least 8 characters."
+  }
+}
+```
+
+<!-- capture: change-password/05-weak-repetitive.json response.body -->
+```json
+{
+  "detail": {
+    "code": "weak_password",
+    "message": "Password is too repetitive."
+  }
+}
+```
+
+<!-- capture: change-password/06-weak-too-long.json response.body -->
+```json
+{
+  "detail": {
+    "code": "weak_password",
+    "message": "Password must be at most 72 bytes."
+  }
+}
+```
+
+<!-- capture: change-password/07-same-password.json response.body -->
+```json
+{
+  "detail": {
+    "code": "same_password",
+    "message": "Choose a password you are not using now."
+  }
+}
+```
+
+The `422` carries no `input` field on purpose (it would echo the password back):
+
+<!-- capture: change-password/02-missing-field.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body",
+        "new_password"
+      ],
+      "msg": "Field required"
+    }
+  ]
+}
+```
+
+**Which error to show where:** `wrong_current_password` belongs under the *current password* field; `weak_password` and `same_password` under the *new password* field. If both are wrong, only `wrong_current_password` comes back (it is checked first), so after the caregiver fixes it a `weak_password` can still appear: that is expected.
+
+### 17.4 Other devices and this phone after the change
+
+All captured against the same caregiver, right after the success above (`<TOKEN_1>`/`<TOKEN_2>` are this phone's old pair, `<TOKEN_3>`/`<TOKEN_4>` the other phone's).
+
+| What | Result | Capture |
+|---|---|---|
+| This phone, `GET /auth/me` on the **new** access token | `200` | `09-me-with-new-token` |
+| This phone, `POST /auth/refresh` with the **new** refresh token | `200` (a further pair) | `10-refresh-with-new-token` |
+| This phone, `GET /auth/me` on its **old** access token | `401` `Could not validate credentials` | `11-me-with-old-token-this-device` |
+| Other phone, `GET /auth/me` on its access token | `401` `Could not validate credentials` | `12-me-other-device` |
+| Other phone, `POST /auth/refresh` with its refresh token | `401` `Invalid refresh token` | `13-refresh-other-device` |
+| `POST /auth/login/mobile` with the **old** password | `401` `Incorrect email/phone or password` | `14-login-old-password` |
+| `POST /auth/login/mobile` with the **new** password | `200` | `15-login-new-password` |
+
+<!-- capture: change-password/13-refresh-other-device.json response -->
+```json
+{
+  "status_code": 401,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": {
+    "detail": "Invalid refresh token"
+  }
+}
+```
+
+Revocation is immediate: the access token is checked against the account on every request, so another phone is signed out on its next call, not when its access token would have expired. Its refresh attempt then fails the same way. The other phone sees the usual "session expired, sign in again" path.
+
+### 17.5 Wrong current password is rate limited
+
+Wrong current passwords are counted **per account** (not per device or IP). After **5** wrong ones in a row the account is in a wait: **every** call, even with the correct password, answers `429` with `Retry-After`. The wait starts at 30 seconds; each time it ends and another wrong password follows, it doubles (60, 120, ...) up to 15 minutes. Calls made during a wait are answered `429` and do not extend it. A success clears the count, as does an hour with no attempts. `weak_password` and `same_password` answers are **not** counted. The capture (a second caregiver) is five wrong passwords, each `400`, then the correct one:
+
+<!-- capture: change-password/20-throttle-wrong-5.json response.body -->
+```json
+{
+  "detail": {
+    "code": "wrong_current_password",
+    "message": "Your current password is incorrect."
+  }
+}
+```
+
+<!-- capture: change-password/21-throttle-blocked-even-with-the-right-password.json response -->
+```json
+{
+  "status_code": 429,
+  "headers": {
+    "content-type": "application/json",
+    "retry-after": "30"
+  },
+  "body": {
+    "detail": {
+      "code": "too_many_attempts",
+      "message": "Too many incorrect attempts. Please wait before trying again."
+    }
+  }
+}
+```
+
+### 17.6 UX consequences the app must surface (instructions, not trivia)
+
+1. **Swap the tokens atomically and first.** On `200`, write the new `access_token` and `refresh_token` to secure storage, then release any queued requests. While the change request is in flight, hold other API calls (or at least do not let a `401` from one of them trigger sign-out): the old tokens die the moment the backend commits, so a request that was already on its way returns `401`, and its refresh attempt returns `401 Invalid refresh token`. Without this the caregiver is signed out by their own successful change.
+2. **Say that other devices are signed out.** The success toast should read like "Password changed. You have been signed out on your other devices." It is true, and a caregiver who finds themselves signed out on a second phone will otherwise think something is wrong.
+3. **The 429 needs a countdown, not a retry loop.** Disable the submit button for `Retry-After` seconds and say "Too many incorrect attempts". Do not retry automatically. A wait can be up to 15 minutes; the message is the same.
+4. **Do not clear the form on `400`/`429`.** Keep what they typed (except show/hide state) and put the error on the right field (17.3).
+5. **No "forgot current password" promise.** The existing forgot-password flow (section 3) does the job; link to it from the screen. Note that **resetting through the email link does not sign out other devices** (only this change does); that is a known follow-up.
+6. **Never log or store the passwords** (including in crash reports and analytics), and do not keep them in state after the request ends.
+
+### 17.7 Field-nesting and shape traps
+
+- `detail` is an **object** on `400`/`429` from this route and a **list** on `422`; on `401`/`403` it is a plain string. A client that does `detail.toString()` shows `[object Object]`.
+- The `200` body is a token pair **plus** `detail` (a string). It is the same shape as login's `Token` with one extra field, so the login response type cannot be reused as is.
+- `Retry-After` is a **header** (whole seconds), not a body field. The `429` body has no wait field.
+
+### 17.8 Verification table
+
+| Behaviour | Verified live? | Evidence / reason |
+|---|---|---|
+| `200` body, `Cache-Control: no-store`, new tokens work on `me` and `refresh` | **Yes** | `08`, `09`, `10` |
+| Old password refused, new accepted at login | **Yes** | `14`, `15` |
+| The caller's old tokens and the other device's access and refresh tokens are dead | **Yes** | `11`, `12`, `13` |
+| `401` without a token; `422` with a missing field (no `input`) | **Yes** | `01`, `02` |
+| `wrong_current_password`, the three `weak_password` messages, `same_password` | **Yes** | `03` to `07` |
+| `429 too_many_attempts` after five wrong passwords, with `Retry-After: 30` | **Yes** | `16` to `21` |
+| The wait doubling (60, 120, ... up to 900), the wait ending, the count resetting after an hour or a success, per-account isolation | **Not live** | Automated tests (`app/tests/test_change_password.py`); the doubling and the cap come from the settings `CHANGE_PASSWORD_BACKOFF_SECONDS` (30) and `CHANGE_PASSWORD_BACKOFF_MAX_SECONDS` (900) |
+| A refresh token used as the bearer; an inactive account; a patient account; a token issued before the migration (no `tv` claim) | **Not live** | Automated tests |
+| A pending reset link being cancelled by the change | **Not live** | Automated test |
+| Behaviour on a real phone (token swap, the in-flight request race in 17.6) | **No** | The app screen is not built yet; item 1 is the backend's contract, untested against the app |
