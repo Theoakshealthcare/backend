@@ -851,7 +851,7 @@ When the provider's wallet is empty, `provider_available` flips to `false` (here
   "status": "in_progress",
   "attempts_used": 1,
   "attempts_max": 3,
-  "active_verification_id": "69a62b3a-caf4-4622-a8b9-ad27a2fd7fe2",
+  "active_verification_id": "750a2577-2b9c-4f8c-b43d-db9a3750382e",
   "last_attempt_status": "awaiting_result",
   "can_start": false,
   "failure_hint": null,
@@ -882,14 +882,14 @@ Request and response `201`:
 <!-- capture: 203-a-kyc-sessions-create.json response.body -->
 ```json
 {
-  "verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+  "verification_id": "fba4a99d-9053-4ba1-bcde-4a533b498a2b",
   "attempt_no": 1,
   "widget": {
     "app_id": "test-dojah-app-id-placeholder",
     "public_key": "test-dojah-public-key-placeholder",
     "widget_id": "test-dojah-widget-id-placeholder",
-    "reference_id": "OKL-bd45aa917b684bf5b45ceb1e5f9f81a5",
-    "email": "caregiver-8ac1f2e9c0@example.com",
+    "reference_id": "OKL-398736a517294506853e65e573f31663",
+    "email": "caregiver-415f8d977a@example.com",
     "first_name": "Placeholder",
     "last_name": "Caregiver",
     "date_of_birth": "1990-04-12"
@@ -898,22 +898,27 @@ Request and response `201`:
     "status": "in_progress",
     "attempts_used": 1,
     "attempts_max": 3,
-    "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+    "active_verification_id": "fba4a99d-9053-4ba1-bcde-4a533b498a2b",
     "last_attempt_status": "created",
     "can_start": true,
     "failure_hint": null,
     "provider_available": true,
     "review_eta_hours": null,
     "policy_version": "kyc-2026-10"
-  }
+  },
+  "widget_url": "https://api.oakly.test/api/v1/kyc/widget/1793372817.fba4a99d-9053-4ba1-bcde-4a533b498a2b.ce08926be45d461d49296768df8600c036f92f3dbb4494f8ba0d1b2cdf4a0de8"
 }
 ```
 
 _capture `203-a-kyc-sessions-create.json`_
 
-Launch Dojah's widget with `widget.*` exactly as given: `app_id`, `public_key` and `widget_id` configure it, and **`widget.reference_id` is the reference you must pass to the widget unchanged** (it is how Dojah's result finds this attempt; the backend minted it and stored it, and the app must not generate its own). `first_name`, `last_name` and `date_of_birth` (the caregiver's Step 1 answers; `date_of_birth` is `null` if none) are for the widget's pre-filled details, so the caregiver does not retype them: a date that differs from the one on the BVN/NIN record sends the case to a person. `app_id` and `public_key` are public by Dojah's design but the app should not hard-code them (they can rotate). No secret is ever returned. The repeat call returns the same body (the same `reference_id`) with `200` (capture `204-a-kyc-sessions-again.json`); after a failed attempt the next `201` carries a different `reference_id`. **Not verified against the real widget: whether `DojahKycSdk.launch` and the hosted widget accept this reference as given (K7b spike / K8).**
+**Open the check through `widget_url` (the app does not embed Dojah's SDK).** `widget_url` is an absolute https link to a page the backend hosts (`<public base>/api/v1/kyc/widget/<token>`). Open it in the in-app browser with `expo-web-browser`'s `openAuthSessionAsync(widget_url, <the app's return deep link>)`; the page loads Dojah's web widget, opens it by itself (a "Start verification" button is the fallback), and when the widget reports success, close or error it shows "Done. You can return to the app" and navigates to the return deep link, which closes the browser session. **Do not use the widget's callbacks, or the closing of the browser, as the outcome:** the page sends nothing anywhere, so closing the browser only means "the caregiver came back"; then send `client-event` (`opened` when you open the page, `completed` when the browser session returns) and poll `GET` as below. **The token in the link lasts 30 minutes.** Always call `POST .../sessions` right before opening the page; on a repeat (`200`) the same `reference_id` comes back with a fresh `widget_url`. Never cache or reuse an old `widget_url`, and do not log or share it (it is a short-lived key to the page; the page itself shows only Dojah's public values). `widget_url` is the one field added in KD2; every other field of the response is unchanged.
 
-**Field-nesting trap:** `verification_id` and `attempt_no` are at the top level of the session response, the widget config is under `widget`, and the state object is under `state`. On `client-event` and `defer` the state is the whole body.
+Page behaviour the app can rely on (from the backend tests; **not covered by captures and not run live against Dojah's widget**, see the table at the end): a token that is malformed, forged or for an unknown attempt gives a plain `404` text page "Not found" (`Content-Type: text/plain`); an expired token, or a link for an attempt that is no longer open (passed, failed, in review, expired, errored, or already `awaiting_result`) gives a `410` page reading "This verification link has finished. Return to the app." that does not open the widget and also sends the caregiver back to the app. Offer "Start again" in the app (which calls `POST .../sessions` again) rather than reloading an old page. If the server's widget config is missing the page answers a bare `503` ("Unavailable"). The backend's own `PROVIDER_UNAVAILABLE` `503` on `POST .../sessions` now also covers a missing public base URL.
+
+Launch Dojah's widget with `widget.*` exactly as given: `app_id`, `public_key` and `widget_id` configure it, and **`widget.reference_id` is the reference you must pass to the widget unchanged** (it is how Dojah's result finds this attempt; the backend minted it and stored it, and the app must not generate its own). `first_name`, `last_name` and `date_of_birth` (the caregiver's Step 1 answers; `date_of_birth` is `null` if none) are for the widget's pre-filled details, so the caregiver does not retype them: a date that differs from the one on the BVN/NIN record sends the case to a person. `app_id` and `public_key` are public by Dojah's design but the app should not hard-code them (they can rotate). No secret is ever returned. The repeat call returns the same body (the same `reference_id`) with `200` (capture `204-a-kyc-sessions-again.json`); after a failed attempt the next `201` carries a different `reference_id`. The reference round-trip through Dojah's hosted widget was confirmed in the 2026-10-30 sandbox pass (KD1 SOP); **the page itself was not run against Dojah's widget with these headers (KD2).**
+
+**Field-nesting trap:** `verification_id`, `attempt_no` and `widget_url` are at the top level of the session response, the widget config is under `widget`, and the state object is under `state`. On `client-event` and `defer` the state is the whole body.
 
 Errors (`detail` is an **object** `{"code", "message"}` on every identity-verification error, unlike most of this API where it is a string; switch on `code`):
 
@@ -979,7 +984,7 @@ Call it from the widget's callbacks. `event` is `opened`, `completed`, `closed` 
   "status": "in_progress",
   "attempts_used": 1,
   "attempts_max": 3,
-  "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+  "active_verification_id": "fba4a99d-9053-4ba1-bcde-4a533b498a2b",
   "last_attempt_status": "awaiting_result",
   "can_start": true,
   "failure_hint": null,
@@ -1010,7 +1015,7 @@ A `session_id` or `reference_id` in the body is ignored, not rejected (capture `
   "status": "in_progress",
   "attempts_used": 1,
   "attempts_max": 3,
-  "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+  "active_verification_id": "fba4a99d-9053-4ba1-bcde-4a533b498a2b",
   "last_attempt_status": "awaiting_result",
   "can_start": true,
   "failure_hint": null,
@@ -3090,6 +3095,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Identity verification: state (fresh, checking, try again, attempts exhausted, under review, provider down), session create `201` and repeat `200`, hints, defer and `verified` status unchanged, the `409`/`422`/`503` errors, the `404` on someone else's attempt, `403`, `401`, the removed result call (`410`) | Yes (test harness: real app and Postgres, not the compose stack; **no Dojah call exists in these endpoints**) | `200`-`225` |
 | Identity verification: the engine's outcomes (verified, try again, under review, the third failure ending in review, expiry by the cron, the provider flagged down by an empty wallet) and `ALREADY_VERIFIED` / `UNDER_REVIEW` after them | **Yes, [engine] over a fake Dojah** | `210`, `213`, `215`, `226`-`231`: the real decision code, the real database and the real endpoints; the Dojah verification was served by `FakeDojah` (its shapes are the public docs' and the Timp/Weysure parsers'), so this is verified for our logic and **not** for real Dojah data |
 | Identity verification: the exhausted state with the caregiver still `in_progress` | **[seeded]** | `211`, `212`: a row inserted by hand; the engine never produces it |
+| Identity verification: the hosted widget page (`widget_url`: `404`/`410` pages, headers, CSP, return link, automatic return) | **Partly** | `widget_url` itself is in captures `203` and `204` (real app, real database). The page's HTML, status codes and headers are asserted by `app/tests/test_kyc_widget.py`, not captured (the harness records JSON bodies only), and the page logic was exercised in a browser only against a stub widget. **Never run live against Dojah's real widget with the CSP and `Permissions-Policy` in place** (the CSP allows all of `*.dojah.io` for that reason) |
 | Identity verification: the widget, the real Dojah reference round-trip and callbacks, a real signed webhook, a real verification pull, how a real result maps to `verified` / `needs_review`, real push and e-mail delivery | **No** | The webhook and engine are built (K3, K4, KD1) and tested against the fake; the widget (K7) and the live sandbox pass (K8) are not done. The `client-event` and `sessions` shapes are the backend's own; what Dojah's widget calls back with and what its real verifications contain are unconfirmed |
 | Identity verification: `IDENTITY_REJECTED`, `UNDER_REVIEW` from `defer`, the parallel-start race, consent rows | **[not live]** | `app/tests/test_kyc_caregiver_api.py` |
 | `provider_available` flipping from the engine's outage detection | **Partly** | Capture `231` is the engine setting the flag from a fake Dojah answer. The flag is a Redis key in production; the harness used an in-memory stand-in, and the Redis calls themselves are unit-tested with a fake client, never against a real Redis |

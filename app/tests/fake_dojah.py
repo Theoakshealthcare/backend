@@ -35,8 +35,9 @@ TEST_WIDGET_ID = "test-dojah-widget-id-placeholder"
 TEST_WEBHOOK_SECRET = "test-dojah-webhook-secret-placeholder"
 TEST_FINGERPRINT_KEY = "test-kyc-fingerprint-key-placeholder"
 # The three keys a production Settings needs (the app refuses to boot without them): for tests that build a production Settings.
+TEST_WIDGET_BASE_URL = "https://api.oakly.test"
 PRODUCTION_KYC_KEYS = {"DOJAH_WEBHOOK_SECRET": TEST_WEBHOOK_SECRET, "DOJAH_SECRET_KEY": TEST_SECRET_KEY,
-                       "KYC_FINGERPRINT_KEY": TEST_FINGERPRINT_KEY}
+                       "KYC_FINGERPRINT_KEY": TEST_FINGERPRINT_KEY, "KYC_WIDGET_PUBLIC_BASE_URL": TEST_WIDGET_BASE_URL}
 SANDBOX_NIN = "70000000017"  # a placeholder, not a real NIN
 SANDBOX_BVN = "22200000017"  # a placeholder, not a real BVN (Weysure's)
 SENTINEL_PHOTO = "data:image/jpeg;base64,SENTINEL-PHOTO-do-not-store"
@@ -229,7 +230,7 @@ def fake_dojah(monkeypatch):
     for name, value in {
         "DOJAH_BASE_URL": TEST_BASE_URL, "DOJAH_APP_ID": TEST_APP_ID, "DOJAH_PUBLIC_KEY": TEST_PUBLIC_KEY,
         "DOJAH_SECRET_KEY": TEST_SECRET_KEY, "DOJAH_WIDGET_ID": TEST_WIDGET_ID, "DOJAH_WEBHOOK_SECRET": TEST_WEBHOOK_SECRET,
-        "KYC_FINGERPRINT_KEY": TEST_FINGERPRINT_KEY,
+        "KYC_FINGERPRINT_KEY": TEST_FINGERPRINT_KEY, "KYC_WIDGET_PUBLIC_BASE_URL": TEST_WIDGET_BASE_URL,
     }.items():
         monkeypatch.setattr(settings, name, value)
     return fake

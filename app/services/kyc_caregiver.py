@@ -31,6 +31,7 @@ from app.db.models.identity_verification import (
 from app.services.consent import ConsentService
 from app.services.kyc_availability import ProviderAvailability
 from app.services.kyc_seam import is_our_reference, mint_reference
+from app.services.kyc_widget import widget_url
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ class CaregiverIdentityService:
                             "The identity-check consent text has changed. Reload and agree to the current version.")
         app_id, public_key, widget_id = settings.DOJAH_APP_ID, settings.DOJAH_PUBLIC_KEY, settings.DOJAH_WIDGET_ID
         available = self.availability.is_available()
-        if not (app_id and public_key and widget_id) or not available:
+        if not (app_id and public_key and widget_id and settings.KYC_WIDGET_PUBLIC_BASE_URL) or not available:
             raise KycError(503, "PROVIDER_UNAVAILABLE", "Identity verification is temporarily unavailable. Please try again later.")
 
         attempts = self._attempts(caregiver)
@@ -153,7 +154,8 @@ class CaregiverIdentityService:
             "email": caregiver.email or caregiver.user.email, "first_name": first, "last_name": last.strip(),
             "date_of_birth": caregiver.date_of_birth,  # so the widget need not ask again (a retyped date caused DOB_MISMATCH in Weysure)
         }
-        return {"verification_id": row.id, "attempt_no": row.attempt_no, "widget": widget, "state": self.state(caregiver, available)}, created
+        return {"verification_id": row.id, "attempt_no": row.attempt_no, "widget": widget, "state": self.state(caregiver, available),
+                "widget_url": widget_url(str(row.id))}, created
 
     # --- POST /{id}/client-event -------------------------------------------------------------------------------------
     def client_event(self, user_id: UUID, verification_id: UUID, event: str) -> Dict:

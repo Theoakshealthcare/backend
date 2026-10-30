@@ -14,14 +14,14 @@
       "content-type": "application/json"
     },
     "body": {
-      "verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+      "verification_id": "fba4a99d-9053-4ba1-bcde-4a533b498a2b",
       "attempt_no": 1,
       "widget": {
         "app_id": "test-dojah-app-id-placeholder",
         "public_key": "test-dojah-public-key-placeholder",
         "widget_id": "test-dojah-widget-id-placeholder",
-        "reference_id": "OKL-bd45aa917b684bf5b45ceb1e5f9f81a5",
-        "email": "caregiver-8ac1f2e9c0@example.com",
+        "reference_id": "OKL-398736a517294506853e65e573f31663",
+        "email": "caregiver-415f8d977a@example.com",
         "first_name": "Placeholder",
         "last_name": "Caregiver",
         "date_of_birth": "1990-04-12"
@@ -30,14 +30,15 @@
         "status": "in_progress",
         "attempts_used": 1,
         "attempts_max": 3,
-        "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
+        "active_verification_id": "fba4a99d-9053-4ba1-bcde-4a533b498a2b",
         "last_attempt_status": "created",
         "can_start": true,
         "failure_hint": null,
         "provider_available": true,
         "review_eta_hours": null,
         "policy_version": "kyc-2026-10"
-      }
+      },
+      "widget_url": "https://api.oakly.test/api/v1/kyc/widget/1793372817.fba4a99d-9053-4ba1-bcde-4a533b498a2b.ce08926be45d461d49296768df8600c036f92f3dbb4494f8ba0d1b2cdf4a0de8"
     }
   },
   "note": "Second call: 200, the same attempt and widget config (reopening the widget)."

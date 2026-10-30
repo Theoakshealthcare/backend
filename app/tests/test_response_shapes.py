@@ -47,6 +47,7 @@ def captured(db, client, monkeypatch, kyc_availability):
     monkeypatch.setattr(settings, "DOJAH_WIDGET_ID", "placeholder-widget-id")
     monkeypatch.setattr(settings, "DOJAH_APP_ID", "placeholder-app-id")
     monkeypatch.setattr(settings, "DOJAH_PUBLIC_KEY", "placeholder-public-key")
+    monkeypatch.setattr(settings, "KYC_WIDGET_PUBLIC_BASE_URL", "https://api.oakly.test")
     out = {}
     cg = make_caregiver(db, approved=False)
     out["verification_status"] = client.get("/api/v1/caregiver/verification-status", headers=auth_headers(cg.user))

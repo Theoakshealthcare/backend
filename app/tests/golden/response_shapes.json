@@ -258,7 +258,8 @@
       "public_key": "str",
       "reference_id": "str",
       "widget_id": "str"
-    }
+    },
+    "widget_url": "str"
   },
   "identity_state": {
     "active_verification_id": "str",

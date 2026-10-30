@@ -174,7 +174,8 @@ def test_a_session_is_created_with_widget_config_and_nothing_secret(db, client):
     row = rows(db, IdentityVerification, caregiver_id=caregiver.id)[0]
     assert (row.status, row.attempt_no, row.provider) == ("created", 1, "dojah")
     body = r.json()
-    assert set(body) == {"verification_id", "attempt_no", "widget", "state"}
+    assert set(body) == {"verification_id", "attempt_no", "widget", "state", "widget_url"}
+    assert body["widget_url"].startswith("https://") and "/api/v1/kyc/widget/" in body["widget_url"]  # KD2 (test_kyc_widget.py)
     assert body["verification_id"] == str(row.id) and body["attempt_no"] == 1
     assert REFERENCE.fullmatch(row.provider_session_id)  # minted by the server BEFORE the widget opens, stored on the attempt
     assert row.provider_reference == row.provider_session_id  # what the admin console shows, to find the run in Dojah
@@ -328,7 +329,7 @@ def test_provider_outage_refuses_a_session_without_side_effects(db, client, env)
     assert caregiver.identity_verification_status == "pending"
 
 
-@pytest.mark.parametrize("setting", ["DOJAH_APP_ID", "DOJAH_PUBLIC_KEY", "DOJAH_WIDGET_ID"])
+@pytest.mark.parametrize("setting", ["DOJAH_APP_ID", "DOJAH_PUBLIC_KEY", "DOJAH_WIDGET_ID", "KYC_WIDGET_PUBLIC_BASE_URL"])
 def test_an_unconfigured_widget_is_an_outage_not_a_half_session(db, client, monkeypatch, setting):
     monkeypatch.setattr(settings, setting, "")
     caregiver = cg(db)
