@@ -16,7 +16,7 @@ What an admin may do, both called by ``CaregiverApprovalService`` under its care
 Lock order is the K3 rule everywhere: the caregiver row first (the caller holds it), then the caregiver's attempts by id. So an
 admin action can queue behind the webhook worker or the cron, and the other way round, but never deadlock with them.
 
-Nothing here knows about Prembly: the reason codes and statuses are our own.
+Nothing here knows about the provider: the reason codes and statuses are our own.
 """
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional

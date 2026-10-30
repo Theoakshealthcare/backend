@@ -14,23 +14,23 @@
       "content-type": "application/json"
     },
     "body": {
-      "verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
+      "verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
       "attempt_no": 1,
       "widget": {
-        "widget_id": "placeholder-widget-id",
-        "widget_key": "placeholder-widget-key",
-        "email": "caregiver-7a3968665b@example.com",
+        "app_id": "test-dojah-app-id-placeholder",
+        "public_key": "test-dojah-public-key-placeholder",
+        "widget_id": "test-dojah-widget-id-placeholder",
+        "reference_id": "OKL-bd45aa917b684bf5b45ceb1e5f9f81a5",
+        "email": "caregiver-8ac1f2e9c0@example.com",
         "first_name": "Placeholder",
         "last_name": "Caregiver",
-        "metadata": {
-          "oakly_ref": "590006a8-5097-4d41-8f02-924e8147f036"
-        }
+        "date_of_birth": "1990-04-12"
       },
       "state": {
         "status": "in_progress",
         "attempts_used": 1,
         "attempts_max": 3,
-        "active_verification_id": "6d004602-b62b-4b16-8fbf-ff8945f22e38",
+        "active_verification_id": "0574ba7c-1236-4e31-a9d9-9885260ebb36",
         "last_attempt_status": "created",
         "can_start": true,
         "failure_hint": null,

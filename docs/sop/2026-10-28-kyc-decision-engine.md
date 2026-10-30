@@ -1,5 +1,7 @@
 # SOP: KYC decision engine (K4)
 
+> **Provider switched to Dojah on 2026-10-30 (slice KD1, [SOP](2026-10-30-kyc-dojah-adapter.md)).** The provider is Dojah. `Evidence.liveness_confidence` became `liveness_passed` (boolean) and `Policy.liveness_floor` / the `KYC_LIVENESS_FLOOR` rule are gone; `watchlisted` is never set by the seam (no Dojah signal). The decision rules, locks, advisory lock and notices are unchanged. The reconcile cron lost its "discover via the undelivered list" step (every attempt has a reference to pull). The rest of this document is the record of the original Prembly-era work.
+
 | | |
 |---|---|
 | **Date** | 2026-10-28 |

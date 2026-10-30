@@ -327,7 +327,7 @@ class AccountErasureService:
     def _wipe_identity_verifications(self, cg: Caregiver) -> None:
         """KYC (doc 10.3): the status, scores, timestamps and Oakly's own opaque reference stay as the audit and fraud trail;
         what lets the provider's records or another account be tied to this person goes: the provider's session and reference
-        and the keyed NIN/BVN fingerprint. (Oakly's own ``reference``, which Prembly also holds, stays: doc 10.3.)
+        and the keyed NIN/BVN fingerprint. (Oakly's own ``reference`` stays: doc 10.3.)
         An attempt still in flight is expired, so a late webhook or reconcile run meets a terminal attempt and is ignored. The webhook ledger's session ids go with them, including a ledger row
         that never matched an attempt (an orphan) but carries one of the caregiver's session ids."""
         # LOCK ORDER (K3): the caregiver row is already locked by ``_check_caregiver``; the attempts come second, by id, exactly as the

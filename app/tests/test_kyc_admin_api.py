@@ -17,6 +17,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.identity_verification import IdentityVerification, IdentityVerificationEvent
 from app.services.kyc_caregiver import RESET_MARK, attempts_used
 from app.tests.factories import auth_headers, make_admin, make_caregiver
+from app.tests.fake_dojah import new_reference
 
 BASE = "/api/v1/admin/caregivers"
 KYC = "/api/v1/caregiver/identity-verification"
@@ -34,6 +35,7 @@ def cg(db, status="pending", **kw):
 
 def attempt(db, caregiver, status, no=None, **kw):
     n = no or db.query(IdentityVerification).filter_by(caregiver_id=caregiver.id).count() + 1
+    kw.setdefault("provider_session_id", new_reference())  # the reference the server minted at start
     row = IdentityVerification(caregiver_id=caregiver.id, attempt_no=n, status=status, **kw)
     db.add(row)
     db.commit()
@@ -235,7 +237,7 @@ def test_an_unknown_identity_filter_is_a_422(db, client):
 
 
 # --- identity-decision -------------------------------------------------------------------------------------------------
-def decide(client, h, caregiver, decision, notes="Checked against the Prembly dashboard"):
+def decide(client, h, caregiver, decision, notes="Checked against the Dojah dashboard"):
     return client.post(f"{BASE}/{caregiver.id}/identity-decision", json={"decision": decision, "notes": notes}, headers=h)
 
 
@@ -256,7 +258,7 @@ def test_verifying_closes_the_review_attempt_and_writes_the_event(db, client):
     assert (event.verification_id, event.actor) == (review.id, f"admin:{admin.id}")
     assert (event.from_status, event.to_status) == ("needs_review", "passed")
     (row,) = audit_rows(db, "caregiver.identity_decision")
-    assert row.admin_user_id == admin.id and row.reason == "Checked against the Prembly dashboard"
+    assert row.admin_user_id == admin.id and row.reason == "Checked against the Dojah dashboard"
     assert row.before["identity_verification_status"] == "needs_review" and row.after["identity_verification_status"] == "verified"
     assert row.after["identity_verification_id"] == str(review.id)
 
@@ -348,21 +350,21 @@ def test_the_decision_contract_is_unchanged(db, client):
     assert audit_rows(db, "caregiver.identity_decision") == []
 
 
-def test_a_late_provider_result_cannot_move_a_caregiver_an_admin_decided(db, client, fake_prembly):
+def test_a_late_provider_result_cannot_move_a_caregiver_an_admin_decided(db, client, fake_dojah):
     from app.db.models.identity_verification import KycWebhookEvent
     from app.services.kyc_events import process_event
     from app.services.kyc_hooks import KycHooks
-    from app.tests.fake_prembly import FakeProviderAvailability
+    from app.tests.fake_dojah import FakeProviderAvailability
 
     c = cg(db, "in_progress", date_of_birth=datetime(1990, 4, 12).date())
     active = attempt(db, c, "awaiting_result")
     assert decide(client, admin_headers(db), c, "failed").status_code == 200
-    ledger = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id="placeholder-session-late", signature_ok=True)
+    ledger = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=active.provider_session_id, signature_ok=True)
     db.add(ledger)
     db.commit()
-    fake_prembly.script_clean_pass("placeholder-session-late", c)
+    fake_dojah.script_clean_pass(active.provider_session_id, c)
     hooks = KycHooks(availability=FakeProviderAvailability(), notify=lambda *_: None, alert=lambda *_: None)
-    process_event(db, {"event_id": str(ledger.id), "oakly_ref": str(active.reference)}, hooks=hooks)
+    process_event(db, {"event_id": str(ledger.id), "claim": None, "settled": True}, hooks=hooks)
     db.expire_all()
     assert db.get(Caregiver, c.id).identity_verification_status == "failed"
     assert db.get(IdentityVerification, active.id).status == "expired"
@@ -380,9 +382,7 @@ def test_attempts_used_ignores_attempts_before_a_reset():
     assert attempts_used([]) == 0
 
 
-def test_reset_gives_a_failed_caregiver_a_fresh_set_of_attempts(db, client, monkeypatch, kyc_availability):
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_ID", "placeholder-widget-id")
-    monkeypatch.setattr(settings, "PREMBLY_WIDGET_KEY", "placeholder-widget-key")
+def test_reset_gives_a_failed_caregiver_a_fresh_set_of_attempts(db, client, fake_dojah, kyc_availability):
     admin = make_admin(db, ["verification"], password=None)
     c = cg(db, "failed")
     for n in range(1, settings.KYC_MAX_ATTEMPTS + 1):

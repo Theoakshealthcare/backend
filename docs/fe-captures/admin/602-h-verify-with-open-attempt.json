@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/1b968f29-4c90-4ebe-ab94-a9639316d763/identity-decision",
+    "path": "/api/v1/admin/caregivers/dc3e238a-7555-48eb-9e5e-83f27b7f8b7d/identity-decision",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": {
       "decision": "verified",
@@ -14,7 +14,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "1b968f29-4c90-4ebe-ab94-a9639316d763",
+      "id": "dc3e238a-7555-48eb-9e5e-83f27b7f8b7d",
       "profile_status": "under_review",
       "identity_verification_status": "verified",
       "background_check_status": "pending",

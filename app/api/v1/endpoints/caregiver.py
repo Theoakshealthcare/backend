@@ -281,7 +281,7 @@ def get_identity_verification(
 
 @router.post("/identity-verification/sessions", response_model=IdentityVerificationSessionOut, status_code=status.HTTP_201_CREATED,
              responses={200: {"description": "The caregiver's active attempt, returned again."}, **_KYC_ERRORS,
-                        503: {"description": "PROVIDER_UNAVAILABLE: Prembly is flagged down or the widget is not configured."}})
+                        503: {"description": "PROVIDER_UNAVAILABLE: Dojah is flagged down or the widget is not configured."}})
 def create_identity_verification_session(
     payload: IdentityVerificationSessionRequest,
     response: Response,
@@ -302,7 +302,7 @@ def defer_identity_verification(
     current_user: User = Depends(get_current_caregiver),
     service: CaregiverIdentityService = Depends(_identity_service),
 ) -> Any:
-    """Outage path: only while Prembly is flagged unavailable. Lets the caregiver carry on to consent; verifies nobody."""
+    """Outage path: only while Dojah is flagged unavailable. Lets the caregiver carry on to consent; verifies nobody."""
     try:
         return service.defer(current_user.id)
     except KycError as exc:
@@ -318,9 +318,9 @@ def identity_verification_client_event(
     service: CaregiverIdentityService = Depends(_identity_service),
 ) -> Any:
     """A hint from the widget (opened, completed, closed, error). Non-authoritative: it can advance the caregiver's own
-    attempt and remember the session id, and can never change the caregiver's identity status."""
+    attempt, and can never change the caregiver's identity status."""
     try:
-        return service.client_event(current_user.id, verification_id, payload.event, payload.session_id)
+        return service.client_event(current_user.id, verification_id, payload.event)
     except KycError as exc:
         raise _kyc_http_error(exc)
 

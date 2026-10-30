@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/f515f69b-7162-4f62-8286-f5637e3d61c9/identity-decision",
+    "path": "/api/v1/admin/caregivers/09c9f2dc-29e6-4caa-980f-6af168a93f0a/identity-decision",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": {
       "decision": "verified",

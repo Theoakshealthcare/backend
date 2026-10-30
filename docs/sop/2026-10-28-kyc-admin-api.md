@@ -1,5 +1,7 @@
 # SOP: KYC admin API (K5)
 
+> **Provider switched to Dojah on 2026-10-30 (slice KD1, [SOP](2026-10-30-kyc-dojah-adapter.md)).** The provider is Dojah: `liveness_confidence` is always `null`, `provider_reference` holds the server-minted `OKL-` reference (look the run up in the Dojah dashboard), and the `watchlisted` reason cannot occur for now. No admin code changed. The rest of this document is the record of the original Prembly-era work.
+
 | | |
 |---|---|
 | **Date** | 2026-10-29 |

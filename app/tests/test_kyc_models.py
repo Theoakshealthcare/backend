@@ -44,7 +44,7 @@ def test_defaults(db, cg):
     db.add(a)
     db.commit()
     db.refresh(a)
-    assert isinstance(a.reference, uuid.UUID) and a.provider == "prembly" and a.reason_codes == []
+    assert isinstance(a.reference, uuid.UUID) and a.provider == "dojah" and a.reason_codes == []
     assert a.created_at is not None and a.updated_at is not None
     assert a.provider_session_id is None and a.id_fingerprint is None and a.decided_via is None
 

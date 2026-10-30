@@ -144,6 +144,6 @@ def client():
 from app.tests.factories import *  # noqa: E402,F401,F403
 from app.tests.fakes import expo  # noqa: E402,F401  (fixture)
 from app.tests.fake_meta import fake_meta, fake_paystack  # noqa: E402,F401  (fixtures)
-from app.tests.fake_prembly import fake_prembly, kyc_availability  # noqa: E402,F401  (fixtures)
+from app.tests.fake_dojah import fake_dojah, kyc_availability  # noqa: E402,F401  (fixtures)
 from app.tests.booking_fixtures import booking_env  # noqa: E402,F401  (fixture)
 from app.tests.admin_helpers import admin_clock, pinned_ip_window  # noqa: E402,F401  (fixtures)

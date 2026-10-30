@@ -1,4 +1,4 @@
-"""Read a webhook's raw body with a size cap (shared by the Meta and Prembly webhooks).
+"""Read a webhook's raw body with a size cap (shared by the Meta and Dojah webhooks).
 
 A signature is checked over the exact bytes received, so webhooks read the body themselves instead of letting FastAPI parse it.
 """

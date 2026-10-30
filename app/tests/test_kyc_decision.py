@@ -15,12 +15,12 @@ from app.services.kyc_matching import (
     dobs_match, id_fingerprint, name_tokens, names_match, normalise_id_number, parse_dob,
 )
 
-POLICY = Policy(face_threshold=85, face_floor=70, liveness_floor=50, max_attempts=3)
+POLICY = Policy(face_threshold=85, face_floor=70, max_attempts=3)
 PROFILE = Profile(full_name="Amina Bello", date_of_birth=date(1990, 4, 12))
 
 
 def good(**kw):
-    base = dict(verdict="pass", face_confidence=Decimal("92"), liveness_confidence=Decimal("90"),
+    base = dict(verdict="pass", face_confidence=Decimal("92"), liveness_passed=True,
                 registry_name="BELLO AMINA", registry_dob=date(1990, 4, 12))
     base.update(kw)
     return Evidence(**base)
@@ -130,10 +130,10 @@ def test_a_missing_face_score_cannot_pass():
     assert (d.status, d.reasons) == ("needs_review", ("identity_data_missing",))
 
 
-def test_liveness_below_the_floor_is_a_clean_failure_and_a_missing_score_is_not():
-    assert run(good(liveness_confidence=Decimal("49"))).reasons == ("liveness_failed",)
-    assert run(good(liveness_confidence=Decimal("50"))).status == "passed"
-    assert run(good(liveness_confidence=None)).status == "passed"
+def test_failed_liveness_is_a_clean_failure_and_an_unreported_one_is_not():
+    assert run(good(liveness_passed=False)).reasons == ("liveness_failed",)
+    assert run(good(liveness_passed=True)).status == "passed"
+    assert run(good(liveness_passed=None)).status == "passed"
 
 
 def test_name_and_dob_differences_go_to_review_with_their_reason():
@@ -185,7 +185,7 @@ def _random_case(rng: random.Random):
     verdict = rng.choice(["pass", "fail"])
     score = lambda: rng.choice([None, Decimal(rng.choice([0, 30, 69, 70, 84, 85, 99, 100]))])  # noqa: E731
     evidence = Evidence(
-        verdict=verdict, face_confidence=score(), liveness_confidence=score(), watchlisted=rng.random() < 0.15,
+        verdict=verdict, face_confidence=score(), liveness_passed=rng.choice([None, True, True, True, False]), watchlisted=rng.random() < 0.15,
         failure_reason=rng.choice([None, "document_unreadable", "record_not_found", "face_mismatch"]),
         registry_name=rng.choice([None, "BELLO AMINA", "OKAFOR CHINEDU", "Amina Bello Yusuf", ""]),
         registry_dob=rng.choice([None, date(1990, 4, 12), date(1991, 4, 12)]))
@@ -205,7 +205,7 @@ def test_fuzz_a_pass_needs_every_check_and_the_caregiver_is_never_failed():
             assert evidence.verdict == "pass" and not evidence.watchlisted and not duplicate and not disagreement
             assert evidence.face_confidence is not None and evidence.face_confidence >= POLICY.face_threshold
             assert d.name_match is True and d.dob_match is True and d.reasons == ()
-            assert evidence.liveness_confidence is None or evidence.liveness_confidence >= POLICY.liveness_floor
+            assert evidence.liveness_passed is not False
         else:
             assert d.reasons  # every non-pass says why
         if d.status == "failed":
@@ -224,3 +224,41 @@ def test_every_reason_the_engine_can_emit_is_a_known_reason_code():
                        "watchlisted", "provider_disagreement", "provider_failed", "attempts_exhausted", "identity_data_missing"}
     assert reasons - set(REASON_CODES) == {"identity_data_missing"}  # the one code K4 adds (no migration: the set is not a CHECK)
     assert list(itertools.islice(REASON_CODES, 1))
+
+
+def test_incomplete_evidence_is_never_a_pass_and_never_a_failed_try():
+    d = run(good(incomplete=True))
+    assert (d.status, d.reasons) == ("needs_review", ("identity_data_missing",))
+    assert run(good(incomplete=True), used=3).status == "needs_review"  # not a counted failure either
+
+
+# --- no face number from the provider (owner decision 2026-10-30) ----------------------------------------------------------
+def flag_only(**kw):
+    return good(face_confidence=None, face_flag_only=True, **kw)
+
+
+def test_without_a_face_number_the_providers_own_success_flag_stands_in():
+    d = run(flag_only())
+    assert (d.status, d.reasons) == ("passed", ())
+
+
+def test_flag_only_still_needs_the_name_and_date_of_birth_to_match():
+    assert run(flag_only(registry_name="OKAFOR CHINEDU")).reasons == ("name_mismatch",)
+    assert run(flag_only(registry_dob=date(1991, 4, 12))).reasons == ("dob_mismatch",)
+    assert run(flag_only(registry_name=None)).reasons == ("identity_data_missing",)
+
+
+def test_flag_only_needs_the_flag_to_be_true_and_the_pass_to_be_complete():
+    assert run(flag_only(liveness_passed=None, incomplete=True)).reasons == ("identity_data_missing",)
+    d = run(flag_only(verdict="fail", liveness_passed=False))
+    assert (d.status, d.reasons) == ("failed", ("liveness_failed",))
+    assert run(flag_only(verdict="fail", liveness_passed=True)).reasons == ("provider_failed",)
+
+
+def test_a_missing_number_that_is_not_flag_only_is_still_missing():
+    assert run(good(face_confidence=None)).reasons == ("identity_data_missing",)
+
+
+def test_flag_only_changes_nothing_when_a_number_is_present():
+    assert run(good(face_confidence=Decimal("40"), face_flag_only=True)).reasons == ("face_mismatch",)
+    assert run(good(face_confidence=Decimal("78"), face_flag_only=True)).reasons == ("face_grey_band",)

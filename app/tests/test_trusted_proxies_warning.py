@@ -3,7 +3,7 @@
 import logging
 
 from app.core.config import Settings
-from app.tests.fake_prembly import PRODUCTION_KYC_KEYS
+from app.tests.fake_dojah import PRODUCTION_KYC_KEYS
 
 
 def _settings(**overrides):

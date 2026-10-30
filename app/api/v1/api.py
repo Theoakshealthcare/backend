@@ -28,4 +28,4 @@ api_router.include_router(admin_auth.router, prefix="/admin/auth", tags=["admin-
 api_router.include_router(admin_users.router, prefix="/admin", tags=["admin-users"])
 api_router.include_router(admin_care_plans.router, prefix="/admin", tags=["admin-care-plans"])
 api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
-api_router.include_router(kyc_webhook.router, prefix="/kyc/prembly", tags=["kyc"])
+api_router.include_router(kyc_webhook.router, prefix="/kyc/dojah", tags=["kyc"])

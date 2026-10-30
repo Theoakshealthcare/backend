@@ -1,46 +1,74 @@
-"""THE SEAM between Oakly's KYC code and what Prembly really sends. Every assumption the public docs do not confirm lives here.
+"""THE SEAM between Oakly's KYC code and what Dojah really sends. Every assumption the public docs do not confirm lives here.
 
-Built against the PUBLIC docs only (docs/plans/2026-10-27-caregiver-kyc-design.md sections 3 and 15). Until the K0 spike and the K8
-live pass nothing below has met the real service. When the real captures arrive, change THIS module (and ``prembly.py``'s
-``SESSION_PATH`` / ``_extract_session``); the webhook endpoint, the ledger and the worker job read Prembly only through it.
+Provider is Dojah as of 2026-10-30 (Prembly was dropped; docs/plans/2026-10-30-caregiver-kyc-dojah-delta.md). Sources are tagged
+[DOCS] (Dojah's public pages), [PORT] (working code in the owner's Timpbills and Weysure) and [UNVERIFIED] (nothing of Oakly has
+met the real service until the K8 live pass). When the real captures arrive, change THIS module (and ``dojah.py``'s ``_extract``);
+the webhook endpoint, the ledger and the worker job read Dojah only through it.
 
-UNCONFIRMED assumptions (each is also listed in the K3 SOP):
+The model: the app launches Dojah's hosted widget with a reference the SERVER minted (``OKL-<uuid4 hex>``, stored on the attempt in
+``provider_session_id``). Dojah signs a webhook that names that ``reference_id``; the webhook is only a trigger. The worker PULLS
+``GET /api/v1/kyc/verification?reference_id=...`` with the secret key and trusts the pull, never the webhook body (K-C1).
 
-  U1  Signing key. ``x-prembly-signature`` is the base64 HMAC-SHA256 of the raw body keyed by ``PREMBLY_WEBHOOK_KEY``. Prembly's page
-      calls the key the *public* key (the one inside the app). If so a signature proves little, which is why a webhook never sets
-      anything by itself: the worker PULLS the session with the secret key and trusts the pull (K-C1, ``kyc_events``). (Q4)
-  U2  Signature encoding. Standard base64 of the raw digest, compared as text. Hex or URL-safe base64 would be refused. (Q4/Q5)
-  U3  Idempotency header. ``token`` is unique per webhook and a RETRY of the same webhook carries the same ``token``. (Q5)
-  U4  Retry behaviour. Prembly "may retry on 500" (no schedule or count published), so a failed enqueue answers 500 and the ledger
-      row is removed to let the retry through (``ENQUEUE_FAILURE_STATUS``). No timestamp or replay window exists. (Q5)
-  U5  Event shape. ``event`` and ``session_id`` at the top level (the SDK sample); ``session_id`` is also looked for under ``data``.
-      Event NAMES are not trusted for anything: only ``verification.completed`` is documented, so every event with a session id is
-      handled the same way (the pull decides), and unknown names are logged, not rejected. (Q5)
-  U6  Metadata echo. Whether our ``oakly_ref`` comes back in the webhook, and where (``metadata``, ``data.metadata`` or
-      ``data.widget_info.user_ref``), and whether it comes back in the session pull (``payload.metadata`` etc.). When it is not
-      echoed, the attempt is found by the client's session-id hint and bound by the end user's e-mail instead. (Q2)
-  U7  Webhook claim. ``verification.status`` (``VERIFIED`` in the sample) is the webhook's verdict, compared with the pull's. (Q1/Q6)
-  U8  Pull verdict. The session's ``overall_result`` says pass or fail ("passed" in the docs; the other values are guesses, see
-      ``PASS_WORDS`` / ``FAIL_WORDS``). A value in neither list means "not final": nothing is recorded as an outcome. (Q3)
-  U9  Scores. Read from the pull's ``payload`` (``include_payload=true``): ``face_data.confidence`` and
-      ``biometric_results.liveness_confidence``. The scale is unknown (Q6): the face score is taken as 0-100 and the liveness score
-      as 0-1 (``FACE_SCORE_SCALE`` / ``LIVENESS_SCORE_SCALE``); a value outside its scale is dropped, never clamped.
-  U10 Provider reference. ``payload.verification.reference`` is Prembly's reference for the check.
-  U11 Body cap. 1 MB is far above any documented payload (Q5 asks Prembly for the real maximum).
-  U12 Registry identity (K4). The registry's name, date of birth and ID number come back in the pull's ``payload.verification_response``
-      (the NIN / BVN samples): a full name or first / middle / last parts, a date under ``birthdate`` / ``dateOfBirth`` / ``dob``,
-      the number under ``number``. Not found there = not compared: the engine sends the attempt to a human (``identity_data_missing``).
-      The session's own top-level ``full_name`` is NOT used: it is what the widget was pre-filled with, not the registry's. (Q1)
-  U13 ID type. ``payload.id_type`` (or ``verification_response.id_type``) is one of ``nin``, ``bvn``, ``drivers_licence``,
-      ``voters_card``, ``passport``; anything else is left NULL. (Q1)
-  U14 Watch list. ``verification_response.watchListed`` (BVN sample, code ``07``) is true for a watch-listed person. (Q1)
-  U15 Failure reason. ``failure_reason`` is free text; ``_failure_code`` maps a few keywords (liveness, not found, unreadable,
-      face) onto our reason codes and anything else is ``provider_failed``. (Q6)
+LIVE SANDBOX PASS (2026-10-30, three runs on a phone; SOP section "Live sandbox pass"). CONFIRMED live (sandbox keys): D1 (hex
+``x-dojah-signature`` over the raw body, keyed by the webhook secret, plus an ignored ``-v2`` header), D4 (flat body: ``reference_id`` and
+``verification_status`` at the top level, no ``entity`` wrapper), D5 (the widget took our ``reference_id``; the pull's ``entity`` echoes it),
+D6 (``Completed`` seen), D9 (BVN entity with ``first_name`` / ``middle_name`` / ``last_name`` / ``date_of_birth`` as ``DD-Mon-YYYY``; the
+sandbox returns a canned person unrelated to the BVN typed), D14's sandbox host (``https://sandbox.dojah.io``; ``api.dojah.io`` answers 401
+to test keys). STILL OPEN: production score fields (D7), webhook retry schedule and the QR / other-device case (D2/D3; run 2 produced NO
+webhook at all and only the reconcile cron settled it), ``Abandoned`` and relaunch (D6), the BVN entity's ``watch_listed`` string (empty in
+the sandbox, values unknown) and ``aml.status`` (D11), failure ``message`` texts (D12), price per session, image retention.
+
+UNCONFIRMED assumptions (each is also listed in the KD1 SOP for the K8 pass):
+
+  D1  Signature. ``x-dojah-signature`` is the HEX HMAC-SHA256 of the RAW body keyed by the webhook SECRET (Developers -> Webhooks,
+      "Secret" column), not by the API secret key [DOCS][PORT]. ``x-dojah-signature-v2`` (a hash of the secret alone) does not bind
+      the payload and is ignored. Whether the dashboard's Secret really is the HMAC key: [UNVERIFIED].
+  D2  No idempotency header is documented, so the ledger key is derived from the delivery itself: ``reference_id`` + the status word
+      + the body hash. A retry of the same body is deduped; a later event with a different status or body is processed.
+  D3  Retry behaviour is unknown [UNVERIFIED]: the docs only say "respond 200". A failed enqueue still answers 500 and forgets the
+      ledger row (``ENQUEUE_FAILURE_STATUS``). Whether a session finished on another device (QR continue) fires the webhook, and
+      whether the dashboard has a delivery log: [UNVERIFIED]. The reconcile cron covers all of it.
+  D4  Event shape. Top-level ``reference_id``, ``verification_status``, ``status``, ``verification_type``, ``data``, ``metadata`` and
+      no ``entity`` wrapper [DOCS]; ``referenceId`` and ``data.reference_id`` are also looked at [PORT]. Only the reference and the
+      status word are read; the rest of the body is dropped, image links (``selfie_url``, ``id_url``, ``back_url``,
+      ``verification_pdf``) included.
+  D5  Reference echo. The widget is launched with our reference and Dojah returns it as ``reference_id`` in the webhook AND in the
+      pull's ``entity`` [DOCS][PORT]. The pull must name the attempt's reference or it is not used (see ``dojah._extract``).
+  D6  Status words. ``verification_status`` is ``Ongoing`` | ``Pending`` | ``Completed`` | ``Failed`` | ``Abandoned`` [DOCS][PORT].
+      ``Completed`` is NOT a pass: it means the flow finished. A pass needs ``government_data.status`` AND ``selfie.status`` true and
+      the face confidence over the threshold; an explicit false is a fail, but an ABSENT or unreadable result is neither
+      (``Evidence.incomplete``: a person looks, so a drifting shape never costs a try nor verifies anyone). ``Failed`` is a final fail. ``Abandoned`` and ``Pending`` / ``Ongoing`` are not final:
+      nothing is recorded, and the attempt expires at its TTL if it is never finished (delta: abandoned -> expired path). Whether an
+      abandoned reference may be launched again: [UNVERIFIED].
+  D7  Face score. ``data.selfie.confidence_value`` (0-100) against ``DOJAH_FACE_MATCH_THRESHOLD`` (default 70, as Timp and Weysure);
+      the field NAME is [UNVERIFIED] in Weysure's own SOP. Dojah's pages quote 60/80/90 for different products. A value outside
+      0-100 is dropped, never clamped. Without a number the face step follows ``selfie.status``. The engine's own bands
+      (``KYC_FACE_FLOOR`` / ``KYC_FACE_THRESHOLD``) then apply to the same number.
+      SANDBOX FINDING (live run, 2026-10-30): the pull has NO ``confidence_value``; ``selfie.data.match_score`` and
+      ``selfie.data.liveness_score`` are null and only ``selfie.status`` (true) and ``message`` strings are present. OWNER DECISION
+      (2026-10-30 13:35 WAT): when Dojah gives no face number AT ALL (``Evidence.face_flag_only``: the field is absent or null),
+      ``selfie.status == True`` with the government check true stands in for the face check, so name/date of birth are what decide;
+      a number that is present but unusable is still "missing" (review), a numeric score keeps every threshold and band, and an
+      absent or false flag is missing / a fail as before. Reason: Dojah already runs liveness + face match and returns its own
+      success flag, as Timp and Weysure rely on. Revisit if production returns scores (and read ``selfie.data.match_score``).
+  D8  Liveness. No separate score is known: liveness is ``selfie.status`` (a boolean, probably liveness AND match in one flag
+      [UNVERIFIED]; the sandbox's ``selfie.data.liveness_score`` is null). ``Evidence.liveness_passed`` carries it; ``identity_verifications.liveness_confidence`` stays NULL.
+  D9  Registry identity (K4). ``data.government_data.data.<bvn|nin>.entity`` with ``first_name``, ``middle_name``, ``last_name``,
+      ``date_of_birth`` (``01-Jun-1982`` seen; ``kyc_matching.parse_dob`` takes seven formats) and the ID number under the type's
+      own key [PORT, confirmed live on Timp 2026-07-11]. Whether a NIN answer carries ``date_of_birth`` and the number: [UNVERIFIED].
+      Missing = not compared: the engine sends the attempt to a human (``identity_data_missing``).
+  D10 ID type. ``verification_type`` (``BVN`` / ``NIN``), else the one key present under ``government_data.data``. Driver's licence,
+      voter's card and passport depend on how the owner configures the flow: the widget is built for BVN and NIN, others are left NULL.
+  D11 Watch list. No equivalent known (``aml.status`` exists in the webhook, meaning [UNVERIFIED]): ``Evidence.watchlisted`` is
+      always False for now.
+  D12 Failure reason. ``message`` fields are free text; ``_failure_code`` maps a few keywords onto our reason codes and anything
+      else is ``provider_failed``.
+  D13 Body cap. 1 MB is far above any documented payload.
+  D14 Cost. The pull is not known to carry a price: ``provider_cost`` stays NULL. Sandbox vs production base URL and app ids: [UNVERIFIED].
 
 Nothing here stores a body or a person's details: the functions return small typed values and drop the rest. The registry name,
 date of birth and number live in an ``Evidence`` (in memory, hidden from ``repr``) for the length of one decision.
 """
-import base64
 import hashlib
 import hmac
 import re
@@ -50,54 +78,64 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from app.core.config import settings
-from app.db.models.identity_verification import ID_TYPES
+from app.services.dojah import ID_TYPES, REFERENCE_ID_PATTERN, DojahVerification
 from app.services.kyc_decision import Evidence
 from app.services.kyc_matching import parse_dob
-from app.services.prembly import SESSION_ID_PATTERN, PremblySession
 
-SIGNATURE_HEADER = "x-prembly-signature"
-TOKEN_HEADER = "token"
-MAX_BODY_BYTES = 1_000_000  # U11
-ENQUEUE_FAILURE_STATUS = 500  # U4: the status Prembly documents as "may retry"
-MAX_TOKEN_LENGTH = 200
-MAX_EVENT_TYPE_LENGTH = 64
-
-PASS_WORDS = frozenset({"verified", "passed", "pass", "success", "successful", "approved"})  # U7/U8
-FAIL_WORDS = frozenset({"failed", "fail", "declined", "rejected", "unverified", "not_verified"})
-FACE_SCORE_SCALE = 100  # U9
-LIVENESS_SCORE_SCALE = 1
+SIGNATURE_HEADER = "x-dojah-signature"  # D1
+MAX_BODY_BYTES = 1_000_000  # D13
+ENQUEUE_FAILURE_STATUS = 500  # D3: our "please retry" answer; whether Dojah retries is unknown
+REFERENCE_PREFIX = "OKL-"
+_OUR_REFERENCE = re.compile(r"OKL-[0-9a-f]{32}")
+_ANY_REFERENCE = re.compile(REFERENCE_ID_PATTERN)
 
 PASS, FAIL = "pass", "fail"
-_SESSION_ID = re.compile(SESSION_ID_PATTERN)
-_EVENT_TYPE = re.compile(r"[A-Za-z0-9_.:-]+")
+# D6 (``Completed`` is handled apart: it is a finished flow, not a verdict)
+FAILED_WORDS, OPEN_WORDS = frozenset({"failed"}), frozenset({"pending", "ongoing"})
+ABANDONED = "abandoned"
+SCORE_SCALE = 100
 
 
-def webhook_signing_key() -> str:
-    """U1: the key the webhook signature is checked with. Empty means "not configured" and nothing verifies."""
-    return settings.PREMBLY_WEBHOOK_KEY
+def mint_reference() -> str:
+    """D5: the provider reference of a new attempt, minted BEFORE the widget is launched. Unguessable (122 random bits)."""
+    return REFERENCE_PREFIX + uuid.uuid4().hex
 
 
-def verify_signature(raw_body: bytes, header: Optional[str], key: str) -> bool:
-    """U1/U2. Over the RAW bytes, compared in constant time. An empty key never verifies (HMAC with an empty key is something anyone
-    can compute, so "verifying" with it would be a forgery hole disguised as a check); neither does a missing or empty header."""
-    if not key or not header or not header.strip():
+def is_our_reference(value: Any) -> bool:
+    """Is ``value`` shaped like a reference this server minted? A signed event for anything else is not ours (the same Dojah
+    account may serve other widgets) and is acknowledged without being recorded."""
+    return isinstance(value, str) and _OUR_REFERENCE.fullmatch(value) is not None
+
+
+def webhook_secret() -> str:
+    """D1: the key the webhook signature is checked with. Empty means "not configured" and nothing verifies."""
+    return settings.DOJAH_WEBHOOK_SECRET
+
+
+def verify_signature(raw_body: bytes, header: Optional[str], secret: str) -> bool:
+    """D1. Hex HMAC-SHA256 over the RAW bytes, compared in constant time and as bytes (a non-ASCII header is a plain mismatch, not
+    an exception). An empty secret never verifies (HMAC with an empty key is something anyone can compute, so "verifying" with it
+    would be a forgery hole disguised as a check); neither does a missing or empty header."""
+    if not secret or not header or not header.strip():
         return False
-    expected = base64.b64encode(hmac.new(key.encode(), raw_body, hashlib.sha256).digest())
-    return hmac.compare_digest(expected, header.strip().encode("utf-8", "replace"))
+    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected.encode(), header.strip().lower().encode("utf-8", "replace"))
 
 
-def valid_token(token: Optional[str]) -> bool:
-    """U3: a printable, bounded string (it is stored and used as a unique key)."""
-    return bool(token) and len(token) <= MAX_TOKEN_LENGTH and token.isprintable() and token == token.strip()
+def dedupe_key(raw_body: bytes, event: "WebhookEvent") -> str:
+    """D2: the ledger's unique key for one delivery: reference + status word + body hash, itself hashed (fixed length, nothing
+    readable). The same body twice is one event; the same reference with another status or body is another."""
+    material = "\n".join((event.reference_id, event.verification_status or "", hashlib.sha256(raw_body).hexdigest()))
+    return hashlib.sha256(material.encode()).hexdigest()
 
 
 @dataclass(frozen=True)
 class WebhookEvent:
     """The few facts read from a webhook body. The body itself is never kept (design 8.2)."""
-    session_id: str
-    event_type: Optional[str]  # sanitised; informational only (U5)
-    oakly_ref: Optional[uuid.UUID]  # U6
-    claim: Optional[str]  # PASS / FAIL / None (U7)
+    reference_id: str  # D4: shaped like a URL-safe token, but not necessarily one of ours (``is_our_reference``)
+    verification_status: Optional[str]  # D6: one of Dojah's five words, lower-cased; None when absent or unknown
+    claim: Optional[str]  # FAIL when the webhook says Failed, else None: the webhook cannot say "pass" (Completed is not a pass)
+    settled: bool  # the webhook says the flow reached an end (Completed or Failed): the pull should show a verdict
 
 
 def _dict(value: Any) -> dict:
@@ -108,87 +146,74 @@ def _word(value: Any) -> Optional[str]:
     return value.strip().lower().replace(" ", "_") if isinstance(value, str) else None
 
 
-def _verdict(value: Any) -> Optional[str]:
-    word = _word(value)
-    return PASS if word in PASS_WORDS else FAIL if word in FAIL_WORDS else None
-
-
-def _as_ref(value: Any) -> Optional[uuid.UUID]:
-    try:
-        return uuid.UUID(value) if isinstance(value, str) else None
-    except ValueError:
-        return None
-
-
-def _echoed_ref(container: dict) -> Optional[uuid.UUID]:
-    """U6: our ``oakly_ref`` wherever Prembly might echo it inside ``container`` (a webhook body or a pull's payload)."""
-    data = _dict(container.get("data"))
-    for candidate in (_dict(container.get("metadata")).get("oakly_ref"), _dict(data.get("metadata")).get("oakly_ref"),
-                      _dict(data.get("widget_info")).get("user_ref")):
-        ref = _as_ref(candidate)
-        if ref is not None:
-            return ref
-    return None
-
-
 def parse_event(payload: Any) -> Optional[WebhookEvent]:
-    """U5-U7. None when the body is not a JSON object with a usable ``session_id`` (the endpoint answers 400)."""
+    """D4/D6. None when the body is not a JSON object with a usable ``reference_id`` (the endpoint answers 400)."""
     body = _dict(payload)
-    session_id = body.get("session_id") or _dict(body.get("data")).get("session_id")
-    if not isinstance(session_id, str) or not _SESSION_ID.fullmatch(session_id):
+    reference = next((c for c in (body.get("reference_id"), body.get("referenceId"), _dict(body.get("data")).get("reference_id"))
+                      if isinstance(c, str) and c), None)
+    if reference is None or not _ANY_REFERENCE.fullmatch(reference):
         return None
-    event_type = body.get("event")
-    if not (isinstance(event_type, str) and event_type and len(event_type) <= MAX_EVENT_TYPE_LENGTH
-            and _EVENT_TYPE.fullmatch(event_type)):
-        event_type = None
-    return WebhookEvent(session_id=session_id, event_type=event_type, oakly_ref=_echoed_ref(body),
-                        claim=_verdict(_dict(body.get("verification")).get("status")))
+    word = _word(body.get("verification_status"))
+    known = FAILED_WORDS | OPEN_WORDS | {"completed", ABANDONED}
+    word = word if word in known else None
+    return WebhookEvent(reference_id=reference, verification_status=word, claim=FAIL if word in FAILED_WORDS else None,
+                        settled=word == "completed" or word in FAILED_WORDS)
 
 
 @dataclass(frozen=True)
 class Observation:
-    """What the PULLED session says (the trusted confirmation, design 8.4), reduced to what is recorded and decided on. The
-    scalar fields hold no name, e-mail or number; those are only in ``evidence`` (K4), which is in memory and hidden from ``repr``."""
-    final: bool  # the provider reached a verdict (U8)
+    """What the PULLED verification says (the trusted confirmation, design 8.4), reduced to what is recorded and decided on. The
+    scalar fields hold no name or number; those are only in ``evidence`` (K4), which is in memory and hidden from ``repr``."""
+    final: bool  # Dojah reached a verdict (D6)
     verdict: Optional[str]  # PASS / FAIL when final
     face_confidence: Optional[Decimal]
-    liveness_confidence: Optional[Decimal]
-    provider_reference: Optional[str]
-    echoed_ref: Optional[uuid.UUID]
+    abandoned: bool = False  # D6: the person left the widget; not final
     evidence: Optional[Evidence] = field(default=None, repr=False)  # set when final: what the K4 decision rules read
 
 
-def _score(value: Any, scale: int) -> Optional[Decimal]:
-    """U9: a score on 0..``scale`` normalised to 0..100, or None when absent or outside its scale."""
+def _score(value: Any) -> Optional[Decimal]:
+    """D7: a score on 0..100, or None when absent or outside the scale."""
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         return None
     try:
         number = Decimal(str(value))
     except InvalidOperation:
         return None
-    if not number.is_finite() or number < 0 or number > scale:
+    if not number.is_finite() or number < 0 or number > SCORE_SCALE:
         return None
-    return (number * 100 / scale).quantize(Decimal("0.01"))
+    return number.quantize(Decimal("0.01"))
 
 
-def observe(session: PremblySession) -> Observation:
-    verdict = _verdict(session.overall_result)
-    payload = session.payload or {}
-    face = _score(_dict(payload.get("face_data")).get("confidence"), FACE_SCORE_SCALE)
-    liveness = _score(_dict(payload.get("biometric_results")).get("liveness_confidence"), LIVENESS_SCORE_SCALE)
-    registry = _dict(payload.get("verification_response"))
-    evidence = None
-    if verdict is not None:
-        evidence = Evidence(
-            verdict=verdict, face_confidence=face, liveness_confidence=liveness, watchlisted=_watchlisted(registry),
-            failure_reason=_failure_code(session.failure_reason), id_type=_id_type(payload, registry),
-            id_number=_text(registry.get("number")), registry_name=_registry_name(registry),
-            registry_dob=_registry_dob(registry))
-    return Observation(
-        final=verdict is not None, verdict=verdict, face_confidence=face, liveness_confidence=liveness,
-        provider_reference=_reference(_dict(payload.get("verification")).get("reference")),  # U10
-        echoed_ref=_echoed_ref(payload), evidence=evidence,
-    )
+def observe(verification: DojahVerification) -> Observation:
+    status = _word(verification.verification_status)
+    face = _score(verification.selfie_confidence)
+    if status == ABANDONED:
+        return Observation(final=False, verdict=None, face_confidence=None, abandoned=True)
+    if status not in FAILED_WORDS and status != "completed":
+        return Observation(final=False, verdict=None, face_confidence=None)  # Pending, Ongoing, or a word we do not know
+    verdict = FAIL if status in FAILED_WORDS else _completed_verdict(verification, face)
+    incomplete = verdict == PASS and (verification.government_status is None or verification.selfie_status is None)
+    registry = verification.registry
+    id_type = verification.registry_type if verification.registry_type in ID_TYPES else None
+    evidence = Evidence(
+        verdict=verdict, face_confidence=face, liveness_passed=verification.selfie_status, watchlisted=False,  # D8, D11
+        failure_reason=_failure_code(verification.message), id_type=id_type,
+        id_number=_text(registry.get(id_type)) if id_type else None, registry_name=_registry_name(registry),
+        registry_dob=parse_dob(_text(registry.get("date_of_birth"))), incomplete=incomplete,
+        face_flag_only=not verification.selfie_confidence_given)
+    return Observation(final=True, verdict=verdict, face_confidence=face, evidence=evidence)
+
+
+def _completed_verdict(verification: DojahVerification, face: Optional[Decimal]) -> str:
+    """D6/D7: ``Completed`` passes only when the government record AND the selfie are both true and the face number (when Dojah gives
+    one) reaches the threshold. An explicit false is a fail. A result that is ABSENT or unreadable is neither: it returns PASS with
+    ``Evidence.incomplete`` set (see ``observe``), which the rules turn into ``needs_review`` (``identity_data_missing``), never into a
+    pass, and never into a failed attempt that would cost the caregiver a try because Dojah's shape drifted."""
+    if verification.government_status is False or verification.selfie_status is False:
+        return FAIL
+    if face is not None and face < settings.DOJAH_FACE_MATCH_THRESHOLD:
+        return FAIL
+    return PASS
 
 
 def _text(value: Any) -> Optional[str]:
@@ -199,34 +224,13 @@ def _text(value: Any) -> Optional[str]:
     return None
 
 
-def _first(container: dict, *keys: str) -> Optional[str]:
-    return next((t for t in (_text(container.get(k)) for k in keys) if t), None)
-
-
 def _registry_name(registry: dict) -> Optional[str]:
-    """U12: the registry's full name, or its parts joined."""
-    full = _first(registry, "full_name", "fullName", "name")
-    if full:
-        return full
-    parts = [_first(registry, *keys) for keys in (("firstname", "first_name", "firstName"), ("middlename", "middle_name", "middleName"),
-                                                 ("lastname", "last_name", "lastName", "surname"))]
+    """D9: the registry's name parts joined."""
+    parts = (_text(registry.get(key)) for key in ("first_name", "middle_name", "last_name"))
     return " ".join(p for p in parts if p) or None
 
 
-def _registry_dob(registry: dict):
-    return parse_dob(_first(registry, "birthdate", "dateOfBirth", "date_of_birth", "dob"))
-
-
-def _id_type(payload: dict, registry: dict) -> Optional[str]:
-    word = _word(payload.get("id_type")) or _word(registry.get("id_type"))
-    return word if word in ID_TYPES else None
-
-
-def _watchlisted(registry: dict) -> bool:
-    return any(registry.get(key) is True for key in ("watchListed", "watchlisted", "watch_listed"))
-
-
-_FAILURE_KEYWORDS = (  # U15: (substring of the provider's free text, our reason code); first hit wins
+_FAILURE_KEYWORDS = (  # D12: (substring of the provider's free text, our reason code); first hit wins
     ("liveness", "liveness_failed"), ("not found", "record_not_found"), ("no record", "record_not_found"),
     ("unreadable", "document_unreadable"), ("blur", "document_unreadable"), ("document", "document_unreadable"),
     ("face", "face_mismatch"),
@@ -236,12 +240,3 @@ _FAILURE_KEYWORDS = (  # U15: (substring of the provider's free text, our reason
 def _failure_code(reason: Optional[str]) -> Optional[str]:
     text = (reason or "").casefold()
     return next((code for needle, code in _FAILURE_KEYWORDS if needle in text), None)
-
-
-def _reference(value: Any) -> Optional[str]:
-    return value if isinstance(value, str) and 0 < len(value) <= 128 else None
-
-
-def same_email(a: Optional[str], b: Optional[str]) -> bool:
-    """U6 fallback binding: the e-mail Prembly recorded for the session is the account's own."""
-    return bool(a) and bool(b) and a.strip().casefold() == b.strip().casefold()

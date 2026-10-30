@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/caregivers/f515f69b-7162-4f62-8286-f5637e3d61c9",
+    "path": "/api/v1/admin/caregivers/09c9f2dc-29e6-4caa-980f-6af168a93f0a",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,11 +12,11 @@
     },
     "body": {
       "profile": {
-        "id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
-        "user_id": "23c7965e-04cb-451a-af0c-6134ded09a3d",
-        "email": "caregiver-bcf6c117f1@example.com",
+        "id": "09c9f2dc-29e6-4caa-980f-6af168a93f0a",
+        "user_id": "e4a768ba-cc03-4fe2-b8ef-cd257d0c5176",
+        "email": "caregiver-1c81a01441@example.com",
         "full_name": "Placeholder Chidi Nwosu",
-        "phone_number": "+2348613208706",
+        "phone_number": "+2348879141985",
         "date_of_birth": "1990-04-12",
         "gender": null,
         "state": "Lagos",
@@ -33,8 +33,8 @@
         "terms_accepted": false,
         "privacy_policy_accepted": false,
         "background_check_consent": false,
-        "created_at": "2026-10-29T13:53:07.430220",
-        "updated_at": "2026-10-29T13:53:09.273799"
+        "created_at": "2026-10-30T10:40:41.660951",
+        "updated_at": "2026-10-30T10:40:43.276832"
       },
       "consents": {
         "terms_accepted": false,
@@ -51,22 +51,22 @@
         "can_reset": false,
         "attempts": [
           {
-            "id": "48f2105f-3e36-45a9-8e66-04ef2b63776e",
+            "id": "35ec66ba-3e97-46f3-ae72-15ce67c58cca",
             "attempt_no": 1,
             "status": "passed",
-            "created_at": "2026-10-29T13:53:07.436913",
+            "created_at": "2026-10-30T10:40:41.665341",
             "started_at": null,
-            "completed_at": "2026-10-27T10:01:30",
+            "completed_at": "2026-10-30T10:40:41.673081",
             "id_type": "bvn",
             "face_confidence": 92.0,
-            "liveness_confidence": 90.0,
+            "liveness_confidence": null,
             "face_threshold": 85,
             "name_match": false,
             "dob_match": true,
             "reason_codes": [
               "name_mismatch"
             ],
-            "provider_reference": null,
+            "provider_reference": "OKL-b31e67c64e1f4300b6d60955b8ab73e8",
             "decided_via": "admin"
           }
         ],
@@ -89,22 +89,22 @@
       "skills": [],
       "audit_history": [
         {
-          "id": "61b6e034-9836-4133-81be-382758fde61e",
+          "id": "e253e45a-e8d4-44f8-a7de-f2aab31cb8a5",
           "action": "caregiver.identity_decision",
-          "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+          "admin_user_id": "f9db366c-f263-4a68-ab09-d53f9fdf6f0b",
           "entity_type": "caregiver",
-          "entity_id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
-          "reason": "Placeholder: married name, checked on the Prembly dashboard.",
-          "created_at": "2026-10-29T13:53:09.271541"
+          "entity_id": "09c9f2dc-29e6-4caa-980f-6af168a93f0a",
+          "reason": "Placeholder: married name, checked on the Dojah dashboard.",
+          "created_at": "2026-10-30T10:40:43.274392"
         },
         {
-          "id": "822a6daf-9eb1-40fc-916b-8bf013b68bfa",
+          "id": "0a6a5b9b-9c04-401d-8338-7897eecd8949",
           "action": "caregiver.view",
-          "admin_user_id": "378fae2c-10ce-4432-8510-5ddf9ad599cd",
+          "admin_user_id": "f9db366c-f263-4a68-ab09-d53f9fdf6f0b",
           "entity_type": "caregiver",
-          "entity_id": "f515f69b-7162-4f62-8286-f5637e3d61c9",
+          "entity_id": "09c9f2dc-29e6-4caa-980f-6af168a93f0a",
           "reason": null,
-          "created_at": "2026-10-29T13:53:09.126620"
+          "created_at": "2026-10-30T10:40:43.139859"
         }
       ]
     }

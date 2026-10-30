@@ -1,5 +1,7 @@
 # SOP: caregiver KYC foundation (K1)
 
+> **Provider switched to Dojah on 2026-10-30 (slice KD1, [SOP](2026-10-30-kyc-dojah-adapter.md)).** `app/services/prembly.py`, `FakePrembly`, the `PREMBLY_*` settings and the `prembly` provider default are gone: replaced by `app/services/dojah.py`, `FakeDojah` (`app/tests/fake_dojah.py`) and `DOJAH_*`. The tables are unchanged (`provider_session_id` now holds the server-minted reference; `provider_reference` the same value for the admin console; `token` the derived dedupe key); migration `0015` was edited in place for the `dojah` server default. The rest of this document is the record of the original Prembly-era work.
+
 | | |
 |---|---|
 | **Date** | 2026-10-27 |

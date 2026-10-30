@@ -11,8 +11,10 @@ from types import SimpleNamespace
 import time
 import uuid
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
+import httpx
 import pytest
 from sqlalchemy import text
 
@@ -20,16 +22,19 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.identity_verification import IdentityVerification, IdentityVerificationEvent, KycWebhookEvent
 from app.db.session import SessionLocal
 from app.services import kyc_notify
+from app.services.dojah import DojahClient
 from app.services.kyc_caregiver import CaregiverIdentityService
 from app.services.kyc_events import process_event
 from app.services.kyc_hooks import KycHooks
 from app.tests.factories import make_caregiver
-from app.tests.fake_prembly import FakeProviderAvailability, SANDBOX_BVN, SANDBOX_NIN, fake_prembly  # noqa: F401
+from app.tests.fake_dojah import (  # noqa: F401
+    SANDBOX_BVN, SANDBOX_NIN, SENTINEL_PHOTO, FakeDojah, FakeProviderAvailability, fake_dojah, new_reference,
+)
 
 
 @pytest.fixture(autouse=True)
-def env(fake_prembly):  # noqa: F811
-    return fake_prembly
+def env(fake_dojah):  # noqa: F811
+    return fake_dojah
 
 
 class Recorder:
@@ -60,6 +65,7 @@ def cg(db, **kw):
 
 
 def attempt(db, caregiver, status="awaiting_result", **kw):
+    kw.setdefault("provider_session_id", new_reference())  # the reference the server minted at start
     row = IdentityVerification(caregiver_id=caregiver.id, attempt_no=kw.pop("attempt_no", 1), status=status, **kw)
     db.add(row)
     db.commit()
@@ -71,21 +77,22 @@ def fresh(db, row):
     return db.get(type(row), row.id)
 
 
-def run(db, rec, session_id, a, *, claim=None):
-    """One webhook event through the worker (the ledger row stands in for the endpoint's insert)."""
-    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=session_id, signature_ok=True)
+def run(db, rec, a, *, claim=None, reference=None):
+    """One webhook event through the worker (the ledger row stands in for the endpoint's insert). ``a`` is the attempt whose reference
+    the webhook names (``reference`` overrides it)."""
+    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=reference or a.provider_session_id, signature_ok=True)
     db.add(event)
     db.commit()
-    job = {"event_id": str(event.id), "oakly_ref": str(a.reference), "claim": claim}
+    job = {"event_id": str(event.id), "claim": claim, "settled": True}
     return process_event(db, job, hooks=rec.hooks())
 
 
 # --- the decision matrix, end to end ---------------------------------------------------------------------------------
-def test_a_clean_pass_verifies_the_caregiver_and_tells_them(db, rec, fake_prembly):
+def test_a_clean_pass_verifies_the_caregiver_and_tells_them(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    result = run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    result = run(db, rec, a)
     assert result.outcome == "applied"
     c, a = fresh(db, caregiver), fresh(db, a)
     assert (c.identity_verification_status, c.profile_completion_step) == ("verified", 3)
@@ -95,12 +102,13 @@ def test_a_clean_pass_verifies_the_caregiver_and_tells_them(db, rec, fake_prembl
     assert (trail.actor, trail.to_status) == ("provider", "passed")
 
 
-def test_a_clean_failure_asks_for_another_try_and_never_fails_the_caregiver(db, rec, fake_prembly):
+def test_a_clean_failure_asks_for_another_try_and_never_fails_the_caregiver(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="failed",
-                                failure_reason="Unable to read the document", face_confidence=None)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_verification(a.provider_session_id, status="Failed", confidence=None, selfie=None, government=None,
+                                   message="Unable to read the document")
+    fake_dojah.verifications[a.provider_session_id]["message"] = "Unable to read the document"
+    run(db, rec, a)
     c, a = fresh(db, caregiver), fresh(db, a)
     assert (c.identity_verification_status, c.profile_completion_step) == ("in_progress", 2)  # still on the identity step
     assert (a.status, a.reason_codes) == ("failed", ["document_unreadable"])
@@ -109,13 +117,13 @@ def test_a_clean_failure_asks_for_another_try_and_never_fails_the_caregiver(db, 
     assert state["failure_hint"] == "document" and state["can_start"] is True and state["attempts_used"] == 1
 
 
-def test_three_clean_failures_end_in_review_not_in_failed(db, rec, fake_prembly):
+def test_three_clean_failures_end_in_review_not_in_failed(db, rec, fake_dojah):
     caregiver = cg(db)
     kinds, statuses = [], []
     for n in (1, 2, 3):
         a = attempt(db, caregiver, attempt_no=n)
-        fake_prembly.script_session(f"sdk_session_{n}", email=caregiver.email, overall_result="failed", face_confidence=20)
-        run(db, rec, f"sdk_session_{n}", a)
+        fake_dojah.script_verification(a.provider_session_id, status="Failed", confidence=20)
+        run(db, rec, a)
         statuses.append((fresh(db, a).status, fresh(db, caregiver).identity_verification_status))
     assert statuses == [("failed", "in_progress"), ("failed", "in_progress"), ("needs_review", "needs_review")]
     assert rec.kinds == ["try_again", "try_again", "under_review"]
@@ -124,79 +132,123 @@ def test_three_clean_failures_end_in_review_not_in_failed(db, rec, fake_prembly)
     assert fresh(db, caregiver).profile_completion_step == 3  # handed to a person: the app moves on to consent
 
 
-def test_expired_and_error_attempts_do_not_count_toward_exhaustion(db, rec, fake_prembly):
+def test_expired_and_error_attempts_do_not_count_toward_exhaustion(db, rec, fake_dojah):
     caregiver = cg(db)
     attempt(db, caregiver, status="expired", attempt_no=1)
     attempt(db, caregiver, status="error", attempt_no=2)
     attempt(db, caregiver, status="failed", attempt_no=3)
     a = attempt(db, caregiver, attempt_no=4)
-    fake_prembly.script_session("sdk_session_a", email=caregiver.email, overall_result="failed", face_confidence=20)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_verification(a.provider_session_id, status="Failed", confidence=20, selfie=False)
+    run(db, rec, a)
     assert (fresh(db, a).status, fresh(db, caregiver).identity_verification_status) == ("failed", "in_progress")  # the 2nd counted failure
 
 
 @pytest.mark.parametrize("override,reason,name,dob", [
-    (dict(registry_name="CHINEDU OKAFOR"), "name_mismatch", False, True),
-    (dict(registry_dob="1991-04-12"), "dob_mismatch", True, False),
-    (dict(face_confidence=78.0), "face_grey_band", True, True),
-    (dict(registry_name=None), "identity_data_missing", None, True),
-    (dict(face_confidence=None), "identity_data_missing", True, True),
+    (dict(first_name="CHINEDU", middle_name=None, last_name="OKAFOR"), "name_mismatch", False, True),
+    (dict(date_of_birth="12-Apr-1991"), "dob_mismatch", True, False),
+    (dict(confidence=78.0), "face_grey_band", True, True),
+    (dict(first_name=None, middle_name=None, last_name=None), "identity_data_missing", None, True),
+    (dict(confidence=None, selfie=None), "identity_data_missing", True, True),  # no number AND no flag: nothing to trust
+    (dict(confidence=500.0), "identity_data_missing", True, True),  # a number that is present but unusable is not "no number"
+    (dict(date_of_birth=None), "identity_data_missing", True, None),
 ])
-def test_ambiguous_results_go_to_the_review_queue_never_to_rejection(db, rec, fake_prembly, override, reason, name, dob):
+def test_ambiguous_results_go_to_the_review_queue_never_to_rejection(db, rec, fake_dojah, override, reason, name, dob):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver, **override)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, **override)
+    run(db, rec, a)
     c, a = fresh(db, caregiver), fresh(db, a)
     assert (c.identity_verification_status, a.status, a.reason_codes) == ("needs_review", "needs_review", [reason])
     assert (a.name_match, a.dob_match) == (name, dob)
     assert rec.kinds == ["under_review"]
 
 
-def test_a_watch_listed_identity_goes_to_review_whatever_the_verdict(db, rec, fake_prembly):
+def test_a_watch_listed_identity_goes_to_review_whatever_the_verdict(db, rec):
+    """Dojah gives no watch-list signal today (kyc_seam D11), so the seam never sets the flag; the engine still honours it."""
+    from app.services import kyc_engine
+    from app.services.kyc_decision import Evidence
+
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver, watchlisted=True)
-    run(db, rec, "sdk_session_a", a)
+    evidence = Evidence(verdict="pass", face_confidence=Decimal("95"), liveness_passed=True, watchlisted=True, id_type="nin",
+                        registry_name=caregiver.full_name, registry_dob=caregiver.date_of_birth)
+    kyc_engine.decide_and_apply(db, db.get(Caregiver, caregiver.id), a, evidence, actor="provider")
+    db.commit()
     assert (fresh(db, caregiver).identity_verification_status, fresh(db, a).reason_codes) == ("needs_review", ["watchlisted"])
 
 
-def test_a_provider_that_passes_a_low_face_score_is_still_a_failure(db, rec, fake_prembly):
+def test_the_seam_never_reports_a_watch_list_hit_for_dojah(db, rec, fake_dojah):
+    from app.services import kyc_seam
+
+    caregiver = cg(db)
+    fake_dojah.script_clean_pass("OKL-" + "0" * 32, caregiver, aml={"status": True})
+    verification = DojahClient.from_settings().get_verification("OKL-" + "0" * 32)
+    assert kyc_seam.observe(verification).evidence.watchlisted is False
+
+
+def test_failed_liveness_is_a_clean_failure_of_its_own(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver, face_confidence=40.0)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, selfie=False, confidence=95.0)  # high number, but the flag says no
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes, a.liveness_confidence) == ("failed", ["liveness_failed"], None)
+    assert fresh(db, caregiver).identity_verification_status == "in_progress"
+
+
+def test_a_provider_that_passes_a_low_face_score_is_still_a_failure(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=40.0)
+    run(db, rec, a)
     assert (fresh(db, a).status, fresh(db, a).reason_codes, fresh(db, caregiver).identity_verification_status) == (
         "failed", ["face_mismatch"], "in_progress")
 
 
-def test_the_thresholds_come_from_settings(db, rec, fake_prembly, monkeypatch):
+def test_the_thresholds_come_from_settings(db, rec, fake_dojah, monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "KYC_FACE_THRESHOLD", 95)
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver, face_confidence=92.0)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=92.0)
+    run(db, rec, a)
     assert (fresh(db, a).reason_codes, fresh(db, a).face_threshold) == (["face_grey_band"], 95)
 
 
-def test_a_caregiver_past_step_three_is_not_moved_back(db, rec, fake_prembly):
+def test_the_dojah_face_match_threshold_comes_from_settings(db, rec, fake_dojah, monkeypatch):
+    """Dojah's own pass line (DOJAH_FACE_MATCH_THRESHOLD) is separate from Oakly's bands: 75 passes Dojah's 70 but sits in the grey band;
+    raised to 80 the provider's verdict itself becomes a fail, which a grey-band face still sends to a person, never to rejection."""
+    from app.core.config import settings
+
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=75.0)
+    assert run(db, rec, a).observation.verdict == "pass" and fresh(db, a).reason_codes == ["face_grey_band"]
+
+    monkeypatch.setattr(settings, "DOJAH_FACE_MATCH_THRESHOLD", 80)
+    b = attempt(db, cg(db), attempt_no=1)
+    fake_dojah.script_clean_pass(b.provider_session_id, db.get(Caregiver, b.caregiver_id), confidence=75.0)
+    result = run(db, rec, b)
+    assert result.observation.verdict == "fail" and (fresh(db, b).status, fresh(db, b).reason_codes) == ("needs_review", ["face_grey_band"])
+
+
+def test_a_caregiver_past_step_three_is_not_moved_back(db, rec, fake_dojah):
     caregiver = cg(db, profile_completion_step=4)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    run(db, rec, a)
     assert fresh(db, caregiver).profile_completion_step == 4
 
 
 # --- duplicate identity ----------------------------------------------------------------------------------------------
-def test_one_nin_on_two_accounts_sends_the_second_to_review_without_saying_why(db, rec, fake_prembly):
+def test_one_nin_on_two_accounts_sends_the_second_to_review_without_saying_why(db, rec, fake_dojah):
     first, second = cg(db), cg(db)
     a1, a2 = attempt(db, first), attempt(db, second)
-    fake_prembly.script_clean_pass("sdk_session_1", first)
-    fake_prembly.script_clean_pass("sdk_session_2", second)
-    run(db, rec, "sdk_session_1", a1)
-    run(db, rec, "sdk_session_2", a2)
+    fake_dojah.script_clean_pass(a1.provider_session_id, first)
+    fake_dojah.script_clean_pass(a2.provider_session_id, second)
+    run(db, rec, a1)
+    run(db, rec, a2)
     assert fresh(db, first).identity_verification_status == "verified"
     c2, a2 = fresh(db, second), fresh(db, a2)
     assert (c2.identity_verification_status, a2.status, a2.reason_codes) == ("needs_review", "needs_review", ["duplicate_identity"])
@@ -206,40 +258,40 @@ def test_one_nin_on_two_accounts_sends_the_second_to_review_without_saying_why(d
     assert "duplicate" not in blob and "another account" not in blob  # the caregiver is told only "under review"
 
 
-def test_the_same_number_of_a_different_kind_is_not_a_duplicate(db, rec, fake_prembly):
+def test_the_same_number_of_a_different_kind_is_not_a_duplicate(db, rec, fake_dojah):
     first, second = cg(db), cg(db)
     a1, a2 = attempt(db, first), attempt(db, second)
-    fake_prembly.script_clean_pass("sdk_session_1", first, id_type="nin")
-    fake_prembly.script_clean_pass("sdk_session_2", second, id_type="bvn")
-    run(db, rec, "sdk_session_1", a1)
-    run(db, rec, "sdk_session_2", a2)
+    fake_dojah.script_clean_pass(a1.provider_session_id, first, id_type="nin")
+    fake_dojah.script_clean_pass(a2.provider_session_id, second, id_type="bvn")
+    run(db, rec, a1)
+    run(db, rec, a2)
     assert fresh(db, second).identity_verification_status == "verified"
 
 
-def test_a_failed_or_unfinished_attempt_with_the_same_number_does_not_count(db, rec, fake_prembly):
+def test_a_failed_or_unfinished_attempt_with_the_same_number_does_not_count(db, rec, fake_dojah):
     other = cg(db)
     attempt(db, other, status="needs_review", id_fingerprint="x" * 64)
     me = cg(db)
     a = attempt(db, me)
-    fake_prembly.script_clean_pass("sdk_session_a", me, id_number=SANDBOX_BVN, id_type="bvn")
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, me, id_number=SANDBOX_BVN, id_type="bvn")
+    run(db, rec, a)
     assert fresh(db, me).identity_verification_status == "verified"
 
 
-def test_no_number_in_the_payload_means_no_duplicate_check_and_no_fingerprint(db, rec, fake_prembly):
+def test_no_number_in_the_payload_means_no_duplicate_check_and_no_fingerprint(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver, id_number=None)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, id_number=None)
+    run(db, rec, a)
     a = fresh(db, a)
     assert (a.status, a.id_fingerprint) == ("passed", None)
 
 
-def test_the_number_itself_is_stored_nowhere(db, rec, fake_prembly):
+def test_the_number_itself_is_stored_nowhere(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    run(db, rec, a)
     for table, column in db.execute(text("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' "
                                          "AND table_name IN ('identity_verifications', 'identity_verification_events', "
                                          "'kyc_webhook_events', 'caregivers')")).all():
@@ -249,30 +301,30 @@ def test_the_number_itself_is_stored_nowhere(db, rec, fake_prembly):
 
 # --- no event ever overwrites a human decision -----------------------------------------------------------------------
 @pytest.mark.parametrize("human", ["verified", "failed", "needs_review"])
-def test_a_provider_event_never_changes_a_caregiver_a_person_decided(db, rec, fake_prembly, human):
+def test_a_provider_event_never_changes_a_caregiver_a_person_decided(db, rec, fake_dojah, human):
     caregiver = cg(db, identity_verification_status=human)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    result = run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    result = run(db, rec, a)
     assert result.outcome == "ignored_terminal" and result.notice is None
     a = fresh(db, a)
     assert fresh(db, caregiver).identity_verification_status == human
-    assert (a.status, a.completed_at, a.provider_session_id) == ("awaiting_result", None, None)  # not even bound
+    assert (a.status, a.completed_at, a.face_confidence) == ("awaiting_result", None, None)  # nothing recorded
     assert db.query(IdentityVerificationEvent).count() == 0 and rec.notices == []
 
 
-def test_an_admin_decision_that_lands_while_the_worker_waits_for_the_lock_wins(db, rec, fake_prembly):
+def test_an_admin_decision_that_lands_while_the_worker_waits_for_the_lock_wins(db, rec, fake_dojah):
     """The admin holds the caregiver row (decide_identity locks it first); the worker queues behind and then finds a decided caregiver."""
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
     box = {}
-    ref = SimpleNamespace(reference=a.reference)  # read here: a session's instances are not shared with the worker thread
+    ref = SimpleNamespace(provider_session_id=a.provider_session_id)  # read here: a session's instances are not shared with the worker thread
 
     def worker():
         s = SessionLocal()
         try:
-            box["result"] = run(s, rec, "sdk_session_a", ref).outcome
+            box["result"] = run(s, rec, ref).outcome
         except Exception as exc:  # noqa: BLE001
             box["error"] = exc
         finally:
@@ -305,71 +357,83 @@ def _waiting_on_a_lock() -> bool:
         s.close()
 
 
-def test_an_attempt_that_is_already_decided_is_inert(db, rec, fake_prembly):
+def test_an_attempt_that_is_already_decided_is_inert(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver, status="failed")
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    assert run(db, rec, "sdk_session_a", a).outcome == "ignored_terminal"
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    assert run(db, rec, a).outcome == "ignored_terminal"
     assert fresh(db, a).status == "failed" and fresh(db, caregiver).identity_verification_status == "in_progress"
-    assert len(fake_prembly.requests) == 0  # not even a pull
+    assert len(fake_dojah.requests) == 0  # not even a pull
 
 
 # --- a forged event can neither verify nor taint ---------------------------------------------------------------------
-def test_a_session_that_is_not_the_attempts_decides_nothing(db, rec, fake_prembly):
+def test_a_reference_that_is_not_the_attempts_decides_nothing(db, rec, fake_dojah):
     victim, attacker = cg(db), cg(db)
     a = attempt(db, victim)
-    fake_prembly.script_clean_pass("sdk_session_a", attacker)  # the attacker's own perfect session, named against the victim's attempt
-    result = run(db, rec, "sdk_session_a", a)
-    assert result.outcome == "disagreement" and result.notice is None
+    theirs = new_reference()
+    fake_dojah.script_clean_pass(theirs, attacker)  # the attacker's own perfect run
+    fake_dojah.script(httpx.Response(200, json={"entity": fake_dojah.verifications[theirs]}))  # served for the victim's reference
+    result = run(db, rec, a)
+    assert result.outcome == "error" and result.notice is None
     assert fresh(db, victim).identity_verification_status == "in_progress" and fresh(db, a).status == "awaiting_result"
-    assert fresh(db, a).provider_session_id is None and rec.notices == []
+    assert fresh(db, a).reason_codes == [] and rec.notices == []
 
 
-def test_a_pull_that_is_not_final_decides_nothing(db, rec, fake_prembly):
+def test_a_signed_event_naming_the_attackers_own_reference_cannot_reach_the_victims_attempt(db, rec, fake_dojah):
+    """The attacker's reference binds the attacker's attempt only: the victim's attempt is never found, never pulled."""
+    victim, attacker = cg(db), cg(db)
+    va, aa = attempt(db, victim), attempt(db, attacker)
+    fake_dojah.script_clean_pass(aa.provider_session_id, attacker)
+    run(db, rec, va, reference=aa.provider_session_id)  # the ledger row names the attacker's reference
+    assert fresh(db, va).status == "awaiting_result" and fresh(db, victim).identity_verification_status == "in_progress"
+    assert fake_dojah.references_pulled == [aa.provider_session_id]
+
+
+def test_a_pull_that_is_not_final_decides_nothing(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver, overall_result="in_progress")
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, status="Ongoing")
+    run(db, rec, a)
     assert (fresh(db, a).status, fresh(db, caregiver).identity_verification_status) == ("awaiting_result", "in_progress")
     assert rec.notices == []
 
 
 # --- the provider flag and the wallet alert --------------------------------------------------------------------------
-def test_three_outage_errors_in_a_row_flag_the_provider_unavailable(db, rec, fake_prembly):
+def test_three_outage_errors_in_a_row_flag_the_provider_unavailable(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.server_error()
+    fake_dojah.server_error()
     for _ in range(3):
         assert rec.availability.available
-        run(db, rec, "sdk_session_a", a)
+        run(db, rec, a)
     assert rec.availability.available is False and rec.alerts == []  # an outage is not an ops alert
 
 
-def test_a_good_pull_clears_the_streak_and_the_flag(db, rec, fake_prembly):
+def test_a_good_pull_clears_the_streak_and_the_flag(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
     rec.availability.errors, rec.availability.available = 2, False
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    run(db, rec, "sdk_session_a", a)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    run(db, rec, a)
     assert (rec.availability.errors, rec.availability.available) == (0, True)
 
 
 @pytest.mark.parametrize("arrange,kind", [("wallet_empty", "wallet_empty"), ("unauthorised", "unauthorised")])
-def test_an_empty_wallet_or_a_refused_key_flags_at_once_and_alerts_once(db, rec, fake_prembly, arrange, kind):
+def test_an_empty_wallet_or_a_refused_key_flags_at_once_and_alerts_once(db, rec, fake_dojah, arrange, kind):
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    getattr(fake_prembly, arrange)()
-    run(db, rec, "sdk_session_a", a)
+    getattr(fake_dojah, arrange)()
+    run(db, rec, a)
     assert rec.availability.available is False and rec.alerts == [kind]
-    run(db, rec, "sdk_session_b", a)  # a second event while it is still empty: flagged again, not alerted again
+    run(db, rec, a)  # a second event while it is still empty: flagged again, not alerted again
     assert rec.alerts == [kind]
 
 
-def test_a_not_found_answer_is_not_an_outage(db, rec, fake_prembly):
+def test_a_not_found_answer_is_not_an_outage(db, rec, fake_dojah):
     caregiver = cg(db)
     a = attempt(db, caregiver)
     for _ in range(4):
-        run(db, rec, "sdk_session_unknown", a)
+        run(db, rec, a)  # nothing scripted: 404
     assert rec.availability.available is True and rec.availability.errors == 0
 
 
@@ -463,16 +527,6 @@ def test_the_ops_alert_logs_and_emails_when_an_address_is_set(monkeypatch, caplo
     kyc_notify.alert_ops("unauthorised")  # never raises
 
 
-def test_a_session_already_on_another_attempt_decides_nothing_and_tells_nobody(db, rec, fake_prembly):
-    caregiver, other = cg(db), cg(db)
-    attempt(db, other, provider_session_id="sdk_session_a")  # already on another attempt: ``_claim_session`` refuses it (email-only binding)
-    a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    result = run(db, rec, "sdk_session_a", a)
-    assert result.outcome == "disagreement" and rec.notices == []
-    assert fresh(db, caregiver).identity_verification_status == "in_progress"
-
-
 # --- the trust rule, structurally ------------------------------------------------------------------------------------
 def test_only_three_places_in_the_app_write_the_caregivers_identity_status():
     """The engine (pull-confirmed decisions), the admin decision, and K2's pending -> in_progress when an attempt starts (plus the
@@ -492,106 +546,135 @@ def test_only_three_places_in_the_app_write_the_caregivers_identity_status():
     assert not bulk, bulk
 
 
-# --- a squatted session hint (K2 follow-up) ----------------------------------------------------------------------------
-def test_a_squatted_hint_is_cleared_when_prembly_echoes_our_ref_for_the_real_owner(db, rec, fake_prembly):
-    squatter, victim = cg(db), cg(db)
-    held = attempt(db, squatter, provider_session_id="sdk_session_a")  # the client hint someone planted first
-    a = attempt(db, victim)
-    fake_prembly.script_clean_pass("sdk_session_a", victim, oakly_ref=str(a.reference))
-    result = run(db, rec, "sdk_session_a", a)
-    assert result.outcome == "applied"
-    assert (fresh(db, a).status, fresh(db, a).provider_session_id) == ("passed", "sdk_session_a")
-    assert fresh(db, held).provider_session_id is None and fresh(db, held).status == "awaiting_result"
-    assert fresh(db, squatter).identity_verification_status == "in_progress"  # the squatter gained nothing and lost nothing else
+# --- the reference cannot be squatted: only the server mints it --------------------------------------------------------------
+def test_two_attempts_can_never_hold_one_reference(db):
+    from sqlalchemy.exc import IntegrityError
 
-
-@pytest.mark.parametrize("holder_kw", [dict(status="failed"), dict(completed_at=date(2026, 10, 1))])
-def test_a_session_genuinely_held_by_a_finished_attempt_is_never_taken_over(db, rec, fake_prembly, holder_kw):
-    other, mine = cg(db), cg(db)
-    held = attempt(db, other, provider_session_id="sdk_session_a", **holder_kw)
-    a = attempt(db, mine)
-    fake_prembly.script_clean_pass("sdk_session_a", mine, oakly_ref=str(a.reference))
-    assert run(db, rec, "sdk_session_a", a).outcome == "disagreement"
-    assert fresh(db, held).provider_session_id == "sdk_session_a" and fresh(db, a).status == "awaiting_result"
-
-
-def test_a_squatted_hint_is_not_cleared_on_an_email_only_binding(db, rec, fake_prembly):
-    squatter, victim = cg(db), cg(db)
-    held = attempt(db, squatter, provider_session_id="sdk_session_a")
-    a = attempt(db, victim)
-    fake_prembly.script_clean_pass("sdk_session_a", victim)  # no echoed ref: bound by e-mail only, which is weaker
-    assert run(db, rec, "sdk_session_a", a).outcome == "disagreement"
-    assert fresh(db, held).provider_session_id == "sdk_session_a"
+    one, two = cg(db), cg(db)
+    held = attempt(db, one)
+    with pytest.raises(IntegrityError):
+        attempt(db, two, provider_session_id=held.provider_session_id)
+    db.rollback()
 
 
 # --- nothing the provider says about the person is kept ----------------------------------------------------------------
-SENTINELS = ("SENTINELMIDDLE", "98765432101", "SENTINELPHOTO", "SENTINELADDRESS", "SENTINELKIN", "1990-04-12T00:00:00")
+SENTINELS = ("SENTINELMIDDLE", "98765432101", "SENTINELPHOTO", "SENTINELADDRESS", "SENTINELKIN", "12-Apr-1990", "images.dojah.invalid")
 
 
-def test_the_full_flow_leaves_no_registry_data_in_any_table_or_log(db, rec, fake_prembly, caplog):
+def test_the_full_flow_leaves_no_registry_data_in_any_table_or_log(db, rec, fake_dojah, caplog):
     caregiver = cg(db, full_name="Amina Bello")
     a = attempt(db, caregiver)
-    session = fake_prembly.script_clean_pass("sdk_session_a", caregiver, id_number="98765432101",
-                                             registry_name="BELLO AMINA SENTINELMIDDLE", registry_dob="1990-04-12")
-    session["_payload"]["verification_response"].update({"photo": "data:image/jpeg;base64,SENTINELPHOTO", "address": "SENTINELADDRESS 1",
-                                                         "next_of_kin": "SENTINELKIN"})
-    session["end_user_phone"] = "SENTINELPHONE"
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, id_number="98765432101", first_name="BELLO", middle_name="SENTINELMIDDLE",
+                                 last_name="AMINA", date_of_birth="12-Apr-1990")
+    person = fake_dojah.verifications[a.provider_session_id]["data"]["government_data"]["data"]["nin"]["entity"]
+    person.update({"image": "data:image/jpeg;base64,SENTINELPHOTO", "address": "SENTINELADDRESS 1", "next_of_kin": "SENTINELKIN"})
     with caplog.at_level(logging.DEBUG):
-        run(db, rec, "sdk_session_a", a)
+        run(db, rec, a)
         from app.services.kyc_reconcile import reconcile
 
         reconcile(db, hooks=rec.hooks())
-    assert fresh(db, a).status == "passed"
+    assert fresh(db, a).status in ("passed", "needs_review")
     tables = [r[0] for r in db.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")).all()]
     for table in tables:
         for column, in db.execute(text("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' "
                                        "AND table_name = :t"), {"t": table}).all():
-            for sentinel in (*SENTINELS, "SENTINELPHONE"):
+            for sentinel in SENTINELS:
                 hits = db.execute(text(f'SELECT count(*) FROM "{table}" WHERE "{column}"::text ILIKE :s'), {"s": f"%{sentinel}%"}).scalar()
                 assert hits == 0, f"{sentinel} found in {table}.{column}"
     logged = " ".join(r.getMessage() + str(r.exc_info) + str(r.args) for r in caplog.records)
-    assert not [x for x in (*SENTINELS, "SENTINELPHONE", "BELLO AMINA") if x.lower() in logged.lower()]
+    assert not [x for x in (*SENTINELS, "BELLO AMINA") if x.lower() in logged.lower()]
     assert all("SENTINEL" not in repr(n) for n in rec.notices)
 
 
 # --- review fixes ----------------------------------------------------------------------------------------------------
-def test_a_hint_that_lands_after_the_ownership_check_is_a_disagreement_not_a_crash(db, rec, fake_prembly, monkeypatch):
-    from app.services import kyc_events
-
-    other, mine = cg(db), cg(db)
-    attempt(db, other, provider_session_id="sdk_session_a")  # appears "after" _claim_session looked
-    a = attempt(db, mine)
-    fake_prembly.script_clean_pass("sdk_session_a", mine, oakly_ref=str(a.reference))
-    monkeypatch.setattr(kyc_events, "_claim_session", lambda *args: True)
-    result = run(db, rec, "sdk_session_a", a)
-    assert result.outcome == "disagreement" and fresh(db, a).status == "awaiting_result" and rec.notices == []
-
-
-def test_retries_of_one_failing_pull_count_as_one_provider_error(db, rec, fake_prembly):
+def test_retries_of_one_failing_pull_count_as_one_provider_error(db, rec, fake_dojah):
     from app.services.kyc_events import KycRetry
 
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.server_error()
-    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id="sdk_session_a", signature_ok=True)
+    fake_dojah.server_error()
+    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id=a.provider_session_id, signature_ok=True)
     db.add(event)
     db.commit()
-    job = {"event_id": str(event.id), "oakly_ref": str(a.reference)}
+    job = {"event_id": str(event.id), "claim": None, "settled": True}
     for _ in range(4):
         with pytest.raises(KycRetry):
             process_event(db, job, hooks=rec.hooks(), final_try=False)
-    assert rec.availability.errors == 0  # ARQ's retries do not flag Prembly down on their own
+    assert rec.availability.errors == 0  # ARQ's retries do not flag Dojah down on their own
     process_event(db, job, hooks=rec.hooks(), final_try=True)
     assert rec.availability.errors == 1
 
 
-def test_a_closed_ledger_row_is_never_restamped(db, rec, fake_prembly):
+def test_a_closed_ledger_row_is_never_restamped(db, rec, fake_dojah):
     from app.services import kyc_events
 
     caregiver = cg(db)
     a = attempt(db, caregiver)
-    fake_prembly.script_clean_pass("sdk_session_a", caregiver)
-    event_id = uuid.UUID(run(db, rec, "sdk_session_a", a) and db.query(KycWebhookEvent).one().id.hex)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver)
+    event_id = uuid.UUID(run(db, rec, a) and db.query(KycWebhookEvent).one().id.hex)
     kyc_events._stamp(db, event_id, "ignored_terminal", None)
     db.commit()
     assert fresh(db, db.get(KycWebhookEvent, event_id)).outcome == "applied"
+
+
+def test_a_finished_flow_with_a_missing_result_goes_to_review_and_costs_no_try(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, selfie=None)
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes) == ("needs_review", ["identity_data_missing"])
+    assert fresh(db, caregiver).identity_verification_status == "needs_review"
+
+
+# --- Dojah gives no face number (sandbox finding 2026-10-30; owner decision: its own success flag stands in) ----------------
+def test_a_boolean_only_pass_with_matching_name_and_dob_is_verified(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None)  # selfie.status true, no confidence_value
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes, a.face_confidence, a.liveness_confidence) == ("passed", [], None, None)
+    assert (a.name_match, a.dob_match) == (True, True) and fresh(db, caregiver).identity_verification_status == "verified"
+
+
+@pytest.mark.parametrize("override, reason", [
+    (dict(first_name="CHINEDU", middle_name=None, last_name="OKAFOR"), "name_mismatch"),
+    (dict(date_of_birth="12-Apr-1991"), "dob_mismatch"),
+])
+def test_a_boolean_only_pass_with_a_name_or_dob_mismatch_goes_to_review_without_data_missing(db, rec, fake_dojah, override, reason):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None, **override)
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes) == ("needs_review", [reason])
+
+
+def test_a_boolean_only_failed_selfie_is_a_failed_try(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None, selfie=False)
+    run(db, rec, a)
+    a = fresh(db, a)
+    assert (a.status, a.reason_codes) == ("failed", ["liveness_failed"])
+    assert fresh(db, caregiver).identity_verification_status == "in_progress"
+
+
+def test_a_boolean_only_pass_with_the_government_check_false_is_not_trusted(db, rec, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver)
+    fake_dojah.script_clean_pass(a.provider_session_id, caregiver, confidence=None, government=False)
+    run(db, rec, a)
+    assert fresh(db, a).status == "failed"
+
+
+def test_a_numeric_score_still_rules_when_it_is_present(db, rec, fake_dojah):
+    low, grey = cg(db), cg(db)
+    a, b = attempt(db, low), attempt(db, grey)
+    fake_dojah.script_clean_pass(a.provider_session_id, low, confidence=40.0)
+    fake_dojah.script_clean_pass(b.provider_session_id, grey, confidence=78.0)
+    run(db, rec, a)
+    run(db, rec, b)
+    assert (fresh(db, a).status, fresh(db, a).reason_codes) == ("failed", ["face_mismatch"])
+    assert (fresh(db, b).status, fresh(db, b).reason_codes) == ("needs_review", ["face_grey_band"])

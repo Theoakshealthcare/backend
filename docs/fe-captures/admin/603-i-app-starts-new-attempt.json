@@ -14,23 +14,23 @@
       "content-type": "application/json"
     },
     "body": {
-      "verification_id": "1bbdc1e9-45ad-42da-b138-52e2c019fe47",
+      "verification_id": "12d07180-ae03-4ad6-8d64-d3d7d928521b",
       "attempt_no": 4,
       "widget": {
-        "widget_id": "placeholder-widget-id",
-        "widget_key": "placeholder-widget-key",
-        "email": "caregiver-cb970c0182@example.com",
+        "app_id": "test-dojah-app-id-placeholder",
+        "public_key": "test-dojah-public-key-placeholder",
+        "widget_id": "test-dojah-widget-id-placeholder",
+        "reference_id": "OKL-7591aa2f05a24446872b32f1a4f369b8",
+        "email": "caregiver-24e2f1a2e5@example.com",
         "first_name": "Placeholder",
         "last_name": "Funmi Lawal",
-        "metadata": {
-          "oakly_ref": "0e8fa773-7713-4215-ab7d-1339f9d17b4e"
-        }
+        "date_of_birth": "1990-04-12"
       },
       "state": {
         "status": "in_progress",
         "attempts_used": 1,
         "attempts_max": 3,
-        "active_verification_id": "1bbdc1e9-45ad-42da-b138-52e2c019fe47",
+        "active_verification_id": "12d07180-ae03-4ad6-8d64-d3d7d928521b",
         "last_attempt_status": "created",
         "can_start": true,
         "failure_hint": null,

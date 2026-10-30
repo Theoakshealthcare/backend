@@ -4,7 +4,6 @@ from pydantic import BaseModel, EmailStr, Field, validator
 import uuid
 from uuid import UUID
 
-from app.services.prembly import SESSION_ID_PATTERN
 
 
 # Caregiver Profile Schemas
@@ -112,7 +111,7 @@ class SpecializationOptions(BaseModel):
     states: List[str]
 
 
-# Identity verification (KYC with Prembly). Design: docs/plans/2026-10-27-caregiver-kyc-design.md section 12.1.
+# Identity verification (KYC with Dojah). Design: docs/plans/2026-10-27-caregiver-kyc-design.md section 12.1.
 class IdentityVerificationStateOut(BaseModel):
     status: Literal["pending", "in_progress", "needs_review", "verified", "failed"]  # the caregiver's identity status
     attempts_used: int  # attempts that count against the cap (expired and error attempts do not)
@@ -132,22 +131,21 @@ class IdentityVerificationSessionRequest(BaseModel):
 
 
 class IdentityVerificationClientEventRequest(BaseModel):
-    """A hint from the widget. Anything else the client sends is ignored, never stored."""
+    """A hint from the widget. Anything else the client sends (a reference, a session id) is ignored, never stored."""
     event: Literal["opened", "completed", "closed", "error"]
-    session_id: Optional[str] = Field(default=None, pattern=SESSION_ID_PATTERN)
-
-
-class IdentityWidgetMetadata(BaseModel):
-    oakly_ref: str
 
 
 class IdentityWidgetConfig(BaseModel):
+    """Everything the app passes to Dojah's widget SDK. ``reference_id`` is minted by the server (``OKL-<uuid4 hex>``) and is the
+    only key the webhook and the pull use. App id and public key are public (they ship in the app bundle); no secret is returned."""
+    app_id: str
+    public_key: str
     widget_id: str
-    widget_key: str  # public by Prembly's design (it ships in the app bundle); no secret is ever returned
+    reference_id: str
     email: str
     first_name: str
     last_name: str
-    metadata: IdentityWidgetMetadata
+    date_of_birth: Optional[date] = None  # the caregiver's own Step 1 answer, to pre-fill the widget's userData
 
 
 class IdentityVerificationSessionOut(BaseModel):

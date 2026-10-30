@@ -150,10 +150,10 @@ async def process_whatsapp_inbound_job(ctx: dict, job: dict) -> None:
 
 
 async def kyc_process_event(ctx: dict, job: dict) -> str:
-    """One Prembly webhook event, queued by the endpoint (app/api/v1/endpoints/kyc_webhook.py): find the attempt, PULL the session
-    from Prembly and record what it says (app/services/kyc_events.py). It decides nothing about the caregiver (that is K4). A pull
+    """One Dojah webhook event, queued by the endpoint (app/api/v1/endpoints/kyc_webhook.py): find the attempt, PULL the verification
+    from Dojah and record what it says (app/services/kyc_events.py). It decides nothing about the caregiver (that is K4). A pull
     that fails in a retryable way is retried with a delay; after the last try the ledger row is closed as ``error`` and the
-    reconcile cron finds the attempt from Prembly's side. The job arguments are opaque ids only (no body, no personal data)."""
+    reconcile cron finds the attempt from its own side. The job arguments are opaque ids only (no body, no personal data)."""
     tries = ctx.get("job_try", 1)
     final_try = tries >= WorkerSettings.max_tries
     try:
@@ -167,8 +167,8 @@ async def kyc_process_event(ctx: dict, job: dict) -> str:
 
 
 async def kyc_reconcile_job(ctx: dict) -> dict:
-    """The backstop for lost webhooks (app/services/kyc_reconcile.py): finish attempts whose result was never processed, bind finished
-    sessions Prembly never delivered, and expire attempts nobody answered. Idempotent and lock-safe; it never raises Retry."""
+    """The backstop for lost webhooks (app/services/kyc_reconcile.py): finish attempts whose result was never processed, pull attempts whose webhook never
+    came, and expire attempts nobody answered. Idempotent and lock-safe; it never raises Retry."""
     stats = await asyncio.to_thread(_run_with_session, lambda db: kyc_reconcile(db, hooks=KycHooks.production()))
     return stats.as_dict()
 

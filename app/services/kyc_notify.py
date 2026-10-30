@@ -30,9 +30,9 @@ COPY = {
                    "Our team is reviewing your identity check. You can continue with your application; we will update you."),
 }
 OPS_ALERT_COPY = {
-    "wallet_empty": "The Prembly wallet is out of funds: every caregiver identity check is failing until it is topped up.",
-    "unauthorised": "Prembly refused our API key: every caregiver identity check is failing until the key is fixed.",
-    "not_configured": "The Prembly API key or organisation id is not configured on the server: identity checks cannot run.",
+    "wallet_empty": "The Dojah wallet is out of funds: every caregiver identity check is failing until it is topped up.",
+    "unauthorised": "Dojah refused our API key or app id: every caregiver identity check is failing until it is fixed.",
+    "not_configured": "The Dojah secret key or app id is not configured on the server: identity checks cannot run.",
 }
 
 
@@ -67,12 +67,12 @@ def deliver(db: Session, notice: Notice) -> None:
 def alert_ops(kind: str) -> None:
     """The wallet is empty, the key is refused: it breaks every caregiver at once (design 11.6, R2). Always an ERROR log line (what
     the K3 worker already writes); an e-mail too when ``KYC_ALERT_EMAIL`` is set (owner question O5: who is told). Never raises."""
-    message = OPS_ALERT_COPY.get(kind, f"Prembly identity verification needs attention ({kind}).")
+    message = OPS_ALERT_COPY.get(kind, f"Dojah identity verification needs attention ({kind}).")
     logger.error("kyc ops alert: %s", kind)
     if not settings.KYC_ALERT_EMAIL:
         return
     try:
-        body = f"<p>{html.escape(message)}</p><p>Check the Prembly dashboard and the server's PREMBLY_* settings.</p>"
+        body = f"<p>{html.escape(message)}</p><p>Check the Dojah dashboard and the server's DOJAH_* settings.</p>"
         email_service.send_email_smtp(settings.KYC_ALERT_EMAIL, f"{settings.PROJECT_NAME} - KYC provider needs attention", body)
     except Exception:  # noqa: BLE001
         logger.warning("kyc ops alert email failed kind=%s", kind, exc_info=True)

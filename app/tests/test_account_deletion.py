@@ -738,7 +738,7 @@ def test_a_deposit_or_refund_request_in_flight_cannot_land_after_the_erasure(db,
     assert db.query(PatientRefundRequest).count() == 0
 
 
-# --- caregiver KYC (Prembly) ----------------------------------------------------------------
+# --- caregiver KYC (Dojah) ----------------------------------------------------------------
 def _kyc_history(db, cg):
     from app.db.models.identity_verification import IdentityVerification, IdentityVerificationEvent, KycWebhookEvent
 

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/46a35ae6-f39c-4cdc-983d-cde534695045/identity-reset",
+    "path": "/api/v1/admin/caregivers/b0f156a5-a092-417a-896b-1c58efcaddba/identity-reset",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": {
       "notes": "Placeholder: photos were dark, allow another go."
@@ -13,7 +13,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "46a35ae6-f39c-4cdc-983d-cde534695045",
+      "id": "b0f156a5-a092-417a-896b-1c58efcaddba",
       "profile_status": "under_review",
       "identity_verification_status": "pending",
       "background_check_status": "pending",

@@ -1,7 +1,7 @@
 """The KYC decision rules (design 7.1-7.3, K4): what a pull-confirmed provider result means for ONE attempt.
 
 A pure function over plain values, so the rules can be read, tested exhaustively and fuzzed without a database. Nothing here
-knows Prembly: ``kyc_seam`` turns a pulled session into an ``Evidence`` and this module never sees the provider's own words.
+knows the provider: ``kyc_seam`` turns a pulled verification into an ``Evidence`` and this module never sees the provider's own words.
 
 The rules, in order of precedence:
 
@@ -13,8 +13,11 @@ The rules, in order of precedence:
    ``needs_review``. Never auto-fail: a married name or a typo in Step 1 is common.
 4. Otherwise ``passed``.
 
-Anything that could not be checked counts against a pass, never for it: a missing face score, name or date of birth makes the
-result ``needs_review`` (``identity_data_missing``), because the alternative is verifying someone on evidence we did not see.
+Anything that could not be checked counts against a pass, never for it: a missing name or date of birth makes the result
+``needs_review`` (``identity_data_missing``), because the alternative is verifying someone on evidence we did not see. ONE exception,
+an owner decision (2026-10-30): when the provider gives no face NUMBER at all (``Evidence.face_flag_only``; Dojah's sandbox returns
+none), its own success flag for the selfie (liveness + face match, with the government check true) stands in for the face check. A
+number that is present but unusable (out of range) is still treated as missing.
 """
 from dataclasses import dataclass, field
 from datetime import date
@@ -43,13 +46,15 @@ class Evidence:
     only: ``repr`` hides them and nothing stores them (design 10.1)."""
     verdict: str  # PASS / FAIL
     face_confidence: Optional[Decimal] = None  # 0..100
-    liveness_confidence: Optional[Decimal] = None  # 0..100
+    liveness_passed: Optional[bool] = None  # a boolean only (Dojah gives no liveness score); None = the provider did not say
     watchlisted: bool = False
     failure_reason: Optional[str] = None  # a canonical reason code for a clean failure, when the provider says why
     id_type: Optional[str] = None
     id_number: Optional[str] = field(default=None, repr=False)
     registry_name: Optional[str] = field(default=None, repr=False)
     registry_dob: Optional[date] = field(default=None, repr=False)
+    face_flag_only: bool = False  # Dojah gave NO face number at all, only its own success flag (owner decision 2026-10-30: trust it)
+    incomplete: bool = False  # a finished flow whose government or selfie result was absent or unreadable: a person looks, never a pass
 
 
 @dataclass(frozen=True)
@@ -63,7 +68,6 @@ class Profile:
 class Policy:
     face_threshold: int
     face_floor: int
-    liveness_floor: int
     max_attempts: int
 
 
@@ -93,9 +97,11 @@ def decide(evidence: Evidence, profile: Profile, *, duplicate: bool, disagreemen
     another caregiver; ``disagreement`` whether the webhook and the pull contradicted each other."""
     passing = evidence.verdict == PASS
     band = face_band(evidence.face_confidence, policy)
+    if band == "missing" and passing and evidence.face_flag_only and evidence.liveness_passed is True and not evidence.incomplete:
+        band = "ok"  # no number to judge, and Dojah's own liveness + face match said yes (government check true too: it is a pass)
     name_ok = names_match(profile.full_name, evidence.registry_name) if passing else None
     dob_ok = dobs_match(profile.date_of_birth, evidence.registry_dob) if passing else None
-    liveness_failed = (evidence.liveness_confidence is not None and evidence.liveness_confidence < policy.liveness_floor)
+    liveness_failed = evidence.liveness_passed is False
 
     risky: list[str] = []
     if disagreement:
@@ -117,7 +123,7 @@ def decide(evidence: Evidence, profile: Profile, *, duplicate: bool, disagreemen
     if band == "grey":
         soft.append(FACE_GREY_BAND)
     if passing:
-        if band == "missing":
+        if band == "missing" or evidence.incomplete:
             soft.append(IDENTITY_DATA_MISSING)
         if name_ok is False:
             soft.append(NAME_MISMATCH)

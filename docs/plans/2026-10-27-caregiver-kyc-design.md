@@ -1,5 +1,7 @@
 # Caregiver KYC (identity verification) with Prembly: design and slice plan
 
+> **Provider is Dojah as of 2026-10-30.** The owner dropped Prembly (unresponsive) and chose Dojah. This document is kept as written: the architecture, the trust rules (section 16.1), the decision rules (section 7), the states, the data model and the slice order all stand. Everything that names Prembly (sections 3, 9.3 config names, 15 questions, the K0 spike) describes the original plan and is superseded by [2026-10-30-caregiver-kyc-dojah-delta.md](2026-10-30-caregiver-kyc-dojah-delta.md) and the KD1 SOP ([docs/sop/2026-10-30-kyc-dojah-adapter.md](../sop/2026-10-30-kyc-dojah-adapter.md)). The main changes: server-minted `reference_id` instead of the e-mail/session-hint binding, hex HMAC signature with the webhook secret, no idempotency header, `Completed` is not a pass, liveness is a boolean.
+
 | | |
 |---|---|
 | **Date** | 2026-10-27 |

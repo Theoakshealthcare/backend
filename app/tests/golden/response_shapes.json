@@ -250,14 +250,14 @@
     },
     "verification_id": "str",
     "widget": {
+      "app_id": "str",
+      "date_of_birth": "str",
       "email": "str",
       "first_name": "str",
       "last_name": "str",
-      "metadata": {
-        "oakly_ref": "str"
-      },
-      "widget_id": "str",
-      "widget_key": "str"
+      "public_key": "str",
+      "reference_id": "str",
+      "widget_id": "str"
     }
   },
   "identity_state": {

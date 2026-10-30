@@ -1,0 +1,60 @@
+# KYC provider switch: Prembly -> Dojah (design delta)
+
+Written 2026-10-30 by the lead; moved into `docs/plans/` with slice KD1 (backend Dojah adapter, [SOP](../sop/2026-10-30-kyc-dojah-adapter.md)). **Status: KD1 is built; sections 3 (mobile), 5 (owner setup) and 6 (questions for Dojah) are still ahead (K7b, K8).** Section 2 describes the intent; where the built seam differs, `kyc_seam.py` (assumptions D1-D14) and the SOP are the truth: the dedupe key also hashes the status and body, the webhook can claim only a failure, and `Abandoned` is not final (it expires at the TTL). Base design stays `2026-10-27-caregiver-kyc-design.md`; this file only records what changes.
+
+**Sources and their weight (read this before trusting anything below):**
+- **[DOCS]** Dojah's public docs, read 2026-10-30: [webhook signatures](https://docs.dojah.io/api-reference/core-concepts/webhooks-signatures), [React widget SDK](https://docs.dojah.io/api-reference/widget-sdks/react), [React Native / Expo SDK](https://docs.dojah.io/api-reference/widget-sdks/react-native), [get verification](https://docs.dojah.io/api-reference/verifications/get-verification.md).
+- **[PORT]** Working code in the owner's other projects, which has run against a real Dojah sandbox/prod: Timpbills (`mobile/timp/timpbills-backend/app/integrations/dojah/`, Flutter app, live sandbox confirmed 2026-07-11) and Weysure (`Beyric/projects/weysure/Weysure-API/app/integrations/dojah/`, web, first real prod run 2026-10-09). Weysure's own SOPs mark some field names as still unverified.
+- **[UNVERIFIED]** Nothing in Oakly has touched Dojah. Everything marked so must be checked in the sandbox (K8).
+
+## 1. Why this is a smaller change than the Prembly one
+Dojah's model is the one K3/K4/K5 already assume: the app launches a hosted widget, a signed webhook is only a trigger, and the server **pulls** the result by reference. Timp and Weysure do exactly this (Timp spec decision 4: the SDK callback is never the source of truth; the webhook is a backstop; both converge idempotently). K3 (ledger + worker), K4 (decision engine, reconcile cron) and K5/K6 (admin) stay as they are. Only the provider seam changes.
+
+## 2. Seam changes (replaces U1-U15 in `kyc_seam.py` / `prembly.py`)
+
+| Prembly assumption | Dojah |
+|---|---|
+| U1/U2 signature is base64 HMAC, key may be a *public* key | `x-dojah-signature` = **hex** HMAC-SHA256 of the **raw body**, keyed by the **webhook secret** (Developers -> Webhooks, "Secret" column), *not* the API secret key [DOCS]. Port `verify_dojah_signature` from Weysure (`signature.py`, 13 lines, constant-time, empty key/header never verifies) [PORT]. Ignore `x-dojah-signature-v2` (a hash of the secret alone, it does not bind the payload). Pull-confirm stays anyway. |
+| U3 `token` header is the idempotency key | **No idempotency header is documented.** Dedupe the ledger on `reference_id` + `verification_status` (+ body hash). [UNVERIFIED: whether Dojah retries, and how] |
+| U4 retries on 500 | Docs say only "respond 200". Keep the K3 behaviour (non-200 on enqueue failure) but treat retry as unknown. Optional extra: Dojah publishes one source IP `135.119.89.106` [DOCS]; log a mismatch, do not hard-fail on it (it can change). |
+| U5 event shape (`event`, `session_id`) | Top-level fields, **no `entity` wrapper**: `reference_id`, `widget_id`, `verification_status`, `status`, `verification_type`, `data.{government_data,selfie,...}`, `metadata` [DOCS]. Trigger on `reference_id`; ignore the rest (the pull decides). Weysure reads `reference_id` / `referenceId` / `data.reference_id` defensively [PORT]. |
+| U6 metadata echo uncertain (we bound by session id/email) | **Solved by design:** the server mints `reference_id` (docs: longer than 10 chars) *before* launching the widget and passes it to the SDK; it comes back as top-level `reference_id` in the webhook and is the pull key [DOCS][PORT]. Mint `OKL-<uuid4 hex>`, store it on the attempt as the provider reference, bind webhooks by exact match. No e-mail binding needed. |
+| U7/U8 verdict words | `verification_status` in `Ongoing`, `Pending`, `Completed`, `Failed`, `Abandoned`. **`Completed` is not "passed"**: check `data.government_data.status` and `data.selfie.status` [DOCS]. Map: Completed -> evaluate steps; Pending/Ongoing -> not final; Failed/Abandoned -> failed (reason `provider_failed` / abandoned -> `expired` path) [PORT `STATUS_MAP`]. |
+| Pull endpoint | `GET {base}/api/v1/kyc/verification?reference_id=...`, headers `Authorization: <secret key, no Bearer>` and `AppId: <app id>` [DOCS][PORT]. Response is wrapped in `entity`. Port Weysure `client.py` (sync httpx, 10 s timeout, 3 attempts, retry only 5xx/transport) into `app/services/dojah.py`. |
+| U9 scores | `data.selfie.status` (bool) and `data.selfie.confidence_value` (0-100) [PORT, field name **UNVERIFIED** per Weysure]. Thresholds across Dojah's pages disagree (60/80/90 on various products) [DOCS]: keep it a setting, default 70 as Timp/Weysure (`DOJAH_FACE_MATCH_THRESHOLD`). No separate liveness score is known: liveness = `selfie.status`. Adjust the engine's liveness-score handling to "boolean only" (it is already optional). |
+| U12/U13 registry identity | `data.government_data.data.<bvn|nin>.entity` with `first_name`, `middle_name`, `last_name`, `date_of_birth` (formats seen: `01-Jun-1982`; Weysure accepts 4 formats), plus the ID number under the same entity. Port `parse.py` (it fingerprints and masks the number before anything is returned). `verification_type` says `BVN`/`NIN` [PORT, confirmed live on Timp 2026-07-11]. Other ID types (driver's licence, voter's card, passport) depend on how the widget flow is configured: **decide which ID types the flow accepts** (see section 5). |
+| U14 watch list | No equivalent known. Drop `watchListed`; `aml.status` exists in the webhook (`aml` block) [DOCS], meaning and use [UNVERIFIED]; leave out of v1. |
+| U15 failure reason | `message` / step `message` fields; map keywords as before, else `provider_failed`. |
+| Images | The webhook carries `selfie_url`, `id_url`, `back_url`, `verification_pdf` (links that expire within an hour) [DOCS]. **Never store them**; the K3 rule (store no body, no images) stands. Dojah itself holds the images: retention and location must be asked (section 6). |
+
+Config: replace `PREMBLY_*` with `DOJAH_APP_ID`, `DOJAH_PUBLIC_KEY` (client-safe, handed to the app), `DOJAH_SECRET_KEY` (server pull), `DOJAH_WIDGET_ID`, `DOJAH_WEBHOOK_SECRET`, `DOJAH_BASE_URL`, `DOJAH_FACE_MATCH_THRESHOLD=70`, `DOJAH_ENVIRONMENT`. Names only; never print values. Sandbox vs production use different app ids/keys/widget ids [UNVERIFIED: sandbox base URL; Timp's config has a base-URL test to copy].
+
+## 3. Mobile (K7b), the main risk
+- **Package:** Expo -> `dojah-kyc-sdk-react-expo`, launched with `DojahKycSdk.launch(widgetId, referenceId, email, options)`, resolves to `approved | pending | failed | closed`. `approved` only means the flow was finished; confirm server-side [DOCS]. `options` takes `userData` (firstName, lastName, dob; the full set skips Dojah's own details screen), `govData` (bvn/nin), `metadata`.
+- **Native code:** not runnable in Expo Go; needs a dev build. Needs the config plugin, `expo-build-properties` (Android compile/target SDK 36, buildTools 36.0.0, iOS deployment target 15.1, extra pods Realm `~> 10.52.2` and `DojahWidget`), Info.plist entries (camera, microphone, photo library, location), and ProGuard/R8 rules for release [DOCS].
+- **Oakly-specific risks:** (1) Expo SDK 57 / RN 0.86 compatibility is **not stated** by Dojah [UNVERIFIED]; (2) the iOS **Debug** build already fails to link on this Mac (HANDOFF section 7), so a native SDK adds to a known-fragile build: spike it on a Release build first; (3) the SDK's own prompts for location/microphone must be reviewed against our privacy copy.
+- **Fallback B (no native SDK):** load Dojah's hosted widget (`widget.dojah.io/widget.js`) in `react-native-webview` with camera permission granted, as Timp does inside a Flutter WebView and Weysure does on web [PORT]. Callback payloads are opaque there; use only *which* callback fired and then pull by `reference_id` (Timp does exactly this).
+- **Real-world lesson [PORT, Weysure prod 2026-10-09]:** a user may finish the selfie on another device (Dojah offers a QR "continue on phone"), and the originating app is never told. The server must settle pending attempts without the client: Oakly already has the K4 reconcile cron and the app's polling hook (K7a); keep both, and make the polling start from app launch, not only from the verification screen.
+- **Another observed failure [PORT]:** a first real run failed with `DOB_MISMATCH` although Dojah's own checks all passed, because the date typed by the user differed from the BVN holder's. Oakly compares name/DOB in `kyc_matching`; make sure the app pre-fills `userData` from the caregiver's profile so the user does not retype it.
+- K7a's screens and mock stay valid: they take a "start verification" callback and a status, not provider types.
+
+## 4. Slices (replace K0/K7b/K8 in the original plan)
+| Slice | What | Needs |
+|---|---|---|
+| **KD1** backend Dojah adapter | `app/services/dojah.py` (client + parse + signature, ported from Weysure), rewrite `kyc_seam.py` per section 2, config rename, minted `reference_id` on attempt start, fake provider for tests, webhook endpoint accepts `x-dojah-signature`, tests (signature, parse fixtures from Weysure/Timp captures, replay, dedupe), SOP, update caregiver FE guide + captures. No migration expected (greenfield: rename provider strings freely; check the attempt table's provider/session columns first). Opus on webhook auth + pull trust only. | nothing from the owner; builds against fakes |
+| **K7b** mobile launch | Expo SDK spike (Release build), config plugin + plist, `DojahKycSdk.launch` behind K7a's service interface, referenceId from the start endpoint, ProGuard rules, dev-build recipe in the SOP; fallback B if the spike fails | KD1 start endpoint; owner's sandbox widget id; device or simulator |
+| **K8** live sandbox pass | real webhook + pull + admin console end to end; capture payloads; settle every [UNVERIFIED] | owner present, sandbox account + funded wallet |
+
+## 5. Owner setup (Dojah dashboard; label names are from the docs and may differ slightly)
+1. Create the account, switch to **Sandbox**, note the **App ID**, **public key** and **secret key** (never paste them in chat; put them in `backend/.env` key names only, the lead will give the exact names).
+2. Build an **EasyOnboard** flow: government ID (BVN and/or NIN; say which ID types caregivers may use: the original design allowed NIN, BVN, driver's licence, voter's card, passport), **selfie with liveness** and face match against the government photo. Publish it to get the **Widget ID** (one for sandbox, one for production later).
+3. Developers -> Webhooks: add the callback URL for the **KYC Widget** service (the docs spell the service id `kyc_widget` in the API and `kyc.widget` in the React page; pick it from the dashboard list) and copy the **Secret** shown in the Secret column: that is `DOJAH_WEBHOOK_SECRET`, not the API secret key.
+4. Fund the wallet (billing is a prepaid wallet; no naira rate card is published, prices come from the dashboard or Dojah sales).
+
+## 6. Questions for Dojah (send with the account, or find in the dashboard)
+1. Per-session price of the widget flow (ID + selfie + liveness + face match) in naira.
+2. Retention and location of the selfie and ID images Dojah keeps; a data-processing agreement for NDPA.
+3. Does the webhook retry, and on what schedule? Is there a delivery log or test button?
+4. Does a session finished on another device (QR continue) fire the webhook?
+5. Exact name of the face confidence field and the liveness result in the pull response; does the pull response include `date_of_birth` and the ID number for a NIN?
+6. Is the SDK `dojah-kyc-sdk-react-expo` supported on Expo SDK 57 / RN 0.86? Current version?

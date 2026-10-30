@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/caregivers/b9bee79a-fcbc-4df2-8db4-8be8f021b2e4",
+    "path": "/api/v1/admin/caregivers/73d72a73-ea33-430d-991f-e11ef201920d",
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -12,11 +12,11 @@
     },
     "body": {
       "profile": {
-        "id": "b9bee79a-fcbc-4df2-8db4-8be8f021b2e4",
-        "user_id": "d53473e7-778f-4e8e-89cc-ccf61345a107",
-        "email": "caregiver-838cd81a9d@example.com",
+        "id": "73d72a73-ea33-430d-991f-e11ef201920d",
+        "user_id": "2024cf0e-d747-46c5-afe2-54453ad32c73",
+        "email": "caregiver-7b73fa6613@example.com",
         "full_name": "Placeholder Efe Ojo",
-        "phone_number": "+2348718223741",
+        "phone_number": "+2348587194949",
         "date_of_birth": "1990-04-12",
         "gender": null,
         "state": "Lagos",
@@ -33,8 +33,8 @@
         "terms_accepted": false,
         "privacy_policy_accepted": false,
         "background_check_consent": false,
-        "created_at": "2026-10-29T13:53:08.021394",
-        "updated_at": "2026-10-29T13:53:08.035119"
+        "created_at": "2026-10-30T10:40:42.196145",
+        "updated_at": "2026-10-30T10:40:42.207750"
       },
       "consents": {
         "terms_accepted": false,
@@ -51,13 +51,13 @@
         "can_reset": false,
         "attempts": [
           {
-            "id": "2b1f9eea-147a-407e-98dd-0b23ad9ce23a",
+            "id": "39072e69-99d6-4da6-aaf9-c55d09178bd6",
             "attempt_no": 1,
             "status": "failed",
-            "created_at": "2026-10-29T13:53:08.024938",
+            "created_at": "2026-10-30T10:40:42.199187",
             "started_at": null,
-            "completed_at": "2026-10-27T10:01:30",
-            "id_type": null,
+            "completed_at": "2026-10-30T10:40:42.207189",
+            "id_type": "nin",
             "face_confidence": 41.0,
             "liveness_confidence": null,
             "face_threshold": 85,
@@ -66,11 +66,11 @@
             "reason_codes": [
               "face_mismatch"
             ],
-            "provider_reference": null,
+            "provider_reference": "OKL-6b0eb87d039144089ff7483c155e0954",
             "decided_via": "provider"
           }
         ],
-        "duplicate_of_caregiver_id": null
+        "duplicate_of_caregiver_id": "d132b3d6-5c07-4220-b555-f1d1cf187a5e"
       },
       "background_check": {
         "status": "pending",

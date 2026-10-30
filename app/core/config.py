@@ -66,21 +66,24 @@ class Settings(BaseSettings):
     OTP_EXPIRE_MINUTES: int = 10
     OTP_LENGTH: int = 5
 
-    # Caregiver KYC (Prembly), docs/plans/2026-10-27-caregiver-kyc-design.md section 9.3. The widget key is public (the API hands it
-    # to the app so it can rotate without a release); the secret, org id, webhook and fingerprint keys live only in server env.
-    PREMBLY_BASE_URL: str = "https://api.prembly.com"
-    PREMBLY_SECRET_KEY: str = ""
-    PREMBLY_ORG_ID: str = ""
-    PREMBLY_WIDGET_ID: str = ""
-    PREMBLY_WIDGET_KEY: str = ""
-    PREMBLY_WEBHOOK_KEY: str = ""
+    # Caregiver KYC (Dojah, as of 2026-10-30), docs/plans/2026-10-27-caregiver-kyc-design.md section 9.3 and the Dojah delta
+    # (docs/plans/2026-10-30-caregiver-kyc-dojah-delta.md). The app id and public key are public (the API hands them to the app with
+    # the widget id so they can rotate without a release); the secret key, the webhook secret and the fingerprint key live only in
+    # server env. DOJAH_WEBHOOK_SECRET is the "Secret" of the webhook in the Dojah dashboard, NOT the API secret key.
+    DOJAH_BASE_URL: str = "https://api.dojah.io"  # live; sandbox (test_ keys) is https://sandbox.dojah.io (the live host answers 401 to test keys)
+    DOJAH_APP_ID: str = ""
+    DOJAH_PUBLIC_KEY: str = ""
+    DOJAH_SECRET_KEY: str = ""
+    DOJAH_WIDGET_ID: str = ""
+    DOJAH_WEBHOOK_SECRET: str = ""
+    DOJAH_FACE_MATCH_THRESHOLD: int = 70  # Dojah's selfie confidence_value (0-100) a face step must reach; as Timp and Weysure
     KYC_FINGERPRINT_KEY: str = ""
     KYC_MAX_ATTEMPTS: int = 3
     KYC_SESSION_TTL_HOURS: int = 24
     KYC_FACE_THRESHOLD: int = 85  # a placeholder until the K0 spike tunes it
     KYC_FACE_FLOOR: int = 70
-    KYC_LIVENESS_FLOOR: int = 50  # a placeholder until the K0 spike (Q6 asks Prembly for the liveness pass rule); 0..100
-    KYC_ALERT_EMAIL: str = ""  # who is told when the Prembly wallet is empty or the key is refused (owner question O5); empty = log only
+    KYC_LIVENESS_FLOOR: int = 50  # UNUSED since Dojah (liveness is a boolean); kept so an env file that sets it still loads (extra=forbid)
+    KYC_ALERT_EMAIL: str = ""  # who is told when the Dojah wallet is empty or the key is refused (owner question O5); empty = log only
     KYC_POLICY_VERSION: str = "kyc-2026-10"  # the consent text version recorded with identity_verification consents
     
     # Paystack Configuration
@@ -230,12 +233,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _require_kyc_keys_in_production(self):
-        # Caregiver KYC (design 9.3). An empty webhook key makes the signature forgeable by anyone, an empty secret key means no
+        # Caregiver KYC (design 9.3). An empty webhook secret makes the signature forgeable by anyone, an empty secret key means no
         # webhook can ever be confirmed by the pull, and an empty fingerprint key makes the duplicate-identity hash a plain hash of a
-        # NIN/BVN. All three are refused at boot. (The org id is not on this list: the design names three, and an empty org id is
-        # reported by the client as ``not_configured`` and raises the ops alert.)
+        # NIN/BVN. All three are refused at boot. (The app id, public key and widget id are not on this list: an empty one is
+        # reported by the client as ``not_configured`` and raises the ops alert, or makes the start endpoint answer 503.)
         if self.ENVIRONMENT.lower() == "production":
-            missing = [name for name in ("PREMBLY_WEBHOOK_KEY", "PREMBLY_SECRET_KEY", "KYC_FINGERPRINT_KEY")
+            missing = [name for name in ("DOJAH_WEBHOOK_SECRET", "DOJAH_SECRET_KEY", "KYC_FINGERPRINT_KEY")
                        if not getattr(self, name)]
             if missing:
                 raise ValueError(f"{', '.join(missing)} must be set when ENVIRONMENT=production")
