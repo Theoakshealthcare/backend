@@ -87,15 +87,15 @@ def main(argv=None) -> int:
         r.raise_for_status()
         return email
 
-    def login(email: str, password: str = CURRENT) -> dict:
+    def login(email: str, password: str) -> dict:
         r = rec.http.post(f"{api}/login/mobile", json={"email_or_phone": email, "password": password})
         r.raise_for_status()
         return r.json()
 
     email = register("a")
-    phone = login(email)  # the device that changes the password ("this device")
+    phone = login(email, CURRENT)  # the device that changes the password ("this device")
     time.sleep(1.1)  # tokens have no unique id: two logins in the same second would be the same token
-    other = login(email)  # a second device that must be signed out
+    other = login(email, CURRENT)  # a second device that must be signed out
     assert phone["access_token"] != other["access_token"] and phone["refresh_token"] != other["refresh_token"]
     # Register the tokens so every later mention is the same placeholder, in a fixed order.
     for t in (phone["access_token"], phone["refresh_token"], other["access_token"], other["refresh_token"]):
@@ -134,7 +134,7 @@ def main(argv=None) -> int:
 
     # Throttle: a second user, so the first one's counts do not matter.
     email_b = register("b")
-    b = login(email_b)
+    b = login(email_b, CURRENT)
     rec.tokens.setdefault(b["access_token"], f"<TOKEN_{len(rec.tokens) + 1}>")
     rec.tokens.setdefault(b["refresh_token"], f"<TOKEN_{len(rec.tokens) + 1}>")
     for i in range(5):
