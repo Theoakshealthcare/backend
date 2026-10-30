@@ -580,3 +580,13 @@ def test_a_late_webhook_after_erasure_does_not_write_the_erased_reference_back(c
     assert db.get(KycWebhookEvent, uuid.UUID(job["event_id"])).provider_session_id == ref  # held only until the worker looks at it
     assert process_event(db, job).outcome == "orphan" and fake_dojah.requests == []
     assert ledger(db, job).provider_session_id is None
+
+
+def test_an_attempt_holding_a_client_chosen_id_cannot_be_bound_by_a_webhook(client, db, kyc_queue, fake_dojah):
+    caregiver = cg(db)
+    a = attempt(db, caregiver, provider_session_id="client-chosen-id")
+    event = KycWebhookEvent(token=uuid.uuid4().hex, provider_session_id="client-chosen-id", signature_ok=True)
+    db.add(event)
+    db.commit()
+    assert process_event(db, {"event_id": str(event.id), "claim": None, "settled": True}).outcome == "orphan"
+    assert fake_dojah.requests == [] and fresh(db, a).completed_at is None

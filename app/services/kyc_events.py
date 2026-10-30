@@ -133,7 +133,7 @@ def confirm_and_record(db: Session, attempt_id: uuid.UUID, verification: DojahVe
     if attempt.completed_at is not None:
         return Recorded(APPLIED)  # a result is already recorded (the unlocked check in process_event is only a cost saver): never overwrite it
     # Until the PULLED answer is shown to be about this attempt's own reference nothing is written to it, not even a reason code.
-    if not attempt.provider_session_id or verification.reference_id != attempt.provider_session_id:
+    if not seam.is_our_reference(attempt.provider_session_id) or verification.reference_id != attempt.provider_session_id:
         return Recorded(DISAGREEMENT)
     observation = seam.observe(verification)
     if not observation.final:
@@ -158,7 +158,7 @@ def settle_session(db: Session, attempt_id: uuid.UUID, verification: DojahVerifi
 
 def _locate(db: Session, reference_id: Optional[str]) -> Optional[IdentityVerification]:
     """The attempt holding EXACTLY this reference (``provider_session_id``, UNIQUE). Re-checked against the pull."""
-    if not reference_id:
+    if not seam.is_our_reference(reference_id):
         return None
     return db.query(IdentityVerification).filter(IdentityVerification.provider_session_id == reference_id).first()
 

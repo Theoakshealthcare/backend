@@ -27,6 +27,7 @@ from app.db.models.identity_verification import (
     VERIFICATION_ACTIVE_STATUSES, VERIFICATION_ERROR, VERIFICATION_EXPIRED, IdentityVerification, KycWebhookEvent,
 )
 from app.services import kyc_engine
+from app.services import kyc_seam as seam
 from app.services.kyc_events import process_event, settle_session
 from app.services.kyc_hooks import KycHooks
 from app.services.dojah import NOT_FOUND, DojahClient, DojahError, DojahVerification
@@ -151,10 +152,12 @@ class _Run:
     def pull_quiet_attempts(self) -> None:
         rows = (self.db.query(IdentityVerification.id, IdentityVerification.provider_session_id)
                 .filter(IdentityVerification.status.in_(VERIFICATION_ACTIVE_STATUSES),
-                        IdentityVerification.provider_session_id.isnot(None), IdentityVerification.updated_at < self.now - MIN_AGE)
+                        IdentityVerification.provider_session_id.like("OKL-%"), IdentityVerification.updated_at < self.now - MIN_AGE)
                 .order_by(IdentityVerification.updated_at).limit(BATCH).all())
         self.db.rollback()
         for attempt_id, reference_id in rows:
+            if not seam.is_our_reference(reference_id):
+                continue  # only a reference this server minted is ever pulled (an older, client-chosen id is not)
             if not self._can_call_provider():
                 return
             verification = self._pull(reference_id, attempt_id=attempt_id)
@@ -176,9 +179,9 @@ class _Run:
                 .order_by(IdentityVerification.created_at).limit(100).all()]
         self.db.rollback()
         for attempt_id, reference_id in rows:
-            if reference_id is not None and attempt_id not in self.stats.answered_attempts:
+            if seam.is_our_reference(reference_id) and attempt_id not in self.stats.answered_attempts:
                 continue
-            if reference_id is None and self.stats.out_of_time:
+            if not seam.is_our_reference(reference_id) and self.stats.out_of_time:
                 continue
             errored = attempt_id in self.stats.erroring_attempts
             closed = self._guarded("expiry", kyc_engine.close_unanswered, self.db, attempt_id, older_than=cutoff,

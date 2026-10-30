@@ -393,3 +393,13 @@ def test_one_attempt_whose_answer_names_another_reference_cannot_stall_the_run(d
     assert rec.availability.errors == 0 and rec.availability.available
     assert fresh(db, odd).updated_at > OLD  # debounced
     assert stats.provider_errors == 1
+
+
+def test_an_older_attempt_with_a_client_chosen_id_is_never_pulled_and_still_expires(db, rec, fake_dojah):
+    """Only a reference this server minted is pulled or bound. An id from the Prembly-era client hints is left alone (and a stranger's
+    chosen string never becomes a lookup key); the attempt still ends at its TTL."""
+    caregiver = cg(db)
+    legacy = attempt(db, caregiver, age=timedelta(hours=25), provider_session_id="client-chosen-id")
+    fake_dojah.verifications["client-chosen-id"] = fake_dojah.entity("client-chosen-id")
+    run(db, rec)
+    assert fake_dojah.requests == [] and fresh(db, legacy).status == "expired"
