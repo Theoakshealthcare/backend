@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/225d2f64-431a-4259-935e-f645e3bb1546/payment-link",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "booking_already_paid",
+        "message": "This booking is already paid.",
+        "payment_status": "paid",
+        "refund_required": false
+      }
+    }
+  },
+  "note": "SIMULATED: the family paid a moment ago and the webhook has not arrived (the fake Paystack says paid). The booking is settled first, then the link is refused."
+}

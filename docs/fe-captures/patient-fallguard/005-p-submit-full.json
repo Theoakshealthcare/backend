@@ -1,0 +1,292 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "85+",
+          "score": 3
+        },
+        {
+          "question_id": "03f802c1-33d6-4281-b06f-3c507bf4759e",
+          "answer": "Alone",
+          "score": 2
+        },
+        {
+          "question_id": "018d6b61-3c0e-4862-9eb7-9dc45ce49618",
+          "answer": "Yes, 3+ times",
+          "score": 2
+        },
+        {
+          "question_id": "da343075-9f42-47bf-8058-de1c27871b8f",
+          "answer": "Always",
+          "score": 2
+        },
+        {
+          "question_id": "fd6c9416-f1e8-4d12-b09c-e5263041cbae",
+          "answer": "Frequently",
+          "score": 2
+        },
+        {
+          "question_id": "e4c9917e-d2ab-490f-afab-039cfc9bc970",
+          "answer": "Not at all",
+          "score": 2
+        },
+        {
+          "question_id": "b50ddc47-2461-471b-b0f7-ca4961b8c8c5",
+          "answer": "Frequently",
+          "score": 2
+        },
+        {
+          "question_id": "304af2c8-94eb-4d91-88bc-6750a3de6b53",
+          "answer": "Severe",
+          "score": 2
+        },
+        {
+          "question_id": "f53f2255-da3c-4fe1-be9a-030fbde68567",
+          "answer": "Severe pain",
+          "score": 2
+        },
+        {
+          "question_id": "054cd170-55cc-4f1c-84bf-dfc5de4cdfb0",
+          "answer": "Three or more conditions",
+          "score": 2
+        },
+        {
+          "question_id": "a4eb09ec-9bf7-4441-855c-6bb2a94c9284",
+          "answer": "Frequently",
+          "score": 2
+        },
+        {
+          "question_id": "929afbf0-a871-453d-a6f7-bc3d1c909036",
+          "answer": "Frequently",
+          "score": 2
+        },
+        {
+          "question_id": "c6e49bc8-05ac-4890-8240-01d36664693f",
+          "answer": "Significant difficulty",
+          "score": 2
+        },
+        {
+          "question_id": "0bcf7bcf-a7e2-4e7f-aaee-6a08345308e0",
+          "answer": "Severe difficulty or use of a hearing aid",
+          "score": 2
+        },
+        {
+          "question_id": "bb515db1-f9e8-4244-8f65-94c9587cae17",
+          "answer": "Yes",
+          "score": 1
+        },
+        {
+          "question_id": "80019908-b8d6-4a1d-a44d-a022c0258065",
+          "answer": "Poorly lit",
+          "score": 1
+        },
+        {
+          "question_id": "3309e01b-7a8a-4aa1-b73e-254d1e6ed21a",
+          "answer": "Frequently",
+          "score": 1
+        },
+        {
+          "question_id": "8265bf60-67e8-49c4-8e11-caee59f2c5a6",
+          "answer": "No aids present",
+          "score": 2
+        },
+        {
+          "question_id": "9483498b-56ae-4a3c-a74d-df49b5b49b0c",
+          "answer": "No",
+          "score": 1
+        },
+        {
+          "question_id": "42246fe8-e005-4a78-91f5-150b297b2c4b",
+          "answer": "Rarely or never",
+          "score": 1
+        },
+        {
+          "question_id": "948487e0-75af-4056-a2bf-86b2d0627204",
+          "answer": "Rarely or never",
+          "score": 1
+        },
+        {
+          "question_id": "8ff787c7-9e27-45e7-987b-b92783aa81c6",
+          "answer": "Rarely or never",
+          "score": 1
+        },
+        {
+          "question_id": "fc646c75-03a0-4872-ba1e-a02dc86c945c",
+          "answer": "No",
+          "score": 0
+        },
+        {
+          "question_id": "cb0200d7-d560-479b-87af-4d22bf0f8709",
+          "answer": "Daily or almost daily",
+          "score": 0
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "2e821cc5-3172-4178-b932-fb2136ae4fba",
+      "patient_id": "60a9c77d-7e94-4ccb-9326-f790963c994b",
+      "total_score": 38,
+      "ai_summary": "Unable to analyze",
+      "ai_recommendations": [],
+      "created_at": "2026-11-07T17:44:24.040975",
+      "answers": [
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "85+",
+          "score": 3,
+          "id": "cad5eb0f-6102-4c6a-97be-076bcf9e3430"
+        },
+        {
+          "question_id": "03f802c1-33d6-4281-b06f-3c507bf4759e",
+          "answer": "Alone",
+          "score": 2,
+          "id": "12dbb7fd-3622-4334-a4d6-208730d05379"
+        },
+        {
+          "question_id": "018d6b61-3c0e-4862-9eb7-9dc45ce49618",
+          "answer": "Yes, 3+ times",
+          "score": 2,
+          "id": "83c3083f-7932-4ef3-a3bc-25f8936f2215"
+        },
+        {
+          "question_id": "da343075-9f42-47bf-8058-de1c27871b8f",
+          "answer": "Always",
+          "score": 2,
+          "id": "cb21f698-7935-425f-9c95-01f08f880164"
+        },
+        {
+          "question_id": "fd6c9416-f1e8-4d12-b09c-e5263041cbae",
+          "answer": "Frequently",
+          "score": 2,
+          "id": "b00a4f0b-1d14-4ea3-bdcf-22bc52eea7a2"
+        },
+        {
+          "question_id": "e4c9917e-d2ab-490f-afab-039cfc9bc970",
+          "answer": "Not at all",
+          "score": 2,
+          "id": "0b92e4ed-ae69-4599-a4be-f2cf2563944f"
+        },
+        {
+          "question_id": "b50ddc47-2461-471b-b0f7-ca4961b8c8c5",
+          "answer": "Frequently",
+          "score": 2,
+          "id": "a75f6dec-f103-4c65-b651-99ded48986d6"
+        },
+        {
+          "question_id": "304af2c8-94eb-4d91-88bc-6750a3de6b53",
+          "answer": "Severe",
+          "score": 2,
+          "id": "2d9ddd46-3d26-49d9-aaf3-d9a557e2aaf5"
+        },
+        {
+          "question_id": "f53f2255-da3c-4fe1-be9a-030fbde68567",
+          "answer": "Severe pain",
+          "score": 2,
+          "id": "09c1ca81-1846-4893-8785-e5103b909b1c"
+        },
+        {
+          "question_id": "054cd170-55cc-4f1c-84bf-dfc5de4cdfb0",
+          "answer": "Three or more conditions",
+          "score": 2,
+          "id": "8b0a4f97-1670-4243-a421-9bc697dc2127"
+        },
+        {
+          "question_id": "a4eb09ec-9bf7-4441-855c-6bb2a94c9284",
+          "answer": "Frequently",
+          "score": 2,
+          "id": "2fa35f55-0b4f-4a77-b130-9d0a69c94d14"
+        },
+        {
+          "question_id": "929afbf0-a871-453d-a6f7-bc3d1c909036",
+          "answer": "Frequently",
+          "score": 2,
+          "id": "73287833-6070-4621-9b2f-c256e55f2982"
+        },
+        {
+          "question_id": "c6e49bc8-05ac-4890-8240-01d36664693f",
+          "answer": "Significant difficulty",
+          "score": 2,
+          "id": "ccd9f5e2-0534-49be-847f-3f2f08f39787"
+        },
+        {
+          "question_id": "0bcf7bcf-a7e2-4e7f-aaee-6a08345308e0",
+          "answer": "Severe difficulty or use of a hearing aid",
+          "score": 2,
+          "id": "72f3b7e6-789c-4b9d-8a35-cf968084fdb8"
+        },
+        {
+          "question_id": "bb515db1-f9e8-4244-8f65-94c9587cae17",
+          "answer": "Yes",
+          "score": 1,
+          "id": "0a4d4707-bc0a-4617-a2ea-63b962af1c97"
+        },
+        {
+          "question_id": "80019908-b8d6-4a1d-a44d-a022c0258065",
+          "answer": "Poorly lit",
+          "score": 1,
+          "id": "e685113d-004b-4a54-91f7-663796317f5f"
+        },
+        {
+          "question_id": "3309e01b-7a8a-4aa1-b73e-254d1e6ed21a",
+          "answer": "Frequently",
+          "score": 1,
+          "id": "3352a32c-9559-4ca9-9357-89cd2bc19131"
+        },
+        {
+          "question_id": "8265bf60-67e8-49c4-8e11-caee59f2c5a6",
+          "answer": "No aids present",
+          "score": 2,
+          "id": "4386a32f-467b-42e8-a9f4-7a29975d2655"
+        },
+        {
+          "question_id": "9483498b-56ae-4a3c-a74d-df49b5b49b0c",
+          "answer": "No",
+          "score": 1,
+          "id": "9895aa64-25de-4532-852f-a9101e0c0a7e"
+        },
+        {
+          "question_id": "42246fe8-e005-4a78-91f5-150b297b2c4b",
+          "answer": "Rarely or never",
+          "score": 1,
+          "id": "55ccaaca-8563-444b-8618-e61385211eb0"
+        },
+        {
+          "question_id": "948487e0-75af-4056-a2bf-86b2d0627204",
+          "answer": "Rarely or never",
+          "score": 1,
+          "id": "9a320feb-d828-4831-8088-586370a959cc"
+        },
+        {
+          "question_id": "8ff787c7-9e27-45e7-987b-b92783aa81c6",
+          "answer": "Rarely or never",
+          "score": 1,
+          "id": "006c76de-b10e-4525-885d-a917898b0766"
+        },
+        {
+          "question_id": "fc646c75-03a0-4872-ba1e-a02dc86c945c",
+          "answer": "No",
+          "score": 0,
+          "id": "b44782f0-d7e4-4890-8b33-e678397bc9aa"
+        },
+        {
+          "question_id": "cb0200d7-d560-479b-87af-4d22bf0f8709",
+          "answer": "Daily or almost daily",
+          "score": 0,
+          "id": "0907c42e-d612-4f4d-b65f-5fbd1f5e6173"
+        }
+      ]
+    }
+  },
+  "note": "All 24 questions, each with the LAST option and the score the older app sends. The total is the server's sum of the stored option scores."
+}

@@ -39,6 +39,22 @@ def _naira(kobo: int) -> float:
     return float(kobo_to_naira(kobo))
 
 
+class BookingSettingsNotConfigured(Exception):
+    """No ``booking_settings`` row exists, so nothing can be priced (a new environment). The endpoints answer 503 with
+    ``detail.code`` ``booking_settings_not_configured``. Still an ``Exception`` with the old message for other callers."""
+
+    def __init__(self) -> None:
+        super().__init__("Booking settings not configured.")
+
+
+def _no_settings() -> BookingSettingsNotConfigured:
+    logger.error(
+        "booking_settings has no row: pricing is unavailable and bookings cannot be previewed or created. Every new "
+        "environment needs its first pricing version (POST /api/v1/booking-settings/ as an admin with pricing.write); "
+        "it is never seeded automatically.")
+    return BookingSettingsNotConfigured()
+
+
 class BookingActionForbidden(Exception):
     """The caregiver is not allowed to perform this action on this booking (HTTP 403)."""
 
@@ -88,7 +104,7 @@ class BookingService:
         # Fetch latest booking settings
         settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
         if not settings:
-            raise Exception("Booking settings not configured.")
+            raise _no_settings()
         
         # Price in kobo (single source of truth shared with create_booking)
         multiplier = service_multiplier(settings, preview_data.service_type, channel="app")
@@ -189,7 +205,7 @@ class BookingService:
             # Fetch latest booking settings
             settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
             if not settings:
-                raise Exception("Booking settings not configured.")
+                raise _no_settings()
 
             # Price in kobo. What we store is exactly what we send to Paystack and what settlement
             # later compares against.
@@ -244,26 +260,30 @@ class BookingService:
             self.db.flush()
         return booking
 
-    def start_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
-        """Initialise the Paystack transaction for a booking that already exists."""
+    def initialise_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
+        """Ask Paystack to initialise the transaction for the booking's own reference and total. No database writes.
+        Returns Paystack's answer as ``PaystackService.initialize_transaction`` gives it (``status`` true with
+        ``authorization_url`` and ``access_code``, or ``status`` false with ``message``)."""
         patient = self.db.query(Patient).filter(Patient.id == booking.patient_id).first()
         if not patient:
             raise Exception("Patient not found for payment processing.")
-        patient_id = booking.patient_id
 
-        # Initialize Paystack payment
-        payment_response = self.paystack_service.initialize_transaction(
+        return self.paystack_service.initialize_transaction(
             email=paystack_email_for(patient),
             amount_kobo=booking.total_amount_kobo,
             reference=booking.paystack_reference,
             callback_url=callback_url,
             metadata={
                 "booking_id": str(booking.id),
-                "patient_id": str(patient_id),
+                "patient_id": str(booking.patient_id),
                 "service_type": booking.service_type,
                 "booking_code": booking.booking_code
             }
         )
+
+    def start_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
+        """Initialise the Paystack transaction for a booking that was just created."""
+        payment_response = self.initialise_payment(booking, callback_url=callback_url)
 
         if not payment_response.get("status"):
             # If payment initialization fails, mark booking as cancelled

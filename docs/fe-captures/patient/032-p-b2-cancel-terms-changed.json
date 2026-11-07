@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/28724045-ec58-4e31-9f5c-f7beb07f7cd2/cancel",
+    "path": "/api/v1/booking/5f0a6568-4a10-437b-b8b9-957b76c1719f/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "accepted_fee_kobo": 0
@@ -17,8 +17,8 @@
         "code": "terms_changed",
         "message": "The cancellation fee has changed since you last looked. Please check it again.",
         "terms": {
-          "booking_id": "28724045-ec58-4e31-9f5c-f7beb07f7cd2",
-          "booking_code": "D96F7B66",
+          "booking_id": "5f0a6568-4a10-437b-b8b9-957b76c1719f",
+          "booking_code": "0054E4C8",
           "can_cancel": true,
           "reason": null,
           "message": null,
@@ -40,7 +40,7 @@
             "fee_percent": 20,
             "late_fee_percent": 50
           },
-          "as_of": "2026-11-07T14:33:33.962482"
+          "as_of": "2026-11-07T17:44:02.490491"
         }
       }
     }

@@ -296,6 +296,14 @@ class BookingResponse(BaseModel):
         from_attributes = True
 
 
+class PaymentLinkResponse(BookingResponse):
+    """``POST /booking/{id}/payment-link``: what ``/create`` returns, plus the reference and when the window closes."""
+    paystack_reference: str = Field(description="The booking's one Paystack reference (the same for every link)",
+                                    example="BKG_AB12CD34_0a1b2c3d")
+    payment_expires_at: Optional[datetime] = Field(
+        None, description="When the unpaid booking is cancelled if it is still not paid (UTC)")
+
+
 # Caregiver Location
 class CaregiverLocationUpdate(BaseModel):
     latitude: float = Field(

@@ -365,6 +365,7 @@ class FakePaystack:
         self.verified: list[str] = []
         self.paid: set[str] = set()
         self.fail_init: Optional[str] = None  # the error message to return from initialize
+        self.reject_duplicate_reference = False  # real Paystack: a reference already initialised cannot be initialised again
         # payouts
         self.banks = [{"id": 9, "name": "Placeholder Bank", "code": "058", "slug": "placeholder-bank"},
                       {"id": 17, "name": "Sample Microfinance Bank", "code": "090", "slug": "sample-mfb"}]
@@ -536,6 +537,8 @@ class FakePaystack:
     def _initialize(self, payload: dict) -> dict:
         if self.fail_init:
             return {"status": False, "message": self.fail_init}
+        if self.reject_duplicate_reference and any(p["reference"] == payload["reference"] for p in self.initialised):
+            return {"status": False, "message": "Duplicate Transaction Reference"}
         self.initialised.append(payload)
         code = "ac_" + uuid.uuid4().hex[:12]
         return {"status": True, "message": "Authorization URL created", "data": {
@@ -558,8 +561,11 @@ class FakePaystack:
     def initialize_transaction(self, _service, email, amount_kobo, reference, callback_url=None, metadata=None):
         if self.fail_init:
             return {"status": False, "message": self.fail_init}
-        data = self._initialize({"email": email, "amount": amount_kobo, "reference": reference,
-                                 "callback_url": callback_url, "metadata": metadata or {}})["data"]
+        reply = self._initialize({"email": email, "amount": amount_kobo, "reference": reference,
+                                  "callback_url": callback_url, "metadata": metadata or {}})
+        if not reply.get("status"):
+            return {"status": False, "message": reply["message"]}
+        data = reply["data"]
         return {"status": True, "authorization_url": data["authorization_url"],
                 "access_code": data["access_code"], "reference": reference}
 

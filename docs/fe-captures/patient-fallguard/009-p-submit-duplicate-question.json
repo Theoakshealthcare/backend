@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "Less than 65"
+        },
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "65–74"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "fallguard_duplicate_question",
+        "message": "Each question can only be answered once.",
+        "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf"
+      }
+    }
+  }
+}
