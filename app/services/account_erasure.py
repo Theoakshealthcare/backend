@@ -39,6 +39,7 @@ from app.db.models.patient import (
     Patient, PatientFamilyMember, PatientRefundRequest, PatientTransaction, PatientWallet,
 )
 from app.db.models.patient_caregiver_access import PatientCaregiverAccess
+from app.db.models.notification import Notification
 from app.db.models.push_token import PushToken
 from app.db.models.user import User
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation
@@ -136,6 +137,7 @@ class AccountErasureService:
         self._wipe_care_recipients(user)
         self._wipe_care_plans(patient, user)
         self.db.query(PushToken).filter(PushToken.user_id == user.id).delete(synchronize_session=False)
+        self.db.query(Notification).filter(Notification.user_id == user.id).delete(synchronize_session=False)  # their feed
         self._withdraw_whatsapp(user, phones, now)
         self._record_withdrawal(user)
         self.db.flush()

@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/patient/notifications/e8fae55a-f2f9-40ea-a258-ae1cb5214bf2/read",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "body": {
+      "detail": "Notification not found."
+    }
+  },
+  "note": "patient B tries patient A's notification"
+}

@@ -1,0 +1,195 @@
+{
+  "generated_by": "scripts/capture_patient_notifications.py",
+  "captures": [
+    {
+      "file": "01-feed-no-token.json",
+      "label": "feed-no-token",
+      "status": 401
+    },
+    {
+      "file": "02-feed-as-caregiver.json",
+      "label": "feed-as-caregiver",
+      "status": 403
+    },
+    {
+      "file": "03-feed-empty.json",
+      "label": "feed-empty",
+      "status": 200
+    },
+    {
+      "file": "04-register-push-token.json",
+      "label": "register-push-token",
+      "status": 200
+    },
+    {
+      "file": "05-caregiver-accepts.json",
+      "label": "caregiver-accepts",
+      "status": 200
+    },
+    {
+      "file": "06-expo-caregiver-found.json",
+      "label": "expo-caregiver-found",
+      "status": "observed"
+    },
+    {
+      "file": "07-caregiver-on-my-way.json",
+      "label": "caregiver-on-my-way",
+      "status": 200
+    },
+    {
+      "file": "08-expo-caregiver-on-the-way.json",
+      "label": "expo-caregiver-on-the-way",
+      "status": "observed"
+    },
+    {
+      "file": "09-patient-reads-the-visit-code.json",
+      "label": "patient-reads-the-visit-code",
+      "status": 200
+    },
+    {
+      "file": "10-caregiver-starts.json",
+      "label": "caregiver-starts",
+      "status": 200
+    },
+    {
+      "file": "11-expo-visit-started.json",
+      "label": "expo-visit-started",
+      "status": "observed"
+    },
+    {
+      "file": "12-caregiver-completes.json",
+      "label": "caregiver-completes",
+      "status": 200
+    },
+    {
+      "file": "13-expo-visit-completed.json",
+      "label": "expo-visit-completed",
+      "status": "observed"
+    },
+    {
+      "file": "14-caregiver-cancels.json",
+      "label": "caregiver-cancels",
+      "status": 200
+    },
+    {
+      "file": "15-expo-booking-cancelled-by-caregiver.json",
+      "label": "expo-booking-cancelled-by-caregiver",
+      "status": "observed"
+    },
+    {
+      "file": "16-expo-caregiver-arrived.json",
+      "label": "expo-caregiver-arrived",
+      "status": "observed"
+    },
+    {
+      "file": "17-expo-oakly-cancelled-and-refund.json",
+      "label": "expo-oakly-cancelled-and-refund",
+      "status": "observed"
+    },
+    {
+      "file": "18-expo-payment-received-and-reassigned.json",
+      "label": "expo-payment-received-and-reassigned",
+      "status": "observed"
+    },
+    {
+      "file": "19-expo-no-caregiver-found.json",
+      "label": "expo-no-caregiver-found",
+      "status": "observed"
+    },
+    {
+      "file": "20-register-second-token.json",
+      "label": "register-second-token",
+      "status": 200
+    },
+    {
+      "file": "21-expo-two-devices.json",
+      "label": "expo-two-devices",
+      "status": "observed"
+    },
+    {
+      "file": "22-dead-token-cleanup.json",
+      "label": "dead-token-cleanup",
+      "status": "observed"
+    },
+    {
+      "file": "23-feed-page-1.json",
+      "label": "feed-page-1",
+      "status": 200
+    },
+    {
+      "file": "24-feed-page-2.json",
+      "label": "feed-page-2",
+      "status": 200
+    },
+    {
+      "file": "25-feed-default-paging.json",
+      "label": "feed-default-paging",
+      "status": 200
+    },
+    {
+      "file": "26-feed-limit-zero.json",
+      "label": "feed-limit-zero",
+      "status": 422
+    },
+    {
+      "file": "27-feed-limit-too-big.json",
+      "label": "feed-limit-too-big",
+      "status": 422
+    },
+    {
+      "file": "28-feed-negative-offset.json",
+      "label": "feed-negative-offset",
+      "status": 422
+    },
+    {
+      "file": "29-read-one.json",
+      "label": "read-one",
+      "status": 200
+    },
+    {
+      "file": "30-read-one-again.json",
+      "label": "read-one-again",
+      "status": 200
+    },
+    {
+      "file": "31-read-someone-elses.json",
+      "label": "read-someone-elses",
+      "status": 404
+    },
+    {
+      "file": "32-read-unknown-id.json",
+      "label": "read-unknown-id",
+      "status": 404
+    },
+    {
+      "file": "33-read-bad-id.json",
+      "label": "read-bad-id",
+      "status": 422
+    },
+    {
+      "file": "34-read-all.json",
+      "label": "read-all",
+      "status": 200
+    },
+    {
+      "file": "35-read-all-again.json",
+      "label": "read-all-again",
+      "status": 200
+    },
+    {
+      "file": "36-read-all-no-token.json",
+      "label": "read-all-no-token",
+      "status": 401
+    },
+    {
+      "file": "37-feed-after-read-all.json",
+      "label": "feed-after-read-all",
+      "status": 200
+    },
+    {
+      "file": "38-feed-patient-b.json",
+      "label": "feed-patient-b",
+      "status": 200
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Caregiver on the way",
+      "body": "Ngozi is on the way.",
+      "data": {
+        "type": "caregiver_on_the_way",
+        "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb",
+        "target": "booking_detail",
+        "notification_id": "63ca8cc7-0005-4061-9c03-43791b403e36"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. "
+}

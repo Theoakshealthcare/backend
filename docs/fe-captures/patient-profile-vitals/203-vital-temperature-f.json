@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "vital_type": "temperature",
+      "value": "98.6",
+      "unit": "°F",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00Z",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "vital_type": "temperature",
+      "value": "98.6",
+      "unit": "°F",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00",
+      "notes": null,
+      "id": "d2597d88-2ef4-48f7-9c88-f5dabe699691",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  }
+}

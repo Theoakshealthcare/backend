@@ -472,6 +472,7 @@ class BookingService:
         if booking.channel != "whatsapp":
             if paid:
                 flag_refund(booking, "caregiver_cancelled", int(booking.total_amount_kobo))
+            NotificationService(self.db).cancelled_by_caregiver(booking)  # an app booker hears it in the app
             return
         if paid:
             started = booking.actual_start_time is not None

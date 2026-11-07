@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "profile_image_url": "https://res.cloudinary.com/placeholder/image/upload/v1/oaklycare/profile_images/other.jpg"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "photo_upload_only",
+        "message": "A profile photo can only be set by uploading it (POST /auth/profile/upload-image). Send null here to remove it."
+      }
+    }
+  },
+  "note": "A photo URL cannot be typed in (it would let someone point at another person's photo): upload it instead."
+}

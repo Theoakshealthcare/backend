@@ -1,0 +1,79 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications?limit=5&offset=5",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "5f91bf1d-ed79-4ca2-9e52-d10bbe8b84bd",
+          "type": "refund_started",
+          "title": "Refund started",
+          "body": "We've started your refund.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.349182"
+        },
+        {
+          "id": "74b7ee05-77b7-4870-be73-7e5c7a7507ad",
+          "type": "booking_cancelled",
+          "title": "Booking cancelled",
+          "body": "Oakly has cancelled this visit. Open the app for details.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.328036"
+        },
+        {
+          "id": "5b2cff21-34a9-43f8-a94e-f11be85886d6",
+          "type": "caregiver_arrived",
+          "title": "Your caregiver has arrived",
+          "body": "Open the app to see your visit code.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "fba237d5-0001-4d83-94a9-2f10204fc421"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.292340"
+        },
+        {
+          "id": "7706dc9e-1ce7-48c7-b7ff-1b6d430797d1",
+          "type": "booking_cancelled",
+          "title": "Booking cancelled",
+          "body": "Your caregiver can no longer attend. Open the app for details.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "eaf9dcc9-088c-403a-a293-a39404339383"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.262516"
+        },
+        {
+          "id": "2ad7c2ad-d511-4210-bf09-510f50546911",
+          "type": "visit_completed",
+          "title": "Visit completed",
+          "body": "Your visit is complete.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.211262"
+        }
+      ],
+      "total": 13,
+      "limit": 5,
+      "offset": 5,
+      "unread_count": 13
+    }
+  }
+}

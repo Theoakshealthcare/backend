@@ -72,10 +72,11 @@ def test_a_cancel_without_a_refund_only_says_it_is_cancelled(client, db, ops, ch
                      "Reply here if you need help."]
 
 
-def test_a_cancel_of_an_app_booking_records_no_booker_event(client, db, ops):
+def test_a_cancel_of_an_app_booking_records_only_the_app_notice_and_sends_nothing_on_whatsapp(client, db, ops, chat):
     booking = paid(db)  # channel app
     post(client, ops, booking, "cancel", cancel_body(refund="full"))
-    assert names(db, booking) == []
+    assert names(db, booking) == ["booking_cancelled_by_admin"]  # told in the app (see test_patient_notifications)
+    assert deliver(db, chat) == []  # nothing goes out on WhatsApp
 
 
 def test_a_refused_cancel_records_nothing(client, db, ops, chat):

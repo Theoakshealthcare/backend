@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/access/grant",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "caregiver_id": "39bd28b4-cf03-4e68-8188-0d22ca5564b4"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "caregiver_id": "39bd28b4-cf03-4e68-8188-0d22ca5564b4",
+      "id": "ca8313db-eb6a-497c-bd39-76d389a9e870",
+      "granted_by_patient": true,
+      "granted_at": "2026-11-07T17:27:19.352079",
+      "revoked_at": null,
+      "caregiver_name": "Placeholder Caregiver Edited",
+      "patient_name": "Placeholder Patient Edited"
+    }
+  },
+  "note": "Granting twice returns the same grant."
+}

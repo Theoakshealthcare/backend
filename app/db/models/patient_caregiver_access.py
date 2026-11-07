@@ -16,4 +16,12 @@ class PatientCaregiverAccess(Base):
     revoked_at = Column(DateTime, nullable=True)
 
     patient = relationship("Patient")
-    caregiver = relationship("Caregiver") 
+    caregiver = relationship("Caregiver")
+
+    @property
+    def caregiver_name(self):
+        return self.caregiver.full_name if self.caregiver else None
+
+    @property
+    def patient_name(self):
+        return self.patient.full_name if self.patient else None

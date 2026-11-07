@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "vital_type": "respiratory_rate",
+      "value": "16",
+      "unit": "breaths/min",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00Z",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "vital_type": "respiratory_rate",
+      "value": "16",
+      "unit": "breaths/min",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00",
+      "notes": null,
+      "id": "3593e436-f19f-4205-a06d-29dcd60a40c8",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  }
+}

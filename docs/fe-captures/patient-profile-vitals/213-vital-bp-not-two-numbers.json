@@ -1,0 +1,45 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "vital_type": "blood_pressure",
+      "value": "120",
+      "unit": "mmHg",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00Z",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "vital_invalid",
+          "loc": [
+            "body"
+          ],
+          "msg": "Blood pressure must be two numbers written like 120/80 (top number first).",
+          "input": {
+            "vital_type": "blood_pressure",
+            "value": "120",
+            "unit": "mmHg",
+            "source": "manual",
+            "recorded_at": "2026-11-07T10:00:00Z",
+            "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+            "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+          },
+          "ctx": {
+            "message": "Blood pressure must be two numbers written like 120/80 (top number first)."
+          }
+        }
+      ]
+    }
+  }
+}

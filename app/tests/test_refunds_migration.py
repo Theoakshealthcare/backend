@@ -177,7 +177,9 @@ def test_several_take_back_rows_per_booking_but_one_earning(db, booking):
     db.rollback()
 
 
-def test_0014_event_check_matches_the_model(scratch):  # noqa: F811
+def test_0014_event_snapshot_is_part_of_the_model():
+    """0014 froze the event list as it was then; later migrations add events (0021: the app-only ones), so the model
+    may only be a superset of that snapshot. The check at the head of the chain is pinned by the next test."""
     import importlib.util
     from pathlib import Path
     from app.db.models.whatsapp_booking import BOOKING_EVENTS
@@ -185,7 +187,19 @@ def test_0014_event_check_matches_the_model(scratch):  # noqa: F811
     spec = importlib.util.spec_from_file_location("mig0014", path)
     mig = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mig)
-    assert set(mig.NEW_EVENTS) == set(BOOKING_EVENTS)
+    assert set(mig.NEW_EVENTS) <= set(BOOKING_EVENTS)
+
+
+def test_event_check_at_the_migration_head_matches_the_model(scratch):  # noqa: F811
+    """The database's ``ck_booking_events_event`` after every migration must list exactly the model's events: a new
+    event name added to the model without a migration (or the reverse) fails here, not in production."""
+    import re
+    from app.db.models.whatsapp_booking import BOOKING_EVENTS
+    _run(scratch, command.upgrade, "head")
+    with scratch.connect() as conn:
+        definition = conn.execute(text(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'ck_booking_events_event'")).scalar()
+    assert set(re.findall(r"'([a-z_]+)'", definition)) == set(BOOKING_EVENTS)
 
 
 def test_one_paystack_refund_belongs_to_one_attempt(db, booking):

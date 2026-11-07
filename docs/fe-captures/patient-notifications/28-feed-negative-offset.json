@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications?offset=-1",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 422,
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "query",
+            "offset"
+          ],
+          "msg": "Input should be greater than or equal to 0",
+          "input": "-1",
+          "ctx": {
+            "ge": 0
+          }
+        }
+      ]
+    }
+  }
+}

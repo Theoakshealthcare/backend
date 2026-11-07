@@ -130,7 +130,7 @@ def test_only_whatsapp_bookings_get_reminders(db):
     booking = make_booking(db, make_patient(db), payment_status=PaymentStatus.PENDING,
                            payment_expires_at=datetime.utcnow() + timedelta(minutes=5))
     assert notifications.scan_reminders(db, datetime.utcnow()) == 0 and booking.channel == "app"
-    assert booking_events.emit(db, booking, "payment_received") is False  # app bookings are never queued
+    assert booking_events.emit(db, booking, "payment_link_expiring") is False  # a WhatsApp-only journey: never queued for an app booking
 
 
 # --- the cancellation at 30 minutes (the existing expiry job) ------------------------------------------------

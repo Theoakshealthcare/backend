@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/vitals/788d7059-801c-43b5-8a39-ff9b2bca14f8",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied"
+    }
+  }
+}

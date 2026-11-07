@@ -1,0 +1,18 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "No caregiver found yet",
+      "body": "We couldn't find a caregiver yet. Our team is looking into it.",
+      "data": {
+        "type": "no_caregiver_found",
+        "booking_id": "ff882ad4-ae92-4fdd-bc02-bba0467ef019",
+        "target": "booking_detail",
+        "notification_id": "b188649c-9308-4438-b025-2248beb4fb6e"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. IN-PROCESS: NotificationService.no_caregiver_found (what dispatch calls when it gives up)."
+}
