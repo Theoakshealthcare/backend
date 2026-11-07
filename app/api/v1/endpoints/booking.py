@@ -24,12 +24,12 @@ from app.schemas.booking import (
     BookingNoteCreate, BookingNoteResponse,
     BookingNotificationResponse,
     LiveTrackingResponse,
-    CancelBookingRequest, CancelBookingResponse, CancelTermsResponse,
+    CancelBookingRequest, CancelBookingResponse, CancelTermsResponse, PaymentLinkResponse,
 )
 from app.services.booking import (
     BookingActionForbidden, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
-from app.services import patient_booking_cancel
+from app.services import booking_payment_link, patient_booking_cancel
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
@@ -496,6 +496,49 @@ def cancel_booking(
     except patient_booking_cancel.PatientCancelError as exc:
         raise _cancel_http_error(exc)
     return result.as_dict()
+
+
+_PAYMENT_LINK_ERRORS = {
+    **_CANCEL_ERRORS,
+    409: {"description": "detail.code is one of booking_already_paid, booking_already_cancelled, booking_not_payable, "
+                         "payment_window_expired, payment_link_in_progress (a first request is still running: retry in "
+                         "a moment) or payment_under_review"},
+    503: {"description": "detail.code payment_check_unavailable (Paystack could not be asked whether it was paid) or "
+                         "payment_link_unavailable (Paystack would not start the payment); nothing changed, retry"},
+}
+
+
+@router.post(
+    "/{booking_id}/payment-link",
+    response_model=PaymentLinkResponse,
+    summary="Get the payment link of a booking that is not paid yet (booker only)",
+    responses=_PAYMENT_LINK_ERRORS,
+    tags=["Patient Bookings"],
+)
+def get_payment_link(
+    booking_id: UUID,
+    current_user: User = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> Any:
+    """The "Pay now" link for a booking created earlier, so it survives an app restart.
+
+    Same response as ``/create`` (the booking with ``payment_url`` and ``payment_access_code``) plus ``paystack_reference``
+    and ``payment_expires_at``. The booking keeps its
+    one Paystack reference, so Paystack itself can charge it only once: tapping twice, or paying on an old page and a new
+    one, can never charge twice. Paystack is asked first whether the booking was already paid (a late webhook): if so it
+    is settled and the answer is 409 ``booking_already_paid``. Nothing is written when a link is handed out. Only for a
+    pending booking whose payment window is still open; the window is not extended.
+    """
+    try:
+        result = booking_payment_link.issue(db, current_user, booking_id)
+    except patient_booking_cancel.PatientCancelError as exc:
+        raise _cancel_http_error(exc)
+    enriched = enrich_booking_with_details(result["booking"], db)
+    enriched["payment_url"] = result["payment_url"]
+    enriched["payment_access_code"] = result["access_code"]
+    enriched["paystack_reference"] = result["booking"].paystack_reference
+    enriched["payment_expires_at"] = result["booking"].payment_expires_at
+    return enriched
 
 
 # Caregiver Endpoints

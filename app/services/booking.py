@@ -260,26 +260,30 @@ class BookingService:
             self.db.flush()
         return booking
 
-    def start_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
-        """Initialise the Paystack transaction for a booking that already exists."""
+    def initialise_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
+        """Ask Paystack to initialise the transaction for the booking's own reference and total. No database writes.
+        Returns Paystack's answer as ``PaystackService.initialize_transaction`` gives it (``status`` true with
+        ``authorization_url`` and ``access_code``, or ``status`` false with ``message``)."""
         patient = self.db.query(Patient).filter(Patient.id == booking.patient_id).first()
         if not patient:
             raise Exception("Patient not found for payment processing.")
-        patient_id = booking.patient_id
 
-        # Initialize Paystack payment
-        payment_response = self.paystack_service.initialize_transaction(
+        return self.paystack_service.initialize_transaction(
             email=paystack_email_for(patient),
             amount_kobo=booking.total_amount_kobo,
             reference=booking.paystack_reference,
             callback_url=callback_url,
             metadata={
                 "booking_id": str(booking.id),
-                "patient_id": str(patient_id),
+                "patient_id": str(booking.patient_id),
                 "service_type": booking.service_type,
                 "booking_code": booking.booking_code
             }
         )
+
+    def start_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
+        """Initialise the Paystack transaction for a booking that was just created."""
+        payment_response = self.initialise_payment(booking, callback_url=callback_url)
 
         if not payment_response.get("status"):
             # If payment initialization fails, mark booking as cancelled
