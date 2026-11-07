@@ -98,6 +98,7 @@ class Booking(Base):
     # Unpaid expiry: the expire_unpaid_bookings job cancels a pending, unpaid booking past this time.
     payment_expires_at = Column(DateTime, nullable=True)
     cancel_reason = Column(String, nullable=True)  # e.g. 'unpaid_timeout'
+    cancel_note = Column(Text, nullable=True)  # the free-text reason the booker typed when cancelling (max 500 characters)
     # Money received for a booking that stays cancelled. The admin refund queue consumes this; nothing
     # refunds automatically.
     refund_required = Column(Boolean, nullable=False, default=False, server_default=expression.false())
@@ -116,13 +117,17 @@ class Booking(Base):
     # policy applies.
     cancel_policy = Column(JSON, nullable=True)
     # What the caregiver earns, copied from the admin policy when the booking is created (like ``cancel_policy``):
-    # ``{"visit_share_percent", "hold_hours", "late_fee_share_percent"}``. NULL: the live policy applies.
+    # ``{"visit_share_percent", "hold_hours", "late_fee_share_percent", "short_visit_min_percent"}`` (the last one is
+    # missing from older snapshots: those mean 50). NULL: the live policy applies.
     earnings_terms = Column(JSON, nullable=True)
     cancel_fee_tier = Column(String, nullable=True)  # none | standard | late: the tier a booker cancellation applied
     # For the late tier only: was it because the caregiver set out in good time and really moved toward the patient?
     # (The caregiver-compensation work, A3, reads this.) NULL when the late tier did not apply.
     late_cancel_compensable = Column(Boolean, nullable=True)
     on_my_way_at = Column(DateTime, nullable=True)
+    # The assigned caregiver tapped "I've arrived" (status stays accepted / en_route: the visit starts with the visit code).
+    # NULL until then; cleared when the booking goes to another caregiver.
+    arrived_at = Column(DateTime, nullable=True)
     on_my_way_distance_m = Column(Integer, nullable=True)  # caregiver to patient when they tapped, if a fix existed
 
     # After a caregiver drops out of a WhatsApp booking: redispatching | awaiting_choice | waiting | handed_over |

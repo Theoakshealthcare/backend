@@ -14,7 +14,7 @@ DEFAULTS = {
     "dropout_redispatch_min_lead_minutes": 120, "dropout_decision_lead_minutes": 60,
     "onmyway_compensation_window_minutes": 120, "caregiver_late_fee_share_percent": 80,
     "caregiver_visit_share_percent": 80, "earning_hold_hours": 24, "payout_cadence": "weekly",
-    "payout_min_naira": 5000, "finance_refund_limit_naira": 50000,
+    "payout_min_naira": 5000, "finance_refund_limit_naira": 50000, "short_visit_min_percent": 50,
 }
 
 

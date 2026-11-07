@@ -20,6 +20,7 @@ POLICY_DEFAULTS = {
     "payout_cadence": "weekly",              # when scheduled caregiver payouts run (app/services/payouts.py)
     "payout_min_naira": 5000,                # the smallest balance a scheduled payout will pay out
     "finance_refund_limit_naira": 50000,     # slice 3: the largest refund Finance may approve alone
+    "short_visit_min_percent": 50,           # a visit with less than this share of the booked time on site is held for Finance
 }
 PAYOUT_CADENCES = ("weekly", "biweekly", "monthly")
 
@@ -40,6 +41,7 @@ class BookingPolicy(Base):
         CheckConstraint("caregiver_late_fee_share_percent BETWEEN 0 AND 100", name="ck_booking_policies_share_percent"),
         CheckConstraint("caregiver_visit_share_percent BETWEEN 0 AND 100", name="ck_booking_policies_visit_share_percent"),
         CheckConstraint("earning_hold_hours BETWEEN 0 AND 168", name="ck_booking_policies_earning_hold_hours"),
+        CheckConstraint("short_visit_min_percent BETWEEN 0 AND 100", name="ck_booking_policies_short_visit_min_percent"),
         CheckConstraint("payout_cadence IN ('weekly','biweekly','monthly')", name="ck_booking_policies_payout_cadence"),
         CheckConstraint("payout_min_naira BETWEEN 0 AND 100000000 AND finance_refund_limit_naira BETWEEN 0 AND 100000000",
                         name="ck_booking_policies_naira"),
@@ -72,5 +74,7 @@ class BookingPolicy(Base):
     payout_cadence = Column(String, nullable=False, default=POLICY_DEFAULTS["payout_cadence"])
     payout_min_naira = Column(Integer, nullable=False, default=POLICY_DEFAULTS["payout_min_naira"])
     finance_refund_limit_naira = Column(Integer, nullable=False, default=POLICY_DEFAULTS["finance_refund_limit_naira"])
+    short_visit_min_percent = Column(Integer, nullable=False, default=POLICY_DEFAULTS["short_visit_min_percent"],
+                                     server_default=str(POLICY_DEFAULTS["short_visit_min_percent"]))
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)

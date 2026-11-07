@@ -127,7 +127,8 @@ def test_the_terms_are_copied_onto_the_booking_when_it_is_created_and_a_later_ed
     set_policy(db, caregiver_visit_share_percent=70, earning_hold_hours=48)
     patient = make_patient(db)
     booking = BookingService(db).insert_booking(patient.id, BookingCreate(**_create_body()))
-    assert booking.earnings_terms == {"visit_share_percent": 70, "hold_hours": 48, "late_fee_share_percent": 80}
+    assert booking.earnings_terms == {"visit_share_percent": 70, "hold_hours": 48, "late_fee_share_percent": 80,
+                                      "short_visit_min_percent": 50}
 
     set_policy(db, caregiver_visit_share_percent=90, earning_hold_hours=1)  # a later change
     cg = make_caregiver(db)

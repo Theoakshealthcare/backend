@@ -607,7 +607,7 @@ class BookingService:
             else:  # start / complete / cancel: assigned caregiver only
                 if not is_assigned:
                     raise BookingActionForbidden("This booking is not assigned to you")
-                if action in ("on_my_way", "start"):
+                if action in ("on_my_way", "arrived", "start"):
                     # A suspended caregiver may still finish a visit already under way (they're with
                     # the patient), but must not set out for or begin a new one.
                     status_row = (
@@ -630,6 +630,15 @@ class BookingService:
                     booking.status = BookingStatus.EN_ROUTE
                     self._remember_on_my_way(booking, caregiver_id)
                     NotificationService(self.db).caregiver_on_the_way(booking)
+                elif action == "arrived":
+                    # "I've arrived": the caregiver is at the door. Optional like on_my_way (the visit still starts with the
+                    # visit code), allowed from accepted or en_route, and a repeat is a no-op (the first tap's time is kept
+                    # and the family is told once: the notification is keyed by the assignment too).
+                    if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE):
+                        raise BookingStateConflict("Only an accepted booking can be marked as arrived")
+                    if booking.arrived_at is None:
+                        booking.arrived_at = datetime.utcnow()
+                        NotificationService(self.db).caregiver_arrived(booking)
                 elif action == "start":
                     # on_my_way is optional: a caregiver who never pressed it can still start.
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE):

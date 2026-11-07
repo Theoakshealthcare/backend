@@ -29,7 +29,7 @@ from app.schemas.booking import (
 from app.services.booking import (
     BookingActionForbidden, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
-from app.services import booking_payment_link, patient_booking_cancel
+from app.services import booking_payment_link, earnings, patient_booking_cancel
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
@@ -72,10 +72,24 @@ def redact_offer(booking_dict: dict) -> dict:
     # Who booked, and for whom (WhatsApp bookings), is identity too.
     booking_dict["booked_by_user_id"] = None
     booking_dict["care_recipient_id"] = None
+    booking_dict["arrived_at"] = None
     booking_dict["patient_address"] = f"{booking_dict.get('patient_city')}, {booking_dict.get('patient_state')}"
     for key in ("patient_latitude", "patient_longitude"):
         if booking_dict.get(key) is not None:
             booking_dict[key] = round(booking_dict[key], 2)
+    return booking_dict
+
+
+EARNING_SHOWN_FOR = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED)
+
+
+def attach_caregiver_earning(booking_dict: dict, booking: Booking, caregiver_id: Optional[UUID]) -> dict:
+    """Add what the caregiver earns for this visit to a view that belongs to the booking's assigned caregiver. Never called
+    for patients, admins or a caregiver who only holds an offer."""
+    if caregiver_id is None or booking.caregiver_id != caregiver_id or booking.status not in EARNING_SHOWN_FOR:
+        return booking_dict
+    kobo = earnings.snapshot_visit_earning_kobo(booking)
+    booking_dict["caregiver_earning"] = float(kobo_to_naira(kobo)) if kobo is not None else None
     return booking_dict
 
 
@@ -92,9 +106,10 @@ def enrich_booking_with_details(
     # The visit code never leaves through this helper (the action endpoint returns this dict as-is,
     # without a response model to filter it). The patient-facing GET adds the plain code explicitly.
     for secret in ("visit_code_enc", "visit_code_failed_attempts", "visit_code_locked_until",
-                   "paystack_authorization_url", "paystack_access_code"):
+                   "paystack_authorization_url", "paystack_access_code", "cancel_note"):
         booking_dict.pop(secret, None)
     booking_dict["visit_code"] = None
+    booking_dict["caregiver_earning"] = None  # only the assigned caregiver's own views add it (attach_caregiver_earning)
     # What the booker paid to cancel and the refund's state belong to the booker only: the patient views add them back
     # (patient_booking_cancel.attach_cancel_info); caregivers and admins never get them from here.
     booking_dict["cancel_fee_tier"] = None
@@ -583,7 +598,7 @@ def get_caregiver_bookings(
         enriched_booking = enrich_booking_with_details(
             booking, booking_service.db, viewer_caregiver_id=caregiver.id
         )
-        enriched_bookings.append(enriched_booking)
+        enriched_bookings.append(attach_caregiver_earning(enriched_booking, booking, caregiver.id))
     
     return enriched_bookings
 
@@ -629,9 +644,9 @@ def get_caregiver_notifications(
             "is_read": n.is_read,
             "created_at": n.created_at,
             "response": n.response,
-            "booking": enrich_booking_with_details(
-                n.booking, booking_service.db, viewer_caregiver_id=caregiver.id
-            ),
+            "booking": attach_caregiver_earning(
+                enrich_booking_with_details(n.booking, booking_service.db, viewer_caregiver_id=caregiver.id),
+                n.booking, caregiver.id),
         }
         for n in notifications
     ]
@@ -656,6 +671,8 @@ async def handle_booking_action(
     **Available Actions:**
     - **accept**: Accept a booking request
     - **decline**: Decline a booking request  
+    - **on_my_way**: Tell the family you are on your way (accepted booking, inside the on-my-way window)
+    - **arrived**: Tell the family you are at the door (accepted or en route; a repeat changes nothing and tells no one again)
     - **start**: Start providing service (booking must be accepted)
     - **complete**: Mark service as completed
     - **cancel**: Cancel the booking
@@ -680,6 +697,7 @@ async def handle_booking_action(
         enriched_booking = enrich_booking_with_details(
             booking, booking_service.db, viewer_caregiver_id=caregiver.id
         )
+        attach_caregiver_earning(enriched_booking, booking, caregiver.id)
         return {"message": f"Booking {action_data.action} successfully", "booking": enriched_booking}
     except BookingActionForbidden as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
@@ -729,6 +747,9 @@ def get_booking_details(
     # Enrich booking with patient and caregiver details
     enriched_booking = enrich_booking_with_details(booking, booking_service.db)
     enriched_booking["visit_code"] = _visit_code_for_patient(booking_service.db, current_user, booking)
+    if isinstance(current_user, User) and current_user.user_type == "caregiver":  # ensure_booking_read_access: the assigned one
+        caregiver = booking_service.db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
+        attach_caregiver_earning(enriched_booking, booking, caregiver.id if caregiver else None)
     if isinstance(current_user, User) and current_user.user_type == "patient":  # ensure_booking_read_access: its own patient
         refunds = patient_booking_cancel.refund_summaries(booking_service.db, [booking.id])
         patient_booking_cancel.attach_cancel_info(enriched_booking, booking, refunds)

@@ -4,7 +4,7 @@
 falls back to the defaults). ``update`` is the one writer: it validates the *merged* result, stores it and writes the
 audit row (old and new values, the reason) in the same transaction.
 
-The caregiver earnings terms (visit share, hold, late-fee share) are snapshotted onto the booking the same way
+The caregiver earnings terms (visit share, hold, late-fee share, short-visit threshold) are snapshotted onto the booking the same way
 (``earnings_snapshot``). The cancellation tiers are **snapshotted** onto the quote and the booking when they are made (``cancel_snapshot``), and
 cancellation reads the booking's copy, so an edit here only affects bookings quoted afterwards. The drop-out timings and
 the on-my-way window are read live.
@@ -46,6 +46,7 @@ class PolicyValues:
     payout_cadence: str
     payout_min_naira: int
     finance_refund_limit_naira: int
+    short_visit_min_percent: int
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -57,7 +58,7 @@ MAX_MINUTES = 10_080     # a week
 MAX_NAIRA = 100_000_000
 HOUR_FIELDS = ("cancel_free_hours", "cancel_late_hours", "earning_hold_hours")
 PERCENT_FIELDS = ("cancel_fee_percent", "cancel_late_fee_percent", "caregiver_late_fee_share_percent",
-                  "caregiver_visit_share_percent")
+                  "caregiver_visit_share_percent", "short_visit_min_percent")
 NAIRA_FIELDS = ("payout_min_naira", "finance_refund_limit_naira")
 TEXT_FIELDS = ("payout_cadence",)
 MINUTE_FIELDS = ("dropout_redispatch_min_lead_minutes", "dropout_decision_lead_minutes",
@@ -110,9 +111,10 @@ def cancel_snapshot(policy: PolicyValues) -> Dict[str, int]:
 
 
 def earnings_snapshot(policy: PolicyValues) -> Dict[str, int]:
-    """What a caregiver earns on a booking, copied onto it when it is created."""
+    """What a caregiver earns on a booking (and when a short visit is held), copied onto it when it is created."""
     return {"visit_share_percent": policy.caregiver_visit_share_percent, "hold_hours": policy.earning_hold_hours,
-            "late_fee_share_percent": policy.caregiver_late_fee_share_percent}
+            "late_fee_share_percent": policy.caregiver_late_fee_share_percent,
+            "short_visit_min_percent": policy.short_visit_min_percent}
 
 
 def get_row(db: Session) -> Optional[BookingPolicy]:

@@ -10,7 +10,7 @@ POLICY_FIELDS = (
     "cancel_free_hours", "cancel_late_hours", "cancel_fee_percent", "cancel_late_fee_percent",
     "dropout_redispatch_min_lead_minutes", "dropout_decision_lead_minutes", "onmyway_compensation_window_minutes",
     "caregiver_late_fee_share_percent", "caregiver_visit_share_percent", "earning_hold_hours", "payout_cadence",
-    "payout_min_naira", "finance_refund_limit_naira",
+    "payout_min_naira", "finance_refund_limit_naira", "short_visit_min_percent",
 )
 
 
@@ -28,6 +28,7 @@ class BookingPolicyOut(BaseModel):
     payout_cadence: Literal["weekly", "biweekly", "monthly"] = Field(description="How often scheduled payouts run (used by the payouts work; not read yet)")
     payout_min_naira: int = Field(description="Smallest available balance a scheduled payout pays out, in naira (not read yet)")
     finance_refund_limit_naira: int = Field(description="Largest refund Finance may approve without a Super Admin, in naira (not read yet)")
+    short_visit_min_percent: int = Field(description="A completed visit with under this percent of the booked time on site is credited already held for Finance review (50 = under half). Copied onto each booking when it is created")
     updated_at: Optional[datetime] = None
     updated_by: Optional[UUID] = None
 
@@ -50,6 +51,7 @@ class BookingPolicyPatch(BaseModel):
     payout_cadence: Optional[Literal["weekly", "biweekly", "monthly"]] = None
     payout_min_naira: Optional[int] = Field(default=None, strict=True)
     finance_refund_limit_naira: Optional[int] = Field(default=None, strict=True)
+    short_visit_min_percent: Optional[int] = Field(default=None, strict=True)
 
     @field_validator("reason")
     @classmethod
