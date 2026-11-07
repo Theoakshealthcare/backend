@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "answer": "No"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "answers",
+            0,
+            "question_id"
+          ],
+          "msg": "Field required",
+          "input": {
+            "answer": "No"
+          }
+        }
+      ]
+    }
+  },
+  "note": "A malformed body is still FastAPI's own 422 (detail is a LIST here, an object for the four codes above)."
+}

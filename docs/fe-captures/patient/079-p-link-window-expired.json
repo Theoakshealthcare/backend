@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/45b70be6-93bd-4b17-a447-d937bf558c95/payment-link",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "payment_window_expired",
+        "message": "The time to pay for this booking has run out. Please make a new booking."
+      }
+    }
+  },
+  "note": "Booking whose payment window closed (the row was edited to be 1 minute past; the expiry sweep has not run)."
+}

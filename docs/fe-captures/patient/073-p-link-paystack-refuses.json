@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/225d2f64-431a-4259-935e-f645e3bb1546/payment-link",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 503,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "payment_link_unavailable",
+        "message": "We could not prepare your payment link right now. Please try again in a moment."
+      }
+    }
+  },
+  "note": "SIMULATED: the fake Paystack refuses to initialise. The booking is NOT cancelled (create would cancel it)."
+}

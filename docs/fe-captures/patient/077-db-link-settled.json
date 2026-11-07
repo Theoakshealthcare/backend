@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT payment_status, status FROM bookings WHERE id = <the created booking>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "payment_status": "PAID",
+        "status": "PENDING"
+      }
+    ]
+  },
+  "note": "Settled by the link request (the same settlement the webhook uses)."
+}

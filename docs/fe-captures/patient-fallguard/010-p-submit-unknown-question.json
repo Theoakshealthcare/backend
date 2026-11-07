@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "4d75b6e2-9ec8-4da2-8b1d-22c2f9bf7447",
+          "answer": "No"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "fallguard_unknown_question",
+        "message": "One of the questions is not part of the assessment.",
+        "question_id": "4d75b6e2-9ec8-4da2-8b1d-22c2f9bf7447"
+      }
+    }
+  },
+  "note": "This used to be a 500 Internal Server Error."
+}

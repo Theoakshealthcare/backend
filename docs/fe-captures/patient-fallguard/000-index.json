@@ -1,0 +1,82 @@
+{
+  "generated_by": "scripts/capture_patient_fallguard.py",
+  "run_tag": "ea566e",
+  "captured_at": "2026-11-07T17:44:24.508959Z",
+  "captures": [
+    {
+      "file": "001-p-questions.json",
+      "label": "p-questions",
+      "status": 200
+    },
+    {
+      "file": "002-c-questions-as-caregiver.json",
+      "label": "c-questions-as-caregiver",
+      "status": 403
+    },
+    {
+      "file": "003-none-questions-no-token.json",
+      "label": "none-questions-no-token",
+      "status": 401
+    },
+    {
+      "file": "004-p-history-empty.json",
+      "label": "p-history-empty",
+      "status": 200
+    },
+    {
+      "file": "005-p-submit-full.json",
+      "label": "p-submit-full",
+      "status": 200
+    },
+    {
+      "file": "006-p-submit-without-score.json",
+      "label": "p-submit-without-score",
+      "status": 200
+    },
+    {
+      "file": "007-p-submit-tampered-score.json",
+      "label": "p-submit-tampered-score",
+      "status": 200
+    },
+    {
+      "file": "008-p-submit-empty.json",
+      "label": "p-submit-empty",
+      "status": 422
+    },
+    {
+      "file": "009-p-submit-duplicate-question.json",
+      "label": "p-submit-duplicate-question",
+      "status": 422
+    },
+    {
+      "file": "010-p-submit-unknown-question.json",
+      "label": "p-submit-unknown-question",
+      "status": 422
+    },
+    {
+      "file": "011-p-submit-invalid-option.json",
+      "label": "p-submit-invalid-option",
+      "status": 422
+    },
+    {
+      "file": "012-p-submit-bad-body.json",
+      "label": "p-submit-bad-body",
+      "status": 422
+    },
+    {
+      "file": "013-c-submit-as-caregiver.json",
+      "label": "c-submit-as-caregiver",
+      "status": 403
+    },
+    {
+      "file": "014-none-submit-no-token.json",
+      "label": "none-submit-no-token",
+      "status": 401
+    },
+    {
+      "file": "015-p-history.json",
+      "label": "p-history",
+      "status": 200
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/3df59f25-cb2b-46d6-a20d-68af4b6b86c4/cancel",
+    "path": "/api/v1/booking/c35918b7-3db2-4a07-92da-c44f339d242d/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -11,8 +11,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "booking_id": "3df59f25-cb2b-46d6-a20d-68af4b6b86c4",
-      "booking_code": "6B1E78B6",
+      "booking_id": "c35918b7-3db2-4a07-92da-c44f339d242d",
+      "booking_code": "FA4256FF",
       "status": "cancelled",
       "already_cancelled": true,
       "fee_tier": "none",

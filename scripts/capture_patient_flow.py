@@ -1,4 +1,4 @@
-"""Capture the patient-app cancel flow against a RUNNING Oakly API and write every request/response to
+"""Capture the patient-app cancel flow and the payment-link ("Pay now" after a restart) flow against a RUNNING Oakly API and write every request/response to
 docs/fe-captures/patient/*.json. docs/fe-integration-guide-patient-bookings.md is copied from these files, never from schemas.
 
     # a scratch env file (generated values, never committed), a throwaway Postgres, the API from this checkout
@@ -15,7 +15,8 @@ What is real and what is not
 - Every API call is a real HTTP call to the running API (default http://127.0.0.1:8000): accounts are registered and verified
   through the endpoints, the caregiver is onboarded and approved through the endpoints, the caregiver accepts, starts and
   completes through the endpoints, the refund is approved through the admin endpoints.
-- Seeded directly in the database (there is no API for it; the patient booking endpoint needs a live Paystack account): the
+- Seeded directly in the database for the cancel sections (section 5, the payment link, uses the real create endpoint
+  against the local fake Paystack): the
   booking rows (the same insert capture_caregiver_flow.py uses), and the admin user. Each is labelled in the captures.
 - Payment is settled with a correctly signed Paystack *webhook* sent to the API's own webhook route. Paystack itself is a LOCAL
   FAKE (app/tests/fake_meta.py): verify-before-cancel for an unpaid booking asks it. Nothing here proves a live Paystack account.
@@ -30,7 +31,7 @@ import argparse
 import json
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict
 
@@ -204,6 +205,73 @@ def run(args) -> None:
     server = serve_fake_paystack(paystack, port=args.paystack_port)
     rec.call("p-u3-detail-still-pending", "GET", f"{api}/booking/{u3['id']}", token=tp,
              note="Nothing changed by the 503: the booking is still pending.")
+
+    # --- 5. "Pay now" after an app restart: POST /booking/{id}/payment-link ---------------------------------------------------
+    # A fresh database has no pricing version yet (booking_settings is never seeded), so the first calls show the 503.
+    preview_body = {"service_type": "nurse", "duration_hours": 3}
+    create_body = {"service_type": "nurse", "assistance_type": "Placeholder assistance", "duration_hours": 3,
+                   "scheduled_date": (datetime.utcnow() + timedelta(days=2)).strftime("%Y-%m-%dT10:00:00"),
+                   "patient_address": "12 Placeholder Street, Lekki", "patient_latitude": 6.4474,
+                   "patient_longitude": 3.4723, "patient_city": "Lagos", "patient_state": "Lagos", "booking_for": "myself"}
+    rec.call("p-preview-no-pricing", "POST", f"{api}/preview", expect=503, json_body=preview_body,
+             note="A new environment with no booking_settings row yet: a 503 with a stable code (it used to be a 500).")
+    rec.call("p-create-no-pricing", "POST", f"{api}/create", token=tp, expect=503, json_body=create_body,
+             note="Same for create: nothing was created.")
+    rec.call("admin-first-pricing", "POST", "/api/v1/booking-settings/", token=admin,
+             json_body={"base_fee": 5000.0, "platform_fee_percent": 10.0,
+                        "multipliers": {"nurse": 1.0, "caregiver": 0.8}, "reason": "Placeholder: first pricing version"},
+             note="What every new environment needs once, done by an admin with pricing.write. Never seeded automatically.")
+    rec.call("p-preview", "POST", f"{api}/preview", json_body=preview_body)
+    created = rec.call("p-create", "POST", f"{api}/create", token=tp, json_body=create_body,
+                       note="The real create endpoint (the API's Paystack calls reach the local fake Paystack). "
+                            "payment_url is the link; the app is closed before the person pays.").json()
+    bid = created["id"]
+    link_path = f"{api}/{bid}/payment-link"
+    rec.call("p-link", "POST", link_path, token=tp,
+             note="The app restarted: it lists the booking (payment_status pending) and asks for a link. Same Paystack "
+                  "reference as create; payment_url and payment_access_code as create returns them, plus paystack_reference "
+                  "and payment_expires_at.")
+    rec.call("p-link-double-tap", "POST", link_path, token=tp,
+             note="A second tap: 200 again, the SAME reference. Nothing is written and no second transaction exists.")
+    observe(rec, "db-link-one-booking-one-reference", "SELECT count(*), count(DISTINCT paystack_reference) FROM bookings"
+            " WHERE id = <the created booking>", db.run("SELECT count(*), count(DISTINCT paystack_reference) FROM bookings"
+                                                         " WHERE id = %s", (bid,)),
+            "One booking row and one reference after create plus two links.")
+    rec.call("q-link-other-patient", "POST", link_path, token=tq, expect=403)
+    rec.call("c-link-as-caregiver", "POST", link_path, token=tc, expect=403)
+    rec.call("none-link-no-token", "POST", link_path, expect=401)
+    rec.call("p-link-missing", "POST", f"{api}/{uuid.uuid4()}/payment-link", token=tp, expect=404)
+
+    paystack.fail_init = "Placeholder: Paystack is having a bad moment"
+    rec.call("p-link-paystack-refuses", "POST", link_path, token=tp, expect=503,
+             note="SIMULATED: the fake Paystack refuses to initialise. The booking is NOT cancelled (create would cancel it).")
+    paystack.fail_init = None
+    rec.call("p-link-detail-still-pending", "GET", f"{api}/booking/{bid}", token=tp)
+
+    server.shutdown()
+    server.server_close()
+    rec.call("p-link-paystack-unreachable", "POST", link_path, token=tp, expect=503,
+             note="SIMULATED: the fake Paystack was shut down, so Oakly could not ask whether it was already paid.")
+    server = serve_fake_paystack(paystack, port=args.paystack_port)
+
+    (ref, total) = db.run("SELECT paystack_reference, total_amount_kobo FROM bookings WHERE id = %s", (bid,))[0]
+    paystack.paid.add(ref)
+    rec.call("p-link-paid-but-webhook-late", "POST", link_path, token=tp, expect=409,
+             note="SIMULATED: the family paid a moment ago and the webhook has not arrived (the fake Paystack says paid). "
+                  "The booking is settled first, then the link is refused.")
+    observe(rec, "db-link-settled", "SELECT payment_status, status FROM bookings WHERE id = <the created booking>",
+            [{"payment_status": a, "status": b} for (a, b) in db.run(
+                "SELECT payment_status::text, status::text FROM bookings WHERE id = %s", (bid,))],
+            "Settled by the link request (the same settlement the webhook uses).")
+    rec.call("p-link-after-paid", "POST", link_path, token=tp, expect=409, note="A repeat: refused again, nothing re-notified.")
+
+    v1 = unpaid("v1")
+    db.run("UPDATE bookings SET payment_expires_at = now() - interval '1 minute' WHERE id = %s", (v1["id"],))
+    rec.call("p-link-window-expired", "POST", f"{api}/{v1['id']}/payment-link", token=tp, expect=409,
+             note="Booking whose payment window closed (the row was edited to be 1 minute past; the expiry sweep has not run).")
+    v2 = unpaid("v2")
+    rec.call("p-v2-cancel-unpaid", "POST", f"{api}/{v2['id']}/cancel", token=tp, json_body={"accepted_fee_kobo": 0})
+    rec.call("p-link-cancelled", "POST", f"{api}/{v2['id']}/payment-link", token=tp, expect=409)
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_patient_flow.py", "run_tag": tag, "captured_at": datetime.utcnow().isoformat() + "Z",

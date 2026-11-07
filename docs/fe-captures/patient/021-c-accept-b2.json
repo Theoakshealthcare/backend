@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/28724045-ec58-4e31-9f5c-f7beb07f7cd2",
+    "path": "/api/v1/booking/caregiver/action/5f0a6568-4a10-437b-b8b9-957b76c1719f",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "accept"
@@ -15,21 +15,21 @@
     "body": {
       "message": "Booking accept successfully",
       "booking": {
-        "id": "28724045-ec58-4e31-9f5c-f7beb07f7cd2",
-        "booking_code": "D96F7B66",
+        "id": "5f0a6568-4a10-437b-b8b9-957b76c1719f",
+        "booking_code": "0054E4C8",
         "channel": "app",
-        "patient_id": "3f677f89-46a7-48e4-b2ca-5faed2562fb4",
+        "patient_id": "074ab6a6-348c-40de-974c-402c950926a5",
         "patient_details": {
-          "patient_id": "3f677f89-46a7-48e4-b2ca-5faed2562fb4",
+          "patient_id": "074ab6a6-348c-40de-974c-402c950926a5",
           "full_name": "Placeholder Patient",
-          "phone_number": "+2340000199002",
+          "phone_number": "+2340000427002",
           "profile_image_url": null,
           "emergency_contact_name": null,
           "emergency_contact_phone": null
         },
-        "caregiver_id": "109cf71e-5073-4585-a354-8503f316b89d",
+        "caregiver_id": "ee79e0e2-9ee8-4a3d-92e4-c0c0a84387c0",
         "caregiver_details": {
-          "caregiver_id": "109cf71e-5073-4585-a354-8503f316b89d",
+          "caregiver_id": "ee79e0e2-9ee8-4a3d-92e4-c0c0a84387c0",
           "full_name": "Placeholder Caregiver",
           "specialization": "Elderly Care",
           "profile_image_url": null,
@@ -37,15 +37,15 @@
           "current_longitude": 3.4723,
           "distance_from_patient": 0.22,
           "estimated_arrival_time": 5,
-          "last_location_update": "2026-11-07T14:33:32.613879",
+          "last_location_update": "2026-11-07T17:44:00.693783",
           "is_online": true
         },
         "service_type": "nurse",
         "assistance_type": "Placeholder assistance",
         "condition": "Placeholder condition",
         "duration_hours": 2,
-        "scheduled_date": "2026-11-07T19:33:33.848786",
-        "scheduled_end_date": "2026-11-07T21:33:33.848786",
+        "scheduled_date": "2026-11-07T22:44:02.211595",
+        "scheduled_end_date": "2026-11-08T00:44:02.211595",
         "actual_start_time": null,
         "actual_end_time": null,
         "patient_address": "12 Placeholder Street, Lekki",
@@ -55,8 +55,8 @@
         "patient_state": "Lagos",
         "status": "accepted",
         "payment_status": "paid",
-        "paystack_reference": "BKG_D96F7B66_8e7d62a1",
-        "payment_expires_at": "2026-11-07T15:03:33.848801",
+        "paystack_reference": "BKG_0054E4C8_35d74afa",
+        "payment_expires_at": "2026-11-07T18:14:02.211609",
         "payment_failure_reason": null,
         "total_amount": "55000.00",
         "service_fee": "50000.00",
@@ -70,10 +70,10 @@
         "refund_required": false,
         "refund_required_reason": null,
         "dispatch_state": "matched",
-        "dispatch_started_at": "2026-11-07T14:33:33.855569",
+        "dispatch_started_at": "2026-11-07T17:44:02.219339",
         "visit_code": null,
-        "created_at": "2026-11-07T14:33:33.847894",
-        "updated_at": "2026-11-07T14:33:33.880147"
+        "created_at": "2026-11-07T17:44:02.207448",
+        "updated_at": "2026-11-07T17:44:02.284705"
       }
     }
   }

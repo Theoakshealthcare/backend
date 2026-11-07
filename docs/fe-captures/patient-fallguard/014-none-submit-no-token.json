@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": null,
+    "body": {
+      "answers": [
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "Less than 65"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Not authenticated"
+    }
+  }
+}

@@ -4,7 +4,7 @@
     "path": "/api/v1/auth/login/mobile",
     "auth": null,
     "body": {
-      "email_or_phone": "patient-9514d7@example.com",
+      "email_or_phone": "patient-8aadab@example.com",
       "password": "<PLACEHOLDER_PASSWORD>"
     }
   },
