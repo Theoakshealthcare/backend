@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/b234162e-3074-4d5e-8a4f-bf200d129a0a/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: plans changed",
+      "accepted_fee_kobo": 0
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "booking_id": "b234162e-3074-4d5e-8a4f-bf200d129a0a",
+      "booking_code": "0436BEAE",
+      "status": "cancelled",
+      "already_cancelled": false,
+      "fee_tier": "none",
+      "fee_percent": 0,
+      "fee_amount": 0.0,
+      "fee_amount_kobo": 0,
+      "paid_amount": 55000.0,
+      "paid_amount_kobo": 5500000,
+      "refundable_amount": 55000.0,
+      "refundable_amount_kobo": 5500000,
+      "refund_queued": true,
+      "refund_destination": "original_method",
+      "refund_needs_approval": true,
+      "caregiver_assigned": false,
+      "refund": {
+        "status": "under_review",
+        "amount": 55000.0
+      }
+    }
+  }
+}

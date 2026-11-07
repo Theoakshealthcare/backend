@@ -1,0 +1,227 @@
+"""Capture the patient-app cancel flow against a RUNNING Oakly API and write every request/response to
+docs/fe-captures/patient/*.json. docs/fe-integration-guide-patient-bookings.md is copied from these files, never from schemas.
+
+    # a scratch env file (generated values, never committed), a throwaway Postgres, the API from this checkout
+    docker run -d --name oakly-patient-capture-db -e POSTGRES_USER=oakly -e POSTGRES_PASSWORD=oakly -e POSTGRES_DB=oakly \\
+        -p 55432:5432 postgres:16-alpine
+    DATABASE_URL=postgresql://oakly:oakly@127.0.0.1:55432/oakly OAKLY_ENV_FILE=/path/to/scratch.env poetry run alembic upgrade head
+    OAKLY_ENV_FILE=/path/to/scratch.env poetry run uvicorn app.main:app --port 8000
+    poetry run python -m scripts.capture_patient_flow --env-file /path/to/scratch.env --db-url postgresql://oakly:oakly@127.0.0.1:55432/oakly
+
+The scratch env needs DATABASE_URL, SECRET_KEY, VITALS_ENCRYPTION_KEY, PAYSTACK_SECRET_KEY, PAYSTACK_WEBHOOK_SECRET (placeholders)
+and PAYSTACK_BASE_URL=http://127.0.0.1:<--paystack-port> so the API's Paystack calls reach the local fake.
+
+What is real and what is not
+- Every API call is a real HTTP call to the running API (default http://127.0.0.1:8000): accounts are registered and verified
+  through the endpoints, the caregiver is onboarded and approved through the endpoints, the caregiver accepts, starts and
+  completes through the endpoints, the refund is approved through the admin endpoints.
+- Seeded directly in the database (there is no API for it; the patient booking endpoint needs a live Paystack account): the
+  booking rows (the same insert capture_caregiver_flow.py uses), and the admin user. Each is labelled in the captures.
+- Payment is settled with a correctly signed Paystack *webhook* sent to the API's own webhook route. Paystack itself is a LOCAL
+  FAKE (app/tests/fake_meta.py): verify-before-cancel for an unpaid booking asks it. Nothing here proves a live Paystack account.
+- The worker is NOT running: the caregiver's "booking cancelled" push is recorded as an outbox row (booking_events) and shown
+  as such; it was not delivered. The refund dispatch job (money out through Paystack) is not run: refunds stop at "approved".
+
+Everything created here uses placeholder data (example.com emails, +2340000000xxx phones). JWTs and passwords are replaced by
+placeholders in the files.
+"""
+
+import argparse
+import json
+import shutil
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
+
+# capture_caregiver_flow sets harmless placeholder settings before it imports the app's fake Paystack; import it first.
+from scripts.capture_caregiver_flow import (  # noqa: E402
+    DB, Ctx, FakePaystack, Recorder, approve_caregiver, onboard_caregiver, pay_booking, post_location,
+    read_env, register_verify_login, seed_admin_session, seed_booking, serve_fake_paystack,
+)
+
+CODE_KEYS = ("fee_tier", "fee_amount_kobo", "refundable_amount_kobo")
+
+
+def observe(rec: Recorder, label: str, sql: str, rows: Any, note: str) -> None:
+    rec.save(label, {"request": {"method": "SQL", "path": sql, "auth": None, "body": None},
+                     "response": {"status_code": None, "headers": {}, "body": rows}, "note": note})
+
+
+def refund_rows(db: DB, booking_id: str) -> list:
+    return [{"status": s, "reason_code": r, "origin": o, "suggested_amount_kobo": a, "amount_kobo": m, "destination": d}
+            for (s, r, o, a, m, d) in db.run(
+                "SELECT status, reason_code, origin, suggested_amount_kobo, amount_kobo, destination FROM refunds"
+                " WHERE booking_id = %s ORDER BY created_at", (booking_id,))]
+
+
+def paid_booking(ctx: Ctx, email: str, hours_ahead: float, label: str, capture: bool = False) -> Dict[str, Any]:
+    booking = seed_booking(ctx, email, hours_ahead=hours_ahead)
+    saved = ctx.rec.quiet
+    ctx.rec.quiet = not capture
+    pay_booking(ctx, booking, label)
+    ctx.rec.quiet = saved
+    return booking
+
+
+def run(args) -> None:
+    out = Path(args.out)
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+    env = read_env(args.env_file)
+    rec = Recorder(args.base_url, out)
+    db = DB(args.db_url)
+    tag = uuid.uuid4().hex[:6]
+    paystack = FakePaystack()
+    server = serve_fake_paystack(paystack, port=args.paystack_port)
+    ctx = Ctx(rec, db, env, None, tag, paystack)  # type: ignore[arg-type]  # no Expo receiver: pushes are not captured here
+    mail = lambda who: f"{who}-{tag}@example.com"  # noqa: E731
+    api = "/api/v1/booking"
+
+    # --- people (quiet): an admin, one approved caregiver, the patient, a second patient -----------------------------
+    rec.quiet = True
+    admin = seed_admin_session(rec, db, env, mail("admin"))
+    cg = onboard_caregiver(ctx, "c", mail("caregiver"), "Placeholder Caregiver", capture=False)
+    approve_caregiver(ctx, admin, cg, capture=False)
+    tc = cg["token"]
+    post_location(ctx, "c-location", tc, available=True)
+    tp = register_verify_login(ctx, "p", mail("patient"), "Placeholder Patient", "patient")["access_token"]
+    tq = register_verify_login(ctx, "q", mail("other"), "Placeholder Other Patient", "patient")["access_token"]
+    rec.quiet = False
+    patient_email = mail("patient")
+
+    # --- 1. a paid booking still looking for a caregiver: free ---------------------------------------------------------
+    b1 = paid_booking(ctx, patient_email, 30, "free-booking-payment-webhook", capture=True)
+    rec.call("p-bookings-list-dispatching", "GET", f"{api}/patient/bookings", token=tp,
+             note="Booking 1: paid, 30 hours out, no caregiver yet (the booking row was seeded, the payment settled by webhook).")
+    rec.call("p-b1-detail-before-cancel", "GET", f"{api}/booking/{b1['id']}", token=tp)
+    rec.call("p-b1-cancel-terms-free", "GET", f"{api}/{b1['id']}/cancel-terms", token=tp)
+    rec.call("p-b1-cancel", "POST", f"{api}/{b1['id']}/cancel", token=tp,
+             json_body={"reason": "Placeholder: plans changed", "accepted_fee_kobo": 0})
+    rec.call("p-b1-cancel-again", "POST", f"{api}/{b1['id']}/cancel", token=tp,
+             note="A double tap or a retry: 200, already_cancelled true, the same numbers. No second refund.")
+    rec.call("p-b1-cancel-terms-after", "GET", f"{api}/{b1['id']}/cancel-terms", token=tp)
+    observe(rec, "db-b1-refund-rows", "SELECT status, reason_code, origin, suggested_amount_kobo, amount_kobo, destination FROM refunds"
+            " WHERE booking_id = <booking 1>", refund_rows(db, b1["id"]),
+            "One refund row after two cancels. pending_approval: nothing was sent, nobody approved it, destination not chosen.")
+    rec.call("p-b1-detail-after-cancel", "GET", f"{api}/booking/{b1['id']}", token=tp)
+    rec.call("p-bookings-list-after-cancel", "GET", f"{api}/patient/bookings", token=tp)
+    queue = rec.call("admin-refunds-queue", "GET", "/api/v1/admin/refunds", token=admin,
+                     note="What Finance sees: the cancel queued a pending_approval refund. The family's reason is in the note.")
+    refund_id = next(r["id"] for r in queue.json()["items"] if r["booking_id"] == b1["id"])
+    rec.call("admin-refund-approve", "POST", f"/api/v1/admin/refunds/{refund_id}/approve", token=admin,
+             json_body={"destination": "original_method"},
+             note="A person approves it. The refund dispatch job (money out) was NOT run in this capture.")
+    rec.call("p-b1-detail-refund-approved", "GET", f"{api}/booking/{b1['id']}", token=tp,
+             note="The family's view of an approved refund: status processing.")
+
+    # --- 2. an accepted booking, 5 hours out: the 20% tier --------------------------------------------------------------
+    b2 = paid_booking(ctx, patient_email, 5, "standard-booking-payment-webhook")
+    rec.call("c-accept-b2", "POST", f"{api}/caregiver/action/{b2['id']}", token=tc, json_body={"action": "accept"})
+    rec.call("p-b2-detail-accepted", "GET", f"{api}/booking/{b2['id']}", token=tp,
+             note="Booking 2: accepted by the caregiver, 5 hours out. visit_code is shown to its patient while accepted.")
+    rec.call("p-bookings-list-accepted", "GET", f"{api}/patient/bookings", token=tp, params={"status": "accepted"},
+             note="The list never carries the visit code.")
+    rec.call("p-b2-cancel-terms-standard", "GET", f"{api}/{b2['id']}/cancel-terms", token=tp)
+    rec.call("q-b2-cancel-terms-other-patient", "GET", f"{api}/{b2['id']}/cancel-terms", token=tq, expect=403)
+    rec.call("q-b2-cancel-other-patient", "POST", f"{api}/{b2['id']}/cancel", token=tq, expect=403)
+    rec.call("c-b2-cancel-terms-as-caregiver", "GET", f"{api}/{b2['id']}/cancel-terms", token=tc, expect=403)
+    rec.call("none-b2-cancel-terms-no-token", "GET", f"{api}/{b2['id']}/cancel-terms", expect=401)
+    rec.call("p-b2-cancel-terms-missing", "GET", f"{api}/{uuid.uuid4()}/cancel-terms", token=tp, expect=404)
+    rec.call("p-b2-cancel-missing", "POST", f"{api}/{uuid.uuid4()}/cancel", token=tp, expect=404)
+    rec.call("p-b2-cancel-bad-body", "POST", f"{api}/{b2['id']}/cancel", token=tp, expect=422,
+             json_body={"accepted_fee_kobo": -5})
+    rec.call("p-b2-cancel-terms-changed", "POST", f"{api}/{b2['id']}/cancel", token=tp, expect=409,
+             json_body={"accepted_fee_kobo": 0},
+             note="The family had seen a fee of 0 (as if before the caregiver accepted). The fee is 20% now: nothing is cancelled.")
+    rec.call("p-b2-cancel-standard", "POST", f"{api}/{b2['id']}/cancel", token=tp,
+             json_body={"accepted_fee_kobo": 1_000_000})
+    rec.call("p-b2-cancel-standard-again", "POST", f"{api}/{b2['id']}/cancel", token=tp, json_body={"accepted_fee_kobo": 1_000_000})
+    observe(rec, "db-b2-refund-rows", "SELECT ... FROM refunds WHERE booking_id = <booking 2>", refund_rows(db, b2["id"]),
+            "Exactly one refund: total paid minus 20% of the service fee.")
+    observe(rec, "db-b2-caregiver-outbox", "SELECT event, dedupe_key IS NOT NULL AS keyed, delivered_at IS NOT NULL AS delivered"
+            " FROM booking_events WHERE booking_id = <booking 2>",
+            [{"event": e, "keyed": k, "delivered": d} for (e, k, d) in db.run(
+                "SELECT event, dedupe_key <> '', delivered_at IS NOT NULL FROM booking_events WHERE booking_id = %s"
+                " AND event = 'caregiver_booking_cancelled'", (b2["id"],))],
+            "NOT DELIVERED: the worker was not running, so this is only the outbox row the cancel wrote (once, despite the "
+            "retry). The push itself is not exercised live.")
+    rec.call("p-b2-detail-after-cancel", "GET", f"{api}/booking/{b2['id']}", token=tp,
+             note="visit_code is null once cancelled; cancel_fee_tier, cancel_fee and refund are filled.")
+    rec.call("c-b2-detail-as-assigned-caregiver", "GET", f"{api}/booking/{b2['id']}", token=tc,
+             note="The caregiver does not see the family's fee or refund: the three fields are null for them.")
+
+    # --- 3. a caregiver on the way (50% tier), then started and completed -----------------------------------------------
+    b3 = paid_booking(ctx, patient_email, 1, "late-booking-payment-webhook")
+    rec.call("c-accept-b3", "POST", f"{api}/caregiver/action/{b3['id']}", token=tc, json_body={"action": "accept"})
+    rec.call("p-b3-cancel-terms-late-accepted", "GET", f"{api}/{b3['id']}/cancel-terms", token=tp,
+             note="Booking 3: 1 hour out: inside the late window.")
+    rec.call("c-on-my-way-b3", "POST", f"{api}/caregiver/action/{b3['id']}", token=tc, json_body={"action": "on_my_way"})
+    rec.call("p-b3-cancel-terms-en-route", "GET", f"{api}/{b3['id']}/cancel-terms", token=tp)
+    code = rec.call("p-b3-detail-en-route", "GET", f"{api}/booking/{b3['id']}", token=tp,
+                    note="visit_code is still shown while en_route.").json()["visit_code"]
+    rec.call("c-start-b3", "POST", f"{api}/caregiver/action/{b3['id']}", token=tc,
+             json_body={"action": "start", "visit_code": code})
+    rec.call("p-b3-cancel-terms-in-progress", "GET", f"{api}/{b3['id']}/cancel-terms", token=tp)
+    rec.call("p-b3-cancel-in-progress", "POST", f"{api}/{b3['id']}/cancel", token=tp, expect=409)
+    rec.call("c-complete-b3", "POST", f"{api}/caregiver/action/{b3['id']}", token=tc, json_body={"action": "complete"})
+    rec.call("p-b3-cancel-terms-completed", "GET", f"{api}/{b3['id']}/cancel-terms", token=tp)
+    rec.call("p-b3-cancel-completed", "POST", f"{api}/{b3['id']}/cancel", token=tp, expect=409)
+    rec.call("p-b3-detail-completed", "GET", f"{api}/booking/{b3['id']}", token=tp)
+    observe(rec, "db-b3-refund-rows", "SELECT ... FROM refunds WHERE booking_id = <booking 3>", refund_rows(db, b3["id"]),
+            "No refund rows: the refused cancels queued nothing.")
+
+    # --- 4. before paying ------------------------------------------------------------------------------------------------
+    def unpaid(label: str) -> Dict[str, Any]:
+        booking = seed_booking(ctx, patient_email, hours_ahead=5)
+        paystack.initialised.append({"reference": booking["reference"], "amount": booking["amount_kobo"], "email": patient_email})
+        return booking
+
+    u1 = unpaid("u1")
+    rec.call("p-u1-cancel-terms-unpaid", "GET", f"{api}/{u1['id']}/cancel-terms", token=tp,
+             note="Booking 4: created, payment link not used. (Seeded row; the fake Paystack knows its reference, not paid.)")
+    rec.call("p-u1-cancel-unpaid", "POST", f"{api}/{u1['id']}/cancel", token=tp, json_body={"accepted_fee_kobo": 0})
+    rec.call("p-u1-cancel-unpaid-again", "POST", f"{api}/{u1['id']}/cancel", token=tp)
+    observe(rec, "db-u1-refund-rows", "SELECT ... FROM refunds WHERE booking_id = <booking 4>", refund_rows(db, u1["id"]),
+            "A free cancel of an unpaid booking creates no refund.")
+    rec.call("p-u1-detail-after-cancel", "GET", f"{api}/booking/{u1['id']}", token=tp)
+
+    u2 = unpaid("u2")
+    paystack.paid.add(u2["reference"])
+    rec.call("p-u2-cancel-paid-but-webhook-late", "POST", f"{api}/{u2['id']}/cancel", token=tp, json_body={"accepted_fee_kobo": 0},
+             note="Booking 5: the family paid on the link a moment ago and the webhook has not arrived. SIMULATED: the fake "
+                  "Paystack says it was paid. The cancel settles the payment first, then cancels it as a paid booking.")
+    observe(rec, "db-u2-refund-rows", "SELECT ... FROM refunds WHERE booking_id = <booking 5>", refund_rows(db, u2["id"]),
+            "The payment was not cancelled away: it is refunded through the queue.")
+
+    u3 = unpaid("u3")
+    server.shutdown()
+    server.server_close()
+    rec.call("p-u3-cancel-paystack-unreachable", "POST", f"{api}/{u3['id']}/cancel", token=tp, expect=503,
+             json_body={"accepted_fee_kobo": 0},
+             note="SIMULATED: the fake Paystack was shut down for this call, so Oakly could not ask it.")
+    server = serve_fake_paystack(paystack, port=args.paystack_port)
+    rec.call("p-u3-detail-still-pending", "GET", f"{api}/booking/{u3['id']}", token=tp,
+             note="Nothing changed by the 503: the booking is still pending.")
+
+    (out / "000-index.json").write_text(json.dumps({
+        "generated_by": "scripts/capture_patient_flow.py", "run_tag": tag, "captured_at": datetime.utcnow().isoformat() + "Z",
+        "captures": rec.index}, indent=2) + "\n")
+    server.shutdown()
+    print(f"wrote {len(rec.index)} captures to {out}")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--base-url", default="http://127.0.0.1:8000")
+    p.add_argument("--db-url", default="postgresql://oakly:oakly@127.0.0.1:55432/oakly")
+    p.add_argument("--env-file", required=True, help="the env file the API was started with (for the Paystack key)")
+    p.add_argument("--out", default="docs/fe-captures/patient")
+    p.add_argument("--paystack-port", type=int, default=9912,
+                   help="where the local fake Paystack listens; the API's PAYSTACK_BASE_URL must point at it")
+    run(p.parse_args())
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,64 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/refunds/59be60c3-58ae-4563-8447-b6d53c7140c6/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "destination": "original_method"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "59be60c3-58ae-4563-8447-b6d53c7140c6",
+      "booking_id": "b234162e-3074-4d5e-8a4f-bf200d129a0a",
+      "booking_code": "0436BEAE",
+      "status": "approved",
+      "reason_code": "cancelled_by_booker",
+      "origin": "system",
+      "suggested_amount_naira": 55000.0,
+      "amount_naira": 55000.0,
+      "destination": "original_method",
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": "Reason given by the family: Placeholder: plans changed",
+      "rejected_reason": null,
+      "requested_by": null,
+      "approved_by": "ec65ab8f-f420-4ef1-b4ac-f86de112cc06",
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-11-07T14:33:33.715545",
+      "approved_at": "2026-11-07T14:33:33.813704",
+      "processed_at": null,
+      "max_approvable_naira": 55000.0,
+      "available_actions": [],
+      "booking": {
+        "code": "0436BEAE",
+        "status": "cancelled",
+        "channel": "app",
+        "cancel_fee_tier": "none",
+        "cancel_fee_naira": 0.0,
+        "caregiver_assigned": false,
+        "caregiver_arrived": false,
+        "completed": false,
+        "total_naira": 55000.0,
+        "paystack_fee_naira": null,
+        "refunded_naira": 55000.0,
+        "refundable_naira": 0.0
+      },
+      "suggestion_why": "The booker cancelled free of charge, so the suggestion is the full amount.",
+      "attempts": [],
+      "take_back_reason": null,
+      "take_back_preview_naira": 0.0,
+      "take_back_debited_naira": null,
+      "take_back_owed_naira": null,
+      "needs_super_admin": false,
+      "limit_naira": 50000.0
+    }
+  },
+  "note": "A person approves it. The refund dispatch job (money out) was NOT run in this capture."
+}

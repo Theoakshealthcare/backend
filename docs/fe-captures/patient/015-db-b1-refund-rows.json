@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT status, reason_code, origin, suggested_amount_kobo, amount_kobo, destination FROM refunds WHERE booking_id = <booking 1>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "status": "pending_approval",
+        "reason_code": "cancelled_by_booker",
+        "origin": "system",
+        "suggested_amount_kobo": 5500000,
+        "amount_kobo": null,
+        "destination": null
+      }
+    ]
+  },
+  "note": "One refund row after two cancels. pending_approval: nothing was sent, nobody approved it, destination not chosen."
+}

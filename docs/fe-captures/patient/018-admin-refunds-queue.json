@@ -1,0 +1,50 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "59be60c3-58ae-4563-8447-b6d53c7140c6",
+          "booking_id": "b234162e-3074-4d5e-8a4f-bf200d129a0a",
+          "booking_code": "0436BEAE",
+          "status": "pending_approval",
+          "reason_code": "cancelled_by_booker",
+          "origin": "system",
+          "suggested_amount_naira": 55000.0,
+          "amount_naira": null,
+          "destination": null,
+          "take_back_from_caregiver": false,
+          "take_back_naira": 0.0,
+          "failure_reason": null,
+          "note": "Reason given by the family: Placeholder: plans changed",
+          "rejected_reason": null,
+          "requested_by": null,
+          "approved_by": null,
+          "review_flagged_at": null,
+          "review_reason": null,
+          "created_at": "2026-11-07T14:33:33.715545",
+          "approved_at": null,
+          "processed_at": null,
+          "max_approvable_naira": 55000.0,
+          "available_actions": [
+            "approve",
+            "reject"
+          ]
+        }
+      ],
+      "total": 1,
+      "limit": 50,
+      "offset": 0
+    }
+  },
+  "note": "What Finance sees: the cancel queued a pending_approval refund. The family's reason is in the note."
+}

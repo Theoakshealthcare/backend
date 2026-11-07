@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-11-07, P4-BE patient cancel):** the patient app can cancel a booking and see the fee first: `GET /booking/{id}/cancel-terms` and `POST /booking/{id}/cancel` over the shared `booking_cancellation` rules (booker only, idempotent replay, verify-before-cancel for unpaid bookings, refund queued for approval to the original method, never the wallet), and `BookingResponse` carries `cancel_fee_tier`, `cancel_fee` and a `refund` summary. No migration. Verified by 60 tests (incl. real concurrent races and the 12 h / 2 h boundaries), an Opus money review (fixed) and 60 live captures against a fake Paystack ([SOP](../sop/2026-11-07-patient-cancel.md), [FE guide](../fe-integration-guide-patient-bookings.md)). Branch `feature/patient-cancel`, not pushed.
+
 **Update (2026-10-30, change password):** the backend endpoint is built (migration `0020`: `users.token_version`; app-user tokens now carry a `tv` claim, so a password change ends every older session). The app screen waits for the backend PR to merge. Login for app users still has **no** lockout or rate limit (only this endpoint's wrong-current-password backoff); see the deferred follow-ups.
 
 **Update (2026-10-27, follow-ups):** WhatsApp and JWT follow-ups ([SOP](../sop/2026-10-27-whatsapp-jwt-followups.md), branch `fix/whatsapp-jwt-followups`, PR pending): the fake Meta carries the business-scoped user ids real payloads have, uvicorn's access log no longer prints the webhook's `hub.verify_token`, the 413 constant is no longer deprecated, and `get_user_or_admin` verifies a token before choosing its decoder (the Semgrep-flagged unverified peek is gone). The live Meta test of 2026-10-19 proved the pipeline end to end, but **WhatsApp delivery is still blocked by Meta business verification** (started 2026-10-27, takes days).
@@ -87,7 +89,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] Booking: preview, create, Paystack pay, list, details
 - [x] FallGuard: questions, submit, result, history
 - [x] Vitals: manual entry, list, history, CSV export
-- [ ] ⚠️ Cancel booking calls an endpoint that doesn't exist
+- [x] ⚠️ Cancel booking calls an endpoint that doesn't exist: **backend built 2026-11-07** (P4-BE: `GET /booking/{id}/cancel-terms`, `POST /booking/{id}/cancel`, fee and refund status on the booking; branch `feature/patient-cancel`, [SOP](../sop/2026-11-07-patient-cancel.md), [FE guide](../fe-integration-guide-patient-bookings.md)). The patient app screen (P5) is still to build
 - [ ] Profile edit clears `user.patient`, which silently breaks vitals
 - [ ] Token refresh can deadlock on a 401
 - [ ] Vitals insights and caregiver-access response shapes don't match the backend
@@ -476,3 +478,4 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [ ] (C3) Trim the internal fields from the caregiver action response (`paystack_reference`, `*_kobo`, refund fields) and store `reason` on decline/cancel; the typed model now documents them as served today
 - [ ] (C3) Move the Expo push off the settlement request onto the ARQ worker if it ever slows the Paystack webhook; poll Expo receipts to prune late-failing tokens
 - [x] (A2) Tell the patient about an admin cancel and a reassignment; a partial refund's amount now has a real column (`refund_amount_kobo`). Closed by W3 on `feat/whatsapp-notifications`. See the [A2 SOP](../sop/2026-10-06-admin-bookings-ops.md)
+- [ ] (P4-BE patient cancel) Owner call: should a Super Admin still be able to refund a patient-app cancel to the wallet (RF-D4) while the app hides the wallet? Keep the family's cancel reason when no refund is queued (needs a `bookings.cancel_note` column); `dispatch_state` stays `dispatching` on a booking cancelled while dispatching; live Paystack refund run and the caregiver push delivery are untested for this flow ([SOP](../sop/2026-11-07-patient-cancel.md))

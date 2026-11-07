@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT ... FROM refunds WHERE booking_id = <booking 3>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": []
+  },
+  "note": "No refund rows: the refused cancels queued nothing."
+}

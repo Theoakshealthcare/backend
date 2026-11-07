@@ -1,0 +1,59 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/booking/ee27bede-0e33-439e-9be5-e963f18fea75",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "ee27bede-0e33-439e-9be5-e963f18fea75",
+      "booking_code": "61EE1336",
+      "channel": "app",
+      "patient_id": "3f677f89-46a7-48e4-b2ca-5faed2562fb4",
+      "patient_details": {
+        "patient_id": "3f677f89-46a7-48e4-b2ca-5faed2562fb4",
+        "full_name": "Placeholder Patient",
+        "phone_number": "+2340000199002",
+        "profile_image_url": null,
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null
+      },
+      "caregiver_id": null,
+      "caregiver_details": null,
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "condition": "Placeholder condition",
+      "duration_hours": 2,
+      "scheduled_date": "2026-11-07T19:33:34.255289",
+      "scheduled_end_date": "2026-11-07T21:33:34.255289",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "status": "pending",
+      "payment_status": "pending",
+      "total_amount": 55000.0,
+      "service_fee": 50000.0,
+      "platform_fee": 5000.0,
+      "special_instructions": "Placeholder instructions",
+      "booking_for": "myself",
+      "created_at": "2026-11-07T14:33:34.254370",
+      "updated_at": "2026-11-07T14:33:34.254370",
+      "dispatch_state": null,
+      "visit_code": null,
+      "cancel_fee_tier": null,
+      "cancel_fee": null,
+      "refund": null,
+      "payment_url": null,
+      "payment_access_code": null,
+      "payment_error": null
+    }
+  },
+  "note": "Nothing changed by the 503: the booking is still pending."
+}

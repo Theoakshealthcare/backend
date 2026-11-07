@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT event, dedupe_key IS NOT NULL AS keyed, delivered_at IS NOT NULL AS delivered FROM booking_events WHERE booking_id = <booking 2>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "event": "caregiver_booking_cancelled",
+        "keyed": true,
+        "delivered": false
+      }
+    ]
+  },
+  "note": "NOT DELIVERED: the worker was not running, so this is only the outbox row the cancel wrote (once, despite the retry). The push itself is not exercised live."
+}
