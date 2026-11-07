@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking-settings/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "base_fee": 5000.0,
+      "platform_fee_percent": 10.0,
+      "multipliers": {
+        "nurse": 1.0,
+        "caregiver": 0.8
+      },
+      "reason": "Placeholder: first pricing version"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "base_fee": 5000.0,
+      "platform_fee_percent": 10.0,
+      "multipliers": {
+        "nurse": 1.0,
+        "caregiver": 0.8
+      },
+      "surge_pricing": false,
+      "surge_multiplier": 1.0,
+      "discount": 0.0,
+      "id": "3a7e90fd-1643-45ca-bb8b-08059005ddd9",
+      "created_at": "2026-11-07T20:05:29.188484",
+      "updated_at": "2026-11-07T20:05:29.188484"
+    }
+  },
+  "note": "What every new environment needs once, done by an admin with pricing.write. Never seeded automatically."
+}

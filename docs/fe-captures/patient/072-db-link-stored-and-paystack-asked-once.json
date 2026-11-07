@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT paystack_authorization_url, paystack_access_code FROM bookings WHERE id = <the created booking> (compared with create's payment_url / payment_access_code; the count is the fake Paystack's own tally)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "stored_url": "https://checkout.paystack.com/ac_f73b26d4aa26",
+        "stored_access_code": "ac_f73b26d4aa26",
+        "equals_create_response": true,
+        "paystack_initialise_calls_for_this_reference": 1
+      }
+    ]
+  },
+  "note": "The link create returned is stored on the booking, and Paystack was asked to initialise the reference once (at create) although the link was asked for twice since."
+}

@@ -1,7 +1,7 @@
 {
   "generated_by": "scripts/capture_patient_flow.py",
-  "run_tag": "8aadab",
-  "captured_at": "2026-11-07T17:44:04.386898Z",
+  "run_tag": "72909a",
+  "captured_at": "2026-11-07T20:05:30.048060Z",
   "captures": [
     {
       "file": "001-c-location.json",
@@ -324,87 +324,137 @@
       "status": 200
     },
     {
-      "file": "065-p-create.json",
+      "file": "065-p-preview-no-pricing.json",
+      "label": "p-preview-no-pricing",
+      "status": 503
+    },
+    {
+      "file": "066-p-create-no-pricing.json",
+      "label": "p-create-no-pricing",
+      "status": 503
+    },
+    {
+      "file": "067-admin-first-pricing.json",
+      "label": "admin-first-pricing",
+      "status": 200
+    },
+    {
+      "file": "068-p-preview.json",
+      "label": "p-preview",
+      "status": 200
+    },
+    {
+      "file": "069-p-create.json",
       "label": "p-create",
       "status": 200
     },
     {
-      "file": "066-p-link.json",
+      "file": "070-p-link.json",
       "label": "p-link",
       "status": 200
     },
     {
-      "file": "067-p-link-double-tap.json",
+      "file": "071-p-link-double-tap.json",
       "label": "p-link-double-tap",
       "status": 200
     },
     {
-      "file": "068-db-link-one-booking-one-reference.json",
+      "file": "072-db-link-stored-and-paystack-asked-once.json",
+      "label": "db-link-stored-and-paystack-asked-once",
+      "status": null
+    },
+    {
+      "file": "073-p-link-detail-has-no-link.json",
+      "label": "p-link-detail-has-no-link",
+      "status": 200
+    },
+    {
+      "file": "074-db-link-one-booking-one-reference.json",
       "label": "db-link-one-booking-one-reference",
       "status": null
     },
     {
-      "file": "069-q-link-other-patient.json",
+      "file": "075-q-link-other-patient.json",
       "label": "q-link-other-patient",
       "status": 403
     },
     {
-      "file": "070-c-link-as-caregiver.json",
+      "file": "076-c-link-as-caregiver.json",
       "label": "c-link-as-caregiver",
       "status": 403
     },
     {
-      "file": "071-none-link-no-token.json",
+      "file": "077-none-link-no-token.json",
       "label": "none-link-no-token",
       "status": 401
     },
     {
-      "file": "072-p-link-missing.json",
+      "file": "078-p-link-missing.json",
       "label": "p-link-missing",
       "status": 404
     },
     {
-      "file": "073-p-link-paystack-refuses.json",
-      "label": "p-link-paystack-refuses",
+      "file": "079-p-link-stored-while-paystack-init-down.json",
+      "label": "p-link-stored-while-paystack-init-down",
+      "status": 200
+    },
+    {
+      "file": "080-p-link-no-stored-link-paystack-refuses.json",
+      "label": "p-link-no-stored-link-paystack-refuses",
       "status": 503
     },
     {
-      "file": "074-p-link-detail-still-pending.json",
+      "file": "081-p-link-no-stored-link-detail-still-pending.json",
+      "label": "p-link-no-stored-link-detail-still-pending",
+      "status": 200
+    },
+    {
+      "file": "082-p-link-no-stored-link-initialised.json",
+      "label": "p-link-no-stored-link-initialised",
+      "status": 200
+    },
+    {
+      "file": "083-p-link-no-stored-link-reference-already-seen.json",
+      "label": "p-link-no-stored-link-reference-already-seen",
+      "status": 503
+    },
+    {
+      "file": "084-p-link-detail-still-pending.json",
       "label": "p-link-detail-still-pending",
       "status": 200
     },
     {
-      "file": "075-p-link-paystack-unreachable.json",
+      "file": "085-p-link-paystack-unreachable.json",
       "label": "p-link-paystack-unreachable",
       "status": 503
     },
     {
-      "file": "076-p-link-paid-but-webhook-late.json",
+      "file": "086-p-link-paid-but-webhook-late.json",
       "label": "p-link-paid-but-webhook-late",
       "status": 409
     },
     {
-      "file": "077-db-link-settled.json",
+      "file": "087-db-link-settled.json",
       "label": "db-link-settled",
       "status": null
     },
     {
-      "file": "078-p-link-after-paid.json",
+      "file": "088-p-link-after-paid.json",
       "label": "p-link-after-paid",
       "status": 409
     },
     {
-      "file": "079-p-link-window-expired.json",
+      "file": "089-p-link-window-expired.json",
       "label": "p-link-window-expired",
       "status": 409
     },
     {
-      "file": "080-p-v2-cancel-unpaid.json",
+      "file": "090-p-v2-cancel-unpaid.json",
       "label": "p-v2-cancel-unpaid",
       "status": 200
     },
     {
-      "file": "081-p-link-cancelled.json",
+      "file": "091-p-link-cancelled.json",
       "label": "p-link-cancelled",
       "status": 409
     }

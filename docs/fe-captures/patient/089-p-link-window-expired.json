@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/45b70be6-93bd-4b17-a447-d937bf558c95/payment-link",
+    "path": "/api/v1/booking/9410338f-7f61-4e1e-9fc1-6750fb27f4ec/payment-link",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

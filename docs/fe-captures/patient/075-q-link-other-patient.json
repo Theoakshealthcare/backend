@@ -1,19 +1,19 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/6c2fdbbd-a381-4487-8d7e-bfc66fe70e83/payment-link",
+    "path": "/api/v1/booking/7bcc0679-43da-4f49-8bb1-e74356c8b674/payment-link",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
   "response": {
-    "status_code": 404,
+    "status_code": 403,
     "headers": {
       "content-type": "application/json"
     },
     "body": {
       "detail": {
-        "code": "booking_not_found",
-        "message": "We could not find that booking."
+        "code": "not_your_booking",
+        "message": "Only the person who made this booking can pay for it."
       }
     }
   }
