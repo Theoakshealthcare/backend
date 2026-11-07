@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/patient/notifications/read-all",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": 401,
+    "body": {
+      "detail": "Not authenticated"
+    }
+  }
+}

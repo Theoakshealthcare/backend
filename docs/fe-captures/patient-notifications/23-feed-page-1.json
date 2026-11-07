@@ -1,0 +1,80 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications?limit=5",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "e8fae55a-f2f9-40ea-a258-ae1cb5214bf2",
+          "type": "visit_completed",
+          "title": "Visit completed",
+          "body": "Your visit is complete.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "b4831745-9ca5-45ca-8009-6e1c1e8b25a3"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.465509"
+        },
+        {
+          "id": "b188649c-9308-4438-b025-2248beb4fb6e",
+          "type": "no_caregiver_found",
+          "title": "No caregiver found yet",
+          "body": "We couldn't find a caregiver yet. Our team is looking into it.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "ff882ad4-ae92-4fdd-bc02-bba0467ef019"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.429936"
+        },
+        {
+          "id": "a3830c01-7d39-4d7c-8a4d-3bb69def698f",
+          "type": "caregiver_changed",
+          "title": "Caregiver changed",
+          "body": "Ngozi will now be your caregiver.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "b164e965-8bb4-4a07-90d3-d541c17d80ca"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.407841"
+        },
+        {
+          "id": "75a44dfa-7ace-4d5a-8651-8c3b7ffe9ecc",
+          "type": "booking_confirmed",
+          "title": "Booking confirmed",
+          "body": "Payment received. We're finding a caregiver for your visit.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "a297f175-2aec-4054-98f7-3f4724604b3f"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.392743"
+        },
+        {
+          "id": "2aacb3ff-bc7b-41e2-9ecb-67bd775bd9cd",
+          "type": "refund_completed",
+          "title": "Refund complete",
+          "body": "Your refund has been sent.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.363971"
+        }
+      ],
+      "total": 13,
+      "limit": 5,
+      "offset": 0,
+      "unread_count": 13
+    }
+  },
+  "note": "newest first; unread_count is for the whole feed"
+}

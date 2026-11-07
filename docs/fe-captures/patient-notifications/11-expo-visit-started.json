@@ -1,0 +1,18 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Visit started",
+      "body": "Your visit has started.",
+      "data": {
+        "type": "visit_started",
+        "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb",
+        "target": "booking_detail",
+        "notification_id": "6aef2b44-c507-4f0f-b977-c86168531dfd"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. "
+}

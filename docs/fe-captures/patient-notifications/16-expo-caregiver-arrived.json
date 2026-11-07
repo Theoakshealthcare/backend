@@ -1,0 +1,18 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Your caregiver has arrived",
+      "body": "Open the app to see your visit code.",
+      "data": {
+        "type": "caregiver_arrived",
+        "booking_id": "fba237d5-0001-4d83-94a9-2f10204fc421",
+        "target": "booking_detail",
+        "notification_id": "5b2cff21-34a9-43f8-a94e-f11be85886d6"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. IN-PROCESS: NotificationService.caregiver_arrived (no booking action calls it yet). The visit code on this booking is 4821: it is not in the push."
+}

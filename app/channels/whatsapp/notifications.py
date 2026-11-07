@@ -34,7 +34,7 @@ from app.core.phone import contact_ref
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.whatsapp import WhatsAppContact, WhatsAppConversation
 from app.db.models.whatsapp_booking import CAREGIVER_EVENTS, OPEN_QUOTE_STATUSES, BookingEvent, Quote
-from app.services import booking_events
+from app.services import booking_events, patient_notifications
 from app.services.notification_service import deliver_caregiver_push
 from app.services.support import SupportService
 
@@ -192,6 +192,10 @@ def _deliver_one(db: Session, event_id, now: datetime, client: MetaCloudClient) 
     name = event.event
     if name in CAREGIVER_EVENTS:  # the audience is the caregiver, by push, whatever channel the booking came from
         outcome = deliver_caregiver_push(db, name, booking, event.dedupe_key)
+        _finish(db, event_id, now, None if outcome == "sent" else outcome)
+        return outcome == "sent"
+    if booking.channel == "app":  # the booker is in the app: a feed row and a push, never WhatsApp
+        outcome = patient_notifications.deliver(db, event, booking)
         _finish(db, event_id, now, None if outcome == "sent" else outcome)
         return outcome == "sent"
     contact = _contact_for(db, booking)

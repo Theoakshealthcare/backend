@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/devices/push-token",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": {
+      "token": "ExponentPushToken[placeholder-old-phone]",
+      "platform": "android"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "token": "ExponentPushToken[placeholder-old-phone]",
+      "platform": "android"
+    }
+  }
+}

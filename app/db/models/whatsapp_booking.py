@@ -56,6 +56,17 @@ BOOKER_EVENTS = (
     "caregiver_reassigned",  # W3, from the admin console (A2)
     "caregiver_dropped_replacing", "dropout_choice_needed", "dropout_handed_over",  # a caregiver dropped out
     "refund_needs_bank_details",  # Refunds v2: Paystack needs the family's bank account to pay the refund
+    "caregiver_arrived", "no_caregiver_found",  # app bookings only (APP_ONLY_EVENTS)
+)
+# Booker events that exist only for app bookings: a WhatsApp booking never records them (nothing delivers them there).
+APP_ONLY_EVENTS = ("caregiver_arrived", "no_caregiver_found")
+# What an app booker is told, in the app feed and by push (``app.services.patient_notifications``). Not here: the visit
+# code (the app shows it), the payment-link and drop-out events (WhatsApp journeys), the unpaid-expiry cancel.
+APP_BOOKER_EVENTS = (
+    "payment_received", "payment_refund_pending",
+    "caregiver_assigned", "caregiver_reassigned", "caregiver_en_route", "caregiver_arrived", "visit_started",
+    "visit_completed", "booking_cancelled_by_caregiver", "booking_cancelled_by_admin", "no_caregiver_found",
+    "refund_flagged", "refund_processed", "refund_needs_bank_details",
 )
 CAREGIVER_EVENTS = ("caregiver_booking_cancelled",)
 BOOKING_EVENTS = BOOKER_EVENTS + CAREGIVER_EVENTS

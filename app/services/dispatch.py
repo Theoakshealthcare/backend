@@ -40,6 +40,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.dropout import CaregiverDropout
 from app.services import push as push_service
 from app.services.booking import BookingService
+from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,9 @@ def _is_open(booking: Booking) -> bool:
     )
 
 
-def _mark_unmatched(booking: Booking, reason: str, wave_count: int) -> None:
+def _mark_unmatched(db: Session, booking: Booking, reason: str, wave_count: int) -> None:
     booking.dispatch_state = UNMATCHED
+    NotificationService(db).no_caregiver_found(booking)  # an app booker is told (a no-op for a WhatsApp booking)
     logger.warning(
         "Booking %s unmatched (%s) after %d wave(s); needs the admin unmatched queue",
         booking.id, reason, wave_count,
@@ -195,7 +197,7 @@ def _advance(db: Session, booking: Booking, now: datetime,
     # drop-out machine decides (decision lead / visit time), not for 30 minutes.
     waiting = booking.dropout_state in ("redispatching", "waiting")
     if not waiting and now - started >= timedelta(minutes=settings.DISPATCH_ESCALATE_MINUTES):
-        _mark_unmatched(booking, "escalation window elapsed", wave_count)
+        _mark_unmatched(db, booking, "escalation window elapsed", wave_count)
         return True
 
     if latest is not None and latest.expires_at > now:
@@ -204,7 +206,7 @@ def _advance(db: Session, booking: Booking, now: datetime,
     if not _send_wave(db, booking, wave_count + 1, now, offers):
         if wave_count == 0 or waiting:
             return False  # nobody online yet: stay dispatching, retry next tick (a waiting family: until the visit time)
-        _mark_unmatched(booking, "no candidates left", wave_count)
+        _mark_unmatched(db, booking, "no candidates left", wave_count)
     return True
 
 

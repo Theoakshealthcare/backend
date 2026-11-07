@@ -1,0 +1,44 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Booking cancelled",
+      "body": "Oakly has cancelled this visit. Open the app for details.",
+      "data": {
+        "type": "booking_cancelled",
+        "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178",
+        "target": "booking_detail",
+        "notification_id": "74b7ee05-77b7-4870-be73-7e5c7a7507ad"
+      },
+      "sound": "default",
+      "priority": "high"
+    },
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Refund started",
+      "body": "We've started your refund.",
+      "data": {
+        "type": "refund_started",
+        "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178",
+        "target": "booking_detail",
+        "notification_id": "5f91bf1d-ed79-4ca2-9e52-d10bbe8b84bd"
+      },
+      "sound": "default",
+      "priority": "high"
+    },
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Refund complete",
+      "body": "Your refund has been sent.",
+      "data": {
+        "type": "refund_completed",
+        "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178",
+        "target": "booking_detail",
+        "notification_id": "2aacb3ff-bc7b-41e2-9ecb-67bd775bd9cd"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. IN-PROCESS: cancelled_by_admin, refund_flagged, refund_processed."
+}

@@ -1,0 +1,79 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/eaf9dcc9-088c-403a-a293-a39404339383",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": {
+      "action": "cancel",
+      "reason": "placeholder reason"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "message": "Booking cancel successfully",
+      "booking": {
+        "id": "eaf9dcc9-088c-403a-a293-a39404339383",
+        "booking_code": "79310138",
+        "channel": "app",
+        "patient_id": "9641fe93-9cd4-40bf-ad0f-47681cbc651a",
+        "patient_details": {
+          "patient_id": "9641fe93-9cd4-40bf-ad0f-47681cbc651a",
+          "full_name": "Test Patient",
+          "phone_number": "+2340000000000",
+          "profile_image_url": null,
+          "emergency_contact_name": null,
+          "emergency_contact_phone": null
+        },
+        "caregiver_id": "e8403f79-2e3b-4f18-93da-69f218d6674b",
+        "caregiver_details": {
+          "caregiver_id": "e8403f79-2e3b-4f18-93da-69f218d6674b",
+          "full_name": "Ngozi Placeholder",
+          "specialization": "nurse",
+          "profile_image_url": null,
+          "current_latitude": null,
+          "current_longitude": null,
+          "distance_from_patient": null,
+          "estimated_arrival_time": null,
+          "last_location_update": null,
+          "is_online": false
+        },
+        "service_type": "nurse",
+        "assistance_type": "home_visit",
+        "condition": null,
+        "duration_hours": 4,
+        "scheduled_date": "2026-11-08T14:45:27.225431",
+        "scheduled_end_date": "2026-11-08T18:45:27.225431",
+        "actual_start_time": null,
+        "actual_end_time": null,
+        "patient_address": "1 Test Close, Lekki",
+        "patient_latitude": 6.4474,
+        "patient_longitude": 3.4723,
+        "patient_city": "Lagos",
+        "patient_state": "Lagos",
+        "status": "cancelled",
+        "payment_status": "paid",
+        "paystack_reference": "BKG_24fe4aae6506",
+        "payment_expires_at": null,
+        "payment_failure_reason": null,
+        "total_amount": "44000.00",
+        "service_fee": "40000.00",
+        "platform_fee": "4000.00",
+        "total_amount_kobo": 4400000,
+        "service_fee_kobo": 4000000,
+        "platform_fee_kobo": 400000,
+        "special_instructions": null,
+        "booking_for": "myself",
+        "cancel_reason": "caregiver_cancelled",
+        "refund_required": true,
+        "refund_required_reason": "caregiver_cancelled",
+        "dispatch_state": null,
+        "dispatch_started_at": null,
+        "visit_code": null,
+        "created_at": "2026-11-07T14:45:27.226933",
+        "updated_at": "2026-11-07T14:45:27.242522"
+      }
+    }
+  },
+  "note": "SEEDED: the accepted booking"
+}

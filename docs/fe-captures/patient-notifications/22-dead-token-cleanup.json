@@ -1,0 +1,12 @@
+{
+  "observed": {
+    "tokens_before": [
+      "ExponentPushToken[placeholder-old-phone]",
+      "ExponentPushToken[placeholder-patient-phone]"
+    ],
+    "tokens_after": [
+      "ExponentPushToken[placeholder-patient-phone]"
+    ]
+  },
+  "note": "read from the database after the delivery: the token Expo reported unregistered is gone"
+}

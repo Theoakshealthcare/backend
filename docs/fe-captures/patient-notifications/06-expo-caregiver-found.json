@@ -1,0 +1,18 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Caregiver found",
+      "body": "Ngozi will be your caregiver.",
+      "data": {
+        "type": "caregiver_found",
+        "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb",
+        "target": "booking_detail",
+        "notification_id": "8da49e3f-3a15-4469-8091-777368025be4"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. Event caregiver_assigned: the patient is told who is coming."
+}

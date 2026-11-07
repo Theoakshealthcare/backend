@@ -70,6 +70,17 @@ class NotificationService:
     def caregiver_on_the_way(self, booking: Booking) -> None:
         self._emit(booking, "caregiver_en_route", self._issuance_key(booking))
 
+    def caregiver_arrived(self, booking: Booking) -> None:
+        """The caregiver is at the door (app bookings only: told in the app, which then shows the visit code). Nothing in
+        the domain records an arrival yet (the visit starts when the caregiver types the code), so no booking action
+        calls this; it is here, tested, for the "I've arrived" step to call."""
+        self._emit(booking, "caregiver_arrived", self._issuance_key(booking))
+
+    def no_caregiver_found(self, booking: Booking) -> None:
+        """Dispatch gave up: nobody accepted (app bookings only; a WhatsApp booking has the drop-out journey)."""
+        started = booking.dispatch_started_at.isoformat() if booking.dispatch_started_at else ""
+        self._emit(booking, "no_caregiver_found", started)  # once per dispatch run: a re-dispatch that fails again is told again
+
     def visit_started(self, booking: Booking) -> None:
         self._emit(booking, "visit_started")
 

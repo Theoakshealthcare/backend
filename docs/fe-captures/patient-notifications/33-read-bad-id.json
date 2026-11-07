@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/patient/notifications/not-a-uuid/read",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 422,
+    "body": {
+      "detail": [
+        {
+          "type": "uuid_parsing",
+          "loc": [
+            "path",
+            "notification_id"
+          ],
+          "msg": "Input should be a valid UUID, invalid character: found `n` at 1",
+          "input": "not-a-uuid",
+          "ctx": {
+            "error": "invalid character: found `n` at 1"
+          }
+        }
+      ]
+    }
+  }
+}

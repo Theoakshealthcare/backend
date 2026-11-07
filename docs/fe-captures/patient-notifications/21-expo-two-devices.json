@@ -1,0 +1,31 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Visit completed",
+      "body": "Your visit is complete.",
+      "data": {
+        "type": "visit_completed",
+        "booking_id": "b4831745-9ca5-45ca-8009-6e1c1e8b25a3",
+        "target": "booking_detail",
+        "notification_id": "e8fae55a-f2f9-40ea-a258-ae1cb5214bf2"
+      },
+      "sound": "default",
+      "priority": "high"
+    },
+    {
+      "to": "ExponentPushToken[placeholder-old-phone]",
+      "title": "Visit completed",
+      "body": "Your visit is complete.",
+      "data": {
+        "type": "visit_completed",
+        "booking_id": "b4831745-9ca5-45ca-8009-6e1c1e8b25a3",
+        "target": "booking_detail",
+        "notification_id": "e8fae55a-f2f9-40ea-a258-ae1cb5214bf2"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. one device is live, one answers DeviceNotRegistered"
+}
