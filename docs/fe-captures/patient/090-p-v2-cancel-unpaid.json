@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/694fe3f4-949f-45ec-bb97-a69c6dd89f85/cancel",
+    "path": "/api/v1/booking/b79f8381-7c97-4b87-a2cb-751608340152/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "accepted_fee_kobo": 0
@@ -13,8 +13,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "booking_id": "694fe3f4-949f-45ec-bb97-a69c6dd89f85",
-      "booking_code": "6B2D9DBC",
+      "booking_id": "b79f8381-7c97-4b87-a2cb-751608340152",
+      "booking_code": "0404CA4C",
       "status": "cancelled",
       "already_cancelled": false,
       "fee_tier": "none",

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Backend work package** | P4-BE, branch `feature/patient-cancel` (no migration); section 10 (payment link, pricing 503): branch `feature/fallguard-score-payment-link` (no migration) |
+| **Backend work package** | P4-BE, branch `feature/patient-cancel` (no migration); section 10 (payment link, pricing 503): branch `feature/fallguard-score-payment-link` (no migration); section 10 stored link: branch `feature/payment-url-persist` (migration `0023`) |
 | **Audience** | `apps/patient` (the patient app: booking detail, cancel confirmation, bookings list) |
 | **Base URL** | `http://127.0.0.1:8000` for the local run; every path below starts with `/api/v1` |
 | **Source of truth** | Every request and response body, status code and error string below was **copied from a real response** captured by `scripts/capture_patient_flow.py` against the running API. The files are in [`docs/fe-captures/patient/`](fe-captures/patient/); each example names its file. Anything not exercised live is marked **[not live]**, with where its shape comes from. |
@@ -750,7 +750,9 @@ Polling guidance (a suggestion, not measured):
 
 `POST /booking/create` is the only call that used to return a payment link. If the family closes the app before paying, the booking is `status: pending`, `payment_status: pending` and the link is gone. Call this endpoint to get a link for it again. Only the booker may call it (same rule as cancel).
 
-**Read this first: what is and is not proven.** The endpoint, its refusals and its safety rules are verified live against the fake Paystack (examples below). **What a real Paystack answers when a reference it already initialised is initialised again is NOT verified, and Paystack's own error reference says it refuses it ("Duplicate Transaction Reference").** If it does, this endpoint answers `503 payment_link_unavailable` for every booking that `/create` already initialised, and the "Pay now" button cannot recover. The planned fix (store the `authorization_url` that `/create` returned and hand it back here) needs a database migration and is waiting for the lead's decision. **Until then: keep the `payment_url` from `/create` in memory for the current session, use it first, and treat this endpoint as the fallback; handle `payment_link_unavailable` by telling the person to try again or contact support.**
+**The link is stored.** When `POST /booking/create` initialises the Paystack payment it keeps the `payment_url` and `payment_access_code` on the booking (migration `0023`), and this endpoint hands **that same link** back: Paystack refuses to initialise a reference it has already seen ("Duplicate Transaction Reference"), so the server never asks it to initialise the booking twice. The app does not have to keep the `/create` link in memory; it can ask for it whenever "Pay now" is tapped. The link is **only** in the `/create` response and this endpoint's response: booking detail and list always show `payment_url: null`.
+
+**What is and is not proven.** Verified live against a local fake Paystack that, like the real one, refuses a repeated reference (examples below). **Not verified against the real Paystack:** that a stored checkout link still opens for the whole payment window, and what the real Paystack's checkout shows for a link that has been used. Bookings created **before** migration `0023` have no stored link; for them the server tries to initialise the reference, and against the real Paystack that is refused (`503 payment_link_unavailable`, 10.3). Their payment window is 30 minutes, so they disappear on their own after the deploy.
 
 ### 10.1 Pricing must exist before the first booking (new environments)
 
@@ -778,55 +780,95 @@ A database with no pricing version answers preview and create with a `503` inste
 
 ### 10.2 Getting the link
 
-Request: no body. The response is `/create`'s response (the booking, with `payment_url` and `payment_access_code`) **plus two fields that only this endpoint has**: `paystack_reference` and `payment_expires_at` (UTC, when the unpaid booking is cancelled). The booking keeps **one** reference for its whole life: every link is the same payment.
+Request: no body. The response is `/create`'s response (the booking, with `payment_url` and `payment_access_code`) **plus two fields that only this endpoint has**: `paystack_reference` and `payment_expires_at` (UTC, when the unpaid booking is cancelled). The booking keeps **one** reference for its whole life: every link is the same payment, and the **same link** (`payment_url` and `payment_access_code` are identical to what `/create` returned).
 
-<!-- capture: 065-p-create.json response.body keys=id,status,payment_status,payment_url,payment_access_code,total_amount -->
+<!-- capture: 069-p-create.json response.body keys=id,status,payment_status,payment_url,payment_access_code,total_amount -->
 ```json
 {
-  "id": "225d2f64-431a-4259-935e-f645e3bb1546",
+  "id": "7bcc0679-43da-4f49-8bb1-e74356c8b674",
   "status": "pending",
   "payment_status": "pending",
-  "payment_url": "https://checkout.paystack.com/ac_af8501b71c43",
-  "payment_access_code": "ac_af8501b71c43",
+  "payment_url": "https://checkout.paystack.com/ac_f73b26d4aa26",
+  "payment_access_code": "ac_f73b26d4aa26",
   "total_amount": 16500.0
 }
 ```
 
 The app restarted; the booking comes back from the list (`payment_status: "pending"`) and the person taps "Pay now":
 
-<!-- capture: 066-p-link.json response.body keys=id,status,payment_status,payment_url,payment_access_code,paystack_reference,payment_expires_at,total_amount,payment_error -->
+<!-- capture: 070-p-link.json response.body keys=id,status,payment_status,payment_url,payment_access_code,paystack_reference,payment_expires_at,total_amount,payment_error -->
 ```json
 {
-  "id": "225d2f64-431a-4259-935e-f645e3bb1546",
+  "id": "7bcc0679-43da-4f49-8bb1-e74356c8b674",
   "status": "pending",
   "payment_status": "pending",
-  "payment_url": "https://checkout.paystack.com/ac_c695f5e0a688",
-  "payment_access_code": "ac_c695f5e0a688",
-  "paystack_reference": "BKG_07YDC6NU_074ab6a6",
-  "payment_expires_at": "2026-11-07T18:14:03.648815",
+  "payment_url": "https://checkout.paystack.com/ac_f73b26d4aa26",
+  "payment_access_code": "ac_f73b26d4aa26",
+  "paystack_reference": "BKG_LMONALJO_f7ad6c81",
+  "payment_expires_at": "2026-11-07T20:35:29.212343",
   "total_amount": 16500.0,
   "payment_error": null
 }
 ```
 
-**A second tap is safe**: 200 again, the **same** `paystack_reference` and the same booking. `payment_url` and `payment_access_code` can differ between calls (always use the latest). Nothing is created or written on the server by asking for a link.
+**A second tap is safe**: 200 again, the **same** `paystack_reference`, the same booking and the same link. Nothing is created or written on the server by asking for a link (the link is read from the booking). Paystack is asked only whether the booking was already paid.
 
-<!-- capture: 067-p-link-double-tap.json response.body keys=id,status,payment_status,payment_url,payment_access_code,paystack_reference,payment_expires_at,total_amount,payment_error -->
+<!-- capture: 071-p-link-double-tap.json response.body keys=id,status,payment_status,payment_url,payment_access_code,paystack_reference,payment_expires_at,total_amount,payment_error -->
 ```json
 {
-  "id": "225d2f64-431a-4259-935e-f645e3bb1546",
+  "id": "7bcc0679-43da-4f49-8bb1-e74356c8b674",
   "status": "pending",
   "payment_status": "pending",
-  "payment_url": "https://checkout.paystack.com/ac_dc59bd232752",
-  "payment_access_code": "ac_dc59bd232752",
-  "paystack_reference": "BKG_07YDC6NU_074ab6a6",
-  "payment_expires_at": "2026-11-07T18:14:03.648815",
+  "payment_url": "https://checkout.paystack.com/ac_f73b26d4aa26",
+  "payment_access_code": "ac_f73b26d4aa26",
+  "paystack_reference": "BKG_LMONALJO_f7ad6c81",
+  "payment_expires_at": "2026-11-07T20:35:29.212343",
   "total_amount": 16500.0,
   "payment_error": null
 }
 ```
 
-<!-- capture: 068-db-link-one-booking-one-reference.json observed -->
+What the database holds after create plus two link requests: the booking's stored link equals what `/create` returned, and the (fake) Paystack was asked to initialise the reference **once**, at create:
+
+<!-- capture: 072-db-link-stored-and-paystack-asked-once.json observed -->
+```json
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT paystack_authorization_url, paystack_access_code FROM bookings WHERE id = <the created booking> (compared with create's payment_url / payment_access_code; the count is the fake Paystack's own tally)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "stored_url": "https://checkout.paystack.com/ac_f73b26d4aa26",
+        "stored_access_code": "ac_f73b26d4aa26",
+        "equals_create_response": true,
+        "paystack_initialise_calls_for_this_reference": 1
+      }
+    ]
+  }
+}
+```
+
+The booking detail and list never carry the stored link (both fields are `null` there; the link comes only from `/create` and this endpoint):
+
+<!-- capture: 073-p-link-detail-has-no-link.json response.body keys=id,status,payment_status,payment_url,payment_access_code,payment_error -->
+```json
+{
+  "id": "7bcc0679-43da-4f49-8bb1-e74356c8b674",
+  "status": "pending",
+  "payment_status": "pending",
+  "payment_url": null,
+  "payment_access_code": null,
+  "payment_error": null
+}
+```
+
+<!-- capture: 074-db-link-one-booking-one-reference.json observed -->
 ```json
 {
   "request": {
@@ -863,9 +905,9 @@ The app restarted; the booking comes back from the list (`payment_status: "pendi
 | 409 | `payment_link_in_progress` | A first request for the same booking is still running. Wait a second and retry; do not show an error. |
 | 409 | `payment_under_review` | Paystack reports a payment whose amount does not match the booking. Show `message` and a support route. |
 | 503 | `payment_check_unavailable` | Paystack could not be asked whether it was already paid, so no link was issued. Nothing changed; offer "Try again". |
-| 503 | `payment_link_unavailable` | Paystack would not start the payment. **The booking is not cancelled and stays payable**; offer "Try again". (See the warning at the top of this section.) |
+| 503 | `payment_link_unavailable` | Only for a booking that has **no stored link** (created before migration `0023`, or whose link failed to save): Paystack would not start the payment. **The booking is not cancelled and stays payable**; offer "Try again" until the payment window ends. Never returned for a booking created after the migration unless its save failed. |
 
-<!-- capture: 069-q-link-other-patient.json response.body -->
+<!-- capture: 075-q-link-other-patient.json response.body -->
 ```json
 {
   "detail": {
@@ -875,21 +917,21 @@ The app restarted; the booking comes back from the list (`payment_status: "pendi
 }
 ```
 
-<!-- capture: 070-c-link-as-caregiver.json response.body -->
+<!-- capture: 076-c-link-as-caregiver.json response.body -->
 ```json
 {
   "detail": "Access denied. Patient account required."
 }
 ```
 
-<!-- capture: 071-none-link-no-token.json response.body -->
+<!-- capture: 077-none-link-no-token.json response.body -->
 ```json
 {
   "detail": "Not authenticated"
 }
 ```
 
-<!-- capture: 072-p-link-missing.json response.body -->
+<!-- capture: 078-p-link-missing.json response.body -->
 ```json
 {
   "detail": {
@@ -899,9 +941,9 @@ The app restarted; the booking comes back from the list (`payment_status: "pendi
 }
 ```
 
-Paystack refused to start the payment (simulated: the fake Paystack was told to refuse). The booking is untouched, as the detail call after it shows:
+**A booking with no stored link** (created before migration `0023`; here a seeded row, labelled in the capture) has to be initialised by this request. Paystack refused (simulated: the fake Paystack was told to refuse). The booking is untouched and **not cancelled**, as the detail call after it shows:
 
-<!-- capture: 073-p-link-paystack-refuses.json response.body -->
+<!-- capture: 080-p-link-no-stored-link-paystack-refuses.json response.body -->
 ```json
 {
   "detail": {
@@ -911,18 +953,62 @@ Paystack refused to start the payment (simulated: the fake Paystack was told to 
 }
 ```
 
-<!-- capture: 074-p-link-detail-still-pending.json response.body keys=id,status,payment_status,payment_failure_reason -->
+<!-- capture: 081-p-link-no-stored-link-detail-still-pending.json response.body keys=id,status,payment_status,payment_failure_reason -->
 ```json
 {
-  "id": "225d2f64-431a-4259-935e-f645e3bb1546",
+  "id": "8bd01701-b0ed-405d-8590-deb429a25ea8",
   "status": "pending",
   "payment_status": "pending"
 }
 ```
 
-Paystack could not be asked at all (simulated: the fake was shut down for the call):
+The same seeded booking once Paystack is healthy and has not seen its reference: the link is made and **stored from then on**:
 
-<!-- capture: 075-p-link-paystack-unreachable.json response.body -->
+<!-- capture: 082-p-link-no-stored-link-initialised.json response.body keys=id,status,payment_status,payment_url,payment_access_code,paystack_reference,payment_expires_at,payment_error -->
+```json
+{
+  "id": "8bd01701-b0ed-405d-8590-deb429a25ea8",
+  "status": "pending",
+  "payment_status": "pending",
+  "payment_url": "https://checkout.paystack.com/ac_03813a785c03",
+  "payment_access_code": "ac_03813a785c03",
+  "paystack_reference": "BKG_9D4DFFD3_e95a48d2",
+  "payment_expires_at": "2026-11-07T20:35:29.309016",
+  "payment_error": null
+}
+```
+
+And a booking with no stored link whose reference Paystack **has already seen** (what a pre-`0023` booking is on the real Paystack; here the duplicate-refusing fake has seen it, and the row is seeded): a 503, nothing changes. The person can only wait for the window to close and book again:
+
+<!-- capture: 083-p-link-no-stored-link-reference-already-seen.json response.body -->
+```json
+{
+  "detail": {
+    "code": "payment_link_unavailable",
+    "message": "We could not prepare your payment link right now. Please try again in a moment."
+  }
+}
+```
+
+While Paystack's *initialise* is down, a booking **with** a stored link still gets it (simulated: the fake was told to refuse initialisation; the paid check still ran):
+
+<!-- capture: 079-p-link-stored-while-paystack-init-down.json response.body keys=id,status,payment_status,payment_url,payment_access_code,paystack_reference,payment_expires_at,payment_error -->
+```json
+{
+  "id": "7bcc0679-43da-4f49-8bb1-e74356c8b674",
+  "status": "pending",
+  "payment_status": "pending",
+  "payment_url": "https://checkout.paystack.com/ac_f73b26d4aa26",
+  "payment_access_code": "ac_f73b26d4aa26",
+  "paystack_reference": "BKG_LMONALJO_f7ad6c81",
+  "payment_expires_at": "2026-11-07T20:35:29.212343",
+  "payment_error": null
+}
+```
+
+Paystack could not be asked at all (simulated: the fake was shut down for the call), so **no link is issued even if one is stored**:
+
+<!-- capture: 085-p-link-paystack-unreachable.json response.body -->
 ```json
 {
   "detail": {
@@ -934,7 +1020,7 @@ Paystack could not be asked at all (simulated: the fake was shut down for the ca
 
 Paid a moment ago and the webhook has not arrived (simulated: the fake Paystack says paid). The booking is settled by this request, and the link is refused:
 
-<!-- capture: 076-p-link-paid-but-webhook-late.json response.body -->
+<!-- capture: 086-p-link-paid-but-webhook-late.json response.body -->
 ```json
 {
   "detail": {
@@ -946,7 +1032,7 @@ Paid a moment ago and the webhook has not arrived (simulated: the fake Paystack 
 }
 ```
 
-<!-- capture: 077-db-link-settled.json observed -->
+<!-- capture: 087-db-link-settled.json observed -->
 ```json
 {
   "request": {
@@ -968,7 +1054,7 @@ Paid a moment ago and the webhook has not arrived (simulated: the fake Paystack 
 }
 ```
 
-<!-- capture: 078-p-link-after-paid.json response.body -->
+<!-- capture: 088-p-link-after-paid.json response.body -->
 ```json
 {
   "detail": {
@@ -982,7 +1068,7 @@ Paid a moment ago and the webhook has not arrived (simulated: the fake Paystack 
 
 Payment window over (the row was edited to be a minute past; the expiry sweep had not run) and a cancelled booking:
 
-<!-- capture: 079-p-link-window-expired.json response.body -->
+<!-- capture: 089-p-link-window-expired.json response.body -->
 ```json
 {
   "detail": {
@@ -992,7 +1078,7 @@ Payment window over (the row was edited to be a minute past; the expiry sweep ha
 }
 ```
 
-<!-- capture: 081-p-link-cancelled.json response.body -->
+<!-- capture: 091-p-link-cancelled.json response.body -->
 ```json
 {
   "detail": {
@@ -1004,7 +1090,7 @@ Payment window over (the row was edited to be a minute past; the expiry sweep ha
 
 ### 10.4 What the app must do
 
-1. **Always try the `payment_url` from `/create` first**; call this endpoint only when the app no longer has it (restart, list reopened). See the warning at the top of the section.
+1. **Use the link from `/create` while the app has it; call this endpoint when it does not** (restart, list reopened). The server returns the same link, so both are equally good. Never take the link from the booking detail or list: it is `null` there.
 2. **Show the time left** from `payment_expires_at` and stop offering "Pay now" when it passes. After `payment_window_expired` the only path is a new booking.
 3. **After the person returns from Paystack**, call `POST /booking/booking/{id}/verify-payment` as before; this endpoint is not a payment check.
 4. **`booking_already_paid` is good news.** Refresh and move on; never show it as a failure.
@@ -1034,9 +1120,11 @@ Payment window over (the row was edited to be a minute past; the expiry sweep ha
 | `booking_closed`, `booking_already_cancelled` for a non-booker cancel, `payment_under_review` | **Not live** | unit tests |
 | A WhatsApp-channel booking cancelled by its booker through the app | **Not live** | unit test only |
 | Pricing missing: preview and create are `503 booking_settings_not_configured` | **Yes** | 061, 062 (empty database) |
-| `payment-link`: the response (create's fields plus `paystack_reference`, `payment_expires_at`), double tap with the same reference, one booking row | **Yes** (fake Paystack; the booking came from the real `/create`) | 065 to 068 |
-| `payment-link` errors: 401, 403 (other patient, caregiver), 404, 409 paid-after-late-webhook then repeated, 409 window expired, 409 cancelled | **Yes** | 069 to 072, 076 to 079, 081 |
-| `payment-link` when Paystack refuses to start the payment, or cannot be asked | **Simulated** | 073 to 075 (the fake was told to refuse / shut down) |
-| `payment-link` against the **real Paystack**, in particular a repeated reference | **No, and expected to fail** | Paystack's error reference says an already-used reference is refused; the fake accepts it. See the warning at the top of section 10 |
-| `payment_link_in_progress`, `payment_under_review`, `booking_not_payable`, a WhatsApp booking's link | **Not live** | unit tests with real concurrent sessions (`app/tests/test_booking_payment_link.py`) |
+| `payment-link`: the response (create's fields plus `paystack_reference`, `payment_expires_at`), the **same stored link as `/create`**, double tap, Paystack asked to initialise once, one booking row | **Yes** (a local fake Paystack that refuses a repeated reference; the booking came from the real `/create`) | 069 to 072, 074 |
+| Booking detail and list never carry the stored link | **Yes** (detail); the list and a caregiver's views are covered by unit tests | 073; `app/tests/test_booking_payment_link_stored.py` |
+| `payment-link` errors: 401, 403 (other patient, caregiver), 404, 409 paid-after-late-webhook then repeated, 409 window expired, 409 cancelled | **Yes** | 075 to 078, 086 to 089, 091 |
+| A booking with no stored link: Paystack refuses (503, not cancelled), Paystack healthy (link made and stored), reference already seen (503) | **Yes, on seeded rows** (the pre-`0023` state was seeded, not migrated from real data) | 080 to 083 |
+| A stored link is served while Paystack's initialise is down; no link when Paystack cannot be asked | **Simulated** | 079, 085 (the fake was told to refuse / shut down) |
+| `payment-link` against the **real Paystack**: that a stored checkout link keeps opening for the whole window, and the real "Duplicate Transaction Reference" answer | **No** | the fake copies Paystack's documented refusal of a repeated reference; no live Paystack call was made |
+| `payment_link_in_progress`, `payment_under_review`, `booking_not_payable`, a WhatsApp booking's link, a failed save of the link | **Not live** | unit tests with real concurrent sessions (`app/tests/test_booking_payment_link.py`, `app/tests/test_booking_payment_link_stored.py`) |
 | Behaviour on a real phone | **No** | the patient app screens are not built yet |

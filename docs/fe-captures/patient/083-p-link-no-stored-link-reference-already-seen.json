@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/225d2f64-431a-4259-935e-f645e3bb1546/payment-link",
+    "path": "/api/v1/booking/32ed0077-1e2d-4d4a-8e8d-57eac1bee3ae/payment-link",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -17,5 +17,5 @@
       }
     }
   },
-  "note": "SIMULATED: the fake Paystack refuses to initialise. The booking is NOT cancelled (create would cancel it)."
+  "note": "A SEEDED booking with no stored link whose reference the (duplicate-refusing) fake Paystack has already seen, as a booking created before migration 0023 would be on the real Paystack: 503 payment_link_unavailable, nothing changes, the booking is not cancelled. Its payment window closes on its own."
 }

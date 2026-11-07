@@ -1,19 +1,19 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/694fe3f4-949f-45ec-bb97-a69c6dd89f85/payment-link",
+    "path": "/api/v1/booking/fe510c79-3e87-4d35-87d3-812242bf20fa/payment-link",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
   "response": {
-    "status_code": 409,
+    "status_code": 404,
     "headers": {
       "content-type": "application/json"
     },
     "body": {
       "detail": {
-        "code": "booking_already_cancelled",
-        "message": "This booking is cancelled, so it can no longer be paid."
+        "code": "booking_not_found",
+        "message": "We could not find that booking."
       }
     }
   }

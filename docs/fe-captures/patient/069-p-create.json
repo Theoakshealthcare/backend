@@ -1,0 +1,70 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/create",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "duration_hours": 3,
+      "scheduled_date": "2026-11-09T10:00:00",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "booking_for": "myself"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "7bcc0679-43da-4f49-8bb1-e74356c8b674",
+      "booking_code": "LMONALJO",
+      "channel": "app",
+      "patient_id": "f7ad6c81-bc68-41d8-aa52-2ebc41a968d8",
+      "patient_details": {
+        "patient_id": "f7ad6c81-bc68-41d8-aa52-2ebc41a968d8",
+        "full_name": "Placeholder Patient",
+        "phone_number": "+2340000122002",
+        "profile_image_url": null,
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null
+      },
+      "caregiver_id": null,
+      "caregiver_details": null,
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "condition": null,
+      "duration_hours": 3,
+      "scheduled_date": "2026-11-09T10:00:00",
+      "scheduled_end_date": "2026-11-09T13:00:00",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "status": "pending",
+      "payment_status": "pending",
+      "total_amount": 16500.0,
+      "service_fee": 15000.0,
+      "platform_fee": 1500.0,
+      "special_instructions": null,
+      "booking_for": "myself",
+      "created_at": "2026-11-07T20:05:29.213428",
+      "updated_at": "2026-11-07T20:05:29.227010",
+      "dispatch_state": null,
+      "visit_code": null,
+      "cancel_fee_tier": null,
+      "cancel_fee": null,
+      "refund": null,
+      "payment_url": "https://checkout.paystack.com/ac_f73b26d4aa26",
+      "payment_access_code": "ac_f73b26d4aa26",
+      "payment_error": null
+    }
+  },
+  "note": "The real create endpoint (the API's Paystack calls reach the local fake Paystack, which here refuses a reference it has already seen, like the real one). payment_url is the link; the app is closed before the person pays. The link is also stored on the booking."
+}
