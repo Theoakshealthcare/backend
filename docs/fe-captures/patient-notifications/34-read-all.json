@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/patient/notifications/read-all",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "marked_read": 12,
+      "unread_count": 0
+    }
+  }
+}

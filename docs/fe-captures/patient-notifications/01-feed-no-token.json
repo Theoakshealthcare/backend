@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": 401,
+    "body": {
+      "detail": "Not authenticated"
+    }
+  }
+}

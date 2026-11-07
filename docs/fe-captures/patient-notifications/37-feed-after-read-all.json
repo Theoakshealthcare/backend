@@ -1,0 +1,43 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications?limit=2",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "e8fae55a-f2f9-40ea-a258-ae1cb5214bf2",
+          "type": "visit_completed",
+          "title": "Visit completed",
+          "body": "Your visit is complete.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "b4831745-9ca5-45ca-8009-6e1c1e8b25a3"
+          },
+          "read_at": "2026-11-07T14:45:27.526098",
+          "created_at": "2026-11-07T14:45:27.465509"
+        },
+        {
+          "id": "b188649c-9308-4438-b025-2248beb4fb6e",
+          "type": "no_caregiver_found",
+          "title": "No caregiver found yet",
+          "body": "We couldn't find a caregiver yet. Our team is looking into it.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "ff882ad4-ae92-4fdd-bc02-bba0467ef019"
+          },
+          "read_at": "2026-11-07T14:45:27.554673",
+          "created_at": "2026-11-07T14:45:27.429936"
+        }
+      ],
+      "total": 13,
+      "limit": 2,
+      "offset": 0,
+      "unread_count": 0
+    }
+  }
+}

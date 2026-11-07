@@ -159,7 +159,8 @@ def test_an_app_booking_is_cancelled_and_refunded_and_the_dropout_is_still_recor
     b = reload(db, booking)
     assert b.status == BookingStatus.CANCELLED and b.caregiver_id == caregiver.id and b.dropout_state is None
     # RF-D8: a paid app booking dropped by its caregiver is queued for a full refund (it used to be left unrefunded).
-    assert b.refund_required and events_of(db, b) == []
+    # An app booker is told in the app (feed + push), never on WhatsApp: the only event is the app notice.
+    assert b.refund_required and events_of(db, b) == [("booking_cancelled_by_caregiver", str(caregiver.id))]
     assert dropout.dropout_count(db, caregiver.id) == 1
 
 

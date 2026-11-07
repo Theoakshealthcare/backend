@@ -1,0 +1,18 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-phone]",
+      "title": "Booking cancelled",
+      "body": "Your caregiver can no longer attend. Open the app for details.",
+      "data": {
+        "type": "booking_cancelled",
+        "booking_id": "eaf9dcc9-088c-403a-a293-a39404339383",
+        "target": "booking_detail",
+        "notification_id": "7706dc9e-1ce7-48c7-b7ff-1b6d430797d1"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "what the delivery code sent to the (fake) Expo API. "
+}

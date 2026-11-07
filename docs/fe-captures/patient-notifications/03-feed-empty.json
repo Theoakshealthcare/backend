@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [],
+      "total": 0,
+      "limit": 20,
+      "offset": 0,
+      "unread_count": 0
+    }
+  },
+  "note": "patient A, before anything happened"
+}

@@ -1,0 +1,175 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "e8fae55a-f2f9-40ea-a258-ae1cb5214bf2",
+          "type": "visit_completed",
+          "title": "Visit completed",
+          "body": "Your visit is complete.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "b4831745-9ca5-45ca-8009-6e1c1e8b25a3"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.465509"
+        },
+        {
+          "id": "b188649c-9308-4438-b025-2248beb4fb6e",
+          "type": "no_caregiver_found",
+          "title": "No caregiver found yet",
+          "body": "We couldn't find a caregiver yet. Our team is looking into it.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "ff882ad4-ae92-4fdd-bc02-bba0467ef019"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.429936"
+        },
+        {
+          "id": "a3830c01-7d39-4d7c-8a4d-3bb69def698f",
+          "type": "caregiver_changed",
+          "title": "Caregiver changed",
+          "body": "Ngozi will now be your caregiver.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "b164e965-8bb4-4a07-90d3-d541c17d80ca"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.407841"
+        },
+        {
+          "id": "75a44dfa-7ace-4d5a-8651-8c3b7ffe9ecc",
+          "type": "booking_confirmed",
+          "title": "Booking confirmed",
+          "body": "Payment received. We're finding a caregiver for your visit.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "a297f175-2aec-4054-98f7-3f4724604b3f"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.392743"
+        },
+        {
+          "id": "2aacb3ff-bc7b-41e2-9ecb-67bd775bd9cd",
+          "type": "refund_completed",
+          "title": "Refund complete",
+          "body": "Your refund has been sent.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.363971"
+        },
+        {
+          "id": "5f91bf1d-ed79-4ca2-9e52-d10bbe8b84bd",
+          "type": "refund_started",
+          "title": "Refund started",
+          "body": "We've started your refund.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.349182"
+        },
+        {
+          "id": "74b7ee05-77b7-4870-be73-7e5c7a7507ad",
+          "type": "booking_cancelled",
+          "title": "Booking cancelled",
+          "body": "Oakly has cancelled this visit. Open the app for details.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "7a867cf4-4438-4474-9401-1bb140ec9178"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.328036"
+        },
+        {
+          "id": "5b2cff21-34a9-43f8-a94e-f11be85886d6",
+          "type": "caregiver_arrived",
+          "title": "Your caregiver has arrived",
+          "body": "Open the app to see your visit code.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "fba237d5-0001-4d83-94a9-2f10204fc421"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.292340"
+        },
+        {
+          "id": "7706dc9e-1ce7-48c7-b7ff-1b6d430797d1",
+          "type": "booking_cancelled",
+          "title": "Booking cancelled",
+          "body": "Your caregiver can no longer attend. Open the app for details.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "eaf9dcc9-088c-403a-a293-a39404339383"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.262516"
+        },
+        {
+          "id": "2ad7c2ad-d511-4210-bf09-510f50546911",
+          "type": "visit_completed",
+          "title": "Visit completed",
+          "body": "Your visit is complete.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.211262"
+        },
+        {
+          "id": "6aef2b44-c507-4f0f-b977-c86168531dfd",
+          "type": "visit_started",
+          "title": "Visit started",
+          "body": "Your visit has started.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.162046"
+        },
+        {
+          "id": "63ca8cc7-0005-4061-9c03-43791b403e36",
+          "type": "caregiver_on_the_way",
+          "title": "Caregiver on the way",
+          "body": "Ngozi is on the way.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.110824"
+        },
+        {
+          "id": "8da49e3f-3a15-4469-8091-777368025be4",
+          "type": "caregiver_found",
+          "title": "Caregiver found",
+          "body": "Ngozi will be your caregiver.",
+          "data": {
+            "target": "booking_detail",
+            "booking_id": "f507879c-80e7-4b69-b9d4-d52fb46f7ceb"
+          },
+          "read_at": null,
+          "created_at": "2026-11-07T14:45:27.061924"
+        }
+      ],
+      "total": 13,
+      "limit": 20,
+      "offset": 0,
+      "unread_count": 13
+    }
+  }
+}

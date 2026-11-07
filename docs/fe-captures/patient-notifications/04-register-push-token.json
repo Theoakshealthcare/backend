@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/devices/push-token",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": {
+      "token": "ExponentPushToken[placeholder-patient-phone]",
+      "platform": "ios"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "token": "ExponentPushToken[placeholder-patient-phone]",
+      "platform": "ios"
+    }
+  },
+  "note": "the existing endpoint, called as a PATIENT: nothing new to build in the app for the token itself"
+}

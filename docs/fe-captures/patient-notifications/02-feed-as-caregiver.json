@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/notifications",
+    "auth": "Bearer <ACCESS_TOKEN of the user named in the label>",
+    "body": null
+  },
+  "response": {
+    "status_code": 403,
+    "body": {
+      "detail": "Access denied. Patient account required."
+    }
+  },
+  "note": "a caregiver account is refused: the feed is for patients"
+}

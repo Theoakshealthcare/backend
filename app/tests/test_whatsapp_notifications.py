@@ -56,13 +56,15 @@ def test_a_failed_transition_records_no_event(db, chat):
     assert events_of(db, booking) == []
 
 
-def test_an_app_booking_records_no_booker_events(db, chat):
+def test_an_app_booking_records_only_the_app_notice_and_no_whatsapp_one(db, chat):
     patient = make_patient(db)
     caregiver = make_caregiver(db)
     booking = make_booking(db, patient)  # channel app
     offer(db, booking, caregiver)
     act(db, booking, caregiver, "accept")
-    assert events_of(db, booking) == []
+    # The app booker hears "caregiver found" in the app; the visit code is not queued at all (the app shows it).
+    assert events_of(db, booking) == [("caregiver_assigned", issuance(db.get(Booking, booking.id), caregiver))]
+    assert deliver(db, chat) == []  # and nothing is sent on WhatsApp
 
 
 def test_every_step_of_the_journey_is_recorded_once(db, chat):
@@ -225,7 +227,9 @@ def test_caregiver_cancel_of_a_paid_app_booking_queues_a_refund_and_tells_nobody
     db.expire_all()
     booking = db.get(Booking, booking.id)
     assert booking.status == BookingStatus.CANCELLED and booking.refund_required
-    assert events_of(db, booking) == []  # an app booker has no WhatsApp notice; the refund waits for a person to approve it
+    # an app booker has no WhatsApp notice (only the app notice); the refund waits for a person to approve it
+    assert events_of(db, booking) == [("booking_cancelled_by_caregiver", str(caregiver.id))]
+    assert deliver(db, chat) == []
 
 
 def test_cancel_notice_outside_the_window_is_the_booking_update_template(db, chat):
