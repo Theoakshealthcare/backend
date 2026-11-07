@@ -131,8 +131,6 @@ def _guard(fn, *args, **kwargs):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=exc.message)
     except refunds.WalletRefundsDisabled as exc:  # a stable code the console can branch on (REFUND_WALLET_CREDIT_ENABLED off)
         raise HTTPException(status.HTTP_409_CONFLICT, detail={"code": exc.code, "message": exc.message})
-    except refunds.WalletRefundsDisabled as exc:  # a stable code the console can branch on (REFUND_WALLET_CREDIT_ENABLED off)
-        raise HTTPException(status.HTTP_409_CONFLICT, detail={"code": exc.code, "message": exc.message})
     except refunds.RefundConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=exc.message)
     except refunds.RefundForbidden as exc:
