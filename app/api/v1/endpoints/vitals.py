@@ -12,6 +12,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.patient_vital import PatientVital
 from app.schemas.patient_vital import PatientVitalCreate, PatientVitalUpdate, PatientVitalResponse
 from app.services.patient_vital import PatientVitalService
+from app.services.vital_rules import VitalRuleError, check_notes, check_reading
 from app.services.gemini import GeminiService, gemini_service
 from app.services.patient_caregiver_access import PatientCaregiverAccessService
 from app.services.vitals_access import caregiver_can_access_vitals
@@ -82,6 +83,17 @@ def update_vital(
         raise HTTPException(status_code=404, detail="Vital not found")
     if not can_access_vitals(current_user, vital.patient_id, db):
         raise HTTPException(status_code=403, detail="Access denied")
+    changes = update_data.model_dump(exclude_unset=True)
+    try:
+        if {"vital_type", "value", "unit"} & changes.keys():  # an edit of notes alone never re-judges an old row
+            clean = check_reading(changes.get("vital_type", vital.vital_type), changes.get("value", vital.value),
+                                  changes.get("unit", vital.unit))
+            for key, cleaned in zip(("vital_type", "value", "unit"), clean):
+                if key in changes:
+                    setattr(update_data, key, cleaned)
+        check_notes(changes.get("notes"))
+    except VitalRuleError as exc:
+        raise HTTPException(status_code=422, detail=[{"type": "vital_invalid", "loc": ["body"], "msg": str(exc)}])
     return service.update_vital(vital_id, update_data)
 
 # --- Delete Vital ---
