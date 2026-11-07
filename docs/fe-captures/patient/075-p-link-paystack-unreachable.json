@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/225d2f64-431a-4259-935e-f645e3bb1546/payment-link",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 503,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "payment_check_unavailable",
+        "message": "We could not check your payment with our payment provider. Please try again in a moment."
+      }
+    }
+  },
+  "note": "SIMULATED: the fake Paystack was shut down, so Oakly could not ask whether it was already paid."
+}

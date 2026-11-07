@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/booking/555f5030-fcc3-4df9-b30c-69ca3be32f4c/cancel-terms",
+    "path": "/api/v1/booking/1f615be7-300f-4bd6-9b63-045f7bf183b0/cancel-terms",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -11,8 +11,8 @@
       "content-type": "application/json"
     },
     "body": {
-      "booking_id": "555f5030-fcc3-4df9-b30c-69ca3be32f4c",
-      "booking_code": "1A382BB3",
+      "booking_id": "1f615be7-300f-4bd6-9b63-045f7bf183b0",
+      "booking_code": "2A84A0DF",
       "can_cancel": true,
       "reason": null,
       "message": null,
@@ -34,7 +34,7 @@
         "fee_percent": 20,
         "late_fee_percent": 50
       },
-      "as_of": "2026-11-07T14:33:34.049906"
+      "as_of": "2026-11-07T17:44:02.810988"
     }
   },
   "note": "Booking 3: 1 hour out: inside the late window."

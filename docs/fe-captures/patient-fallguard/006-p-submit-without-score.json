@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "65–74"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "46759faa-38b1-4649-95d2-82e15284a2f1",
+      "patient_id": "60a9c77d-7e94-4ccb-9326-f790963c994b",
+      "total_score": 1,
+      "ai_summary": "Unable to analyze",
+      "ai_recommendations": [],
+      "created_at": "2026-11-07T17:44:24.108599",
+      "answers": [
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "65–74",
+          "score": 1,
+          "id": "b03350d5-3c3c-47ab-b1d9-490d601c537e"
+        }
+      ]
+    }
+  },
+  "note": "`score` may be left out: the server never reads it."
+}

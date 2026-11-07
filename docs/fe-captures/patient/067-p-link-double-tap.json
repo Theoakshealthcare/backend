@@ -1,0 +1,61 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/225d2f64-431a-4259-935e-f645e3bb1546/payment-link",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "225d2f64-431a-4259-935e-f645e3bb1546",
+      "booking_code": "07YDC6NU",
+      "channel": "app",
+      "patient_id": "074ab6a6-348c-40de-974c-402c950926a5",
+      "patient_details": {
+        "patient_id": "074ab6a6-348c-40de-974c-402c950926a5",
+        "full_name": "Placeholder Patient",
+        "phone_number": "+2340000427002",
+        "profile_image_url": null,
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null
+      },
+      "caregiver_id": null,
+      "caregiver_details": null,
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "condition": null,
+      "duration_hours": 3,
+      "scheduled_date": "2026-11-09T10:00:00",
+      "scheduled_end_date": "2026-11-09T13:00:00",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "status": "pending",
+      "payment_status": "pending",
+      "total_amount": 16500.0,
+      "service_fee": 15000.0,
+      "platform_fee": 1500.0,
+      "special_instructions": null,
+      "booking_for": "myself",
+      "created_at": "2026-11-07T17:44:03.650234",
+      "updated_at": "2026-11-07T17:44:03.650237",
+      "dispatch_state": null,
+      "visit_code": null,
+      "cancel_fee_tier": null,
+      "cancel_fee": null,
+      "refund": null,
+      "payment_url": "https://checkout.paystack.com/ac_dc59bd232752",
+      "payment_access_code": "ac_dc59bd232752",
+      "payment_error": null,
+      "paystack_reference": "BKG_07YDC6NU_074ab6a6",
+      "payment_expires_at": "2026-11-07T18:14:03.648815"
+    }
+  },
+  "note": "A second tap: 200 again, the SAME reference. Nothing is written and no second transaction exists."
+}

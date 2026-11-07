@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/ee27bede-0e33-439e-9be5-e963f18fea75/cancel",
+    "path": "/api/v1/booking/16523e59-886d-4294-a8ee-04db6dcc1907/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "accepted_fee_kobo": 0

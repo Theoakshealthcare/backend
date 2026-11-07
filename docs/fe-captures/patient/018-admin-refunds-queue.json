@@ -13,9 +13,9 @@
     "body": {
       "items": [
         {
-          "id": "59be60c3-58ae-4563-8447-b6d53c7140c6",
-          "booking_id": "b234162e-3074-4d5e-8a4f-bf200d129a0a",
-          "booking_code": "0436BEAE",
+          "id": "6a736f6e-c708-44e4-936f-f1a0e4b8a095",
+          "booking_id": "4c50ae3a-3864-49ea-ad37-dc64a66fc91f",
+          "booking_code": "4DB49513",
           "status": "pending_approval",
           "reason_code": "cancelled_by_booker",
           "origin": "system",
@@ -31,7 +31,7 @@
           "approved_by": null,
           "review_flagged_at": null,
           "review_reason": null,
-          "created_at": "2026-11-07T14:33:33.715545",
+          "created_at": "2026-11-07T17:44:01.947427",
           "approved_at": null,
           "processed_at": null,
           "max_approvable_naira": 55000.0,

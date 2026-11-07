@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT count(*), count(DISTINCT paystack_reference) FROM bookings WHERE id = <the created booking>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      [
+        1,
+        1
+      ]
+    ]
+  },
+  "note": "One booking row and one reference after create plus two links."
+}

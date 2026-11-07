@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+          "answer": "Placeholder: not a choice"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "fallguard_invalid_option",
+        "message": "That answer is not one of the choices for the question.",
+        "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf"
+      }
+    }
+  }
+}

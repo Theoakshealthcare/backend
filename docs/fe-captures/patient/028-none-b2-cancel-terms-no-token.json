@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/booking/28724045-ec58-4e31-9f5c-f7beb07f7cd2/cancel-terms",
+    "path": "/api/v1/booking/5f0a6568-4a10-437b-b8b9-957b76c1719f/cancel-terms",
     "auth": null,
     "body": null
   },

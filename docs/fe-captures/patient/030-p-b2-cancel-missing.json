@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/14051360-567a-4b34-b2f5-4c08abd20aff/cancel",
+    "path": "/api/v1/booking/57c17292-d9c6-4915-8606-fbc5687016bc/cancel",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

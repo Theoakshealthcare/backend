@@ -1,0 +1,545 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/fallguard/questions",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": [
+      {
+        "question": "What is your current age?",
+        "options": [
+          {
+            "text": "Less than 65",
+            "score": 0
+          },
+          {
+            "text": "65–74",
+            "score": 1
+          },
+          {
+            "text": "75–84",
+            "score": 2
+          },
+          {
+            "text": "85+",
+            "score": 3
+          }
+        ],
+        "order": 1,
+        "is_active": true,
+        "id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
+        "created_at": "2026-11-07T17:44:23.115284",
+        "updated_at": "2026-11-07T17:44:23.115292"
+      },
+      {
+        "question": "Do you live alone or with others?",
+        "options": [
+          {
+            "text": "With family",
+            "score": 0
+          },
+          {
+            "text": "With a caregiver",
+            "score": 1
+          },
+          {
+            "text": "Alone",
+            "score": 2
+          }
+        ],
+        "order": 2,
+        "is_active": true,
+        "id": "03f802c1-33d6-4281-b06f-3c507bf4759e",
+        "created_at": "2026-11-07T17:44:23.257138",
+        "updated_at": "2026-11-07T17:44:23.257146"
+      },
+      {
+        "question": "Have you fallen in the last 12 months?",
+        "options": [
+          {
+            "text": "No",
+            "score": 0
+          },
+          {
+            "text": "Yes, 1–2 times",
+            "score": 1
+          },
+          {
+            "text": "Yes, 3+ times",
+            "score": 2
+          }
+        ],
+        "order": 3,
+        "is_active": true,
+        "id": "018d6b61-3c0e-4862-9eb7-9dc45ce49618",
+        "created_at": "2026-11-07T17:44:23.291421",
+        "updated_at": "2026-11-07T17:44:23.291429"
+      },
+      {
+        "question": "Do you use mobility aids regularly?",
+        "options": [
+          {
+            "text": "No",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Always",
+            "score": 2
+          }
+        ],
+        "order": 4,
+        "is_active": true,
+        "id": "da343075-9f42-47bf-8058-de1c27871b8f",
+        "created_at": "2026-11-07T17:44:23.320217",
+        "updated_at": "2026-11-07T17:44:23.320226"
+      },
+      {
+        "question": "Do you feel unsteady when walking or standing?",
+        "options": [
+          {
+            "text": "Never",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Frequently",
+            "score": 2
+          }
+        ],
+        "order": 5,
+        "is_active": true,
+        "id": "fd6c9416-f1e8-4d12-b09c-e5263041cbae",
+        "created_at": "2026-11-07T17:44:23.345257",
+        "updated_at": "2026-11-07T17:44:23.345266"
+      },
+      {
+        "question": "Can you stand up from a chair without needing to push yourself up with your hands?",
+        "options": [
+          {
+            "text": "Yes, easily",
+            "score": 0
+          },
+          {
+            "text": "With difficulty",
+            "score": 1
+          },
+          {
+            "text": "Not at all",
+            "score": 2
+          }
+        ],
+        "order": 6,
+        "is_active": true,
+        "id": "e4c9917e-d2ab-490f-afab-039cfc9bc970",
+        "created_at": "2026-11-07T17:44:23.371728",
+        "updated_at": "2026-11-07T17:44:23.371733"
+      },
+      {
+        "question": "Do you experience dizziness or lightheadedness?",
+        "options": [
+          {
+            "text": "Never",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Frequently",
+            "score": 2
+          }
+        ],
+        "order": 7,
+        "is_active": true,
+        "id": "b50ddc47-2461-471b-b0f7-ca4961b8c8c5",
+        "created_at": "2026-11-07T17:44:23.397746",
+        "updated_at": "2026-11-07T17:44:23.397751"
+      },
+      {
+        "question": "Do you have pain or stiffness in your knees, hips, or back?",
+        "options": [
+          {
+            "text": "No",
+            "score": 0
+          },
+          {
+            "text": "Mild",
+            "score": 1
+          },
+          {
+            "text": "Severe",
+            "score": 2
+          }
+        ],
+        "order": 8,
+        "is_active": true,
+        "id": "304af2c8-94eb-4d91-88bc-6750a3de6b53",
+        "created_at": "2026-11-07T17:44:23.430145",
+        "updated_at": "2026-11-07T17:44:23.430150"
+      },
+      {
+        "question": "Do you have foot pain, swelling, or wear ill-fitting shoes?",
+        "options": [
+          {
+            "text": "No",
+            "score": 0
+          },
+          {
+            "text": "Mild discomfort",
+            "score": 1
+          },
+          {
+            "text": "Severe pain",
+            "score": 2
+          }
+        ],
+        "order": 9,
+        "is_active": true,
+        "id": "f53f2255-da3c-4fe1-be9a-030fbde68567",
+        "created_at": "2026-11-07T17:44:23.455002",
+        "updated_at": "2026-11-07T17:44:23.455012"
+      },
+      {
+        "question": "Do you have chronic conditions (e.g., Diabetes, Arthritis, Hypertension, etc.)?",
+        "options": [
+          {
+            "text": "None",
+            "score": 0
+          },
+          {
+            "text": "One condition",
+            "score": 1
+          },
+          {
+            "text": "Two or more conditions",
+            "score": 2
+          },
+          {
+            "text": "Three or more conditions",
+            "score": 2
+          }
+        ],
+        "order": 10,
+        "is_active": true,
+        "id": "054cd170-55cc-4f1c-84bf-dfc5de4cdfb0",
+        "created_at": "2026-11-07T17:44:23.492708",
+        "updated_at": "2026-11-07T17:44:23.492713"
+      },
+      {
+        "question": "Have you experienced confusion, forgetfulness, or trouble concentrating in the last 6 months?",
+        "options": [
+          {
+            "text": "Not at all",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Frequently",
+            "score": 2
+          }
+        ],
+        "order": 11,
+        "is_active": true,
+        "id": "a4eb09ec-9bf7-4441-855c-6bb2a94c9284",
+        "created_at": "2026-11-07T17:44:23.527772",
+        "updated_at": "2026-11-07T17:44:23.527777"
+      },
+      {
+        "question": "Do you experience confusion or difficulty recognizing your surroundings at night?",
+        "options": [
+          {
+            "text": "Not at all",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Frequently",
+            "score": 2
+          }
+        ],
+        "order": 12,
+        "is_active": true,
+        "id": "929afbf0-a871-453d-a6f7-bc3d1c909036",
+        "created_at": "2026-11-07T17:44:23.573767",
+        "updated_at": "2026-11-07T17:44:23.573771"
+      },
+      {
+        "question": "Do you have trouble seeing clearly, even with glasses?",
+        "options": [
+          {
+            "text": "No difficulty",
+            "score": 0
+          },
+          {
+            "text": "Some difficulty",
+            "score": 1
+          },
+          {
+            "text": "Significant difficulty",
+            "score": 2
+          }
+        ],
+        "order": 13,
+        "is_active": true,
+        "id": "c6e49bc8-05ac-4890-8240-01d36664693f",
+        "created_at": "2026-11-07T17:44:23.608416",
+        "updated_at": "2026-11-07T17:44:23.608425"
+      },
+      {
+        "question": "Do you struggle to hear conversations, even in quiet settings (e.g., at home, religious gatherings, or family meetings)?",
+        "options": [
+          {
+            "text": "No",
+            "score": 0
+          },
+          {
+            "text": "Mild difficulty",
+            "score": 1
+          },
+          {
+            "text": "Severe difficulty or use of a hearing aid",
+            "score": 2
+          }
+        ],
+        "order": 14,
+        "is_active": true,
+        "id": "0bcf7bcf-a7e2-4e7f-aaee-6a08345308e0",
+        "created_at": "2026-11-07T17:44:23.641126",
+        "updated_at": "2026-11-07T17:44:23.641130"
+      },
+      {
+        "question": "Do you have loose rugs or uneven floors in your home?",
+        "options": [
+          {
+            "text": "No",
+            "score": 0
+          },
+          {
+            "text": "Yes",
+            "score": 1
+          }
+        ],
+        "order": 15,
+        "is_active": true,
+        "id": "bb515db1-f9e8-4244-8f65-94c9587cae17",
+        "created_at": "2026-11-07T17:44:23.670222",
+        "updated_at": "2026-11-07T17:44:23.670227"
+      },
+      {
+        "question": "Is your home well-lit, especially hallways and staircases?",
+        "options": [
+          {
+            "text": "Well-lit",
+            "score": 0
+          },
+          {
+            "text": "Partially lit",
+            "score": 1
+          },
+          {
+            "text": "Poorly lit",
+            "score": 1
+          }
+        ],
+        "order": 16,
+        "is_active": true,
+        "id": "80019908-b8d6-4a1d-a44d-a022c0258065",
+        "created_at": "2026-11-07T17:44:23.694288",
+        "updated_at": "2026-11-07T17:44:23.694298"
+      },
+      {
+        "question": "Do you frequently experience total darkness due to power outages and lack of backup power?",
+        "options": [
+          {
+            "text": "Never",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Frequently",
+            "score": 1
+          }
+        ],
+        "order": 17,
+        "is_active": true,
+        "id": "3309e01b-7a8a-4aa1-b73e-254d1e6ed21a",
+        "created_at": "2026-11-07T17:44:23.728073",
+        "updated_at": "2026-11-07T17:44:23.728078"
+      },
+      {
+        "question": "Do you have grab bars in your bathroom and railings on stairs?",
+        "options": [
+          {
+            "text": "Fully accessible",
+            "score": 0
+          },
+          {
+            "text": "Partially accessible",
+            "score": 1
+          },
+          {
+            "text": "No aids present",
+            "score": 2
+          }
+        ],
+        "order": 18,
+        "is_active": true,
+        "id": "8265bf60-67e8-49c4-8e11-caee59f2c5a6",
+        "created_at": "2026-11-07T17:44:23.759517",
+        "updated_at": "2026-11-07T17:44:23.759522"
+      },
+      {
+        "question": "Is it safe for you to walk outside your home without risk of falling due to poor road conditions, open drains, or uneven pathways?",
+        "options": [
+          {
+            "text": "Yes",
+            "score": 0
+          },
+          {
+            "text": "No",
+            "score": 1
+          }
+        ],
+        "order": 19,
+        "is_active": true,
+        "id": "9483498b-56ae-4a3c-a74d-df49b5b49b0c",
+        "created_at": "2026-11-07T17:44:23.788153",
+        "updated_at": "2026-11-07T17:44:23.788159"
+      },
+      {
+        "question": "How often do you engage in physical activity like walking or stretching?",
+        "options": [
+          {
+            "text": "Daily",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Rarely or never",
+            "score": 1
+          }
+        ],
+        "order": 20,
+        "is_active": true,
+        "id": "42246fe8-e005-4a78-91f5-150b297b2c4b",
+        "created_at": "2026-11-07T17:44:23.821583",
+        "updated_at": "2026-11-07T17:44:23.821593"
+      },
+      {
+        "question": "Do you take medications that make you feel drowsy or dizzy?",
+        "options": [
+          {
+            "text": "Daily",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Rarely or never",
+            "score": 1
+          }
+        ],
+        "order": 21,
+        "is_active": true,
+        "id": "948487e0-75af-4056-a2bf-86b2d0627204",
+        "created_at": "2026-11-07T17:44:23.854880",
+        "updated_at": "2026-11-07T17:44:23.854886"
+      },
+      {
+        "question": "Do you have someone who regularly checks on your well-being?",
+        "options": [
+          {
+            "text": "Yes, daily",
+            "score": 0
+          },
+          {
+            "text": "Occasionally",
+            "score": 1
+          },
+          {
+            "text": "Rarely or never",
+            "score": 1
+          }
+        ],
+        "order": 22,
+        "is_active": true,
+        "id": "8ff787c7-9e27-45e7-987b-b92783aa81c6",
+        "created_at": "2026-11-07T17:44:23.885576",
+        "updated_at": "2026-11-07T17:44:23.885584"
+      },
+      {
+        "question": "Do you eat meals that include a mix of protein, vegetables, and carbohydrates at least twice daily?",
+        "options": [
+          {
+            "text": "Yes",
+            "score": 1
+          },
+          {
+            "text": "No",
+            "score": 0
+          }
+        ],
+        "order": 23,
+        "is_active": true,
+        "id": "fc646c75-03a0-4872-ba1e-a02dc86c945c",
+        "created_at": "2026-11-07T17:44:23.917880",
+        "updated_at": "2026-11-07T17:44:23.917889"
+      },
+      {
+        "question": "How often do you drink alcohol?",
+        "options": [
+          {
+            "text": "Never",
+            "score": 1
+          },
+          {
+            "text": "Occasionally (1–2 times per month)",
+            "score": 0
+          },
+          {
+            "text": "Regularly (1–2 times per week)",
+            "score": 0
+          },
+          {
+            "text": "Daily or almost daily",
+            "score": 0
+          }
+        ],
+        "order": 24,
+        "is_active": true,
+        "id": "cb0200d7-d560-479b-87af-4d22bf0f8709",
+        "created_at": "2026-11-07T17:44:23.950535",
+        "updated_at": "2026-11-07T17:44:23.950544"
+      }
+    ]
+  },
+  "note": "The seeded questionnaire as the patient app receives it (24 questions, in order)."
+}
