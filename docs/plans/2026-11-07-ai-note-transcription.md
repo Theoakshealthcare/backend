@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Date** | 2026-11-07 |
-| **Status** | Design for build (phase A). The five product decisions in section 1 were accepted by the owner on 2026-11-07 as the defaults; everything marked **Assumption** or listed in section 12 is mine and needs the owner's eye. |
+| **Status** | **Built in phase B (2026-11-08), migration `0025`**; see section 16 for where the build differs from this plan. Originally: design for build (phase A). The five product decisions in section 1 were accepted by the owner on 2026-11-07 as the defaults; everything marked **Assumption** or listed in section 12 is mine and needs the owner's eye. |
 | **Sources** | The code at `oakly/main` `dbf0b67` (cited as `file:line` where it matters); the caregiver app at `oakly/main` `b07ed64` (`apps/caregiver/src/screens/chat/AINoteTaker.tsx`). |
-| **Scope** | Docs only. No code, no migration and no endpoint exists yet. Migration number **0026** is reserved for this feature (0023 and 0024 belong to other branches in flight; 0025 is spare). |
+| **Scope** | Docs only. No code, no migration and no endpoint exists yet. Migration number **0026** was reserved for this feature; **it shipped as `0025`** (slice 2 took 0024, so 0025 was the next free number). |
 | **API shapes** | **Proposals, not captured responses.** The caregiver app is built against them today with a fake service (monorepo branch `feature/caregiver-ai-notes-ui`). The FE guide for this feature is written in phase B from live captures against the running app, and replaces this contract wherever they differ. |
 | **Gemini facts** | Anything said below about what Gemini accepts or costs is from memory of Google's public docs and is **unverified** until the phase B live smoke. Each such place is marked *(verify)*. |
 
@@ -170,7 +170,7 @@ Failure codes carried in `error.code` on a `failed` note (never HTTP errors; the
 | `audio_unsupported` | false | the provider refused the file | We couldn't read this recording. Record again, or type your note. |
 | `provider_blocked` | false | the provider's safety filter refused it | We couldn't process this recording. Please type your note. |
 
-## 4. Data model (migration `0026_visit_voice_notes`)
+## 4. Data model (migration `0025_visit_voice_notes`; reserved as 0026 in this plan)
 
 `down_revision` is whatever the single head is when phase B starts (expected `0025_*`, else `0024_*`); phase B rebases onto it and proves `alembic heads` shows one head. The migration is additive: two new tables, no change to an existing table. Downgrade drops both (any note in flight is lost; there is no data to preserve at launch).
 
@@ -460,7 +460,7 @@ Run with `FakeGemini`. No test calls the network. Never assert formatted clock t
 33. Per-visit cap, per-caregiver daily cap and the global daily budget each answer the right `429`/`503`; counters count at PUT, not at create; `VOICE_NOTES_ENABLED=false` gives `503` on create and PUT but reads and deletes still work.
 34. Sweeper: each rule in section 8 with a clock override; idempotent on a second run; a note being processed is not purged.
 35. Account erasure of a patient deletes their voice notes and parked audio and writes `purged` events; a caregiver's erasure keeps theirs.
-36. Migration `0026`: `alembic heads` is one; upgrade then downgrade then upgrade on a scratch database; `CHECK` constraints reject a bad status, language and duration; the unique key rejects a duplicate `(booking_id, client_request_id)`.
+36. Migration `0025` (planned as 0026): `alembic heads` is one; upgrade then downgrade then upgrade on a scratch database; `CHECK` constraints reject a bad status, language and duration; the unique key rejects a duplicate `(booking_id, client_request_id)`.
 37. Settings: the new names load with defaults; `.env.example` lists them; the app boots with `extra="forbid"`.
 
 **Live (phase B, owner's key, never printed; labelled live, not in CI)**
@@ -473,7 +473,7 @@ Run with `FakeGemini`. No test calls the network. Never assert formatted clock t
 
 | Slice | Content | Notes |
 |---|---|---|
-| B1 | Migration `0026`, models, settings, `TranscriptionProvider`, `GeminiProvider`, `FakeGemini`, access module | tests 2, 11, 27, 36, 37 plus the provider unit tests |
+| B1 | Migration `0025` (planned as 0026), models, settings, `TranscriptionProvider`, `GeminiProvider`, `FakeGemini`, access module | tests 2, 11, 27, 36, 37 plus the provider unit tests |
 | B2 | Caregiver routes, worker job, Redis audio parking, caps | tests 1-10, 16-26, 28-30, 32, 33 |
 | B3 | Patient and admin reads, sweeper, erasure, audit | tests 12-15, 31, 34, 35 |
 | B4 | Live Gemini smoke (R3 decision), `api:sync` in the monorepo, swap the app's service flag to the real one, FE guide from live captures, SOP and checklist | tests 38, 39; the app's `TODO(phase-B)` seams |
@@ -486,3 +486,19 @@ B1 to B3 touch the database, so each runs against the one central test stack (on
 2. **Who sees the raw transcript?** v1 lets the booker read the caregiver-saved transcript and summary. Should the patient see only the summary?
 3. **Retention:** how long are saved voice notes kept (proposed 12 months after saving)?
 4. **Patient opt-out:** should the patient or booker be able to switch voice notes off for their visits in the patient app (recommended before a wide launch)?
+
+## 16. Build notes (phase B): where the build differs from this plan
+
+Built on 2026-11-08 on `feature/ai-note-transcription` (SOP: `docs/sop/2026-11-08-ai-note-transcription.md`; FE guide: `docs/fe-integration-guide-caregiver-ai-notes.md`). Everything above holds unless listed here.
+
+| # | Plan said | Built | Why |
+|---|---|---|---|
+| 1 | Migration `0026` | **`0025_visit_voice_notes`** (revises `0024_arrival_policy_cancel_note`) | slice 2 took 0024 |
+| 2 | Daily caps counted in the generic `admin_rate_limits` store | Counted from the `audio_received` rows of `voice_note_events` (per caregiver; the all-users audio-seconds sum reads `detail.duration_seconds`), index `(action, created_at)` | The events survive a discarded note, so discarding never resets a cap; no second counter store; the count and the audit row commit together. A race can overshoot a cap by one note |
+| 3 | `visit_voice_notes` columns as in 4.1 | One more column: **`claimed_at`** (when a worker took the transcription) | The atomic claim that makes a duplicate job stand down (test 24) without holding a row lock across a 90-second provider call |
+| 4 | `PUT .../audio` allowed from `awaiting_audio`, and from `failed` when not retryable from stored audio | Allowed from `failed` in every case | A superset: a fresh upload replaces any stored audio; simpler for the app |
+| 5 | Test 5: a row edited directly to lack the consent timestamp | The column is `NOT NULL`, so the 409 `consent_missing` guard is unit-tested on an object that lacks it | The database refuses such a row |
+| 6 | "A job over the concurrency cap does `Retry(defer=10)` without using a try" | ARQ `max_tries=10`; the note's own tries are its `attempts` column, advanced only when the provider is called | ARQ cannot defer without counting a try; the real limits (3 transient, 2 timeout) are ours |
+| 7 | Errors carry `detail.code` | Every error raised by these routes also carries `Cache-Control: no-store`; a **422** does not (and has no `detail.code`) | FastAPI's validation handler does not run the dependency that sets the header |
+| 8 | Erasure deletes the voice notes of "their bookings" | A patient's erasure deletes the notes of bookings where they are the `patient_id`; notes of bookings they only *made* for someone else (WhatsApp) are the recipient's data and stay until retention | Same rule care plans use ("plans of recipients they booked for are other people's data") |
+| 9 | Live smoke (tests 38, 39) | **Not run.** No key and no device in this build; every Gemini behaviour is unverified | Section 12, R3 |

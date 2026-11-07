@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/voice-notes/2fbb54cc-cf77-4e4e-8870-daaf7c1f2331/retry",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "invalid_state",
+        "message": "This note changed. Please refresh."
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/voice-notes/25e7eee7-6a0d-45da-9b59-72a2fa0cc3d5/audio",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "audio_empty",
+        "message": "The recording is empty. Please record again."
+      }
+    }
+  }
+}

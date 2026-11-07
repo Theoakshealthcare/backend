@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/voice-notes/283eac73-4926-49f5-85ca-6996a8be0588/audio",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": "<107 bytes of raw audio, Content-Type audio/mp4>"
+  },
+  "response": {
+    "status_code": 429,
+    "headers": {
+      "cache-control": "no-store",
+      "retry-after": "2041",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "daily_limit_reached",
+        "message": "You have reached today's limit of voice notes. Please type your note."
+      }
+    }
+  }
+}

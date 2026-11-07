@@ -126,3 +126,12 @@ def verify_password_reset_token(token: str) -> Optional[str]:
         return decode_app_token(token, "password_reset")["sub"]
     except jwt.PyJWTError:
         return None
+
+
+def encrypt_bytes(value: bytes) -> bytes:
+    """Fernet-encrypt raw bytes (voice note audio parked in Redis; the append-only file must never hold plaintext audio)."""
+    return fernet.encrypt(value)
+
+
+def decrypt_bytes(value: bytes) -> bytes:
+    return fernet.decrypt(value)

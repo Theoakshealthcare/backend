@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/visits/1f11e2a9-74a9-4549-b376-7fdea2b9906b/voice-notes",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "consent_version": "2026-11-v1",
+      "language": "pcm",
+      "duration_seconds": 42,
+      "client_request_id": null
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "consent_confirmed"
+          ],
+          "msg": "Field required"
+        }
+      ]
+    }
+  }
+}
