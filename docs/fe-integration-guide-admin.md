@@ -4454,6 +4454,11 @@ The person who raised it cannot approve it: `403` `You raised this refund, so so
 
 ### Approving: the limit, a lower amount, the wallet
 
+> **Wallet refunds are OFF in v1 (2026-11-07).** The patient wallet is hidden in the app, so credit put there would be stranded. While the server setting `REFUND_WALLET_CREDIT_ENABLED` is `false` (the default), choosing the wallet destination is refused, and `switch_to_wallet` is **not offered** in `available_actions`. **Hide the "Oakly wallet" destination in the approve dialog and the "Switch to wallet" button.** If the wallet is requested anyway (an old console build, a direct API call):
+>
+> - `POST /admin/refunds/{id}/approve` with `"destination": "wallet"` as a Super Admin, and `POST /admin/refunds/{id}/switch-to-wallet`: **`409`** with an **object** detail, not the usual string: `{"detail": {"code": "wallet_refunds_disabled", "message": "Refunds to the Oakly wallet are switched off. Refund to the original payment method instead."}}`. Branch on `detail.code`. Nothing changes: the refund stays `pending_approval` / `failed` and can still go to the original payment method (approve with `original_method`, or retry). A Finance admin who asks for the wallet still gets the usual `403` string (permission is checked first).
+> - **[not live]**: asserted by `app/tests/test_visit_rules.py` against the test-harness app, not captured against the compose stack. The captures below were taken with the wallet path on (`REFUND_WALLET_CREDIT_ENABLED=true`), so the wallet rows in the table and capture 339/384 describe behaviour **when the flag is on**.
+
 The Finance limit is **cumulative per booking**: this refund **plus** the booking's earlier approved, in-flight and succeeded refunds, so a large refund cannot be split to get under it. Finance approves up to the limit; a Super Admin approves any amount. The approver may approve a **lower amount** than suggested, never more than is still refundable.
 
 | Case | Capture | Result |

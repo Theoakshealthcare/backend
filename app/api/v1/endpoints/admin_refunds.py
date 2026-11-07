@@ -15,6 +15,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, aliased
 
 from app.api.deps import get_db, require_any_permission, require_permission
+from app.core.config import settings
 from app.core.money import kobo_to_naira, to_kobo
 from app.db.models.admin import AdminUser
 from app.db.models.booking import Booking, BookingStatus
@@ -85,7 +86,7 @@ def _actions(admin: AdminUser, refund: Refund, *, cumulative_kobo: int, limit_ko
         if (admin.id not in (refund.approved_by_admin_id, refund.requested_by_admin_id)
                 and (cumulative_kobo <= limit_kobo or above)):
             out.append("bank_details")
-    if state == REFUND_FAILED and above and channel == "app":
+    if state == REFUND_FAILED and above and channel == "app" and settings.REFUND_WALLET_CREDIT_ENABLED:
         out.append("switch_to_wallet")
     if state == REFUND_FAILED and can_approve:
         out.append("close")
@@ -128,6 +129,10 @@ def _guard(fn, *args, **kwargs):
         return fn(*args, **kwargs)
     except refunds.RefundNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=exc.message)
+    except refunds.WalletRefundsDisabled as exc:  # a stable code the console can branch on (REFUND_WALLET_CREDIT_ENABLED off)
+        raise HTTPException(status.HTTP_409_CONFLICT, detail={"code": exc.code, "message": exc.message})
+    except refunds.WalletRefundsDisabled as exc:  # a stable code the console can branch on (REFUND_WALLET_CREDIT_ENABLED off)
+        raise HTTPException(status.HTTP_409_CONFLICT, detail={"code": exc.code, "message": exc.message})
     except refunds.RefundConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=exc.message)
     except refunds.RefundForbidden as exc:

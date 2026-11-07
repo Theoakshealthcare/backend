@@ -1,0 +1,73 @@
+# SOP: Visit rules from device pass 1 (short-visit hold, final decline, wallet refunds off)
+
+| | |
+|---|---|
+| **What shipped** | Three owner-approved rules (2026-11-07). **1.** A visit completed after under 50% of the booked time on site is credited to the caregiver already `held`, for Finance review (DP1-05). **2.** A declined offer is final: accepting it afterwards is `403 "You declined this offer"`, and the notification list now exposes the offer's `response` so the app can hide Accept/Decline (DP1-06). **3.** Refunds to the Oakly wallet are switched off in v1 by a setting (`REFUND_WALLET_CREDIT_ENABLED`, default off): `409 wallet_refunds_disabled`. |
+| **Branch / commit** | `feature/visit-rules`, cut from `oakly/main` `de0a0fa`. Not pushed; the lead opens the PR. |
+| **Migration** | **None.** Alembic `0021` is reserved for the notifications slice, so the 50% threshold is a code constant. Head stays `0020_user_token_version`. |
+| **API shape** | Additive: `response` on each `GET /booking/caregiver/notifications` item. New error: admin refunds `409` with an object detail `{"code": "wallet_refunds_disabled", "message": ...}` (every other admin refunds error keeps a string `detail`). `available_actions` no longer lists `switch_to_wallet` while the flag is off. |
+
+## Why
+The device pass found that a caregiver could start and complete a visit within about a minute and be credited the full earning (DP1-05), and that an offer declined on Home could be accepted from the notification list (DP1-06). The cancel slice raised a third point: with the patient wallet hidden in v1, a Super Admin choosing "Oakly wallet" as a refund destination would put money where the family cannot see or spend it.
+
+## How
+### Rule 1: short-visit hold
+| Decision | Detail |
+|---|---|
+| **`start` is NOT changed** | The backend already lets an assigned caregiver start at any time; only `on_my_way` is gated by `onmyway_compensation_window_minutes` (and the app's disabled "On my way" is the cosmetic gate people noticed). The owner decided to follow the backend. The fix is on the money, not the clock. |
+| Where | `earnings.credit_visit(..., check_short_visit=True)`, passed only by the caregiver's own `complete` in `app/services/booking.py`. |
+| Test | `(actual_end_time - actual_start_time) * 100 < booked_hours * 1h * SHORT_VISIT_MIN_PERCENT` on timedeltas, so there is no rounding: exactly 50% is **not** short, one microsecond under **is**. |
+| Held, not blocked | The visit still completes (`200`, `completed`). The earning row is created `held` (`status_reason` = `SHORT_VISIT_HOLD_REASON`, `status_changed_at` set, `status_changed_by` `NULL`). The same row is the idempotency key (`uq_caregiver_transactions_booking_type`; `_credit` returns an existing row), so a repeat call credits nothing new. |
+| System hold, no admin | `held_by` is `None`. `admin_audit_log.admin_user_id` is `NOT NULL`, so no audit row is written (the existing `_audit_created_held` path already skipped it with a warning for an unknown admin; for a deliberate system hold it now logs at INFO, not WARNING). The reason and state live on the earning, which is where Finance already looks. |
+| Finance review | The existing endpoints work unchanged: `GET /admin/earnings?status=held` shows it with `status_reason`; `POST /admin/earnings/{id}/release-hold` (Finance, `ledger.adjust_request`) makes it `pending_clearance` and the release job pays it once its time has passed (this write is audited as usual); `void` stays Super Admin. The extra `ledger.adjust` requirement applies only to a **no-show-flagged** booking, which a short visit is not. |
+| Cannot be paid out | `release_due` only moves `pending_clearance` rows, so a held earning never reaches `caregiver_wallets.balance`, which is all a payout reads. Tested with a 30-day clock jump. |
+| No `actual_start_time` | **Not held** (documented decision): the time on site cannot be proven short. A caregiver's own `complete` always follows a `start` that stamps it, so this only affects legacy or hand-made rows. A missing `actual_end_time` is likewise not short. |
+| No-show + short | The no-show hold wins (it names the admin and needs `ledger.adjust` to release). |
+| Super Admin status correction | `correct_status` to `completed` stamps start and end at the same instant (zero time on site). It is a deliberate admin write, so it does **not** pass `check_short_visit` and is never held. |
+| Rejected | A new `booking_policy` column for the percent (needs migration `0021`, reserved); blocking `complete` before a minimum (the owner chose hold-for-review); gating `start` by time (owner: follow the backend). |
+
+### Rule 2: final decline
+- `accept` now refuses with `BookingActionForbidden("You declined this offer")` (403) when the caller has a notification for that booking with `response == "declined"`. The check sits after the not-offered and dropped-out checks and before the state checks, so it touches nothing (no dropout row, no earnings). The `declined` write in the `decline` branch is unchanged and idempotent (declining twice stays declined, `200`).
+- `auto_declined` (someone else took the booking) is not a decline: it still gets `409 "Booking is no longer available"`.
+- **Other paths checked.** The only caregiver accept is `handle_booking_action` (the notification routes only list; there is no separate accept route; `caregiver_home` lists only unanswered offers). WhatsApp has no caregiver accept path. `admin_bookings._accept_effects` is an operator **assigning** a booking (Super Admin force or an assign), not the caregiver accepting; it stays as is and writes `assigned_by_admin`. **A fresh offer resets the answer on purpose:** `dispatch.send_wave(renotify=True)` (drop-out re-dispatch, admin re-dispatch with "include previously notified") and `admin_bookings._offer_to` set `response` back to `None` on the existing notification. So a caregiver who declined can be offered the visit again (new offer) after a drop-out or an operator's explicit re-offer, and can accept that one. If the owner wants decliners excluded from re-dispatch too, that is a follow-up (below).
+- **Notification list.** `GET /booking/caregiver/notifications` did not expose the answer, so `response` (string or `null`) was added to `BookingNotificationResponse` and the route's dict (additive). Values the server stores: `null`, `accept`, `declined`, `auto_declined`, `booking_cancelled`, `reassigned`, `assigned_by_admin`. The app hides Accept/Decline unless `response` is `null`.
+
+### Rule 3: wallet-credit refunds off
+- `Settings.REFUND_WALLET_CREDIT_ENABLED: bool = False` (`app/core/config.py`), read at call time in `app/services/refunds.py` (`_require_wallet_enabled`). Env example: `REFUND_WALLET_CREDIT_ENABLED=false` in `.env.example` (name only).
+- **Where it bites.** `approve_refund` / `_approve` with `destination="wallet"`, and `switch_to_wallet`. Both raise `WalletRefundsDisabled(RefundConflict)` before Paystack is asked anything (the Paystack pre-check in `approve_refund` and `_confirm_failed` in `switch_to_wallet` come after it) and before any lock-held work. A Finance admin asking for the wallet still gets the existing `403` (permission is checked first in `_approve`).
+- **Error shape.** `409 {"detail": {"code": "wallet_refunds_disabled", "message": "Refunds to the Oakly wallet are switched off. Refund to the original payment method instead."}}`. An object detail is the pattern the care-plan, caregiver and auth routes already use; the rest of the refunds API keeps a string. The console branches on `detail.code`.
+- `switch_to_wallet` is dropped from `available_actions` while off (so the button is not offered). Everything else (approve to the original method, retry, close, resolve, take-back) is untouched; with the flag on, behaviour is exactly as before (the whole existing refund suite runs with it on, see below).
+- **No stranded credit already exists:** nothing in the app created wallet refunds before (they were Super Admin only and the Refunds v2 slice merged 2026-10-27); any `patient_transactions` of type `refund` made earlier stay as they are.
+
+## What's involved
+| Path | Change |
+|---|---|
+| `app/services/earnings.py` | `SHORT_VISIT_MIN_PERCENT`, `SHORT_VISIT_HOLD_REASON`, `is_short_visit`, `_short_visit_hold`, `credit_visit(check_short_visit=)`, system-hold log line in `_audit_created_held` |
+| `app/services/booking.py` | `complete` passes `check_short_visit=True`; `accept` refuses a declined offer |
+| `app/schemas/booking.py`, `app/api/v1/endpoints/booking.py` | `response` on the notification list |
+| `app/core/config.py`, `.env.example` | `REFUND_WALLET_CREDIT_ENABLED` |
+| `app/services/refunds.py`, `app/api/v1/endpoints/admin_refunds.py` | `WalletRefundsDisabled`, `_require_wallet_enabled`, coded 409, `switch_to_wallet` action gated |
+| `app/tests/test_visit_rules.py` (new, 32 tests), `app/tests/conftest.py` | tests; autouse fixture `_wallet_refunds_on` keeps the existing refund suites on the wallet path |
+| `scripts/capture_caregiver_flow.py`, `scripts/capture_admin_flow.py` | backdates the captured visit to 90 of 2 hours (a normal visit); appends decline-final captures; admin refunds re-capture needs the flag on |
+| `docs/fe-integration-guide-caregiver.md`, `docs/fe-integration-guide-admin.md` | new rules, each marked **[not live]** (see Verification) |
+
+## Verification
+- **New tests (`test_visit_rules.py`, 32 pass):** boundaries (exactly 50% not short; one second and one microsecond under are; a 1-hour booking; overrun; zero time); no start / no end not short; short visit completes and is held with the system reason, `status_changed_by` null, no audit row; a normal visit unchanged (`pending_clearance`, 80% of the service fee); held earning skipped by the release job after a 30-day jump and the wallet stays 0; Finance sees it in the held list with its reason, releases it, and only then it clears and the wallet is credited; Finance cannot void (Super Admin can); completing twice credits once; no-show hold wins; Super Admin `correct-status` not held; `start` still allowed 3 days early while `on_my_way` is `409`. Decline: declined-then-accept `403` with the exact message and nothing changed; decline twice; accept without a decline; another caregiver unaffected; `auto_declined` stays `409`; a fresh offer resets the decline; the notification list exposes `response`. Wallet: default is `False`; approve-to-wallet `409` coded, refund stays pending and then approves to the original method; Finance still `403`; the service raises before Paystack is asked; failed refund cannot switch, `switch_to_wallet` not in `available_actions`, retry still works; flag on: approve and switch work exactly as before.
+- **Neighbours re-run, all green:** `test_caregiver_earnings`, `test_visit_lifecycle`, `test_access_booking`, `test_c3_review_fixes`, `test_response_shapes`, `test_settings_env_file`, `test_caregiver_home`, `test_dropout_redispatch` (240 passed); `test_admin_refunds_api`, `test_refunds_approve`, `test_refunds_failures`, `test_admin_bookings`, `test_dispatch` (218 passed). The full suite is left to CI.
+- **FE guides:** both `render_fe_guide --check` pass. The new text in them is **not from a live capture**: the compose-stack capture was not re-run (it needs the central stack and a Paystack fake, and would renumber nothing because the new steps are appended). Each new passage is labelled **[not live]** and cites the test that asserts it. The capture script was changed so the next re-capture (a) keeps the earnings captures valid (the visit is backdated; without that, every captured visit would now be a short visit with a held earning) and (b) records `a-notifications-after-decline` and `a-accept-b3-after-decline`. **Run the capture and re-render, then turn the [not live] labels into captures.**
+- **Not verified:** the real app; a live Paystack; the admin console (it still shows the wallet destination).
+
+## Operate / roll back
+- **Env:** `REFUND_WALLET_CREDIT_ENABLED=false` is the default; no setting is needed in production. Set `true` only when the patient wallet is visible to users. A temporary env file for an admin-guide refunds re-capture must set it `true`.
+- **Finance workflow for a held short visit:** Admin earnings list filtered `status=held`; the reason starts "Short visit". Check with the family or the caregiver, then release (`release-hold`, with a reason) or ask a Super Admin to void.
+- **Roll back:** revert the commit. Earnings already credited `held` stay held (release them from the console); no schema change to undo.
+
+## Follow-ups
+- **Make the 50% a `booking_policy` field** (needs a migration after `0021`, and a settings/audit entry like the other policy fields); today it is the code constant `SHORT_VISIT_MIN_PERCENT`.
+- **Admin console (`apps/admin`, monorepo):** hide the "Oakly wallet" destination in the approve dialog and the "Switch to wallet" button (the API already omits the action; the destination dropdown needs a flag or just the `wallet_refunds_disabled` code), and read `detail.code` as an object. Show a held short-visit earning's reason on the earnings screen.
+- **Caregiver app:** hide Accept/Decline when notification `response` is not `null`; say "Under review" for a held earning.
+- **No audit trail for a system hold** (`admin_audit_log.admin_user_id` is `NOT NULL`). If auditors want one, add a system actor or a nullable column in a later migration.
+- **Re-capture** the caregiver guide (and the admin guide's refunds section with the flag on) and replace the **[not live]** labels.
+- **Decliners excluded from re-dispatch?** Today a caregiver who declined can be offered the visit again by a drop-out wave or an operator, as a new offer. Ask the owner if "final" should also mean "never re-offered".
+- **`start` is still not gated by time** (owner: follow the backend). A caregiver can still start 3 days early and complete 50% of the booked time later; the hold only catches the shorter ones. Revisit with real data.
+- A booking completed after the hold threshold by a Super Admin `correct-status` is never held (deliberate).

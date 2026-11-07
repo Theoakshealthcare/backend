@@ -109,6 +109,10 @@ class Settings(BaseSettings):
     MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
     MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
     MIN_WITHDRAWAL_KOBO: int = 100000  # 1,000 Naira, minimum caregiver withdrawal
+    # v1: the patient app hides the Oakly wallet, so credit put there would be stranded. Off, a Super Admin cannot choose
+    # the wallet destination for a refund (approve with destination "wallet", or switch a failed refund to the wallet):
+    # 409 wallet_refunds_disabled. Refunds go to the original payment method. Turn on once the wallet is visible to users.
+    REFUND_WALLET_CREDIT_ENABLED: bool = False
     
     # Background jobs (ARQ worker) and dispatch tunables.
     REDIS_URL: str = "redis://localhost:6379/0"
