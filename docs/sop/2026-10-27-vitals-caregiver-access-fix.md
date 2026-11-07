@@ -29,3 +29,5 @@ Revert the commit; no data change. Until it is deployed, the caregiver app's Vit
 - `POST /vitals/access/grant` and `GET /vitals/access/list` compare the patient's **user id** with the patient id (`current_user.id` vs `patient_id`), so a patient can never grant or list access. The explicit-grant path therefore cannot be reached through the API yet.
 - `vital_type` is free text, there is no glucose context field, and the list has no paging (the app sends `start`).
 - The caregiver app cannot see which patients granted it access; it offers vitals only for in-progress visits.
+
+**See also (2026-11-07):** the patient's grant, revoke and list endpoints, which compared `users.id` with `patients.id`, were fixed afterwards in [vitals-access-grants](2026-11-07-vitals-access-grants.md); the rule in `vitals_access.py` is unchanged.

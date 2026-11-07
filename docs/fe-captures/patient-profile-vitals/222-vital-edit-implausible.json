@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/vitals/16de4043-18af-4f40-904c-b22060caa0f8",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "value": "999"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "vital_invalid",
+          "loc": [
+            "body"
+          ],
+          "msg": "Blood pressure must be two numbers written like 120/80 (top number first)."
+        }
+      ]
+    }
+  }
+}

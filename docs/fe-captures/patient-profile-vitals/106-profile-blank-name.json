@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "full_name": "   "
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "profile_invalid",
+          "loc": [
+            "body",
+            "full_name"
+          ],
+          "msg": "Full name can't be blank.",
+          "input": "   ",
+          "ctx": {
+            "message": "Full name can't be blank."
+          }
+        }
+      ]
+    }
+  }
+}

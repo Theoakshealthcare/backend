@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "full_name": "  Placeholder Patient Edited  ",
+      "phone_number": "+234 000 071 8205",
+      "address": "1 Placeholder Street, Lagos"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "63389583-27cf-4b3c-842c-276a6be443b9",
+      "full_name": "Placeholder Patient Edited",
+      "email": "patient-profile@example.com",
+      "phone_number": "+2340000718205",
+      "profile_image_url": "https://res.cloudinary.com/placeholder/image/upload/v1/oaklycare/profile_images/avatar.jpg",
+      "user_type": "patient",
+      "address": "1 Placeholder Street, Lagos",
+      "gender": null,
+      "date_of_birth": null,
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "emergency_contact_address": null,
+      "created_at": "2026-11-07 17:27:17.924633",
+      "updated_at": "2026-11-07 17:27:18.836998"
+    }
+  },
+  "note": "Name is trimmed, the phone's spaces are removed; the photo (uploaded earlier) is untouched."
+}

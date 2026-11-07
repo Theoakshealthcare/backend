@@ -18,6 +18,8 @@ class PatientCaregiverAccessResponse(PatientCaregiverAccessBase):
     granted_by_patient: bool
     granted_at: datetime
     revoked_at: Optional[datetime] = None
+    caregiver_name: Optional[str] = None
+    patient_name: Optional[str] = None
 
     class Config:
         from_attributes = True 

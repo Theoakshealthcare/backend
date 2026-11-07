@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "phone_number": "0803 000 0202"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "phone_number_taken",
+        "message": "That phone number is already used by another account."
+      }
+    }
+  },
+  "note": "Another account holds +2348030000202; the same number written 08030000202 counts as taken."
+}

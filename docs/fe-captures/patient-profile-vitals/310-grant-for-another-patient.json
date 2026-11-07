@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/access/grant",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "0b67fac3-87af-4263-b5de-9c434e4e6dd1",
+      "caregiver_id": "39bd28b4-cf03-4e68-8188-0d22ca5564b4"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "You can only manage access to your own vitals."
+    }
+  },
+  "note": "Nobody grants on behalf of someone else."
+}

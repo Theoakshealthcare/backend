@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "profile_image_url": "javascript:alert(1)"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "profile_invalid",
+          "loc": [
+            "body",
+            "profile_image_url"
+          ],
+          "msg": "Photo link must be an http or https URL of at most 2048 characters. Send null to remove it.",
+          "input": "javascript:alert(1)",
+          "ctx": {
+            "message": "Photo link must be an http or https URL of at most 2048 characters. Send null to remove it."
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "vital_type": "blood_glucose",
+      "value": "110",
+      "unit": "mg/dL",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00Z",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9",
+      "notes": "RBS"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "vital_type": "blood_glucose",
+      "value": "110",
+      "unit": "mg/dL",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00",
+      "notes": "RBS",
+      "id": "92f0d8b6-4620-4aae-8507-23f8f8409f59",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  },
+  "note": "Glucose: the context goes in notes (RBS, FBS or PP)."
+}
