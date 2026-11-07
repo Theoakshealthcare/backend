@@ -147,6 +147,10 @@ class Booking(Base):
     service_fee_kobo = Column(BigInteger, nullable=False)
     platform_fee_kobo = Column(BigInteger, nullable=False)
     paystack_reference = Column(String, nullable=True)
+    # The checkout link Paystack gave when the reference was initialised (handed back by POST /booking/{id}/payment-link).
+    # Never copied into a response by column name: the view models' payment_url / payment_access_code are set explicitly.
+    paystack_authorization_url = Column(String, nullable=True)
+    paystack_access_code = Column(String, nullable=True)
     paystack_fee_kobo = Column(BigInteger, nullable=True)  # Paystack's fee, recorded at settlement; null for older bookings
     payment_failure_reason = Column(Text, nullable=True)  # Store payment failure details
     

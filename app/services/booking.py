@@ -298,11 +298,28 @@ class BookingService:
                 "payment_error": payment_response.get("message", "Payment initialization failed")
             }
 
+        self.store_payment_link(booking, payment_response)
         return {
             "booking": booking,
             "payment_url": payment_response.get("authorization_url"),
             "access_code": payment_response.get("access_code")
         }
+
+    def store_payment_link(self, booking: Booking, payment_response: Dict[str, Any]) -> None:
+        """Keep the link Paystack just gave on the booking, so it can be handed out again: Paystack will not initialise this
+        reference a second time. A failure to save never costs the person the link they were just given (the booking is
+        then treated like one from before the link was stored)."""
+        url, code = payment_response.get("authorization_url"), payment_response.get("access_code")
+        if not url or not code:  # Paystack always sends both; a half link is not worth keeping
+            return
+        try:
+            booking.paystack_authorization_url = url
+            booking.paystack_access_code = code
+            self.db.commit()
+            self.db.refresh(booking)
+        except Exception:  # noqa: BLE001 - the link in hand matters more than the copy
+            self.db.rollback()
+            logger.exception("Booking %s: could not store the Paystack payment link", booking.id)
 
     def smart_caregiver_matching(self, booking: Booking, now: Optional[datetime] = None,
                                  radius_km: Optional[float] = None) -> List[Dict[str, Any]]:

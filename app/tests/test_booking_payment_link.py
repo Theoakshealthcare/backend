@@ -106,7 +106,7 @@ def test_double_tap_is_the_same_reference_and_one_booking(db, client, patient, f
 
 def test_the_link_after_create_keeps_the_created_reference(db, client, patient, fake_paystack):
     """The app restarts after create: the booking comes back from the list and the link is asked for again. (The fake accepts
-    a repeated reference; the real Paystack is expected not to: see test_real_paystack_refusing_a_repeated_reference.)"""
+    a repeated reference; the real Paystack does not: the stored link covers that, see test_booking_payment_link_stored.py.)"""
     b = unpaid(db, patient)
     created = PaystackService().initialize_transaction("a@b.c", b.total_amount_kobo, b.paystack_reference)
     assert created["status"]
@@ -282,10 +282,11 @@ def test_a_paystack_that_says_not_paid_for_an_unknown_reference_still_issues_the
     assert fake_paystack.verified == [b.paystack_reference]
 
 
-def test_real_paystack_refusing_a_repeated_reference_is_a_503_and_the_booking_stays_untouched(db, client, patient, fake_paystack):
+def test_real_paystack_refusing_a_repeated_reference_for_a_booking_with_no_stored_link_is_a_503_and_untouched(db, client, patient, fake_paystack):
     """Paystack's error reference: a reference already used on the integration cannot be initialised again ("Duplicate
-    Transaction Reference"). With that behaviour the link of a booking /create already initialised is a 503 until the
-    stored-link follow-up lands (see the SOP). Documented here so the gap cannot be forgotten; never a charge, never a cancel."""
+    Transaction Reference"). A booking /create initialised before migration 0023 has no stored link, so its link is a 503
+    (its payment window closes on its own); never a charge, never a cancel. Bookings with a stored link: see
+    test_booking_payment_link_stored.py."""
     b = unpaid(db, patient)
     fake_paystack.reject_duplicate_reference = True
     fake_paystack.initialize_transaction(None, "p@example.com", b.total_amount_kobo, b.paystack_reference)  # what /create did
@@ -339,7 +340,10 @@ def test_simultaneous_requests_never_make_a_second_reference_or_a_stray_row(db, 
     assert all(getattr(e, "code", None) == "payment_link_in_progress" for e in lost), lost
     assert {r["booking"].paystack_reference for r in won} == {b.paystack_reference}
     assert {p["reference"] for p in fake_paystack.initialised} == {b.paystack_reference}
-    assert len(fake_paystack.initialised) == len(won)   # every winner asked Paystack once; every loser never did
+    # winners run one at a time (the lock is released by the commit that stores the link): the first initialises the
+    # reference and stores the link, every later winner is handed that stored link, every loser never asks Paystack
+    assert len(fake_paystack.initialised) == 1
+    assert len({r["payment_url"] for r in won}) == 1
     assert db.query(Booking).count() == 1 and db.query(PatientTransaction).count() == 0
     assert reload(db, b).payment_status == PaymentStatus.PENDING
 

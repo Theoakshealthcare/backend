@@ -9,12 +9,13 @@ Why it cannot double charge or create a second transaction:
 * **One reference per booking.** The booking keeps the reference it was created with, so every link for it is the same
   Paystack transaction, and Paystack accepts a successful charge on a reference once. Webhook, verify-payment, the expiry
   sweep and refunds all keep finding the booking by that reference, so nothing here needs them to change.
-  KNOWN LIMIT: Paystack's error reference says a reference already used on the integration cannot be initialised again
-  ("Duplicate Transaction Reference"), so against the real Paystack this endpoint is expected to answer 503
-  ``payment_link_unavailable`` for any booking that ``/create`` already initialised. The working fix is to keep the
-  ``authorization_url`` ``/create`` got (a nullable column, so a migration) and hand it back here; see the SOP.
-* **Nothing is written** when a link is handed out (no row, no state change), so a repeat or a retry cannot leave a
-  second record behind.
+  The link itself is kept too: ``/create`` stores the Paystack ``authorization_url`` / ``access_code`` on the booking
+  (migration 0023) and this route hands that back, because the real Paystack refuses to initialise a reference it has
+  already seen ("Duplicate Transaction Reference"). Only a booking with no stored link (created before 0023, or whose copy
+  failed to save) is initialised here; if Paystack will not, the answer is 503 ``payment_link_unavailable`` (such a
+  booking's payment window, ``PAYMENT_LINK_TTL_MINUTES``, closes on its own). A link that was initialised here is stored.
+* **Nothing is written** when a stored link is handed out (no row, no state change), so a repeat or a retry cannot leave
+  a second record behind. (The one write is saving a link that had to be initialised here, see above.)
 * **Paystack is asked first.** A payment whose webhook is late is settled (the same ``settle_booking_payment`` the webhook
   and verify-payment use) and the person is told it is paid, instead of being given a link to pay again. If Paystack cannot
   be asked, nothing is issued (503): not knowing is not "unpaid".
@@ -126,11 +127,18 @@ def _issue(db: Session, user: User, booking_id: uuid.UUID, now: datetime) -> Dic
         raise _error(409, "payment_window_expired",
                      "The time to pay for this booking has run out. Please make a new booking.")
 
-    payment = BookingService(db).initialise_payment(booking, callback_url=_callback_url(booking))
-    if not payment.get("status"):
+    if booking.paystack_authorization_url:  # the link this reference was initialised with: no second Paystack call
+        return {"booking": booking, "payment_url": booking.paystack_authorization_url,
+                "access_code": booking.paystack_access_code}
+
+    # No stored link (a booking from before migration 0023): try to initialise the reference, and keep the answer.
+    service = BookingService(db)
+    payment = service.initialise_payment(booking, callback_url=_callback_url(booking))
+    if not payment.get("status") or not payment.get("authorization_url"):
         logger.warning("Booking %s: Paystack would not initialise a payment link: %s", booking_id, payment.get("message"))
         raise _error(503, "payment_link_unavailable",
                      "We could not prepare your payment link right now. Please try again in a moment.")
+    service.store_payment_link(booking, payment)
     return {"booking": booking, "payment_url": payment.get("authorization_url"), "access_code": payment.get("access_code")}
 
 
