@@ -151,7 +151,24 @@ async def get_vitals_insights(
     insights = await gemini.analyze_vitals(vitals_data)
     return insights
 
-# --- Grant Caregiver Access ---
+# --- Caregiver access grants -----------------------------------------------------------------------------
+# Ids: `patient_id` is the PATIENT's id (patients.id, `/auth/me` -> patient.id) and `caregiver_id` the caregiver's
+# (caregivers.id), never the user ids. The patient is always the signed-in user's own profile: nobody grants,
+# revokes or lists on behalf of someone else.
+
+def _own_patient(db: Session, user: User) -> Optional[Patient]:
+    return db.query(Patient).filter(Patient.user_id == user.id).first()
+
+
+def _own_patient_or_403(db: Session, user: User, patient_id: UUID, what: str) -> Patient:
+    if user.user_type != "patient":
+        raise HTTPException(status_code=403, detail=f"Only the patient can {what} access.")
+    patient = _own_patient(db, user)
+    if patient is None or patient.id != patient_id:
+        raise HTTPException(status_code=403, detail="You can only manage access to your own vitals.")
+    return patient
+
+
 @router.post("/access/grant", response_model=PatientCaregiverAccessResponse)
 def grant_caregiver_access(
     grant_data: PatientCaregiverAccessGrant,
@@ -159,13 +176,16 @@ def grant_caregiver_access(
     db: Session = Depends(get_db),
     service: PatientCaregiverAccessService = Depends(get_access_service),
 ):
-    # Only patient can grant access to their own caregivers
-    if current_user.user_type != "patient" or str(current_user.id) != str(grant_data.patient_id):
-        raise HTTPException(status_code=403, detail="Only the patient can grant access.")
-    access = service.grant_access(grant_data)
-    return access
+    _own_patient_or_403(db, current_user, grant_data.patient_id, "grant")
+    caregiver = (
+        db.query(Caregiver).join(User, User.id == Caregiver.user_id)
+        .filter(Caregiver.id == grant_data.caregiver_id, User.is_active.is_(True)).first()
+    )
+    if caregiver is None:
+        raise HTTPException(status_code=404, detail="Caregiver not found.")
+    return service.grant_access(grant_data)
 
-# --- Revoke Caregiver Access ---
+
 @router.post("/access/revoke", response_model=PatientCaregiverAccessResponse)
 def revoke_caregiver_access(
     revoke_data: PatientCaregiverAccessRevoke,
@@ -173,20 +193,25 @@ def revoke_caregiver_access(
     db: Session = Depends(get_db),
     service: PatientCaregiverAccessService = Depends(get_access_service),
 ):
-    if current_user.user_type != "patient" or str(current_user.id) != str(revoke_data.patient_id):
-        raise HTTPException(status_code=403, detail="Only the patient can revoke access.")
+    _own_patient_or_403(db, current_user, revoke_data.patient_id, "revoke")
     access = service.revoke_access(revoke_data)
     if not access:
         raise HTTPException(status_code=404, detail="Access not found or already revoked.")
     return access
 
-# --- List Caregiver Access ---
+
 @router.get("/access/list", response_model=List[PatientCaregiverAccessResponse])
 def list_caregiver_access(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     service: PatientCaregiverAccessService = Depends(get_access_service),
 ):
-    if current_user.user_type != "patient":
-        raise HTTPException(status_code=403, detail="Only the patient can list access.")
-    return service.list_access(current_user.id) 
+    """A patient: the caregivers they have granted access (with `caregiver_name`). A caregiver: the patients who
+    granted them access (with `patient_name`). Active grants only."""
+    if current_user.user_type == "patient":
+        patient = _own_patient(db, current_user)
+        return service.list_access(patient.id) if patient else []
+    if current_user.user_type == "caregiver":
+        caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
+        return service.list_granted_to(caregiver.id) if caregiver else []
+    raise HTTPException(status_code=403, detail="Only patients and caregivers can list access.")
