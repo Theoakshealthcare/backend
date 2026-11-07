@@ -1,3 +1,4 @@
+import logging
 import smtplib
 import ssl
 from email.mime.text import MIMEText
@@ -8,6 +9,8 @@ from jinja2 import Environment, FileSystemLoader
 import certifi
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 def render_template(template_name: str, context: Dict[str, Any]) -> str:
     """Render a Jinja2 template with the given context."""
@@ -21,7 +24,12 @@ def send_email_smtp(
     subject: str,
     html_content: str,
 ) -> bool:
-    """Send an email using Python's built-in smtplib."""
+    """Send an email using Python's built-in smtplib. Returns False (and logs) instead of raising, so a mail problem
+    never turns the request that triggered it into a 500."""
+    if not (settings.SMTP_HOST and settings.SMTP_PORT):
+        logger.warning("SMTP is not configured; email %r was not sent", subject)
+        return False
+
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
     message["From"] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
@@ -40,7 +48,7 @@ def send_email_smtp(
             server.sendmail(settings.EMAILS_FROM_EMAIL, email_to, message.as_string())
         return True
     except Exception as e:
-        print(f"Failed to send email: {e}")
+        logger.warning("Failed to send email %r: %s", subject, e)
         return False
 
 def send_verification_email(email_to: str, code: str) -> None:
@@ -81,7 +89,7 @@ def send_password_reset_email(email_to: str, token: str) -> None:
     """Send password reset email with token."""
     subject = f"{settings.PROJECT_NAME} - Password Reset"
     
-    html_template = render_template(
+    html_content = render_template(
         "password_reset",
         {
             "project_name": settings.PROJECT_NAME,
@@ -107,12 +115,7 @@ def send_password_reset_email(email_to: str, token: str) -> None:
         },
     )
     
-    send_email_smtp(
-        email_to=email_to,
-        subject_template=subject,
-        html_template=html_template,
-        # environment={"project_name": settings.PROJECT_NAME},
-    )
+    send_email_smtp(email_to, subject, html_content)
 
 
 _CAREGIVER_DECISIONS = {
