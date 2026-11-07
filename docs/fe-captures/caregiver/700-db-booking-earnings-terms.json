@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT earnings_terms, service_fee_kobo FROM bookings WHERE id = <booking 1>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "earnings_terms": {
+          "visit_share_percent": 80,
+          "hold_hours": 24,
+          "late_fee_share_percent": 80,
+          "short_visit_min_percent": 40
+        },
+        "service_fee_kobo": 2000000
+      }
+    ]
+  },
+  "note": "The terms copied onto the booking when it was created (new key: short_visit_min_percent, here 40 from the policy change above). The caregiver's earning is visit_share_percent of service_fee_kobo."
+}

@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+    "auth": null,
+    "body": {
+      "action": "arrived"
+    }
+  },
+  "response": {
+    "status_code": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Not authenticated"
+    }
+  }
+}

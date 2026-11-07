@@ -63,7 +63,7 @@ The device pass found that a caregiver could start and complete a visit within a
 - **Roll back:** revert the commit. Earnings already credited `held` stay held (release them from the console); no schema change to undo.
 
 ## Follow-ups
-- **Make the 50% a `booking_policy` field** (needs a migration after `0021`, and a settings/audit entry like the other policy fields); today it is the code constant `SHORT_VISIT_MIN_PERCENT`.
+- ~~Make the 50% a `booking_policy` field~~ **DONE** in [2026-11-07-caregiver-arrived-earning-policy.md](2026-11-07-caregiver-arrived-earning-policy.md) (migration `0024`, `short_visit_min_percent`, snapshotted into `earnings_terms`; the constant remains as the default and the meaning of an old snapshot).
 - **Admin console (`apps/admin`, monorepo):** hide the "Oakly wallet" destination in the approve dialog and the "Switch to wallet" button (the API already omits the action; the destination dropdown needs a flag or just the `wallet_refunds_disabled` code), and read `detail.code` as an object. Show a held short-visit earning's reason on the earnings screen.
 - **Caregiver app:** hide Accept/Decline when notification `response` is not `null`; say "Under review" for a held earning.
 - **No audit trail for a system hold** (`admin_audit_log.admin_user_id` is `NOT NULL`). If auditors want one, add a system actor or a nullable column in a later migration.

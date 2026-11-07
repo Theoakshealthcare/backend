@@ -1,0 +1,98 @@
+{
+  "generated_by": "scripts/capture_arrival_earning.py",
+  "run_tag": "87e210",
+  "captured_at": "2026-11-07T21:43:15.912745Z",
+  "folder": "caregiver",
+  "captures": [
+    {
+      "file": "700-db-booking-earnings-terms.json",
+      "label": "db-booking-earnings-terms",
+      "status": null
+    },
+    {
+      "file": "701-a-notifications-offer.json",
+      "label": "a-notifications-offer",
+      "status": 200
+    },
+    {
+      "file": "702-a-accept.json",
+      "label": "a-accept",
+      "status": 200
+    },
+    {
+      "file": "703-a-booking-detail-with-earning.json",
+      "label": "a-booking-detail-with-earning",
+      "status": 200
+    },
+    {
+      "file": "704-a-bookings-list-with-earning.json",
+      "label": "a-bookings-list-with-earning",
+      "status": 200
+    },
+    {
+      "file": "705-o-arrived-not-assigned.json",
+      "label": "o-arrived-not-assigned",
+      "status": 403
+    },
+    {
+      "file": "706-none-arrived-no-token.json",
+      "label": "none-arrived-no-token",
+      "status": 401
+    },
+    {
+      "file": "707-p-arrived-patient-token.json",
+      "label": "p-arrived-patient-token",
+      "status": 403
+    },
+    {
+      "file": "708-a-arrived-pending-booking.json",
+      "label": "a-arrived-pending-booking",
+      "status": 403
+    },
+    {
+      "file": "709-a-arrived.json",
+      "label": "a-arrived",
+      "status": 200
+    },
+    {
+      "file": "710-a-arrived-again.json",
+      "label": "a-arrived-again",
+      "status": 200
+    },
+    {
+      "file": "711-db-arrived-outbox.json",
+      "label": "db-arrived-outbox",
+      "status": null
+    },
+    {
+      "file": "712-a-start.json",
+      "label": "a-start",
+      "status": 200
+    },
+    {
+      "file": "713-a-action-invalid-enum.json",
+      "label": "a-action-invalid-enum",
+      "status": 422
+    },
+    {
+      "file": "714-a-arrived-after-start.json",
+      "label": "a-arrived-after-start",
+      "status": 409
+    },
+    {
+      "file": "715-a-complete-short.json",
+      "label": "a-complete-short",
+      "status": 200
+    },
+    {
+      "file": "716-db-short-visit-hold.json",
+      "label": "db-short-visit-hold",
+      "status": null
+    },
+    {
+      "file": "717-a-booking-detail-completed.json",
+      "label": "a-booking-detail-completed",
+      "status": 200
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT cancel_reason, cancel_note FROM bookings WHERE id = <the unpaid booking>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "cancel_reason": "user_cancelled",
+        "cancel_note": "Placeholder: plans changed"
+      }
+    ]
+  },
+  "note": "cancel_reason is the code; cancel_note is the family's text (max 500 characters, null when none was given)."
+}

@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "teleport"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "action"
+          ],
+          "msg": "Input should be 'accept', 'decline', 'on_my_way', 'arrived', 'start', 'complete' or 'cancel'",
+          "input": "teleport",
+          "ctx": {
+            "expected": "'accept', 'decline', 'on_my_way', 'arrived', 'start', 'complete' or 'cancel'"
+          }
+        }
+      ]
+    }
+  },
+  "note": "The list of actions in the validation message now includes arrived."
+}

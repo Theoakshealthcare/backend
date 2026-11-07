@@ -239,7 +239,7 @@ Request body (all optional; no body at all is fine):
 
 | Field | Type | Meaning |
 |---|---|---|
-| `reason` | string, max 500 | Why the family is cancelling. Shown to the person who approves the refund. Only kept when a refund is queued. |
+| `reason` | string, max 500 | Why the family is cancelling. Shown to the person who approves the refund, and (new 2026-11-07) stored on the booking for every cancel, also a free cancel of an unpaid booking (section 5.2). Never returned by a booking view. |
 | `accepted_fee_kobo` | integer, `>= 0` | The `fee_amount_kobo` the person saw. **Always send it.** If the fee is higher when the cancel is decided, nothing is cancelled and the answer is `409 terms_changed`. A lower fee is accepted. |
 
 ### 4.1 Free cancel of a paid booking (no caregiver yet)
@@ -629,6 +629,67 @@ After a person approved it in the console (capture 019):
   }
 }
 ```
+
+### 5.2 The caregiver arrived, and the reason typed on a cancel (new 2026-11-07, migration `0024`)
+
+**`arrived_at` on the booking.** When the assigned caregiver taps "I've arrived", `GET /booking/booking/{id}` and `GET /booking/patient/bookings` show `arrived_at` (UTC; `null` until then). The `status` does **not** change (still `accepted` or `en_route`) and `visit_code` is still returned: the visit starts when the caregiver types the code. The app also receives a `caregiver_arrived` notice ("Your caregiver has arrived", see the notifications guide). A new caregiver on the booking starts with `arrived_at: null`. **The caregiver's earning is never in the patient's view** (`caregiver_earning` is `null` here).
+
+<!-- capture: 100-p-detail-before-arrival.json response.body keys=id,status,arrived_at,caregiver_earning,visit_code -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "accepted",
+  "arrived_at": null,
+  "caregiver_earning": null,
+  "visit_code": "0270"
+}
+```
+
+<!-- capture: 101-p-detail-after-arrival.json response.body keys=id,status,arrived_at,caregiver_earning,visit_code -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "accepted",
+  "arrived_at": "2026-11-07T21:43:15.761844",
+  "caregiver_earning": null,
+  "visit_code": "0270"
+}
+```
+
+**The reason typed on a cancel is now kept on the booking** for a free cancel of an unpaid booking too (before, it was dropped; for a paid cancel it was only on the refund's note). It is stored for the team (up to 500 characters, blank means none, a repeat cancel never overwrites the first). **It is not returned by any booking view**: there is no field for it, so do not look for it. The `reason` on the request is unchanged (optional, max 500, `422` over that).
+
+<!-- capture: 103-p-cancel-unpaid-with-reason.json request.body -->
+```json
+{
+  "reason": "Placeholder: plans changed",
+  "accepted_fee_kobo": 0
+}
+```
+
+What was stored (a database observation):
+
+<!-- capture: 104-db-cancel-note.json observed -->
+```json
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT cancel_reason, cancel_note FROM bookings WHERE id = <the unpaid booking>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "cancel_reason": "user_cancelled",
+        "cancel_note": "Placeholder: plans changed"
+      }
+    ]
+  }
+}
+```
+
 
 ## 6. Error catalogue
 
@@ -1105,6 +1166,7 @@ Payment window over (the row was edited to be a minute past; the expiry sweep ha
 | Cancel: free paid, standard fee; the response bodies | **Yes** | 012, 033 |
 | Idempotent replay (200, `already_cancelled: true`, one refund row) | **Yes** | 013, 034, 015, 035 |
 | `terms_changed` 409 with the new terms; nothing cancelled | **Yes** | 032 |
+| `arrived_at` null then set after the caregiver's `arrived`; no `caregiver_earning` for the family; free unpaid cancel stores the reason, not echoed | **Yes** (scratch database, local fake Paystack) | 100, 101, 103 to 105 |
 | Refund queued as `pending_approval`, suggested amount, no destination, family's reason on the note, no money moved | **Yes** | 015, 018, 035 |
 | Approving it shows `processing` to the family | **Yes** | 019, 020 |
 | Booking list and detail carry `cancel_fee_tier`, `cancel_fee`, `refund`; null for the caregiver | **Yes** | 016, 017, 037, 038 |

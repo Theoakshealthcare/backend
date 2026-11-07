@@ -37,7 +37,7 @@ When something happens to a patient's booking, Oakly writes a **notification** t
 | `caregiver_found` | a caregiver accepted | `Caregiver found` | `<first name> will be your caregiver.` | live (05, 06) |
 | `caregiver_changed` | Oakly moved the visit to another caregiver | `Caregiver changed` | `<first name> will now be your caregiver.` | in-process event (18) |
 | `caregiver_on_the_way` | the caregiver pressed "On my way" | `Caregiver on the way` | `<first name> is on the way.` | live (07, 08) |
-| `caregiver_arrived` | the caregiver is at the door | `Your caregiver has arrived` | `Open the app to see your visit code.` | in-process event (16); **nothing in the backend triggers it yet** (below) |
+| `caregiver_arrived` | the caregiver is at the door | `Your caregiver has arrived` | `Open the app to see your visit code.` | in-process event (16); **triggered since 2026-11-07 by the caregiver's `arrived` action** (below) |
 | `visit_started` | the caregiver entered the visit code | `Visit started` | `Your visit has started.` | live (10, 11) |
 | `visit_completed` | the caregiver completed the visit | `Visit completed` | `Your visit is complete.` | live (12, 13) |
 | `booking_cancelled` | the caregiver cancelled | `Booking cancelled` | `Your caregiver can no longer attend. Open the app for details.` | live (14, 15) |
@@ -51,7 +51,7 @@ When something happens to a patient's booking, Oakly writes a **notification** t
 
 **Not announced, on purpose:** the visit code (the app shows it on the booking), a patient cancelling their own booking (they already have the answer on screen; the cancel slice owns that screen), an unpaid booking expiring, and the WhatsApp-only drop-out messages.
 
-**`caregiver_arrived` has no trigger yet.** The backend has no "I've arrived" step: a visit starts when the caregiver types the visit code. The notice and its wording are built and tested so that step can call it, but until a caregiver app step exists **the app will never receive it**. Do not build UI that depends on it arriving.
+**`caregiver_arrived` is triggered by the caregiver's "I've arrived" action** (`POST /booking/caregiver/action/{id}` with `{"action": "arrived"}`, new 2026-11-07; see the caregiver guide). It fires **once per assignment** (a second tap changes nothing and tells no one again; a replacement caregiver arriving is announced again), for **app bookings only**. The caregiver may never tap it (it is optional, the visit still starts with the code), so **do not make any screen depend on it arriving**: `arrived_at` on the booking (bookings guide, section 5.2) is the state, the notice is only the nudge. **What was shown live:** the booking writes exactly one `caregiver_arrived` outbox row after two taps (caregiver guide, capture 711). **Not shown live:** its delivery (the worker was not running); the wording, feed row and push payload are the in-process capture 16 below.
 
 ## 2. Conventions
 
@@ -537,7 +537,7 @@ When Expo answers `DeviceNotRegistered` for a token (app uninstalled, token rota
 | `caregiver_found`, `caregiver_on_the_way`, `visit_started`, `visit_completed`, `booking_cancelled` (by the caregiver): feed row + push payload | **verified live** (caregiver actions over HTTP, delivery in-process, **fake Expo**) | 05 to 15 |
 | `booking_confirmed`, `caregiver_changed`, Oakly cancel, `refund_started`, `refund_completed`, `no_caregiver_found`, `caregiver_arrived`: wording, feed row, push payload | **in-process event** (real service method, real delivery, fake Expo); the **trigger** was not driven over HTTP | 16 to 19 |
 | `refund_needs_bank_details` | **tests only** | `test_patient_notifications.py` |
-| `caregiver_arrived` is ever triggered by the backend | **no** (no such step exists yet) | section 1 |
+| `caregiver_arrived` is triggered by the backend (the caregiver's `arrived` action; once per assignment) | **Yes for the trigger** (one outbox row after two taps: caregiver guide capture 711); delivery **[not live]** | caregiver guide section 7; `test_caregiver_arrived_earning.py` |
 | Visit code never in a push | **verified live** for the arrival push on a booking that has a code; also tests | 16 |
 | Dead Expo token is deleted, the other device's token kept | **verified live** (fake Expo answered `DeviceNotRegistered`; read from the database) | 21, 22 |
 | A worker delivers within about 15 s | **not measured** (configured cron `second={0, 15, 30, 45}`); the capture called the delivery function directly | `app/worker.py` |

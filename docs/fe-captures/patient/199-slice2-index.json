@@ -1,0 +1,38 @@
+{
+  "generated_by": "scripts/capture_arrival_earning.py",
+  "run_tag": "87e210",
+  "captured_at": "2026-11-07T21:43:15.912745Z",
+  "folder": "patient",
+  "captures": [
+    {
+      "file": "100-p-detail-before-arrival.json",
+      "label": "p-detail-before-arrival",
+      "status": 200
+    },
+    {
+      "file": "101-p-detail-after-arrival.json",
+      "label": "p-detail-after-arrival",
+      "status": 200
+    },
+    {
+      "file": "102-p-detail-visit-code.json",
+      "label": "p-detail-visit-code",
+      "status": 200
+    },
+    {
+      "file": "103-p-cancel-unpaid-with-reason.json",
+      "label": "p-cancel-unpaid-with-reason",
+      "status": 200
+    },
+    {
+      "file": "104-db-cancel-note.json",
+      "label": "db-cancel-note",
+      "status": null
+    },
+    {
+      "file": "105-p-cancel-detail-no-note.json",
+      "label": "p-cancel-detail-no-note",
+      "status": 200
+    }
+  ]
+}

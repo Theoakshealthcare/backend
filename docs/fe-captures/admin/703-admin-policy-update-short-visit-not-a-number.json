@@ -1,0 +1,30 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder",
+      "short_visit_min_percent": "40"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "int_type",
+          "loc": [
+            "body",
+            "short_visit_min_percent"
+          ],
+          "msg": "Input should be a valid integer",
+          "input": "40"
+        }
+      ]
+    }
+  }
+}

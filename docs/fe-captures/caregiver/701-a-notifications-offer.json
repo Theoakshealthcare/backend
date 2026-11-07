@@ -1,0 +1,66 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/caregiver/notifications",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": [
+      {
+        "id": "e92759c0-d0ef-4d84-abf8-9464d8bf001e",
+        "booking_id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+        "title": "New Booking Request",
+        "message": "New nurse request - 0.22km away, ETA 5 min",
+        "notification_type": "new_booking",
+        "is_read": false,
+        "created_at": "2026-11-07T21:43:15.627046",
+        "response": null,
+        "booking": {
+          "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+          "booking_code": "7SDB7A9Q",
+          "channel": "app",
+          "patient_id": "6bfbe22a-f8da-4b85-97ee-9976184f7ec8",
+          "patient_details": null,
+          "caregiver_id": null,
+          "caregiver_details": null,
+          "service_type": "nurse",
+          "assistance_type": "Placeholder assistance",
+          "condition": null,
+          "duration_hours": 4,
+          "scheduled_date": "2026-11-07T22:43:15",
+          "scheduled_end_date": "2026-11-08T02:43:15",
+          "patient_address": "Lagos, Lagos",
+          "patient_latitude": 6.45,
+          "patient_longitude": 3.47,
+          "patient_city": "Lagos",
+          "patient_state": "Lagos",
+          "status": "pending",
+          "payment_status": "paid",
+          "total_amount": 22000.0,
+          "service_fee": 20000.0,
+          "platform_fee": 2000.0,
+          "special_instructions": null,
+          "booking_for": "myself",
+          "created_at": "2026-11-07T21:43:15.584059",
+          "updated_at": "2026-11-07T21:43:15.609650",
+          "dispatch_state": "dispatching",
+          "arrived_at": null,
+          "caregiver_earning": null,
+          "visit_code": null,
+          "cancel_fee_tier": null,
+          "cancel_fee": null,
+          "refund": null,
+          "payment_url": null,
+          "payment_access_code": null,
+          "payment_error": null
+        }
+      }
+    ]
+  },
+  "note": "While the caregiver only holds an OFFER, booking.caregiver_earning is null and arrived_at is null."
+}

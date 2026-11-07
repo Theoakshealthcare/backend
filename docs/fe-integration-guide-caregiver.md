@@ -1485,7 +1485,7 @@ _capture `072-dispatch-1-push-token-pruned.json`_
 | `matched` | A caregiver accepted. |
 | `unmatched` | 30 minutes passed with no taker. Offers already sent can still be accepted. |
 
-Transitions caregivers cause: `pending` -> `accepted` (accept) -> `en_route` (on_my_way, optional) -> `in_progress` (start, needs the code) -> `completed` (complete). `cancel` is allowed from `accepted`, `en_route` and `in_progress`. `decline` changes nothing on the booking: it only removes that caregiver's offer. Anything else is `409`.
+Transitions caregivers cause: `pending` -> `accepted` (accept) -> `en_route` (on_my_way, optional; `arrived`, also optional, stamps `arrived_at` and changes no status) -> `in_progress` (start, needs the code) -> `completed` (complete). `cancel` is allowed from `accepted`, `en_route` and `in_progress`. `decline` changes nothing on the booking: it only removes that caregiver's offer. Anything else is `409`.
 
 ### List and detail
 
@@ -1665,7 +1665,7 @@ List by status, `en_route`: capture `096-a-bookings-list-en-route.json` (same bo
 
 ### Actions: `POST /booking/caregiver/action/{booking_id}`
 
-Body `{"action": "accept" | "decline" | "on_my_way" | "start" | "complete" | "cancel", "reason"?: string, "visit_code"?: "1234"}`. `reason` is accepted but **not stored** (the cancelled booking in `114-a-cancel-b4.json` has `cancel_reason: "caregiver_cancelled"`, not the text sent). `visit_code` is only used by `start`.
+Body `{"action": "accept" | "decline" | "on_my_way" | "arrived" | "start" | "complete" | "cancel", "reason"?: string, "visit_code"?: "1234"}` (`arrived` is new 2026-11-07, see "Your earning, \"I've arrived\" and the short-visit threshold" below). `reason` is accepted but **not stored** (the cancelled booking in `114-a-cancel-b4.json` has `cancel_reason: "caregiver_cancelled"`, not the text sent). `visit_code` is only used by `start`.
 
 **Trap: the action response is a raw booking dict, not the typed `BookingResponse`.** It is `{"message": "...", "booking": {...}}` and the booking inside has:
 - money as **strings** in naira (`"total_amount": "55000.00"`) **and** as kobo integers (`"total_amount_kobo": 5500000`), while `GET /booking/booking/{id}` returns `"total_amount": 55000.0` (a number) and no `*_kobo` fields;
@@ -1769,7 +1769,7 @@ _capture `086-a-accept-b2.json`_
 
   Response `422`:
 
-  <!-- capture: 081-a-action-invalid-enum.json response.body -->
+  <!-- capture: 713-a-action-invalid-enum.json response.body -->
   ```json
   {
     "detail": [
@@ -1779,10 +1779,10 @@ _capture `086-a-accept-b2.json`_
           "body",
           "action"
         ],
-        "msg": "Input should be 'accept', 'decline', 'on_my_way', 'start', 'complete' or 'cancel'",
+        "msg": "Input should be 'accept', 'decline', 'on_my_way', 'arrived', 'start', 'complete' or 'cancel'",
         "input": "teleport",
         "ctx": {
-          "expected": "'accept', 'decline', 'on_my_way', 'start', 'complete' or 'cancel'"
+          "expected": "'accept', 'decline', 'on_my_way', 'arrived', 'start', 'complete' or 'cancel'"
         }
       }
     ]
@@ -1801,6 +1801,7 @@ Other `409`/`403` strings the action endpoint can return (all `{"detail": "<stri
 | 403 | `You were not offered this booking` | accept or decline a booking you were never offered | not captured live; unit tests only |
 | 403 | `This booking is not assigned to you` | start, complete, cancel, on_my_way by someone else | `092` |
 | 409 | `Only an accepted booking can be marked on the way` | on_my_way from any other state | `094` |
+| 409 | `Only an accepted booking can be marked as arrived` | arrived from any state other than accepted / en_route (including after start) | `714` (section 7, "Your earning, I've arrived...") |
 | 409 | `You can mark yourself on the way from 2 hours before the visit` | on_my_way earlier than the booking policy's `onmyway_compensation_window_minutes` before the start (the hours shown follow the policy: `45 minutes`, `3 hours`, ...). **[not live]**: copied from `test_visit_lifecycle.py`, not from a capture; it applies to app and WhatsApp bookings alike | none yet |
 | 409 | `Only an accepted booking can be started` | start from any state but accepted/en_route | `107` |
 | 409 | `Only a booking in progress can be completed` | complete from any other state | `098`, `110` |
@@ -1966,11 +1967,244 @@ _capture `093-a-on-my-way.json`_
 - **Too early (UX consequence):** `on_my_way` is refused with `409` until the booking policy's `onmyway_compensation_window_minutes` (120 by default) before the start, with `{"detail": "You can mark yourself on the way from 2 hours before the visit"}`. **[not live]** (shape from `test_visit_lifecycle.py`). Do not show the on-my-way button earlier than that; if it is tapped anyway, show the `detail` as is. It applies to app bookings and WhatsApp bookings alike. Reason: once a caregiver is on the way a family that cancels pays the late fee, so it must not be possible to set that off days ahead.
 - Complete before start: `409` `{"detail": "Only a booking in progress can be completed"}` _(capture `098-a-complete-before-start.json`)_
 
-**Start is not time-gated, a short visit is held for review (new 2026-11-07).** `start` works at any time for the assigned caregiver (only `on_my_way` is gated by the policy window above); the app's "I've arrived" button being enabled early is the backend's behaviour, by the owner's decision. What changed is the **money**: if the caregiver completes a visit after being on site (`actual_end_time - actual_start_time`) for **under 50% of the booked time** (`duration_hours`), the visit still completes normally (`200`, status `completed`), but the earning is credited already **`held`** instead of `pending_clearance`, with `status_reason` "Short visit: under 50% of the booked time was spent on site (held for Finance review)" and no admin attached; Finance reviews it and can release it, after which it clears like any earning. Exactly 50% is not short. **[not live]** (rule and states asserted by `app/tests/test_visit_rules.py`; the capture script's visit is backdated to 90 of 2 hours so the earnings captures below still show a normal visit). **Show it:** on the wallet a held earning already counts under `held_balance` and has `status: "held"`; the app should say "Under review" for a held earning rather than "Pending", and not promise a clearing date for it (`available_at` is set but the release job skips a held earning until Finance releases it). Do not tell the caregiver the visit failed: it was completed.
+**Start is not time-gated, a short visit is held for review (new 2026-11-07).** `start` works at any time for the assigned caregiver (only `on_my_way` is gated by the policy window above); the app's "I've arrived" button being enabled early is the backend's behaviour, by the owner's decision (the `arrived` action itself has no time window either). What changed is the **money**: if the caregiver completes a visit after being on site (`actual_end_time - actual_start_time`) for **under `short_visit_min_percent` (default 50, an admin policy field copied onto the booking when it is created) of the booked time** (`duration_hours`), the visit still completes normally (`200`, status `completed`), but the earning is credited already **`held`** instead of `pending_clearance`, with `status_reason` "Short visit: under 50% of the booked time was spent on site (held for Finance review)" and no admin attached; Finance reviews it and can release it, after which it clears like any earning. Exactly 50% is not short. **[not live]** (rule and states asserted by `app/tests/test_visit_rules.py`; the capture script's visit is backdated to 90 of 2 hours so the earnings captures below still show a normal visit). **Show it:** on the wallet a held earning already counts under `held_balance` and has `status: "held"`; the app should say "Under review" for a held earning rather than "Pending", and not promise a clearing date for it (`available_at` is set but the release job skips a held earning until Finance releases it). Do not tell the caregiver the visit failed: it was completed.
 
 **Start, Complete, Cancel**: see section 8 for start. Complete and cancel return the same raw-dict shape (`109-a-complete.json`, `114-a-cancel-b4.json`):
 - Complete again: `409` `{"detail": "Only a booking in progress can be completed"}` _(capture `110-a-complete-again.json`)_
 - Cancel after complete: `409` `{"detail": "This booking can no longer be cancelled"}` _(capture `111-a-cancel-after-complete.json`)_
+
+### Your earning, "I've arrived" and the short-visit threshold (new 2026-11-07, migration `0024`)
+
+**What changed for the app.** Three things, all on the booking the caregiver already holds. Examples below are captures `700` to `717` (a real `POST /booking/create` against a local fake Paystack, paid by a signed webhook, run on a scratch database; the worker was not running). **Earlier examples in this guide were captured before these fields existed and do not show `caregiver_earning` or `arrived_at`; they are `null` there.**
+
+**1. Your earning on Job Details.** Every booking you hold now has `caregiver_earning`: a **number in naira** (`16000.0`), your share of the booking's **service fee** (never the platform fee). It is worked out from the terms copied onto the booking when it was created (`earnings_terms`), so a later change of the admin policy never changes it, and it is exactly what completing the visit credits. Where it appears: `GET /booking/booking/{id}`, `GET /booking/caregiver/bookings`, the `booking` inside `GET /booking/caregiver/notifications` **for a booking you hold**, and the `booking` in the action response. It is `null` while you only hold an **offer** (another caregiver's or an unaccepted job), for a `pending` or `cancelled` booking, and for a booking that carries no terms. The patient's views never have it. **Trap:** in the action response the other money fields are strings and `*_kobo` integers, but `caregiver_earning` is a plain number there too.
+
+The terms the booking carries (a database observation; `short_visit_min_percent` is the new key, here 40 because the admin changed the policy before this booking was made):
+
+<!-- capture: 700-db-booking-earnings-terms.json observed -->
+```json
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT earnings_terms, service_fee_kobo FROM bookings WHERE id = <booking 1>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "earnings_terms": {
+          "visit_share_percent": 80,
+          "hold_hours": 24,
+          "late_fee_share_percent": 80,
+          "short_visit_min_percent": 40
+        },
+        "service_fee_kobo": 2000000
+      }
+    ]
+  }
+}
+```
+
+While you only hold the offer, the earning is `null`:
+
+<!-- capture: 701-a-notifications-offer.json response.body path=0.booking keys=id,status,caregiver_id,caregiver_earning,arrived_at,service_fee -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "pending",
+  "caregiver_id": null,
+  "caregiver_earning": null,
+  "arrived_at": null,
+  "service_fee": 20000.0
+}
+```
+
+After accepting, it is in the action response and everywhere you read the booking:
+
+<!-- capture: 702-a-accept.json response.body path=booking keys=id,status,caregiver_earning,arrived_at,total_amount,service_fee -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "accepted",
+  "caregiver_earning": 16000.0,
+  "arrived_at": null,
+  "total_amount": "22000.00",
+  "service_fee": "20000.00"
+}
+```
+
+<!-- capture: 703-a-booking-detail-with-earning.json response.body keys=id,status,caregiver_earning,arrived_at,total_amount,service_fee -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "accepted",
+  "caregiver_earning": 16000.0,
+  "arrived_at": null,
+  "total_amount": 22000.0,
+  "service_fee": 20000.0
+}
+```
+
+<!-- capture: 704-a-bookings-list-with-earning.json response.body path=0 keys=id,status,caregiver_earning,arrived_at,total_amount,service_fee -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "accepted",
+  "caregiver_earning": 16000.0,
+  "arrived_at": null,
+  "total_amount": 22000.0,
+  "service_fee": 20000.0
+}
+```
+
+**2. "I've arrived": `POST /booking/caregiver/action/{booking_id}` with `{"action": "arrived"}`.** Tell the family you are at the door. It is **optional** (the visit still starts with the visit code, and `start` does not need it). Rules: only the booking's assigned caregiver (`403 This booking is not assigned to you` for anyone else, including a caregiver who only holds an offer); the booking must be `accepted` or `en_route` (`409 Only an accepted booking can be marked as arrived` otherwise, including after `start`); a suspended caregiver gets the same `403` as for `start`. There is **no time window** (unlike `on_my_way`). The status does **not** change; `arrived_at` (UTC) is stamped on the booking. **It is idempotent:** a second tap returns `200` with the **same** `arrived_at` and the family is not told again. The family's app gets a `caregiver_arrived` notice ("Your caregiver has arrived"); WhatsApp bookings store `arrived_at` but get no such notice. A new caregiver on the booking (a drop-out or an admin reassign) starts with `arrived_at: null`.
+
+<!-- capture: 709-a-arrived.json response.body path=booking keys=id,status,arrived_at,caregiver_earning -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "accepted",
+  "arrived_at": "2026-11-07T21:43:15.761844",
+  "caregiver_earning": 16000.0
+}
+```
+
+A repeat tap, same `arrived_at`:
+
+<!-- capture: 710-a-arrived-again.json response.body path=booking keys=id,status,arrived_at,caregiver_earning -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "accepted",
+  "arrived_at": "2026-11-07T21:43:15.761844",
+  "caregiver_earning": 16000.0
+}
+```
+
+What the booking wrote for the family after the two taps: one `caregiver_arrived` outbox row (**not a delivered push**: the worker was not running; delivery is covered in the notifications guide):
+
+<!-- capture: 711-db-arrived-outbox.json observed -->
+```json
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT event, count(*) FROM booking_events WHERE booking_id = <booking 1> GROUP BY event",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "event": "caregiver_arrived",
+        "count": 1
+      },
+      {
+        "event": "caregiver_assigned",
+        "count": 1
+      },
+      {
+        "event": "payment_received",
+        "count": 1
+      }
+    ]
+  }
+}
+```
+
+Refusals:
+
+<!-- capture: 705-o-arrived-not-assigned.json response.body -->
+```json
+{
+  "detail": "This booking is not assigned to you"
+}
+```
+
+<!-- capture: 708-a-arrived-pending-booking.json response.body -->
+```json
+{
+  "detail": "This booking is not assigned to you"
+}
+```
+
+<!-- capture: 707-p-arrived-patient-token.json response.body -->
+```json
+{
+  "detail": "Access denied. Caregiver account required."
+}
+```
+
+<!-- capture: 706-none-arrived-no-token.json response.body -->
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+<!-- capture: 714-a-arrived-after-start.json response.body -->
+```json
+{
+  "detail": "Only an accepted booking can be marked as arrived"
+}
+```
+
+**What the app should do:** show "I've arrived" on an accepted or en-route booking, switch it to a done state once `arrived_at` is non-null (read it from the booking, not from a local flag, so a restart keeps it), and keep the code-entry step as it is. Never block `start` on it.
+
+**3. The short-visit rule now uses the booking's own threshold.** The "under 50% of the booked time" rule (section above, "Start is not time-gated") is now an admin policy field, `short_visit_min_percent` (default 50, 0 to 100), copied onto each booking when it is created, like the earning share. A booking made while it was 40 holds a visit under 40%, whatever the policy says later; a booking from before the field existed uses 50. The hold reason names the percent. Here the visit was completed seconds after it started, so it is held:
+
+<!-- capture: 715-a-complete-short.json response.body path=booking keys=id,status,actual_start_time,actual_end_time,caregiver_earning -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "completed",
+  "actual_start_time": "2026-11-07T21:43:15.807759",
+  "actual_end_time": "2026-11-07T21:43:15.836085",
+  "caregiver_earning": 16000.0
+}
+```
+
+<!-- capture: 716-db-short-visit-hold.json observed -->
+```json
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT status, status_reason, amount, base_amount_kobo, share_percent FROM caregiver_transactions WHERE booking_id = <booking 1> AND type = 'earning'",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "status": "held",
+        "status_reason": "Short visit: under 40% of the booked time was spent on site (held for Finance review)",
+        "amount": 1600000,
+        "base_amount_kobo": 2000000,
+        "share_percent": 80
+      }
+    ]
+  }
+}
+```
+
+The completed booking still shows the earning (`status` stays `completed`; the app should say "Under review" for the held money, as before):
+
+<!-- capture: 717-a-booking-detail-completed.json response.body keys=id,status,arrived_at,caregiver_earning -->
+```json
+{
+  "id": "b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+  "status": "completed",
+  "arrived_at": "2026-11-07T21:43:15.761844",
+  "caregiver_earning": 16000.0
+}
+```
+
 
 ### Cancelling: the rule depends on the booking's `channel`
 
@@ -3122,6 +3356,11 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Identity verification: `IDENTITY_REJECTED`, `UNDER_REVIEW` from `defer`, the parallel-start race, consent rows | **[not live]** | `app/tests/test_kyc_caregiver_api.py` |
 | `provider_available` flipping from the engine's outage detection | **Partly** | Capture `231` is the engine setting the flag from a fake Dojah answer. The flag is a Redis key in production; the harness used an in-memory stand-in, and the Redis calls themselves are unit-tested with a fake client, never against a real Redis |
 | Chat, notes, tracking for the caregiver | No | Out of scope for C3 |
+| `caregiver_earning` on detail, list, offer-list (held booking) and the action response; null on an offer; never on the patient's view | **Yes** | 700 to 704, 717 (scratch database, local fake Paystack) |
+| `arrived`: stamps `arrived_at`, status unchanged, a repeat keeps the same time and writes one outbox row; 403 not assigned / patient token, 401, 409 after start, 422 action list | **Yes** | 705 to 711, 713, 714 |
+| `arrived` for a booking in `en_route`, a suspended caregiver, a WhatsApp booking (no notice), a new caregiver starting with `arrived_at` null | **[not live]** | `app/tests/test_caregiver_arrived_earning.py` |
+| The family's `caregiver_arrived` push / feed row after `arrived` | **[not live]** in this guide | outbox row seen (711); delivery needs the worker: unit-tested (`test_patient_notifications.py`) |
+| The short-visit hold uses the booking's `short_visit_min_percent` (held, reason names 40) | **Yes** for the hold; the boundary values and old snapshots are **[not live]** | 715, 716; `test_caregiver_arrived_earning.py` |
 | Delete account: `409` for an active booking (caregiver and patient) and a wallet balance, `200`, old tokens refused (`403`, `400`), login `401`, repeat delete `403`, same email registers again | Yes | 134-145 |
 | Delete account: `409` for a pending withdrawal or payout | **No** | Automated tests only (`test_caregiver_with_a_pending_withdrawal_is_refused`, `test_payouts.py`) |
 | What exactly is wiped (profile fields, bank account, transactions masked, WhatsApp contact, Cloudinary image) | **No (only the account row was queried live)** | Automated tests, `test_account_deletion.py` |
