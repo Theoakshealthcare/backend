@@ -138,11 +138,20 @@ def refund_summaries(db: Session, booking_ids: Iterable[uuid.UUID]) -> Dict[uuid
 
 
 def cancel_fee_kobo(booking: Booking) -> Optional[int]:
-    """What the family was charged for cancelling, or None when the booker did not cancel it. Derived from what the cancel
-    stored (paid less the refund it set), so it never drifts from the refund."""
+    """What the family was charged for cancelling, or None when the booker did not cancel it. Worked out from the tier and
+    the policy the cancel froze on the booking (``cancel_policy``), NOT from ``refund_amount_kobo``: a settled refund
+    overwrites that column with what was actually paid out, which can differ from what the cancel decided."""
     if booking.cancel_reason == USER_CANCELLED:
         return 0
-    if booking.cancel_reason != cancellation.CANCELLED_BY_BOOKER or booking.refund_amount_kobo is None:
+    if booking.cancel_reason != cancellation.CANCELLED_BY_BOOKER:
+        return None
+    if booking.cancel_fee_tier == cancellation.TIER_NONE:
+        return 0
+    policy = cancellation.CancelPolicy.from_snapshot(booking.cancel_policy)
+    if policy is not None and booking.cancel_fee_tier in (cancellation.TIER_STANDARD, cancellation.TIER_LATE):
+        total = int(booking.total_amount_kobo)
+        return min(cancellation._fee(booking, policy.percent(booking.cancel_fee_tier)), total)
+    if booking.refund_amount_kobo is None:  # cancelled before the policy was frozen at cancel time: the best evidence left
         return None
     return max(0, int(booking.total_amount_kobo) - int(booking.refund_amount_kobo))
 
@@ -256,7 +265,7 @@ def _replay(db: Session, booking: Booking) -> Result:
     total = int(booking.total_amount_kobo)
     paid = booking.payment_status in PAID_STATES
     refund = refund_summaries(db, [booking.id]).get(booking.id)
-    refundable = max(0, total - fee) if paid else 0
+    refundable = max(0, total - fee) if paid else 0  # what the cancel decided; the refund object shows what became of it
     view = View(booking.id, booking.booking_code, False, None, None, booking.cancel_fee_tier or cancellation.TIER_NONE,
                 _percent_of(booking, fee), fee, total if paid else 0, refundable, refund is not None,
                 booking.caregiver_id is not None, None, datetime.utcnow())
@@ -277,7 +286,10 @@ def _note_on_refund(db: Session, booking: Booking, reason: Optional[str]) -> Non
     text = (reason or "").strip()[:REASON_MAX_LENGTH]
     if not text:
         return
-    refund = db.query(Refund).filter(Refund.booking_id == booking.id).order_by(Refund.created_at.desc()).first()
+    refund = (db.query(Refund).filter(Refund.booking_id == booking.id, Refund.origin == "system",
+                                      Refund.reason_code == cancellation.CANCELLED_BY_BOOKER,
+                                      Refund.status == "pending_approval")
+              .order_by(Refund.created_at.desc()).first())  # the one this cancel just opened, never another
     if refund is not None and not refund.note:
         refund.note = f"Reason given by the family: {text}"
 
@@ -314,6 +326,9 @@ def _cancel_unpaid(db: Session, booking_id: uuid.UUID, now: datetime) -> Optiona
                                  "Your payment needs a manual check by our team, so the booking cannot be cancelled here. "
                                  "Please contact support.")
     booking = db.query(Booking).filter(Booking.id == booking_id).with_for_update().populate_existing().first()
+    if booking is None:
+        db.rollback()
+        raise _not_found()
     if booking.payment_status in PAID_STATES:
         db.rollback()  # a webhook (or the check above) settled it: it is a paid booking now
         return None
@@ -362,6 +377,11 @@ def _cancel_paid(db: Session, booking_id: uuid.UUID, reason: Optional[str], acce
         raise _state_error(code)
     terms = outcome.terms
     assert terms is not None and outcome.status == "cancelled"
+    if terms.policy is not None and booking.cancel_policy is None:
+        # App bookings carry no policy snapshot (the live one applies). Freeze the one this cancel used, so the fee shown
+        # afterwards can never change when an admin edits the policy later.
+        booking.cancel_policy = {"free_hours": terms.policy.free_hours, "late_hours": terms.policy.late_hours,
+                                 "fee_percent": terms.policy.fee_percent, "late_fee_percent": terms.policy.late_fee_percent}
     _note_on_refund(db, booking, reason)
     db.commit()
     db.refresh(booking)

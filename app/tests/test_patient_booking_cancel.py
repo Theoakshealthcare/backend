@@ -503,3 +503,36 @@ def test_cancel_first_then_start_is_refused(db, client, patient):
         BookingService(db).handle_booking_action(booking.id, caregiver_id, BookingActionRequest(action="start", visit_code=plain))
     assert "can be started" in str(refused.value)
     assert reload(db, booking).status == BookingStatus.CANCELLED
+
+
+# --- review fixes (Opus) --------------------------------------------------------------------------------------------
+def test_the_fee_shown_after_cancelling_survives_a_settled_refund_and_a_policy_edit(db, client, patient):
+    booking = booking_in(db, patient, 5)
+    first = cancel(client, patient.user, booking, accepted_fee_kobo=STANDARD_FEE).json()
+    row = reload(db, booking)
+    row.refund_amount_kobo = 200_000   # what refund settlement does: overwrite it with whatever last succeeded
+    db.commit()
+    set_policy(db, cancel_fee_percent=30, cancel_late_fee_percent=60)   # an admin edits the live policy afterwards
+    again = cancel(client, patient.user, booking).json()
+    detail = client.get(f"{API}/booking/{booking.id}", headers=auth_headers(patient.user)).json()
+    assert (again["fee_amount_kobo"], again["fee_percent"], again["already_cancelled"]) == (STANDARD_FEE, 20, True)
+    assert again["refundable_amount_kobo"] == first["refundable_amount_kobo"]
+    assert (detail["cancel_fee_tier"], detail["cancel_fee"]) == ("standard", 8000.0)
+
+
+def test_cancelling_closes_the_offers_nobody_answered(db, client, patient):
+    booking = booking_in(db, patient, 5, BookingStatus.PENDING)
+    caregiver = offered(db, booking)
+    assert cancel(client, patient.user, booking).status_code == 200
+    db.expire_all()
+    [offer] = db.query(BookingNotification).filter_by(booking_id=booking.id, caregiver_id=caregiver.id).all()
+    assert offer.response == "booking_cancelled" and offer.response_at is not None
+
+
+def test_the_reason_never_lands_on_a_refund_this_cancel_did_not_open(db, client, patient):
+    booking = booking_in(db, patient, 5)
+    db.add(Refund(booking_id=booking.id, patient_id=patient.id, reason_code="complaint", origin="staff",
+                  suggested_amount_kobo=100_000, status="pending_approval"))
+    db.commit()
+    assert cancel(client, patient.user, booking, reason="Plans changed").status_code == 200
+    assert [r.note for r in refunds(db, booking)] == [None]
