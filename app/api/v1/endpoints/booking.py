@@ -91,7 +91,8 @@ def enrich_booking_with_details(
     booking_dict.pop("_sa_instance_state", None)
     # The visit code never leaves through this helper (the action endpoint returns this dict as-is,
     # without a response model to filter it). The patient-facing GET adds the plain code explicitly.
-    for secret in ("visit_code_enc", "visit_code_failed_attempts", "visit_code_locked_until"):
+    for secret in ("visit_code_enc", "visit_code_failed_attempts", "visit_code_locked_until",
+                   "paystack_authorization_url", "paystack_access_code"):
         booking_dict.pop(secret, None)
     booking_dict["visit_code"] = None
     # What the booker paid to cancel and the refund's state belong to the booker only: the patient views add them back
@@ -523,8 +524,8 @@ def get_payment_link(
     """The "Pay now" link for a booking created earlier, so it survives an app restart.
 
     Same response as ``/create`` (the booking with ``payment_url`` and ``payment_access_code``) plus ``paystack_reference``
-    and ``payment_expires_at``. The booking keeps its
-    one Paystack reference, so Paystack itself can charge it only once: tapping twice, or paying on an old page and a new
+    and ``payment_expires_at``. The link is the one Paystack gave when the booking was created (stored on the booking). The
+    booking keeps its one Paystack reference, so Paystack itself can charge it only once: tapping twice, or paying on an old page and a new
     one, can never charge twice. Paystack is asked first whether the booking was already paid (a late webhook): if so it
     is settled and the answer is 409 ``booking_already_paid``. Nothing is written when a link is handed out. Only for a
     pending booking whose payment window is still open; the window is not extended.

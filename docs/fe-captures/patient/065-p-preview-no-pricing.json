@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_hours": 3
+    }
+  },
+  "response": {
+    "status_code": 503,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "booking_settings_not_configured",
+        "message": "Pricing is not available right now. Please try again later."
+      }
+    }
+  },
+  "note": "A new environment with no booking_settings row yet: a 503 with a stable code (it used to be a 500)."
+}

@@ -1,7 +1,7 @@
 {
   "request": {
-    "method": "POST",
-    "path": "/api/v1/booking/225d2f64-431a-4259-935e-f645e3bb1546/payment-link",
+    "method": "GET",
+    "path": "/api/v1/booking/booking/7bcc0679-43da-4f49-8bb1-e74356c8b674",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -11,14 +11,14 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "225d2f64-431a-4259-935e-f645e3bb1546",
-      "booking_code": "07YDC6NU",
+      "id": "7bcc0679-43da-4f49-8bb1-e74356c8b674",
+      "booking_code": "LMONALJO",
       "channel": "app",
-      "patient_id": "074ab6a6-348c-40de-974c-402c950926a5",
+      "patient_id": "f7ad6c81-bc68-41d8-aa52-2ebc41a968d8",
       "patient_details": {
-        "patient_id": "074ab6a6-348c-40de-974c-402c950926a5",
+        "patient_id": "f7ad6c81-bc68-41d8-aa52-2ebc41a968d8",
         "full_name": "Placeholder Patient",
-        "phone_number": "+2340000427002",
+        "phone_number": "+2340000122002",
         "profile_image_url": null,
         "emergency_contact_name": null,
         "emergency_contact_phone": null
@@ -43,19 +43,16 @@
       "platform_fee": 1500.0,
       "special_instructions": null,
       "booking_for": "myself",
-      "created_at": "2026-11-07T17:44:03.650234",
-      "updated_at": "2026-11-07T17:44:03.650237",
+      "created_at": "2026-11-07T20:05:29.213428",
+      "updated_at": "2026-11-07T20:05:29.227010",
       "dispatch_state": null,
       "visit_code": null,
       "cancel_fee_tier": null,
       "cancel_fee": null,
       "refund": null,
-      "payment_url": "https://checkout.paystack.com/ac_c695f5e0a688",
-      "payment_access_code": "ac_c695f5e0a688",
-      "payment_error": null,
-      "paystack_reference": "BKG_07YDC6NU_074ab6a6",
-      "payment_expires_at": "2026-11-07T18:14:03.648815"
+      "payment_url": null,
+      "payment_access_code": null,
+      "payment_error": null
     }
-  },
-  "note": "The app restarted: it lists the booking (payment_status pending) and asks for a link. Same Paystack reference as create; payment_url and payment_access_code as create returns them, plus paystack_reference and payment_expires_at."
+  }
 }

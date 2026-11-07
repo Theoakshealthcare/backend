@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/create",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "duration_hours": 3,
+      "scheduled_date": "2026-11-09T10:00:00",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "booking_for": "myself"
+    }
+  },
+  "response": {
+    "status_code": 503,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "booking_settings_not_configured",
+        "message": "Pricing is not available right now. Please try again later."
+      }
+    }
+  },
+  "note": "Same for create: nothing was created."
+}

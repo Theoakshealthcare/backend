@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/8bd01701-b0ed-405d-8590-deb429a25ea8/payment-link",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 503,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "payment_link_unavailable",
+        "message": "We could not prepare your payment link right now. Please try again in a moment."
+      }
+    }
+  },
+  "note": "SIMULATED, and a SEEDED row with no stored link (what a booking created before migration 0023 looks like): Oakly tries to initialise its reference, the fake Paystack refuses. 503, the booking is NOT cancelled."
+}
