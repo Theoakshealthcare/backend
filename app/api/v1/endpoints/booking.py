@@ -23,11 +23,13 @@ from app.schemas.booking import (
     ChatMessageCreate, ChatMessageResponse,
     BookingNoteCreate, BookingNoteResponse,
     BookingNotificationResponse,
-    LiveTrackingResponse
+    LiveTrackingResponse,
+    CancelBookingRequest, CancelBookingResponse, CancelTermsResponse,
 )
 from app.services.booking import (
     BookingActionForbidden, BookingService, BookingStateConflict, BookingVisitCodeError,
 )
+from app.services import patient_booking_cancel
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
@@ -84,6 +86,11 @@ def enrich_booking_with_details(
     for secret in ("visit_code_enc", "visit_code_failed_attempts", "visit_code_locked_until"):
         booking_dict.pop(secret, None)
     booking_dict["visit_code"] = None
+    # What the booker paid to cancel and the refund's state belong to the booker only: the patient views add them back
+    # (patient_booking_cancel.attach_cancel_info); caregivers and admins never get them from here.
+    booking_dict["cancel_fee_tier"] = None
+    booking_dict["cancel_fee"] = None
+    booking_dict["refund"] = None
     # A WhatsApp booking keeps the condition encrypted; the ciphertext never leaves, the plain text goes only to
     # whoever may see the condition (redact_offer below removes it for caregivers who only hold an offer).
     condition_cipher = booking_dict.pop("condition_encrypted", None)
@@ -401,8 +408,80 @@ def get_patient_bookings(
     
     # Enrich bookings with both patient and caregiver details
     enriched_bookings = [enrich_booking_with_details(booking, booking_service.db) for booking in bookings]
-    
+    refunds = patient_booking_cancel.refund_summaries(booking_service.db, [b.id for b in bookings])
+    for booking, enriched in zip(bookings, enriched_bookings):
+        patient_booking_cancel.attach_cancel_info(enriched, booking, refunds)
+
     return enriched_bookings
+
+
+def _cancel_http_error(exc: patient_booking_cancel.PatientCancelError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message, **exc.extra})
+
+
+_CANCEL_ERRORS = {
+    403: {"description": "Not the booker. detail = {code: not_your_booking, message}"},
+    404: {"description": "No such booking. detail = {code: booking_not_found, message}"},
+}
+
+
+@router.get(
+    "/{booking_id}/cancel-terms",
+    response_model=CancelTermsResponse,
+    summary="What would cancelling this booking cost right now?",
+    responses=_CANCEL_ERRORS,
+    tags=["Patient Bookings"],
+)
+def get_cancel_terms(
+    booking_id: UUID,
+    current_user: User = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> Any:
+    """The cancellation fee as it stands now, to show before the person confirms.
+
+    Free before a caregiver is assigned or more than 12 hours before the visit; 20% of the service fee from 12 to 2 hours
+    before; 50% under 2 hours or once the caregiver is on the way (the hours come from ``policy``). Always 200 for the
+    booker: when the booking cannot be cancelled, ``can_cancel`` is false and ``reason`` says why. Only the booker may ask
+    (403 ``not_your_booking``, 404 ``booking_not_found``). The answer is a preview: confirm with ``accepted_fee_kobo``.
+    """
+    try:
+        return patient_booking_cancel.terms_view(db, current_user, booking_id).as_dict()
+    except patient_booking_cancel.PatientCancelError as exc:
+        raise _cancel_http_error(exc)
+
+
+@router.post(
+    "/{booking_id}/cancel",
+    response_model=CancelBookingResponse,
+    summary="Cancel a booking (booker only)",
+    responses={
+        **_CANCEL_ERRORS,
+        409: {"description": "detail.code is one of booking_in_progress, booking_completed, booking_already_cancelled, "
+                             "booking_closed, terms_changed (detail.terms holds the new terms) or payment_under_review"},
+        503: {"description": "detail.code payment_check_unavailable: Paystack could not be asked; nothing changed, retry"},
+    },
+    tags=["Patient Bookings"],
+)
+def cancel_booking(
+    booking_id: UUID,
+    body: Optional[CancelBookingRequest] = None,
+    current_user: User = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Cancel a booking while it is dispatching, accepted or on the way.
+
+    Never moves money by itself: a paid booking gets a refund (paid minus the fee) that a person approves, sent back to the
+    original payment method. Idempotent: repeating a cancel the booker already made returns the same result with
+    ``already_cancelled`` true, with no second fee or refund. Cancelled for any other reason, or started, completed or
+    closed: 409 with a stable ``detail.code``.
+    """
+    body = body or CancelBookingRequest()
+    try:
+        result = patient_booking_cancel.cancel(
+            db, current_user, booking_id, reason=body.reason, accepted_fee_kobo=body.accepted_fee_kobo)
+    except patient_booking_cancel.PatientCancelError as exc:
+        raise _cancel_http_error(exc)
+    return result.as_dict()
 
 
 # Caregiver Endpoints
@@ -591,6 +670,9 @@ def get_booking_details(
     # Enrich booking with patient and caregiver details
     enriched_booking = enrich_booking_with_details(booking, booking_service.db)
     enriched_booking["visit_code"] = _visit_code_for_patient(booking_service.db, current_user, booking)
+    if isinstance(current_user, User) and current_user.user_type == "patient":  # ensure_booking_read_access: its own patient
+        refunds = patient_booking_cancel.refund_summaries(booking_service.db, [booking.id])
+        patient_booking_cancel.attach_cancel_info(enriched_booking, booking, refunds)
     return enriched_booking
 
 
