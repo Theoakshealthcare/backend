@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/reset-password",
+    "auth": null,
+    "body": {
+      "email": "nobody-770225@example.com",
+      "code": "00000",
+      "new_password": "<NEW_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "invalid_or_expired_code",
+        "message": "This code is incorrect or has expired. Request a new code."
+      }
+    }
+  },
+  "note": "Identical to the wrong-code answer"
+}

@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/reset-password",
+    "auth": null,
+    "body": {
+      "email": "pr-b-770225@example.com",
+      "code": "<CODE>",
+      "new_password": "<NEW_PASSWORD>"
+    }
+  },
+  "response": {
+    "status_code": 429,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "too_many_attempts",
+        "message": "Too many incorrect attempts. Request a new code."
+      }
+    }
+  },
+  "note": "The fifth wrong try killed the code: even the right one is refused until a new code is requested"
+}
