@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-11-07, profile and vitals fixes, DP1-16, DP1-33):** three backend fixes the patient-app live captures found, branch `fix/profile-vitals-validation` (no migration, not pushed): `PUT /auth/profile` now saves name and phone (the photo stays upload-only) (root cause: the endpoint committed a different DB session from the one `current_user` lived in), `null` clears, a different email is refused (`email_change_not_supported`) and so is a password (`use_change_password`) ([SOP](../sop/2026-11-07-profile-update-persistence.md)); vitals are validated on write: six types, units, plausible ranges ([SOP](../sop/2026-11-07-vitals-validation.md)); a patient can grant, list and revoke caregiver access to their vitals and a caregiver lists who shared ([SOP](../sop/2026-11-07-vitals-access-grants.md)). [FE guide](../fe-integration-guide-patient-profile-vitals.md) rendered from 58 live captures (test harness).
+
 **Update (2026-11-07, P4-BE patient cancel):** the patient app can cancel a booking and see the fee first: `GET /booking/{id}/cancel-terms` and `POST /booking/{id}/cancel` over the shared `booking_cancellation` rules (booker only, idempotent replay, verify-before-cancel for unpaid bookings, refund queued for approval to the original method, never the wallet), and `BookingResponse` carries `cancel_fee_tier`, `cancel_fee` and a `refund` summary. No migration. Verified by 60 tests (incl. real concurrent races and the 12 h / 2 h boundaries), an Opus money review (fixed) and 60 live captures against a fake Paystack ([SOP](../sop/2026-11-07-patient-cancel.md), [FE guide](../fe-integration-guide-patient-bookings.md)). Branch `feature/patient-cancel`, not pushed.
 
 **Update (2026-10-30, change password):** the backend endpoint is built (migration `0020`: `users.token_version`; app-user tokens now carry a `tv` claim, so a password change ends every older session). The app screen waits for the backend PR to merge. Login for app users still has **no** lockout or rate limit (only this endpoint's wrong-current-password backoff); see the deferred follow-ups.
@@ -80,7 +82,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
   - [x] Wallet-credit refunds off in v1: `REFUND_WALLET_CREDIT_ENABLED` (default false), `409 wallet_refunds_disabled`
   - [ ] Re-run the caregiver and admin FE captures so the guides' **[not live]** passages become captures
 - [ ] Password reset: build a real reset experience: the email carries a ~200-character JWT the caregiver must paste as a "code"; use a short code or a working deep link (needs a product decision and an app change)
-- [ ] Vitals access grant: stop comparing a user ID with a patient ID; use the `accepted` status
+- [x] Vitals access grant: stop comparing a user ID with a patient ID: grant, revoke and list fixed 2026-11-07 (`fix/profile-vitals-validation`, [SOP](../sop/2026-11-07-vitals-access-grants.md)). The `accepted`-status half was fixed 2026-10-27: only an `in_progress` visit or a grant gives a caregiver access
 - [x] Only the booking's own caregiver can cancel it or change its state; only paid bookings can be accepted — `security/access-control`, 2026-10-05
 - [x] Public diagnostics removed: `/booking/ws/stats` is admin-only, `/auth/test-cloudinary` deleted — 2026-10-05
 - [x] `GET /caregiver/verification-status` returned 500 instead of 403/404 — 2026-09-29
@@ -95,7 +97,7 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] FallGuard: questions, submit, result, history
 - [x] Vitals: manual entry, list, history, CSV export
 - [x] ⚠️ Cancel booking calls an endpoint that doesn't exist: **backend built 2026-11-07** (P4-BE: `GET /booking/{id}/cancel-terms`, `POST /booking/{id}/cancel`, fee and refund status on the booking; branch `feature/patient-cancel`, [SOP](../sop/2026-11-07-patient-cancel.md), [FE guide](../fe-integration-guide-patient-bookings.md)). The patient app screen (P5) is still to build
-- [ ] Profile edit clears `user.patient`, which silently breaks vitals
+- [ ] Profile edit clears `user.patient`, which silently breaks vitals (backend: `PUT /auth/profile` now saves and answers flat; the app must re-read `/auth/me`, see the [FE guide](../fe-integration-guide-patient-profile-vitals.md))
 - [ ] Token refresh can deadlock on a 401
 - [ ] Vitals insights and caregiver-access response shapes don't match the backend
 - [ ] Password reset flow, full logout. Delete account: the backend is fixed (section 12); the apps still need the screen and the 409 message
@@ -488,3 +490,4 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [ ] (C3) Move the Expo push off the settlement request onto the ARQ worker if it ever slows the Paystack webhook; poll Expo receipts to prune late-failing tokens
 - [x] (A2) Tell the patient about an admin cancel and a reassignment; a partial refund's amount now has a real column (`refund_amount_kobo`). Closed by W3 on `feat/whatsapp-notifications`. See the [A2 SOP](../sop/2026-10-06-admin-bookings-ops.md)
 - [ ] (P4-BE patient cancel) Owner call: should a Super Admin still be able to refund a patient-app cancel to the wallet (RF-D4) while the app hides the wallet? Keep the family's cancel reason when no refund is queued (needs a `bookings.cancel_note` column); `dispatch_state` stays `dispatching` on a booking cancelled while dispatching; live Paystack refund run and the caregiver push delivery are untested for this flow ([SOP](../sop/2026-11-07-patient-cancel.md))
+- [ ] (Profile and vitals fixes) Verified email-change flow (code to the new address, `token_version` bump); remove the second `get_db` (`app.db.session` vs `app.api.deps`: two sessions per request in `auth.py`); normalise phone numbers to one form; unique partial index on active vitals grants (migration after `0022`); whole-number checks for blood pressure, heart rate and respiration once the patient app enforces them; patient and caregiver app screens for sharing vitals ([SOPs](../sop/2026-11-07-profile-update-persistence.md))

@@ -203,6 +203,9 @@ Both tokens come back. Store both. (The tokens are stateless JWTs; whether the o
 - Bearer misuse: `401` `{"detail": "Could not validate credentials"}` _(capture `010-a-auth-me-refresh-token-as-bearer.json`)_
 - `401` `{"detail": "Not authenticated"}` _(capture `009-a-auth-me-no-token.json`)_
 
+### Edit profile: `PUT /api/v1/auth/profile`
+The caregiver app's Edit profile sends `full_name` and `phone_number` here. Since 2026-11-07 both **are saved** (they used to be dropped), on the user and on the caregiver row; `null` clears the phone; a different `email` is refused (`400` `email_change_not_supported`). The full request/response contract, rendered from live captures, is in [`fe-integration-guide-patient-profile-vitals.md`](fe-integration-guide-patient-profile-vitals.md) section 3 (the same endpoint serves both apps). The same guide covers `POST /vitals/` validation (a caregiver can now get `422` for an implausible reading) and the patient-granted vitals access list.
+
 ### Delete account: `DELETE /api/v1/auth/profile`
 Auth required (any account type; the caregiver app uses the caregiver's token). No request body. This is an **erasure request handled as anonymisation**: the person's data is wiped and the account is closed for good, but bookings, wallet history, consents and support tickets are kept for legal reasons. There is no undo.
 

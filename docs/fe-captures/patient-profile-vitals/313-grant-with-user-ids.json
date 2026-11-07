@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/access/grant",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "63389583-27cf-4b3c-842c-276a6be443b9",
+      "caregiver_id": "cb8cac18-7475-40f1-bdc0-71cff20bd54d"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "You can only manage access to your own vitals."
+    }
+  },
+  "note": "The user ids are not the profile ids."
+}

@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "phone_number": "call me"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "profile_invalid",
+          "loc": [
+            "body",
+            "phone_number"
+          ],
+          "msg": "Phone number must be 7 to 15 digits, for example +2348012345678. Send null to remove it.",
+          "input": "call me",
+          "ctx": {
+            "message": "Phone number must be 7 to 15 digits, for example +2348012345678. Send null to remove it."
+          }
+        }
+      ]
+    }
+  }
+}
