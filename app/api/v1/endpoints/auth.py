@@ -5,7 +5,7 @@ import jwt
 from datetime import timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -15,8 +15,6 @@ from app.core.security import (
     create_refresh_token,
     decode_app_token,
     token_version_is_current,
-    generate_password_reset_token,
-    verify_password_reset_token,
 )
 from app.db.session import get_db
 from app.api.deps import get_current_user
@@ -38,6 +36,7 @@ from app.schemas.user import (
     DetailResponse,
 )
 from app.services.change_password import ChangePasswordError, ChangePasswordService, TooManyAttempts
+from app.services.password_reset import PasswordResetError, PasswordResetService, WeakPassword
 from app.services.email import send_verification_email, send_password_reset_email
 from app.db.models.media_purge import PendingMediaPurge
 from app.services.websocket_manager import websocket_manager
@@ -252,17 +251,21 @@ def resend_verification(
 @router.post("/password-recovery", response_model=dict)
 def recover_password(
     request: PasswordResetRequest,
-    user_service: UserService = Depends(get_user_service),
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
 ) -> Any:
     """
-    Password Recovery. Always answers 200 with the same body, whether or not the email belongs to an account (so it
-    cannot be used to find out who is registered), and whether or not the mail could be delivered (a failure is logged).
+    Password recovery: emails a 5-digit code (valid 15 minutes) that ``POST /auth/reset-password`` takes with the
+    email address. Always answers 200 with the same body: whether or not the email belongs to an account (so it cannot
+    be used to find out who is registered), whether or not this address is over its hourly limit (3 emails an hour; the
+    rest are answered the same and logged), and whether or not the mail could be delivered (a failure is logged). The
+    mail goes out after the reply, so the response time does not depend on the mail server. A new request makes the
+    previous code useless.
     """
-    user = user_service.get_user_by_email(request.email)
-    if user:
-        token = generate_password_reset_token(user.email)
-        user_service.set_password_reset_token(user.id, token)
-        send_password_reset_email(user.email, token)
+    issued = PasswordResetService(db).request_code(request.email)
+    if issued:
+        email_to, code, legacy_token = issued
+        background_tasks.add_task(send_password_reset_email, email_to, code, legacy_token)
 
     return {"message": "Password recovery email sent"}
 
@@ -270,32 +273,34 @@ def recover_password(
 @router.post("/reset-password", response_model=dict)
 def reset_password_route(
     reset_data: PasswordReset,
-    user_service: UserService = Depends(get_user_service),
+    response: Response,
+    db: Session = Depends(get_db),
 ) -> Any:
     """
-    Reset password.
+    Reset the password with the emailed code: ``{email, code, new_password}``. The new password must pass the same
+    policy as change-password. Success ends every session of the account (the app signs in again with the new
+    password; no tokens are returned). 400 ``detail = {"code", "message"}`` for ``invalid_or_expired_code`` (wrong,
+    expired, used, never issued, or no such account: one answer) and ``weak_password`` (the code is not consumed);
+    429 ``too_many_attempts`` after 5 wrong codes for the address, until a new code is requested.
+
+    Deprecated: ``{token, new_password}`` with the long token from the same email still works for the shipped caregiver
+    app, with its old plain-string ``detail`` errors (400 ``Invalid token`` / ``Invalid or expired token``).
     """
-    email = verify_password_reset_token(reset_data.token)
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid token",
-        )
-    
-    is_valid = user_service.verify_password_reset_token_db(email, reset_data.token)
-    if not is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired token",
-        )
-    
-    success = user_service.reset_password(email, reset_data.new_password)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    
+    service = PasswordResetService(db)
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        if reset_data.token is not None:
+            service.reset_with_legacy_token(reset_data.token, reset_data.new_password)
+        else:
+            service.reset_with_code(reset_data.email, reset_data.code, reset_data.new_password)
+    except (PasswordResetError, WeakPassword) as exc:
+        db.rollback()
+        if reset_data.token is not None and isinstance(exc, PasswordResetError):
+            detail: Any = exc.message  # deprecated form: the plain string the old app expects
+        else:
+            detail = {"code": exc.code, "message": exc.message}
+        raise HTTPException(status_code=exc.status_code, detail=detail)
+
     return {"message": "Password updated successfully"}
 
 

@@ -100,8 +100,10 @@ class ChangePasswordService:
             raise SamePassword()
         user.hashed_password = get_password_hash(new_password)
         user.token_version = (user.token_version or 0) + 1
-        user.password_reset_token = None  # a reset link emailed earlier must not undo this change
+        user.password_reset_token = None  # a reset link or code emailed earlier must not undo this change
         user.password_reset_expires_at = None
+        user.password_reset_code_hash = None
+        user.password_reset_code_expires_at = None
         self.db.execute(delete(AdminRateLimit).where(AdminRateLimit.key == key))
         self.db.commit()
         self.db.refresh(user)
