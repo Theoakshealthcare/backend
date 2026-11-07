@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "email": "new-address@example.com",
+      "full_name": "Not Saved"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "email_change_not_supported",
+        "message": "Your email address is your sign-in identity and can't be changed here yet. Contact support if you need to change it."
+      }
+    }
+  },
+  "note": "An email change is refused and NOTHING in the request is saved."
+}

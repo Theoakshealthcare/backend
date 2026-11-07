@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/auth/profile",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "email": "PATIENT-PROFILE@example.com"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "63389583-27cf-4b3c-842c-276a6be443b9",
+      "full_name": "Placeholder Patient Edited",
+      "email": "patient-profile@example.com",
+      "phone_number": null,
+      "profile_image_url": null,
+      "user_type": "patient",
+      "address": "2 Placeholder Road, Lagos",
+      "gender": null,
+      "date_of_birth": null,
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "emergency_contact_address": null,
+      "created_at": "2026-11-07 17:27:17.924633",
+      "updated_at": "2026-11-07 17:27:18.951657"
+    }
+  },
+  "note": "Sending the current email back (any letter case) is a no-op, not an error."
+}

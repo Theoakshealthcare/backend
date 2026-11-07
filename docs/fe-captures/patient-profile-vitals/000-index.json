@@ -1,0 +1,356 @@
+[
+  {
+    "file": "100-profile-save.json",
+    "status": 200,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "101-me-after-profile-save.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/auth/me"
+  },
+  {
+    "file": "102-profile-only-address.json",
+    "status": 200,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "103-profile-clear-phone-and-photo.json",
+    "status": 200,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "104-profile-email-change.json",
+    "status": 400,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "105-profile-same-email.json",
+    "status": 200,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "106-profile-blank-name.json",
+    "status": 422,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "107-profile-null-name.json",
+    "status": 422,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "108-profile-bad-phone.json",
+    "status": 422,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "109-profile-blank-phone.json",
+    "status": 422,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "110-profile-bad-photo-url.json",
+    "status": 422,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "116-profile-photo-typed-in.json",
+    "status": 400,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "117-profile-phone-taken-other-spelling.json",
+    "status": 409,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "111-profile-phone-taken.json",
+    "status": 409,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "112-profile-password.json",
+    "status": 400,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "113-profile-save-caregiver.json",
+    "status": 200,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "114-me-caregiver-after-save.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/auth/me"
+  },
+  {
+    "file": "115-profile-no-token.json",
+    "status": 401,
+    "method": "PUT",
+    "path": "/auth/profile"
+  },
+  {
+    "file": "200-vital-blood-pressure.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "201-vital-heart-rate.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "202-vital-temperature-c.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "203-vital-temperature-f.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "204-vital-respiratory.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "205-vital-glucose-mgdl.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "206-vital-glucose-mmol.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "207-vital-sleep.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "208-vital-blood-pressure-spaced.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "210-vital-unknown-type.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "211-vital-bp-absurd.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "212-vital-bp-systolic-not-above-diastolic.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "213-vital-bp-not-two-numbers.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "214-vital-heart-rate-too-high.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "215-vital-temperature-wrong-for-unit.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "216-vital-wrong-unit.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "217-vital-sleep-too-long.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "218-vital-not-a-number.json",
+    "status": 422,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "219-vital-for-another-patient.json",
+    "status": 403,
+    "method": "POST",
+    "path": "/vitals/"
+  },
+  {
+    "file": "220-vitals-list.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/vitals/788d7059-801c-43b5-8a39-ff9b2bca14f8"
+  },
+  {
+    "file": "221-vital-edit-ok.json",
+    "status": 200,
+    "method": "PUT",
+    "path": "/vitals/16de4043-18af-4f40-904c-b22060caa0f8"
+  },
+  {
+    "file": "222-vital-edit-implausible.json",
+    "status": 422,
+    "method": "PUT",
+    "path": "/vitals/16de4043-18af-4f40-904c-b22060caa0f8"
+  },
+  {
+    "file": "300-caregiver-reads-before-grant.json",
+    "status": 403,
+    "method": "GET",
+    "path": "/vitals/788d7059-801c-43b5-8a39-ff9b2bca14f8"
+  },
+  {
+    "file": "301-grant.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/access/grant"
+  },
+  {
+    "file": "302-grant-again.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/access/grant"
+  },
+  {
+    "file": "303-patient-lists-grants.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/vitals/access/list"
+  },
+  {
+    "file": "304-caregiver-lists-grants.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/vitals/access/list"
+  },
+  {
+    "file": "305-caregiver-reads-after-grant.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/vitals/788d7059-801c-43b5-8a39-ff9b2bca14f8"
+  },
+  {
+    "file": "306-other-caregiver-reads.json",
+    "status": 403,
+    "method": "GET",
+    "path": "/vitals/788d7059-801c-43b5-8a39-ff9b2bca14f8"
+  },
+  {
+    "file": "310-grant-for-another-patient.json",
+    "status": 403,
+    "method": "POST",
+    "path": "/vitals/access/grant"
+  },
+  {
+    "file": "311-caregiver-tries-to-grant.json",
+    "status": 403,
+    "method": "POST",
+    "path": "/vitals/access/grant"
+  },
+  {
+    "file": "312-grant-unknown-caregiver.json",
+    "status": 404,
+    "method": "POST",
+    "path": "/vitals/access/grant"
+  },
+  {
+    "file": "313-grant-with-user-ids.json",
+    "status": 403,
+    "method": "POST",
+    "path": "/vitals/access/grant"
+  },
+  {
+    "file": "314-caregiver-tries-to-revoke.json",
+    "status": 403,
+    "method": "POST",
+    "path": "/vitals/access/revoke"
+  },
+  {
+    "file": "320-revoke.json",
+    "status": 200,
+    "method": "POST",
+    "path": "/vitals/access/revoke"
+  },
+  {
+    "file": "321-caregiver-reads-after-revoke.json",
+    "status": 403,
+    "method": "GET",
+    "path": "/vitals/788d7059-801c-43b5-8a39-ff9b2bca14f8"
+  },
+  {
+    "file": "322-revoke-again.json",
+    "status": 404,
+    "method": "POST",
+    "path": "/vitals/access/revoke"
+  },
+  {
+    "file": "323-patient-lists-after-revoke.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/vitals/access/list"
+  },
+  {
+    "file": "324-caregiver-lists-after-revoke.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/vitals/access/list"
+  },
+  {
+    "file": "325-grant-no-token.json",
+    "status": 401,
+    "method": "POST",
+    "path": "/vitals/access/grant"
+  },
+  {
+    "file": "330-caregiver-reads-during-visit.json",
+    "status": 200,
+    "method": "GET",
+    "path": "/vitals/788d7059-801c-43b5-8a39-ff9b2bca14f8"
+  }
+]

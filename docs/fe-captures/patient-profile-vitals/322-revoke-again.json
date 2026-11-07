@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/access/revoke",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "caregiver_id": "39bd28b4-cf03-4e68-8188-0d22ca5564b4"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access not found or already revoked."
+    }
+  }
+}

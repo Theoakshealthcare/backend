@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "vital_type": "heart_rate",
+      "value": "70",
+      "unit": "bpm",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00Z",
+      "patient_id": "0b67fac3-87af-4263-b5de-9c434e4e6dd1",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied"
+    }
+  },
+  "note": "A valid reading for someone else's record: still 403."
+}

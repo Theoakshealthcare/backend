@@ -37,6 +37,7 @@ from app.schemas.user import (
 )
 from app.services.change_password import ChangePasswordError, ChangePasswordService, TooManyAttempts
 from app.services.password_reset import PasswordResetError, PasswordResetService, WeakPassword
+from app.services.profile import ProfileError, ProfileService
 from app.services.email import send_verification_email, send_password_reset_email
 from app.db.models.media_purge import PendingMediaPurge
 from app.services.websocket_manager import websocket_manager
@@ -334,24 +335,12 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Update User fields
-    if update_data.full_name:
-        current_user.full_name = update_data.full_name
-    if update_data.email:
-        current_user.email = update_data.email
-    if update_data.phone_number:
-        current_user.phone_number = update_data.phone_number
-    if update_data.profile_image_url:
-        current_user.profile_image_url = update_data.profile_image_url
-    if update_data.password:
-        current_user.hashed_password = get_password_hash(update_data.password)
-    if update_data.password or update_data.email:
-        # a reset code or link emailed earlier must not undo this change (or work for a new address)
-        current_user.password_reset_token = None
-        current_user.password_reset_expires_at = None
-        current_user.password_reset_code_hash = None
-        current_user.password_reset_code_expires_at = None
-    db.commit()
+    # Name, phone and photo (and the email / password refusals) are handled by the service, in the session that commits.
+    try:
+        ProfileService(db).update_account_fields(current_user.id, update_data)
+    except ProfileError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
     # Update Patient or Caregiver fields
     patient = None
     caregiver = None

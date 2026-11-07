@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/vitals/16de4043-18af-4f40-904c-b22060caa0f8",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "notes": "after a walk"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "vital_type": "blood_pressure",
+      "value": "120/80",
+      "unit": "mmHg",
+      "source": "manual",
+      "recorded_at": "2026-11-07T10:00:00",
+      "notes": "after a walk",
+      "id": "16de4043-18af-4f40-904c-b22060caa0f8",
+      "patient_id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+      "recorded_by_user_id": "63389583-27cf-4b3c-842c-276a6be443b9"
+    }
+  }
+}

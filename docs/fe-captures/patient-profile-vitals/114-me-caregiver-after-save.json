@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/auth/me",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "email": "caregiver-profile@example.com",
+      "phone_number": "+2340000718206",
+      "full_name": "Placeholder Caregiver Edited",
+      "user_type": "caregiver",
+      "profile_image_url": null,
+      "id": "cb8cac18-7475-40f1-bdc0-71cff20bd54d",
+      "is_active": true,
+      "is_verified": true,
+      "created_at": "2026-11-07T17:27:18.488445",
+      "updated_at": "2026-11-07T17:27:19.031117",
+      "patient": null,
+      "caregiver": {
+        "email": "caregiver-profile@example.com",
+        "full_name": "Placeholder Caregiver Edited",
+        "phone_number": "+2340000718206",
+        "id": "39bd28b4-cf03-4e68-8188-0d22ca5564b4",
+        "user_id": "cb8cac18-7475-40f1-bdc0-71cff20bd54d",
+        "created_at": "2026-11-07T17:27:18.496229",
+        "updated_at": "2026-11-07T17:27:19.031730"
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/auth/me",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "email": "patient-profile@example.com",
+      "phone_number": "+2340000718205",
+      "full_name": "Placeholder Patient Edited",
+      "user_type": "patient",
+      "profile_image_url": "https://res.cloudinary.com/placeholder/image/upload/v1/oaklycare/profile_images/avatar.jpg",
+      "id": "63389583-27cf-4b3c-842c-276a6be443b9",
+      "is_active": true,
+      "is_verified": true,
+      "created_at": "2026-11-07T17:27:17.924633",
+      "updated_at": "2026-11-07T17:27:18.836998",
+      "patient": {
+        "email": "patient-profile@example.com",
+        "full_name": "Placeholder Patient Edited",
+        "phone_number": "+2340000718205",
+        "date_of_birth": null,
+        "gender": null,
+        "address": "1 Placeholder Street, Lagos",
+        "city": "Lagos",
+        "state": "Lagos",
+        "postal_code": null,
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null,
+        "emergency_contact_relationship": null,
+        "emergency_contact_address": null,
+        "blood_group": null,
+        "allergies": null,
+        "medical_conditions": null,
+        "medications": null,
+        "preferred_language": null,
+        "special_requirements": null,
+        "id": "788d7059-801c-43b5-8a39-ff9b2bca14f8",
+        "user_id": "63389583-27cf-4b3c-842c-276a6be443b9",
+        "is_active": true,
+        "profile_completion_step": 0,
+        "created_at": "2026-11-07T17:27:17.936136",
+        "updated_at": "2026-11-07T17:27:18.871121"
+      },
+      "caregiver": null
+    }
+  },
+  "note": "What the app re-reads: user and the patient copy agree."
+}

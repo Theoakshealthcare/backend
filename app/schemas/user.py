@@ -1,6 +1,9 @@
+import re
 from datetime import datetime, date
 from typing import Optional, Literal
-from pydantic import BaseModel, EmailStr, validator, Field, model_validator
+from urllib.parse import urlparse
+from pydantic import BaseModel, EmailStr, validator, field_validator, Field, model_validator
+from pydantic_core import PydanticCustomError
 import uuid
 
 # Import patient schemas from the new patient.py file
@@ -152,6 +155,16 @@ class UserWithTypeData(User):
     caregiver: Optional[Caregiver] = None
 
 
+PROFILE_NAME_MAX = 120
+PROFILE_URL_MAX = 2048
+_PHONE_SEPARATORS = re.compile(r"[\s().-]")
+_PHONE = re.compile(r"\+?[0-9]{7,15}")
+
+
+def _profile_error(message: str) -> PydanticCustomError:
+    return PydanticCustomError("profile_invalid", "{message}", {"message": message})
+
+
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -165,6 +178,41 @@ class UserProfileUpdate(BaseModel):
     emergency_contact_phone: Optional[str] = None
     emergency_contact_address: Optional[str] = None
     password: Optional[str] = None
+
+    # name, phone and photo: left out = unchanged; an explicit null clears phone and photo (a name cannot be cleared)
+    @field_validator("full_name")
+    @classmethod
+    def _full_name(cls, v):
+        if v is None:
+            raise _profile_error("Full name can't be removed. Send a new name or leave it out.")
+        v = v.strip()
+        if not v:
+            raise _profile_error("Full name can't be blank.")
+        if len(v) > PROFILE_NAME_MAX:
+            raise _profile_error(f"Full name can be at most {PROFILE_NAME_MAX} characters.")
+        return v
+
+    @field_validator("phone_number")
+    @classmethod
+    def _phone_number(cls, v):
+        if v is None:
+            return None
+        digits = _PHONE_SEPARATORS.sub("", v)
+        if not _PHONE.fullmatch(digits):
+            raise _profile_error("Phone number must be 7 to 15 digits, for example +2348012345678. Send null to remove it.")
+        return digits
+
+    @field_validator("profile_image_url")
+    @classmethod
+    def _profile_image_url(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        parts = urlparse(v) if v and not re.search(r"\s", v) else None
+        if not parts or parts.scheme not in ("http", "https") or not parts.netloc or len(v) > PROFILE_URL_MAX:
+            raise _profile_error(f"Photo link must be an http or https URL of at most {PROFILE_URL_MAX} characters. Send null to remove it.")
+        return v
+
 
 class UserProfileResponse(BaseModel):
     id: UUID
