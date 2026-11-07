@@ -85,15 +85,18 @@ def send_verification_email(email_to: str, code: str) -> None:
     send_email_smtp(email_to, subject, html_content)
 
 
-def send_password_reset_email(email_to: str, token: str) -> None:
-    """Send password reset email with token."""
-    subject = f"{settings.PROJECT_NAME} - Password Reset"
-    
+def send_password_reset_email(email_to: str, code: str, legacy_token: str | None = None) -> None:
+    """Send the password reset email: the 5-digit code, big. ``legacy_token`` (the long token the shipped caregiver app
+    pastes, deprecated) is shown in small print only while it is enabled."""
+    subject = f"{settings.PROJECT_NAME} - Your password reset code"
+
     html_content = render_template(
         "password_reset",
         {
             "project_name": settings.PROJECT_NAME,
-            "token": token,
+            "code": code,
+            "valid_minutes": settings.PASSWORD_RESET_CODE_EXPIRE_MINUTES,
+            "legacy_token": legacy_token,
             "valid_hours": settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS,
             "colors": {
                 "primary": "#168283",
@@ -114,7 +117,7 @@ def send_password_reset_email(email_to: str, token: str) -> None:
             }
         },
     )
-    
+
     send_email_smtp(email_to, subject, html_content)
 
 

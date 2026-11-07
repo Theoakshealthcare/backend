@@ -59,8 +59,9 @@ The caregiver app has forgot/reset password but no way to change it while signed
 - **Roll back:** revert the code, then `alembic downgrade 0019` if wanted. The old code ignores the `tv` claim, so tokens issued meanwhile keep working, **and tokens that an earlier change had revoked work again**: after a rollback, any account that changed its password should be asked to change it again.
 
 ## Follow-ups
-- **Password reset should also bump `token_version`**, so resetting through the emailed link ends other sessions (one line in `UserService.reset_password`). Left out to keep this PR to the brief.
-- **A server-side password policy for `register` and `reset-password`** (today only this endpoint has one). Their 422 also still echoes the password in `input`.
+- ~~**Password reset should also bump `token_version`**~~ **Done 2026-11-07** ([SOP](2026-11-07-password-reset-code.md)): reset bumps it, on both forms.
+- **A server-side password policy for `register`** (`reset-password` now has it, using `validate_new_password` from this change). `reset-password`'s 422 no longer echoes the password; `register`'s still does.
+- A successful change also clears a pending emailed reset **code** (`password_reset_code_*`), not only the link token.
 - **Lockout or backoff on app-user login and refresh** (none today; the throttle here only protects the change endpoint).
 - **Audit and notify:** an app-user audit table (the admin one cannot hold them), and an email or push "your password was changed".
 - **A token id (`jti`) and a sessions list** would allow "sign out this device" and keeping the caller's own refresh token; not needed for this feature.

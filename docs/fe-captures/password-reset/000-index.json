@@ -1,0 +1,202 @@
+[
+  {
+    "file": "01-recovery-known-email.json",
+    "label": "recovery-known-email",
+    "status": 200
+  },
+  {
+    "file": "02-recovery-unknown-email.json",
+    "label": "recovery-unknown-email",
+    "status": 200
+  },
+  {
+    "file": "03-mailbox-after-two-requests.json",
+    "label": "mailbox-after-two-requests",
+    "status": null
+  },
+  {
+    "file": "04-reset-wrong-code.json",
+    "label": "reset-wrong-code",
+    "status": 400
+  },
+  {
+    "file": "05-reset-unknown-email.json",
+    "label": "reset-unknown-email",
+    "status": 400
+  },
+  {
+    "file": "06-reset-malformed-code.json",
+    "label": "reset-malformed-code",
+    "status": 400
+  },
+  {
+    "file": "07-reset-weak-password.json",
+    "label": "reset-weak-password",
+    "status": 400
+  },
+  {
+    "file": "08-reset-missing-code.json",
+    "label": "reset-missing-code",
+    "status": 422
+  },
+  {
+    "file": "09-reset-token-and-code.json",
+    "label": "reset-token-and-code",
+    "status": 422
+  },
+  {
+    "file": "10-reset-missing-password.json",
+    "label": "reset-missing-password",
+    "status": 422
+  },
+  {
+    "file": "11-reset-success.json",
+    "label": "reset-success",
+    "status": 200
+  },
+  {
+    "file": "12-reset-replay.json",
+    "label": "reset-replay",
+    "status": 400
+  },
+  {
+    "file": "13-me-with-old-access-token.json",
+    "label": "me-with-old-access-token",
+    "status": 401
+  },
+  {
+    "file": "14-refresh-with-old-refresh-token.json",
+    "label": "refresh-with-old-refresh-token",
+    "status": 401
+  },
+  {
+    "file": "15-login-old-password.json",
+    "label": "login-old-password",
+    "status": 401
+  },
+  {
+    "file": "16-login-new-password.json",
+    "label": "login-new-password",
+    "status": 200
+  },
+  {
+    "file": "17-lockout-recovery.json",
+    "label": "lockout-recovery",
+    "status": 200
+  },
+  {
+    "file": "18-lockout-wrong-1.json",
+    "label": "lockout-wrong-1",
+    "status": 400
+  },
+  {
+    "file": "19-lockout-wrong-2.json",
+    "label": "lockout-wrong-2",
+    "status": 400
+  },
+  {
+    "file": "20-lockout-wrong-3.json",
+    "label": "lockout-wrong-3",
+    "status": 400
+  },
+  {
+    "file": "21-lockout-wrong-4.json",
+    "label": "lockout-wrong-4",
+    "status": 400
+  },
+  {
+    "file": "22-lockout-wrong-5.json",
+    "label": "lockout-wrong-5",
+    "status": 400
+  },
+  {
+    "file": "23-lockout-right-code-is-refused.json",
+    "label": "lockout-right-code-is-refused",
+    "status": 429
+  },
+  {
+    "file": "24-lockout-new-code.json",
+    "label": "lockout-new-code",
+    "status": 200
+  },
+  {
+    "file": "25-lockout-reset-with-new-code.json",
+    "label": "lockout-reset-with-new-code",
+    "status": 200
+  },
+  {
+    "file": "26-replace-first-request.json",
+    "label": "replace-first-request",
+    "status": 200
+  },
+  {
+    "file": "27-replace-second-request.json",
+    "label": "replace-second-request",
+    "status": 200
+  },
+  {
+    "file": "28-replace-old-code-refused.json",
+    "label": "replace-old-code-refused",
+    "status": 400
+  },
+  {
+    "file": "29-replace-new-code-works.json",
+    "label": "replace-new-code-works",
+    "status": 200
+  },
+  {
+    "file": "30-throttle-request-1.json",
+    "label": "throttle-request-1",
+    "status": 200
+  },
+  {
+    "file": "31-throttle-request-2.json",
+    "label": "throttle-request-2",
+    "status": 200
+  },
+  {
+    "file": "32-throttle-request-3.json",
+    "label": "throttle-request-3",
+    "status": 200
+  },
+  {
+    "file": "33-throttle-request-4.json",
+    "label": "throttle-request-4",
+    "status": 200
+  },
+  {
+    "file": "34-throttle-mailbox.json",
+    "label": "throttle-mailbox",
+    "status": null
+  },
+  {
+    "file": "35-legacy-recovery.json",
+    "label": "legacy-recovery",
+    "status": 200
+  },
+  {
+    "file": "36-legacy-garbage-token.json",
+    "label": "legacy-garbage-token",
+    "status": 400
+  },
+  {
+    "file": "37-legacy-weak-password.json",
+    "label": "legacy-weak-password",
+    "status": 400
+  },
+  {
+    "file": "38-legacy-success.json",
+    "label": "legacy-success",
+    "status": 200
+  },
+  {
+    "file": "39-legacy-replay.json",
+    "label": "legacy-replay",
+    "status": 400
+  },
+  {
+    "file": "40-legacy-login-new-password.json",
+    "label": "legacy-login-new-password",
+    "status": 200
+  }
+]

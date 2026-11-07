@@ -26,6 +26,10 @@ class User(Base):
     verification_code_expires_at = Column(DateTime, nullable=True)
     password_reset_token = Column(String, nullable=True)
     password_reset_expires_at = Column(DateTime, nullable=True)
+    # The short emailed reset code, stored only as a keyed hash (HMAC with a key derived from SECRET_KEY) with its own
+    # expiry. Independent of ``password_reset_token`` (the deprecated long link token), so the two never share state.
+    password_reset_code_hash = Column(String, nullable=True)
+    password_reset_code_expires_at = Column(DateTime, nullable=True)
     # Carried in every access/refresh token as ``tv``; a password change adds one, which ends all older tokens.
     token_version = Column(Integer, nullable=False, default=0, server_default=text("0"))
     profile_image_url = Column(String, nullable=True)

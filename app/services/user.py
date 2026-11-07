@@ -138,8 +138,11 @@ class UserService:
             return False
         
         user.hashed_password = get_password_hash(new_password)
+        user.token_version = (user.token_version or 0) + 1  # ends every session issued before this reset
         user.password_reset_token = None
         user.password_reset_expires_at = None
+        user.password_reset_code_hash = None
+        user.password_reset_code_expires_at = None
         self.db.commit()
         return True
 

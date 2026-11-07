@@ -2,7 +2,7 @@ import re
 from datetime import datetime, date
 from typing import Optional, Literal
 from urllib.parse import urlparse
-from pydantic import BaseModel, EmailStr, validator, field_validator, Field
+from pydantic import BaseModel, EmailStr, validator, field_validator, Field, model_validator
 from pydantic_core import PydanticCustomError
 import uuid
 
@@ -122,8 +122,22 @@ class PasswordResetRequest(BaseModel):
 
 
 class PasswordReset(BaseModel):
-    token: str
+    """``{email, code, new_password}`` (the emailed 5-digit code) or, deprecated, ``{token, new_password}`` (the long
+    link token the shipped caregiver app pastes). Exactly one form."""
     new_password: str
+    email: Optional[EmailStr] = None
+    code: Optional[str] = None
+    token: Optional[str] = None  # deprecated
+
+    @model_validator(mode="after")
+    def _exactly_one_form(self) -> "PasswordReset":
+        by_code = self.email is not None and self.code is not None
+        if self.token is not None:
+            if self.email is not None or self.code is not None:
+                raise ValueError("send either token, or email and code, not both")
+        elif not by_code:
+            raise ValueError("email and code are required")
+        return self
 
 
 class EmailVerificationRequest(BaseModel):

@@ -167,6 +167,16 @@ class Settings(BaseSettings):
     CHANGE_PASSWORD_FREE_ATTEMPTS: int = 5
     CHANGE_PASSWORD_BACKOFF_SECONDS: int = 30
     CHANGE_PASSWORD_BACKOFF_MAX_SECONDS: int = 900
+    # Password reset by emailed 5-digit code (POST /auth/password-recovery, /auth/reset-password).
+    PASSWORD_RESET_CODE_EXPIRE_MINUTES: int = 15
+    PASSWORD_RESET_CODE_MAX_ATTEMPTS: int = 5  # wrong codes per email; then the code is dead until a new one is requested
+    # Across ALL codes of one address: wrong tries per 24 h (window opens at the first), so asking for fresh codes cannot
+    # reset the guess budget; past it every reset attempt is 429 ``too_many_attempts`` with Retry-After, and no code is sent.
+    PASSWORD_RESET_CODE_MAX_ATTEMPTS_PER_DAY: int = 20
+    PASSWORD_RESET_REQUESTS_PER_HOUR: int = 3  # emails sent per address per hour; further requests get the same 200 and no mail
+    # While the shipped caregiver app still pastes the long token, the email also carries it and
+    # ``POST /auth/reset-password {token, new_password}`` still works. Set False once that app version is retired.
+    PASSWORD_RESET_LEGACY_TOKEN_ENABLED: bool = True
     # Reverse proxies whose X-Forwarded-For is believed (CIDRs or addresses, comma-separated or
     # JSON list). Empty = trust nobody: the client IP is the direct peer.
     TRUSTED_PROXIES: Annotated[List[str], NoDecode] = []

@@ -1,5 +1,7 @@
 """Forgot-password flow: POST /auth/password-recovery -> email -> POST /auth/reset-password -> sign in.
 
+These cover the email transport and the deprecated long-token form; the emailed code is in test_password_reset_code.py.
+
 The real ``send_password_reset_email`` and ``send_email_smtp`` run in these tests; only the SMTP transport
 (``smtplib.SMTP_SSL``) is faked. A signature mismatch between them (the original ``subject_template`` bug, which made
 every recovery request a 500) therefore fails here, which the ``sent_emails`` fixture (it replaces the whole sender) cannot catch.
@@ -81,8 +83,9 @@ def smtp(monkeypatch):
 
 
 def token_from(html: str) -> str:
-    match = re.search(r"reset-password\?token=([^\"&\s<]+)", html)
-    assert match, "the email carries no reset link"
+    """The deprecated long token (what the shipped caregiver app pastes): printed in small type, no longer a link."""
+    match = re.search(r"(eyJ[\w-]+\.[\w-]+\.[\w-]+)", html)
+    assert match, "the email carries no legacy reset token"
     return match.group(1)
 
 
@@ -99,8 +102,9 @@ def test_recovery_sends_the_reset_email_through_the_real_sender(db, client, smtp
     assert r.json() == RECOVERY_REPLY
     [(recipient, subject, html)] = smtp.collect()
     assert recipient == user.email
-    assert "Password Reset" in subject
-    assert token_from(html)
+    assert "password reset code" in subject
+    assert token_from(html)  # still there for the shipped caregiver app (deprecated)
+    assert re.search(r">\s*[0-9]{5}\s*</p>", html)  # the 5-digit code, shown on its own
 
 
 def test_the_whole_reset_flow_ends_with_the_new_password_working(db, client, smtp):
@@ -192,7 +196,7 @@ def test_a_failing_mail_server_does_not_turn_recovery_into_a_500(db, client, smt
 def test_the_other_senders_match_the_transport_signature_too(db, smtp):
     """Every function in services/email.py that sends goes through send_email_smtp with the right arguments."""
     email_service.send_verification_email("someone@example.test", "123456")
-    email_service.send_password_reset_email("someone@example.test", "a-token")
+    email_service.send_password_reset_email("someone@example.test", "12345", "a-token")
     assert email_service.send_caregiver_decision_email(
         email_to="someone@example.test", full_name="Ada", decision="approved"
     ) is True

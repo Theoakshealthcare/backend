@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/auth/password-recovery",
+    "auth": null,
+    "body": {
+      "email": "pr-c-770225@example.com"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "message": "Password recovery email sent"
+    }
+  }
+}

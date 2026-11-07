@@ -1,0 +1,7 @@
+{
+  "observed": {
+    "emails_for_known_address": 1,
+    "emails_for_unknown_address": 0
+  },
+  "note": "Read from the recording mailbox (the one fake: the mail transport). The code is the 5 digits shown in the email."
+}

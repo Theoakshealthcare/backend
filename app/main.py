@@ -26,14 +26,30 @@ install_access_log_redaction()
 # FastAPI's 422 body echoes each rejected value back as ``input``. For these fields that would put a bank account number
 # into a response body (and the logs and traces that capture it), so the value is dropped from the error. A missing
 # field's error carries the whole body as ``input``, so naming a password field here also covers the other one.
-NEVER_ECHO_FIELDS = {"account_number", "current_password", "new_password"}
+NEVER_ECHO_FIELDS = {"account_number", "current_password", "new_password", "code", "token"}
+_NEVER_ECHO_SUFFIXES = ("password", "token", "code")  # also refresh_token, mfa_token, access_code ...
+
+
+def _is_secret_name(name: object) -> bool:
+    name = str(name)
+    return name in NEVER_ECHO_FIELDS or name.endswith(_NEVER_ECHO_SUFFIXES)
+
+
+def _carries_secret(value: object) -> bool:
+    """A whole request body (a dict, possibly nested in lists) is echoed as ``input`` by model-level errors."""
+    if isinstance(value, dict):
+        return any(_is_secret_name(k) or _carries_secret(v) for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return any(_carries_secret(v) for v in value)
+    return False
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_without_secrets(_request: Request, exc: RequestValidationError) -> JSONResponse:
     errors = []
     for error in exc.errors():
-        if NEVER_ECHO_FIELDS.intersection(str(part) for part in error.get("loc", ())):
+        # A model-level error (loc is just "body") carries the whole body as ``input`` too.
+        if any(_is_secret_name(part) for part in error.get("loc", ())) or _carries_secret(error.get("input")):
             error = {k: v for k, v in error.items() if k not in ("input", "ctx")}
         errors.append(error)
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})

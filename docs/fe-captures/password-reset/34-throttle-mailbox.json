@@ -1,0 +1,7 @@
+{
+  "observed": {
+    "emails_for_address_after_3_requests": 3,
+    "emails_for_address_after_4th_request": 3
+  },
+  "note": "From the recording mailbox"
+}

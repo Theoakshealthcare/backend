@@ -127,7 +127,7 @@ def sent_emails(monkeypatch):
     )
     monkeypatch.setattr(
         auth_endpoints, "send_password_reset_email",
-        lambda email_to, token: captured.append((email_to, "password_reset", token)),
+        lambda email_to, code, legacy_token=None: captured.append((email_to, "password_reset", code)),
     )
     return captured
 

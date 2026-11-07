@@ -3,6 +3,7 @@
 | | |
 |---|---|
 | **What shipped** | `POST /auth/password-recovery` returns `200 {"message": "Password recovery email sent"}` instead of a 500, sends the reset email through the real SMTP sender, answers identically for unknown emails (no account enumeration), and never turns a mail problem into a 500. A regression suite covers the whole forgot -> email -> reset -> sign-in flow. Fixes device-pass-1 blocker **DP1-01**. |
+| **Superseded in part** | The emailed token / `oaklycare://` link described below was replaced by a 5-digit code on 2026-11-07 ([SOP](2026-11-07-password-reset-code.md)); the SMTP, enumeration and 500 fixes here stand. |
 | **Branch / commit** | `fix/forgot-password-email`, cut from `oakly/main` `83e81cc`. One commit; not pushed, the lead opens the PR. |
 | **Migration / API shape** | None. The only visible change: an unknown email used to get `404 {"detail": "User not found"}`; it now gets the same `200` as a known one. Neither FE guide documents this route, so `render_fe_guide --check` is unaffected (both pass). |
 
@@ -40,7 +41,7 @@ The old handler also answered `404 User not found` for an unknown email, which l
 - **Roll back:** revert the commit; the endpoint goes back to a 500.
 
 ## Follow-ups
-- **The "code" is a ~200-character JWT.** The app's Reset screen says "Reset Code" and asks the caregiver to paste the token from the email; it works (tested), but a short numeric code (as verification already uses) or a working deep link would be a far better experience. Needs a product decision and an app change.
-- **Password reset should also bump `token_version`** so a reset ends other sessions, and `reset-password` has no password policy (both already listed under the change-password follow-ups).
+- ~~**The "code" is a ~200-character JWT.**~~ **Done 2026-11-07:** the email now carries a 5-digit code (hashed, 15 minutes, attempt-limited); the long token remains only for the shipped caregiver app, deprecated. See [2026-11-07-password-reset-code.md](2026-11-07-password-reset-code.md). The app screens still need the swap.
+- ~~**Password reset should also bump `token_version`**, and `reset-password` has no password policy.~~ **Done 2026-11-07** (same SOP): a reset applies the change-password policy and ends every other session, on both the code and the token form.
 - `send_verification_email` and `/resend-verification` ignore the sender's `False`; a user with broken SMTP is told "Verification code sent". Same shape as the fix here (log, answer normally); a delivery-failure signal for the FE is a separate decision.
 - Verification and resend-verification still answer `404 User not found` / `400 Email already verified`, which also reveal whether an email is registered.

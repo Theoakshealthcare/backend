@@ -291,6 +291,8 @@ class AccountErasureService:
         user.verification_code_expires_at = None
         user.password_reset_token = None
         user.password_reset_expires_at = None
+        user.password_reset_code_hash = None
+        user.password_reset_code_expires_at = None
         user.updated_at = now
         self.db.query(ChatMessage).filter(ChatMessage.sender_id == user.id).update(
             {"message": "[deleted]", "attachment_url": None}, synchronize_session=False)
