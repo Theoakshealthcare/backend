@@ -466,6 +466,10 @@ class BookingNotificationResponse(BaseModel):
     notification_type: str
     is_read: bool
     created_at: datetime
+    # The caregiver's answer to this offer: null while unanswered, "accept", "declined" (final: Accept is refused), or a
+    # system value ("auto_declined", "booking_cancelled", "reassigned", "assigned_by_admin"). The app hides Accept/Decline
+    # unless it is null.
+    response: Optional[str] = None
     booking: BookingResponse
 
     class Config:

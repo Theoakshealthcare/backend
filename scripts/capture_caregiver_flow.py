@@ -673,7 +673,16 @@ def run(args) -> None:
     rec.call("a-start-again", "POST", f"/api/v1/booking/caregiver/action/{b2['id']}", token=ta, expect=409,
              json_body={"action": "start", "visit_code": code})
     rec.call("p-booking-detail-in-progress", "GET", f"/api/v1/booking/booking/{b2['id']}", token=tp)
-    rec.call("a-complete", "POST", f"/api/v1/booking/caregiver/action/{b2['id']}", token=ta, json_body={"action": "complete"})
+    # SIMULATION (labelled on the a-complete capture, not a capture of its own: that would renumber every capture after it):
+    # the caregiver was on site for 90 minutes of the 2 booked hours. Completing within seconds of starting is a SHORT visit
+    # (under 50% of the booked time on site), whose earning is credited already held for Finance; the earnings captures
+    # at the end follow a normal visit.
+    db.run("UPDATE bookings SET actual_start_time = now() at time zone 'utc' - interval '90 minutes' WHERE id = %s",
+           (b2["id"],))
+    rec.call("a-complete", "POST", f"/api/v1/booking/caregiver/action/{b2['id']}", token=ta, json_body={"action": "complete"},
+             note="SIMULATION before this call: actual_start_time was moved 90 minutes into the past (standing in for a 90 "
+                  "minute visit of the 2 booked hours), so this is a normal visit and its earning is pending_clearance. A "
+                  "visit completed under 50% of the booked time on site would be credited already held.")
     rec.call("a-complete-again", "POST", f"/api/v1/booking/caregiver/action/{b2['id']}", token=ta, expect=409,
              json_body={"action": "complete"})
     rec.call("a-cancel-after-complete", "POST", f"/api/v1/booking/caregiver/action/{b2['id']}", token=ta, expect=409,
@@ -900,6 +909,14 @@ def run(args) -> None:
                   "(payouts_blocked_until). The change is recorded in caregiver_bank_events with masked numbers.")
     rec.call("a-wallet-payouts-blocked", "GET", "/api/v1/caregiver/wallet", token=ta)
     rec.call("a-bank-account-after-change", "GET", "/api/v1/caregiver/bank-account", token=ta)
+
+    # --- a declined offer is final (appended last, numbers above do not move) ---------------------------------------
+    rec.call("a-notifications-after-decline", "GET", "/api/v1/booking/caregiver/notifications", token=ta,
+             note="Booking 3 was declined earlier: its offer carries response = 'declined', so the app hides Accept and "
+                  "Decline. An unanswered offer has response = null.")
+    rec.call("a-accept-b3-after-decline", "POST", f"/api/v1/booking/caregiver/action/{b3['id']}", token=ta, expect=403,
+             json_body={"action": "accept"},
+             note="A decline is final: accepting the offer the caregiver declined is refused, and nothing changes.")
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_caregiver_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")

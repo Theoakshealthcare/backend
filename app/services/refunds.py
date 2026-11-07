@@ -23,6 +23,7 @@ from fastapi import Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.models.admin import AdminUser
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.caregiver import TX_EARNING, TX_REFUND_TAKE_BACK, TX_VOIDED, CaregiverTransaction
@@ -72,6 +73,11 @@ class RefundConflict(RefundError):
 
 class RefundForbidden(RefundError):
     """-> 403"""
+
+
+class WalletRefundsDisabled(RefundConflict):
+    """-> 409 with the stable code ``wallet_refunds_disabled`` (``REFUND_WALLET_CREDIT_ENABLED`` is off)."""
+    code = "wallet_refunds_disabled"
 
 
 class RefundInvalid(RefundError):
@@ -268,6 +274,13 @@ def _check_requester(refund: Refund, admin: AdminUser) -> None:
         raise RefundForbidden("You raised this refund, so someone else must approve it.")
 
 
+def _require_wallet_enabled() -> None:
+    """v1: no wallet credit for refunds while the patient wallet is hidden (it would strand the money). Read at call time."""
+    if not settings.REFUND_WALLET_CREDIT_ENABLED:
+        raise WalletRefundsDisabled(
+            "Refunds to the Oakly wallet are switched off. Refund to the original payment method instead.")
+
+
 def _check_wallet_owner(db: Session, booking: Booking) -> None:
     """Only an app booker has a wallet to credit: their own patient with an active account. A WhatsApp (or admin-made)
     booking has no app wallet owner."""
@@ -290,6 +303,7 @@ def approve_refund(db: Session, refund_id: UUID, *, admin: AdminUser, amount_kob
     try:
         seen = None
         if destination == REFUND_DEST_WALLET and APPROVE_ABOVE_LIMIT in admin.permissions:
+            _require_wallet_enabled()  # before Paystack is asked anything
             seen = _check_no_untied_refund(db, paystack or PaystackService(), refund_id)
         refund = _approve(db, refund_id, admin, amount_kobo, destination, take_back_from_caregiver, take_back_reason,
                           note, request, seen)
@@ -331,6 +345,7 @@ def _approve(db: Session, refund_id: UUID, admin: AdminUser, amount_kobo: Option
     if destination == REFUND_DEST_WALLET:
         if not can_above:
             raise RefundForbidden("Only a Super Admin can refund to the Oakly wallet.")
+        _require_wallet_enabled()
         _check_wallet_owner(db, booking)
 
     take_back_kobo = 0
@@ -1245,6 +1260,7 @@ def switch_to_wallet(db: Session, refund_id: UUID, *, admin: AdminUser, paystack
     ``needs_review`` (nothing is reversed by itself). Commits."""
     if APPROVE_ABOVE_LIMIT not in admin.permissions:
         raise RefundForbidden("Only a Super Admin can refund to the Oakly wallet.")
+    _require_wallet_enabled()  # before Paystack is asked anything
     paystack = paystack or PaystackService()
     try:
         seen = _see(db, refund_id)
