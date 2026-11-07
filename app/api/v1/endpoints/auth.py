@@ -255,19 +255,15 @@ def recover_password(
     user_service: UserService = Depends(get_user_service),
 ) -> Any:
     """
-    Password Recovery.
+    Password Recovery. Always answers 200 with the same body, whether or not the email belongs to an account (so it
+    cannot be used to find out who is registered), and whether or not the mail could be delivered (a failure is logged).
     """
     user = user_service.get_user_by_email(request.email)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    
-    token = generate_password_reset_token(user.email)
-    user_service.set_password_reset_token(user.id, token)
-    send_password_reset_email(user.email, token)
-    
+    if user:
+        token = generate_password_reset_token(user.email)
+        user_service.set_password_reset_token(user.id, token)
+        send_password_reset_email(user.email, token)
+
     return {"message": "Password recovery email sent"}
 
 

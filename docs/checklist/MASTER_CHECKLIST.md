@@ -71,7 +71,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] ⚠️ Fix refund approval paying twice (wallet credit plus a Paystack refund) — 2026-10-05, `security/money`
 - [x] ⚠️ Make the Paystack webhook safe to replay, and check the paid amount against the booking — 2026-10-05, `security/money` (also `verify-payment`)
 - [x] Wallet transactions: remove the nested `db.begin()` — 2026-10-05, `security/money`
-- [ ] Password reset: fix the email arguments that cause a 500, and build a real reset link
+- [x] Password reset: fix the email arguments that cause a 500 — 2026-11-07, `fix/forgot-password-email` (device-pass-1 DP1-01; unknown emails now get the same 200; [SOP](../sop/2026-11-07-forgot-password-email.md))
+- [ ] Password reset: build a real reset experience: the email carries a ~200-character JWT the caregiver must paste as a "code"; use a short code or a working deep link (needs a product decision and an app change)
 - [ ] Vitals access grant: stop comparing a user ID with a patient ID; use the `accepted` status
 - [x] Only the booking's own caregiver can cancel it or change its state; only paid bookings can be accepted — `security/access-control`, 2026-10-05
 - [x] Public diagnostics removed: `/booking/ws/stats` is admin-only, `/auth/test-cloudinary` deleted — 2026-10-05
