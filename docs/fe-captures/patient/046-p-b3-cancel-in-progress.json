@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/555f5030-fcc3-4df9-b30c-69ca3be32f4c/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "booking_in_progress",
+        "message": "The visit has already started, so it cannot be cancelled in the app. Please contact support."
+      }
+    }
+  }
+}

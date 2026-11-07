@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/9a5ec5b3-4b28-483e-8c51-1c952d6b32eb/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "accepted_fee_kobo": 0
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "booking_id": "9a5ec5b3-4b28-483e-8c51-1c952d6b32eb",
+      "booking_code": "027BFAAF",
+      "status": "cancelled",
+      "already_cancelled": false,
+      "fee_tier": "none",
+      "fee_percent": 0,
+      "fee_amount": 0.0,
+      "fee_amount_kobo": 0,
+      "paid_amount": 55000.0,
+      "paid_amount_kobo": 5500000,
+      "refundable_amount": 55000.0,
+      "refundable_amount_kobo": 5500000,
+      "refund_queued": true,
+      "refund_destination": "original_method",
+      "refund_needs_approval": true,
+      "caregiver_assigned": false,
+      "refund": {
+        "status": "under_review",
+        "amount": 55000.0
+      }
+    }
+  },
+  "note": "Booking 5: the family paid on the link a moment ago and the webhook has not arrived. SIMULATED: the fake Paystack says it was paid. The cancel settles the payment first, then cancels it as a paid booking."
+}

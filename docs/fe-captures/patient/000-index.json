@@ -1,0 +1,307 @@
+{
+  "generated_by": "scripts/capture_patient_flow.py",
+  "run_tag": "9514d7",
+  "captured_at": "2026-11-07T14:33:34.753163Z",
+  "captures": [
+    {
+      "file": "001-c-location.json",
+      "label": "c-location",
+      "status": 200
+    },
+    {
+      "file": "002-p-auth-register.json",
+      "label": "p-auth-register",
+      "status": 200
+    },
+    {
+      "file": "003-p-auth-verify-email.json",
+      "label": "p-auth-verify-email",
+      "status": 200
+    },
+    {
+      "file": "004-p-auth-login-mobile.json",
+      "label": "p-auth-login-mobile",
+      "status": 200
+    },
+    {
+      "file": "005-q-auth-register.json",
+      "label": "q-auth-register",
+      "status": 200
+    },
+    {
+      "file": "006-q-auth-verify-email.json",
+      "label": "q-auth-verify-email",
+      "status": 200
+    },
+    {
+      "file": "007-q-auth-login-mobile.json",
+      "label": "q-auth-login-mobile",
+      "status": 200
+    },
+    {
+      "file": "008-free-booking-payment-webhook.json",
+      "label": "free-booking-payment-webhook",
+      "status": 200
+    },
+    {
+      "file": "009-p-bookings-list-dispatching.json",
+      "label": "p-bookings-list-dispatching",
+      "status": 200
+    },
+    {
+      "file": "010-p-b1-detail-before-cancel.json",
+      "label": "p-b1-detail-before-cancel",
+      "status": 200
+    },
+    {
+      "file": "011-p-b1-cancel-terms-free.json",
+      "label": "p-b1-cancel-terms-free",
+      "status": 200
+    },
+    {
+      "file": "012-p-b1-cancel.json",
+      "label": "p-b1-cancel",
+      "status": 200
+    },
+    {
+      "file": "013-p-b1-cancel-again.json",
+      "label": "p-b1-cancel-again",
+      "status": 200
+    },
+    {
+      "file": "014-p-b1-cancel-terms-after.json",
+      "label": "p-b1-cancel-terms-after",
+      "status": 200
+    },
+    {
+      "file": "015-db-b1-refund-rows.json",
+      "label": "db-b1-refund-rows",
+      "status": null
+    },
+    {
+      "file": "016-p-b1-detail-after-cancel.json",
+      "label": "p-b1-detail-after-cancel",
+      "status": 200
+    },
+    {
+      "file": "017-p-bookings-list-after-cancel.json",
+      "label": "p-bookings-list-after-cancel",
+      "status": 200
+    },
+    {
+      "file": "018-admin-refunds-queue.json",
+      "label": "admin-refunds-queue",
+      "status": 200
+    },
+    {
+      "file": "019-admin-refund-approve.json",
+      "label": "admin-refund-approve",
+      "status": 200
+    },
+    {
+      "file": "020-p-b1-detail-refund-approved.json",
+      "label": "p-b1-detail-refund-approved",
+      "status": 200
+    },
+    {
+      "file": "021-c-accept-b2.json",
+      "label": "c-accept-b2",
+      "status": 200
+    },
+    {
+      "file": "022-p-b2-detail-accepted.json",
+      "label": "p-b2-detail-accepted",
+      "status": 200
+    },
+    {
+      "file": "023-p-bookings-list-accepted.json",
+      "label": "p-bookings-list-accepted",
+      "status": 200
+    },
+    {
+      "file": "024-p-b2-cancel-terms-standard.json",
+      "label": "p-b2-cancel-terms-standard",
+      "status": 200
+    },
+    {
+      "file": "025-q-b2-cancel-terms-other-patient.json",
+      "label": "q-b2-cancel-terms-other-patient",
+      "status": 403
+    },
+    {
+      "file": "026-q-b2-cancel-other-patient.json",
+      "label": "q-b2-cancel-other-patient",
+      "status": 403
+    },
+    {
+      "file": "027-c-b2-cancel-terms-as-caregiver.json",
+      "label": "c-b2-cancel-terms-as-caregiver",
+      "status": 403
+    },
+    {
+      "file": "028-none-b2-cancel-terms-no-token.json",
+      "label": "none-b2-cancel-terms-no-token",
+      "status": 401
+    },
+    {
+      "file": "029-p-b2-cancel-terms-missing.json",
+      "label": "p-b2-cancel-terms-missing",
+      "status": 404
+    },
+    {
+      "file": "030-p-b2-cancel-missing.json",
+      "label": "p-b2-cancel-missing",
+      "status": 404
+    },
+    {
+      "file": "031-p-b2-cancel-bad-body.json",
+      "label": "p-b2-cancel-bad-body",
+      "status": 422
+    },
+    {
+      "file": "032-p-b2-cancel-terms-changed.json",
+      "label": "p-b2-cancel-terms-changed",
+      "status": 409
+    },
+    {
+      "file": "033-p-b2-cancel-standard.json",
+      "label": "p-b2-cancel-standard",
+      "status": 200
+    },
+    {
+      "file": "034-p-b2-cancel-standard-again.json",
+      "label": "p-b2-cancel-standard-again",
+      "status": 200
+    },
+    {
+      "file": "035-db-b2-refund-rows.json",
+      "label": "db-b2-refund-rows",
+      "status": null
+    },
+    {
+      "file": "036-db-b2-caregiver-outbox.json",
+      "label": "db-b2-caregiver-outbox",
+      "status": null
+    },
+    {
+      "file": "037-p-b2-detail-after-cancel.json",
+      "label": "p-b2-detail-after-cancel",
+      "status": 200
+    },
+    {
+      "file": "038-c-b2-detail-as-assigned-caregiver.json",
+      "label": "c-b2-detail-as-assigned-caregiver",
+      "status": 200
+    },
+    {
+      "file": "039-c-accept-b3.json",
+      "label": "c-accept-b3",
+      "status": 200
+    },
+    {
+      "file": "040-p-b3-cancel-terms-late-accepted.json",
+      "label": "p-b3-cancel-terms-late-accepted",
+      "status": 200
+    },
+    {
+      "file": "041-c-on-my-way-b3.json",
+      "label": "c-on-my-way-b3",
+      "status": 200
+    },
+    {
+      "file": "042-p-b3-cancel-terms-en-route.json",
+      "label": "p-b3-cancel-terms-en-route",
+      "status": 200
+    },
+    {
+      "file": "043-p-b3-detail-en-route.json",
+      "label": "p-b3-detail-en-route",
+      "status": 200
+    },
+    {
+      "file": "044-c-start-b3.json",
+      "label": "c-start-b3",
+      "status": 200
+    },
+    {
+      "file": "045-p-b3-cancel-terms-in-progress.json",
+      "label": "p-b3-cancel-terms-in-progress",
+      "status": 200
+    },
+    {
+      "file": "046-p-b3-cancel-in-progress.json",
+      "label": "p-b3-cancel-in-progress",
+      "status": 409
+    },
+    {
+      "file": "047-c-complete-b3.json",
+      "label": "c-complete-b3",
+      "status": 200
+    },
+    {
+      "file": "048-p-b3-cancel-terms-completed.json",
+      "label": "p-b3-cancel-terms-completed",
+      "status": 200
+    },
+    {
+      "file": "049-p-b3-cancel-completed.json",
+      "label": "p-b3-cancel-completed",
+      "status": 409
+    },
+    {
+      "file": "050-p-b3-detail-completed.json",
+      "label": "p-b3-detail-completed",
+      "status": 200
+    },
+    {
+      "file": "051-db-b3-refund-rows.json",
+      "label": "db-b3-refund-rows",
+      "status": null
+    },
+    {
+      "file": "052-p-u1-cancel-terms-unpaid.json",
+      "label": "p-u1-cancel-terms-unpaid",
+      "status": 200
+    },
+    {
+      "file": "053-p-u1-cancel-unpaid.json",
+      "label": "p-u1-cancel-unpaid",
+      "status": 200
+    },
+    {
+      "file": "054-p-u1-cancel-unpaid-again.json",
+      "label": "p-u1-cancel-unpaid-again",
+      "status": 200
+    },
+    {
+      "file": "055-db-u1-refund-rows.json",
+      "label": "db-u1-refund-rows",
+      "status": null
+    },
+    {
+      "file": "056-p-u1-detail-after-cancel.json",
+      "label": "p-u1-detail-after-cancel",
+      "status": 200
+    },
+    {
+      "file": "057-p-u2-cancel-paid-but-webhook-late.json",
+      "label": "p-u2-cancel-paid-but-webhook-late",
+      "status": 200
+    },
+    {
+      "file": "058-db-u2-refund-rows.json",
+      "label": "db-u2-refund-rows",
+      "status": null
+    },
+    {
+      "file": "059-p-u3-cancel-paystack-unreachable.json",
+      "label": "p-u3-cancel-paystack-unreachable",
+      "status": 503
+    },
+    {
+      "file": "060-p-u3-detail-still-pending.json",
+      "label": "p-u3-detail-still-pending",
+      "status": 200
+    }
+  ]
+}

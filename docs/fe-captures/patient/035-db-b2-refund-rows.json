@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT ... FROM refunds WHERE booking_id = <booking 2>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "status": "pending_approval",
+        "reason_code": "cancelled_by_booker",
+        "origin": "system",
+        "suggested_amount_kobo": 4500000,
+        "amount_kobo": null,
+        "destination": null
+      }
+    ]
+  },
+  "note": "Exactly one refund: total paid minus 20% of the service fee."
+}

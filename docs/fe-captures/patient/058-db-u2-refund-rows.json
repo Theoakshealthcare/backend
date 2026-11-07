@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT ... FROM refunds WHERE booking_id = <booking 5>",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "status": "pending_approval",
+        "reason_code": "cancelled_by_booker",
+        "origin": "system",
+        "suggested_amount_kobo": 5500000,
+        "amount_kobo": null,
+        "destination": null
+      }
+    ]
+  },
+  "note": "The payment was not cancelled away: it is refunded through the queue."
+}

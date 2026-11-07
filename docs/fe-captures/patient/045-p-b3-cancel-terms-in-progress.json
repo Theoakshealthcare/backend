@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/555f5030-fcc3-4df9-b30c-69ca3be32f4c/cancel-terms",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "booking_id": "555f5030-fcc3-4df9-b30c-69ca3be32f4c",
+      "booking_code": "1A382BB3",
+      "can_cancel": false,
+      "reason": "booking_in_progress",
+      "message": "The visit has already started, so it cannot be cancelled in the app. Please contact support.",
+      "fee_tier": "none",
+      "fee_percent": 0,
+      "fee_amount": 0.0,
+      "fee_amount_kobo": 0,
+      "paid_amount": 0.0,
+      "paid_amount_kobo": 0,
+      "refundable_amount": 0.0,
+      "refundable_amount_kobo": 0,
+      "refund_will_be_queued": false,
+      "refund_destination": null,
+      "refund_needs_approval": false,
+      "caregiver_assigned": true,
+      "policy": null,
+      "as_of": "2026-11-07T14:33:34.115645"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/28724045-ec58-4e31-9f5c-f7beb07f7cd2/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "accepted_fee_kobo": 1000000
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "booking_id": "28724045-ec58-4e31-9f5c-f7beb07f7cd2",
+      "booking_code": "D96F7B66",
+      "status": "cancelled",
+      "already_cancelled": false,
+      "fee_tier": "standard",
+      "fee_percent": 20,
+      "fee_amount": 10000.0,
+      "fee_amount_kobo": 1000000,
+      "paid_amount": 55000.0,
+      "paid_amount_kobo": 5500000,
+      "refundable_amount": 45000.0,
+      "refundable_amount_kobo": 4500000,
+      "refund_queued": true,
+      "refund_destination": "original_method",
+      "refund_needs_approval": true,
+      "caregiver_assigned": true,
+      "refund": {
+        "status": "under_review",
+        "amount": 45000.0
+      }
+    }
+  }
+}

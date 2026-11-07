@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/3df59f25-cb2b-46d6-a20d-68af4b6b86c4/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "booking_id": "3df59f25-cb2b-46d6-a20d-68af4b6b86c4",
+      "booking_code": "6B1E78B6",
+      "status": "cancelled",
+      "already_cancelled": true,
+      "fee_tier": "none",
+      "fee_percent": 0,
+      "fee_amount": 0.0,
+      "fee_amount_kobo": 0,
+      "paid_amount": 0.0,
+      "paid_amount_kobo": 0,
+      "refundable_amount": 0.0,
+      "refundable_amount_kobo": 0,
+      "refund_queued": false,
+      "refund_destination": null,
+      "refund_needs_approval": false,
+      "caregiver_assigned": false,
+      "refund": null
+    }
+  }
+}

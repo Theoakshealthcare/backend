@@ -214,6 +214,21 @@ class PatientDetails(BaseModel):
         from_attributes = True
 
 
+# Refund summary on a booking (patient view): what the family is shown, not the internal refund states
+class RefundSummary(BaseModel):
+    status: Literal["under_review", "processing", "needs_bank_details", "refunded", "declined", "contact_support"] = Field(
+        description="under_review: waiting for a person to approve it. processing: approved and on its way (also while Finance "
+                    "retries a failed attempt). needs_bank_details: the bank asked for the family's account; support will "
+                    "ask for it. refunded: money sent. declined: not refunded. contact_support: closed without a payout; "
+                    "support follows up.")
+    amount: Optional[float] = Field(
+        None, description="Naira that will be (or was) refunded; null while a person still has to decide the amount",
+        example=36000.0)
+
+    class Config:
+        from_attributes = True
+
+
 # Booking Response
 class BookingResponse(BaseModel):
     id: uuid.UUID
@@ -252,6 +267,14 @@ class BookingResponse(BaseModel):
                     "en_route; null for everyone else and in every other response.",
         example="4821",
     )
+    cancel_fee_tier: Optional[Literal["none", "standard", "late"]] = Field(
+        None, description="Which cancellation fee applied when the booker cancelled (none = free). Null while the booking is "
+                          "not cancelled by its booker, and always null for caregivers.")
+    cancel_fee: Optional[float] = Field(
+        None, description="Naira the booker was charged for cancelling (0 for a free cancel). Null unless the booker "
+                          "cancelled; patient views only.", example=8000.0)
+    refund: Optional[RefundSummary] = Field(
+        None, description="The booking's refund, newest one, when it has one. Patient views only; null for caregivers.")
     # Payment fields for booking creation response
     payment_url: Optional[str] = Field(
         None,
@@ -562,3 +585,67 @@ WebSocketMessage = Union[
     WebSocketError,
     WebSocketHeartbeat
 ]
+
+
+# Cancelling from the patient app (P4-BE)
+class CancelPolicyOut(BaseModel):
+    free_hours: int = Field(description="Cancelling more than this many hours before the visit is free", example=12)
+    late_hours: int = Field(description="Cancelling less than this many hours before the visit (or once the caregiver is on "
+                                        "the way) pays the late fee", example=2)
+    fee_percent: int = Field(description="Percent of the service fee kept between late_hours and free_hours", example=20)
+    late_fee_percent: int = Field(description="Percent of the service fee kept inside late_hours or en route", example=50)
+
+
+class CancelTermsResponse(BaseModel):
+    booking_id: uuid.UUID
+    booking_code: str
+    can_cancel: bool
+    reason: Optional[Literal["booking_in_progress", "booking_completed", "booking_already_cancelled", "booking_closed"]] = Field(
+        None, description="Why it cannot be cancelled (null when it can); the same codes the cancel endpoint's 409 uses")
+    message: Optional[str] = Field(None, description="Plain-language version of reason, safe to show")
+    fee_tier: Literal["none", "standard", "late"]
+    fee_percent: int = Field(description="Percent of the SERVICE fee kept (0 for the free tier)")
+    fee_amount: float = Field(description="Naira kept if the booking is cancelled now", example=8000.0)
+    fee_amount_kobo: int = Field(description="Same in kobo: send it back as accepted_fee_kobo when confirming", example=80000)
+    paid_amount: float = Field(description="Naira paid so far (0 when the booking is not paid yet)")
+    paid_amount_kobo: int
+    refundable_amount: float = Field(description="Naira refunded if cancelled now: paid minus fee_amount")
+    refundable_amount_kobo: int
+    refund_will_be_queued: bool = Field(description="True when cancelling queues a refund (a paid booking). Never automatic: "
+                                                    "a person approves it.")
+    refund_destination: Optional[Literal["original_method"]] = Field(
+        None, description="Where the refund goes: the original payment method (Paystack). Null when no refund is queued.")
+    refund_needs_approval: bool
+    caregiver_assigned: bool
+    policy: Optional[CancelPolicyOut] = None
+    as_of: datetime = Field(description="When these terms were worked out (UTC). They can change: confirm with accepted_fee_kobo.")
+
+
+class CancelBookingRequest(BaseModel):
+    reason: Optional[str] = Field(None, max_length=500, description="Why the family is cancelling. Optional; shown to the "
+                                                                    "person who approves the refund.")
+    accepted_fee_kobo: Optional[int] = Field(
+        None, ge=0, description="The fee the person saw and agreed to (fee_amount_kobo from cancel-terms). If the fee is "
+                                "higher when the cancel is decided, nothing is cancelled and the response is 409 "
+                                "terms_changed. Omit only if you do not show a fee.")
+
+
+class CancelBookingResponse(BaseModel):
+    booking_id: uuid.UUID
+    booking_code: str
+    status: Literal["cancelled"]
+    already_cancelled: bool = Field(description="True when this is a repeat of a cancel the booker already made: nothing "
+                                                "was changed and the first result is returned again")
+    fee_tier: Literal["none", "standard", "late"]
+    fee_percent: int
+    fee_amount: float
+    fee_amount_kobo: int
+    paid_amount: float
+    paid_amount_kobo: int
+    refundable_amount: float
+    refundable_amount_kobo: int
+    refund_queued: bool
+    refund_destination: Optional[Literal["original_method"]] = None
+    refund_needs_approval: bool
+    caregiver_assigned: bool
+    refund: Optional[RefundSummary] = None

@@ -31,7 +31,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session, object_session
 
-from app.db.models.booking import Booking, BookingStatus, CaregiverLocation, PaymentStatus
+from app.db.models.booking import Booking, BookingNotification, BookingStatus, CaregiverLocation, PaymentStatus
 from app.services import booking_policy, earnings, onmyway
 from app.services.notification_service import NotificationService
 
@@ -186,6 +186,10 @@ def cancel_by_booker(db: Session, booking_id: uuid.UUID, now: Optional[datetime]
     if compensable and decided.fee_kobo > 0:
         earnings.credit_late_cancel(db, booking, decided.fee_kobo, now)  # a share of the fee kept; same transaction, same lock
     NotificationService(db).cancelled_by_booker(booking)  # the caregiver, if one was assigned: same transaction
+    for offer in db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id,
+                                                       BookingNotification.response.is_(None)):
+        offer.response = "booking_cancelled"  # the caregiver app lists unanswered offers as new requests: close them
+        offer.response_at = now
     if commit:
         db.commit()
     else:

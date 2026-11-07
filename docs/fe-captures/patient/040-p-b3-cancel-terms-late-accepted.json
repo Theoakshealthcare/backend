@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/555f5030-fcc3-4df9-b30c-69ca3be32f4c/cancel-terms",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "booking_id": "555f5030-fcc3-4df9-b30c-69ca3be32f4c",
+      "booking_code": "1A382BB3",
+      "can_cancel": true,
+      "reason": null,
+      "message": null,
+      "fee_tier": "late",
+      "fee_percent": 50,
+      "fee_amount": 25000.0,
+      "fee_amount_kobo": 2500000,
+      "paid_amount": 55000.0,
+      "paid_amount_kobo": 5500000,
+      "refundable_amount": 30000.0,
+      "refundable_amount_kobo": 3000000,
+      "refund_will_be_queued": true,
+      "refund_destination": "original_method",
+      "refund_needs_approval": true,
+      "caregiver_assigned": true,
+      "policy": {
+        "free_hours": 12,
+        "late_hours": 2,
+        "fee_percent": 20,
+        "late_fee_percent": 50
+      },
+      "as_of": "2026-11-07T14:33:34.049906"
+    }
+  },
+  "note": "Booking 3: 1 hour out: inside the late window."
+}

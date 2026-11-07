@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/28724045-ec58-4e31-9f5c-f7beb07f7cd2/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "accepted_fee_kobo": -5
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "body",
+            "accepted_fee_kobo"
+          ],
+          "msg": "Input should be greater than or equal to 0",
+          "input": -5,
+          "ctx": {
+            "ge": 0
+          }
+        }
+      ]
+    }
+  }
+}
