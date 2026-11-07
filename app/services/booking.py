@@ -39,6 +39,22 @@ def _naira(kobo: int) -> float:
     return float(kobo_to_naira(kobo))
 
 
+class BookingSettingsNotConfigured(Exception):
+    """No ``booking_settings`` row exists, so nothing can be priced (a new environment). The endpoints answer 503 with
+    ``detail.code`` ``booking_settings_not_configured``. Still an ``Exception`` with the old message for other callers."""
+
+    def __init__(self) -> None:
+        super().__init__("Booking settings not configured.")
+
+
+def _no_settings() -> BookingSettingsNotConfigured:
+    logger.error(
+        "booking_settings has no row: pricing is unavailable and bookings cannot be previewed or created. Every new "
+        "environment needs its first pricing version (POST /api/v1/booking-settings/ as an admin with pricing.write); "
+        "it is never seeded automatically.")
+    return BookingSettingsNotConfigured()
+
+
 class BookingActionForbidden(Exception):
     """The caregiver is not allowed to perform this action on this booking (HTTP 403)."""
 
@@ -88,7 +104,7 @@ class BookingService:
         # Fetch latest booking settings
         settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
         if not settings:
-            raise Exception("Booking settings not configured.")
+            raise _no_settings()
         
         # Price in kobo (single source of truth shared with create_booking)
         multiplier = service_multiplier(settings, preview_data.service_type, channel="app")
@@ -189,7 +205,7 @@ class BookingService:
             # Fetch latest booking settings
             settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
             if not settings:
-                raise Exception("Booking settings not configured.")
+                raise _no_settings()
 
             # Price in kobo. What we store is exactly what we send to Paystack and what settlement
             # later compares against.

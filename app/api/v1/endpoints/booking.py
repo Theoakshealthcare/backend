@@ -27,7 +27,7 @@ from app.schemas.booking import (
     CancelBookingRequest, CancelBookingResponse, CancelTermsResponse,
 )
 from app.services.booking import (
-    BookingActionForbidden, BookingService, BookingStateConflict, BookingVisitCodeError,
+    BookingActionForbidden, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
 from app.services import patient_booking_cancel
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
@@ -38,6 +38,14 @@ from app.services.paystack import PaystackService
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _settings_not_configured() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={"code": "booking_settings_not_configured",
+                "message": "Pricing is not available right now. Please try again later."},
+    )
 
 
 def get_booking_service(db: Session = Depends(get_db)) -> BookingService:
@@ -198,11 +206,12 @@ def ensure_booking_read_access(db: Session, user: Union[User, AdminUser], bookin
                 }
             }
         },
-        500: {
-            "description": "Booking settings not configured",
+        503: {
+            "description": "No pricing version exists yet (a new environment). detail.code is booking_settings_not_configured",
             "content": {
                 "application/json": {
-                    "example": {"detail": "Booking settings not configured"}
+                    "example": {"detail": {"code": "booking_settings_not_configured",
+                                           "message": "Pricing is not available right now. Please try again later."}}
                 }
             }
         }
@@ -238,6 +247,8 @@ def get_booking_preview(
     try:
         preview = booking_service.calculate_booking_preview(preview_data)
         return preview
+    except BookingSettingsNotConfigured:
+        raise _settings_not_configured()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -270,7 +281,8 @@ def get_booking_preview(
                     "example": {"detail": "Error creating booking"}
                 }
             }
-        }
+        },
+        503: {"description": "No pricing version exists yet. detail.code is booking_settings_not_configured"},
     },
     tags=["Patient Bookings"]
 )
@@ -340,6 +352,8 @@ async def create_booking(
         
         return enriched_booking
         
+    except BookingSettingsNotConfigured:
+        raise _settings_not_configured()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
