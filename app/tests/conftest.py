@@ -106,6 +106,15 @@ def _block_network(monkeypatch):
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", _refuse)
 
 
+@pytest.fixture(autouse=True)
+def _wallet_refunds_on(monkeypatch):
+    """The v1 product default is REFUND_WALLET_CREDIT_ENABLED=False (the patient wallet is hidden). The refund suites test the
+    wallet path itself, so it is on here; test_visit_rules.py switches it off explicitly to test the default."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "REFUND_WALLET_CREDIT_ENABLED", True)
+
+
 @pytest.fixture
 def sent_emails(monkeypatch):
     """Capture emails instead of sending them. Returns a list of (to, kind, payload)."""

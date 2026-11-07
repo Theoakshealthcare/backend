@@ -570,6 +570,7 @@ def get_caregiver_notifications(
             "notification_type": n.notification_type,
             "is_read": n.is_read,
             "created_at": n.created_at,
+            "response": n.response,
             "booking": enrich_booking_with_details(
                 n.booking, booking_service.db, viewer_caregiver_id=caregiver.id
             ),

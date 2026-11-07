@@ -67,6 +67,13 @@ class EarningForbidden(Exception):
 
 NO_SHOW_HOLD_REASON = "No-show flagged on this booking"
 
+# A visit the caregiver completed after spending under this share of the booked time on site is still completed, but its
+# earning is credited already held (a system hold, no admin involved) so Finance looks at it before it can clear. A code
+# constant on purpose (no booking_policy column yet: see the SOP follow-ups). Exactly this share is NOT short.
+SHORT_VISIT_MIN_PERCENT = 50
+SHORT_VISIT_HOLD_REASON = (f"Short visit: under {SHORT_VISIT_MIN_PERCENT}% of the booked time was spent on site "
+                           "(held for Finance review)")
+
 
 @dataclass(frozen=True)
 class Terms:
@@ -125,25 +132,47 @@ def _no_show_hold(booking: Booking) -> Dict[str, Any]:
     return {"held_reason": NO_SHOW_HOLD_REASON, "held_by": booking.no_show_flagged_by}
 
 
+def is_short_visit(booking: Booking) -> bool:
+    """True when the time actually on site (``actual_end_time - actual_start_time``) is under ``SHORT_VISIT_MIN_PERCENT`` of
+    the booked duration. Exactly the minimum is not short, nor is a visit whose start or end was never recorded (the time on
+    site cannot be proven short; a caregiver's own ``complete`` always follows a ``start`` that stamped it)."""
+    start, end, booked_hours = booking.actual_start_time, booking.actual_end_time, int(booking.duration_hours or 0)
+    if start is None or end is None or booked_hours <= 0:
+        return False
+    return (end - start) * 100 < timedelta(hours=booked_hours) * SHORT_VISIT_MIN_PERCENT
+
+
+def _short_visit_hold(booking: Booking) -> Dict[str, Any]:
+    """The held_reason / held_by to credit with for a short visit: a system hold, so ``held_by`` is None."""
+    if not is_short_visit(booking):
+        return {}
+    return {"held_reason": SHORT_VISIT_HOLD_REASON, "held_by": None}
+
+
 def _audit_created_held(db: Session, tx: CaregiverTransaction, reason: str, admin_id: Optional[UUID]) -> None:
-    """An earning born held leaves the same audit row the admin hold endpoint writes, attributed to the admin who flagged."""
+    """An earning born held leaves the same audit row the admin hold endpoint writes, attributed to the admin who flagged.
+    A system hold (a short visit) has no admin to attribute: ``admin_audit_log.admin_user_id`` is NOT NULL, so it leaves no
+    audit row; the reason and ``held`` status live on the earning itself (``status_reason``, shown to Finance)."""
     if admin_id is None:
-        logger.warning("earning %s created held (%s) but the flagging admin is unknown: no audit row", tx.id, reason)
+        logger.info("earning %s created held by the system (%s): no admin, no audit row", tx.id, reason)
         return
     AuditService(db).record(admin_user_id=admin_id, action="earning.hold", entity_type="caregiver_transaction",
                             entity_id=tx.id, before=None, after=_snapshot(tx), reason=reason)
 
 
-def credit_visit(db: Session, booking: Booking, now: Optional[datetime] = None) -> Optional[CaregiverTransaction]:
+def credit_visit(db: Session, booking: Booking, now: Optional[datetime] = None, *,
+                 check_short_visit: bool = False) -> Optional[CaregiverTransaction]:
     """Credit the assigned caregiver for a completed visit. The caller holds the booking lock and owns the transaction;
     nothing is committed here. Calling it again for the same booking returns the first row. A booking an admin flagged as
     a no-show (and did not clear by reassigning) is credited already ``held``: the money is recorded but cannot clear
-    until Finance looks at it."""
+    until Finance looks at it. So is a short visit (``check_short_visit``, passed by the caregiver's own ``complete``: a
+    Super Admin status correction stamps start and end together and must not trip it). The no-show hold wins when both apply
+    (it is attributed to the admin and needs ``ledger.adjust`` to release)."""
     now = now or booking.actual_end_time or datetime.utcnow()
     terms = terms_for(db, booking)
+    hold_kw = _no_show_hold(booking) or (_short_visit_hold(booking) if check_short_visit else {})
     return _credit(db, booking, tx_type=TX_EARNING, base_kobo=booking.service_fee_kobo, percent=terms.visit_share_percent,
-                   hold_hours=terms.hold_hours, now=now, narration=f"Visit {booking.booking_code}",
-                   **_no_show_hold(booking))
+                   hold_hours=terms.hold_hours, now=now, narration=f"Visit {booking.booking_code}", **hold_kw)
 
 
 def credit_late_cancel(db: Session, booking: Booking, fee_kobo: int,

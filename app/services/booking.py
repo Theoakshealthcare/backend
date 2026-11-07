@@ -524,6 +524,14 @@ class BookingService:
                 from app.services import dropout  # local: dropout -> dispatch -> this module
                 if dropout.has_dropped(self.db, booking.id, caregiver_id):
                     raise BookingActionForbidden("You cancelled this booking")
+                # A decline is final (owner rule 2026-11-07): the app hides Accept for a declined offer, and the server
+                # refuses it too. Nothing is touched (no dropout, no earnings). A fresh offer (admin re-offer or a
+                # re-dispatch wave) resets the response to None, so it is a new offer, not this one.
+                if self.db.query(BookingNotification.id).filter(
+                        BookingNotification.booking_id == booking_id,
+                        BookingNotification.caregiver_id == caregiver_id,
+                        BookingNotification.response == "declined").first() is not None:
+                    raise BookingActionForbidden("You declined this offer")
                 if booking.status != BookingStatus.PENDING or booking.caregiver_id is not None:
                     raise BookingStateConflict("Booking is no longer available")
                 if booking.payment_status != PaymentStatus.PAID:
@@ -600,7 +608,8 @@ class BookingService:
                         raise BookingStateConflict("Only a booking in progress can be completed")
                     booking.status = BookingStatus.COMPLETED
                     booking.actual_end_time = datetime.utcnow()
-                    earnings.credit_visit(self.db, booking, booking.actual_end_time)  # same transaction, under the lock
+                    earnings.credit_visit(self.db, booking, booking.actual_end_time,
+                                          check_short_visit=True)  # same transaction, under the lock
                     NotificationService(self.db).visit_completed(booking)
                 elif action == "cancel":
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):

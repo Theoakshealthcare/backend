@@ -1758,6 +1758,7 @@ _capture `086-a-accept-b2.json`_
 
 - Already taken, or accepted twice: `409` `{"detail": "Booking is no longer available"}` _(capture `078-a-accept-taken-by-someone-else.json`)_ (the same body for a repeat by the winner: `087-a-accept-b2-again.json`)
 - Not approved (rejected caregiver): `403` `{"detail": "Your account is not approved to accept bookings"}` _(capture `079-b-accept-not-approved.json`)_
+- **You declined this offer (UX consequence, new 2026-11-07):** `403` `{"detail": "You declined this offer"}` **[not live]** (checked by `app/tests/test_visit_rules.py`; the capture script now records it as `a-accept-b3-after-decline` at the next re-capture). A decline is **final**: once the caregiver declines an offer, `accept` on it is refused and nothing changes (no drop-out is recorded, no earning). Hide **Accept and Decline** for an offer whose notification `response` is not `null` (below); if Accept is sent anyway, show the `detail` as is. A fresh offer (Oakly operations re-offering the visit, or a later search wave after a drop-out) arrives with `response` back at `null` and can be accepted. Being too slow is different: an offer someone else took stays `409` `{"detail": "Booking is no longer available"}`.
 - Unknown booking id: `404` `{"detail": "Booking not found"}` _(capture `080-a-accept-unknown-booking.json`)_
 - Patient token: `403` `{"detail": "Access denied. Caregiver account required."}` _(capture `082-a-action-as-patient.json`)_
 - `401` `{"detail": "Not authenticated"}` _(capture `083-a-action-no-auth.json`)_
@@ -1862,6 +1863,18 @@ _capture `084-a-decline-b3.json`_
 
 After a decline the booking disappears from the caregiver's `open_offers` (`085-a-home-after-decline.json`).
 
+**The offer's answer on the notification list (new field, additive, 2026-11-07, `GET /caregiver/notifications`):** each notification now carries a top-level `response`, next to `is_read`. **[not live]**: the captured example in section 7 (`074-a-notifications.json`) was taken before the field existed and does not show it; shape and values are asserted by `app/tests/test_visit_rules.py::test_the_notification_list_exposes_the_offers_response`, and the capture script adds `a-notifications-after-decline` at the next re-capture.
+
+| `response` | Meaning | What the app does |
+|---|---|---|
+| `null` | Not answered yet | Show Accept and Decline |
+| `"declined"` | The caregiver declined (final) | Hide Accept and Decline; it may be shown as "You declined" |
+| `"accept"` | The caregiver accepted | Show the booking, no offer buttons |
+| `"auto_declined"` | Someone else took the booking | Hide the buttons ("no longer available") |
+| `"booking_cancelled"`, `"reassigned"`, `"assigned_by_admin"` | Set by the system or Oakly operations | Hide the buttons |
+
+Rule of thumb: offer buttons only when `response` is `null` **and** the booking is still `pending`. The field is the string the server stored, so treat an unknown value like a non-null one (no buttons). Trap: the field is on the **notification**, not on `booking`.
+
 **On my way** (accepted to `en_route`):
 `POST /api/v1/booking/caregiver/action/{booking_id}`
 
@@ -1949,6 +1962,8 @@ _capture `093-a-on-my-way.json`_
 - Again: `409` `{"detail": "Only an accepted booking can be marked on the way"}` _(capture `094-a-on-my-way-again.json`)_
 - **Too early (UX consequence):** `on_my_way` is refused with `409` until the booking policy's `onmyway_compensation_window_minutes` (120 by default) before the start, with `{"detail": "You can mark yourself on the way from 2 hours before the visit"}`. **[not live]** (shape from `test_visit_lifecycle.py`). Do not show the on-my-way button earlier than that; if it is tapped anyway, show the `detail` as is. It applies to app bookings and WhatsApp bookings alike. Reason: once a caregiver is on the way a family that cancels pays the late fee, so it must not be possible to set that off days ahead.
 - Complete before start: `409` `{"detail": "Only a booking in progress can be completed"}` _(capture `098-a-complete-before-start.json`)_
+
+**Start is not time-gated, a short visit is held for review (new 2026-11-07).** `start` works at any time for the assigned caregiver (only `on_my_way` is gated by the policy window above); the app's "I've arrived" button being enabled early is the backend's behaviour, by the owner's decision. What changed is the **money**: if the caregiver completes a visit after being on site (`actual_end_time - actual_start_time`) for **under 50% of the booked time** (`duration_hours`), the visit still completes normally (`200`, status `completed`), but the earning is credited already **`held`** instead of `pending_clearance`, with `status_reason` "Short visit: under 50% of the booked time was spent on site (held for Finance review)" and no admin attached; Finance reviews it and can release it, after which it clears like any earning. Exactly 50% is not short. **[not live]** (rule and states asserted by `app/tests/test_visit_rules.py`; the capture script's visit is backdated to 90 of 2 hours so the earnings captures below still show a normal visit). **Show it:** on the wallet a held earning already counts under `held_balance` and has `status: "held"`; the app should say "Under review" for a held earning rather than "Pending", and not promise a clearing date for it (`available_at` is set but the release job skips a held earning until Finance releases it). Do not tell the caregiver the visit failed: it was completed.
 
 **Start, Complete, Cancel**: see section 8 for start. Complete and cancel return the same raw-dict shape (`109-a-complete.json`, `114-a-cancel-b4.json`):
 - Complete again: `409` `{"detail": "Only a booking in progress can be completed"}` _(capture `110-a-complete-again.json`)_
@@ -3075,6 +3090,8 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Accept (win), accept (lose, repeat), not approved, unknown, bad enum, patient, no auth | Yes | 077-083, `a-accept-b2`, `a-accept-b2-again` |
 | Accept on an unpaid booking, accept without being offered | No | Automated tests only |
 | Decline | Yes | `a-decline-b3` |
+| Accept after a decline refused (`403`, "You declined this offer"); notification `response` field | **[not live]** | `app/tests/test_visit_rules.py` (test harness: real app and Postgres). The capture script records `a-notifications-after-decline` and `a-accept-b3-after-decline` at the next re-capture |
+| Short visit (under 50% of the booked time on site) completes and its earning is credited `held`; Finance releases it | **[not live]** | `app/tests/test_visit_rules.py` (boundaries, release, no payout while held) |
 | On my way and its 409 | Yes | `a-on-my-way`, `a-on-my-way-again` |
 | On my way refused earlier than the policy window (`409`, message above) | **[not live]** | `test_visit_lifecycle.py::test_on_my_way_a_day_early_is_refused...`; `scripts/whatsapp_local_e2e.py` checks it against the Docker stack; not in the capture script (it would renumber every later capture), add it at the next recapture |
 | Start: missing, malformed, wrong x3 -> `423`, right while locked, success, repeat | Yes | `a-start-*` |

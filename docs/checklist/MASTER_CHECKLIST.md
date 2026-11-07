@@ -80,6 +80,13 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] Password reset: fix the email arguments that cause a 500 — 2026-11-07, `fix/forgot-password-email` (device-pass-1 DP1-01; unknown emails now get the same 200; [SOP](../sop/2026-11-07-forgot-password-email.md))
 - [x] Password reset: a short emailed code instead of the ~200-character JWT — 2026-11-07, `feature/password-reset-code` (migration `0022`, stacked on PR #40, not pushed; hashed 5-digit code, 15 min, 5 tries, 3 emails/h, 20 wrong/24 h; reset applies the policy and ends other sessions; legacy token form kept, deprecated; [SOP](../sop/2026-11-07-password-reset-code.md), [FE guide](../fe-integration-guide-password-reset.md), live-captured)
     - [ ] **App** patient `resetPassword({code, newPassword})` adapter sends `{email, code, new_password}`; caregiver `ResetPassword.tsx` to a 5-digit code field; then switch the legacy token form off (`PASSWORD_RESET_LEGACY_TOKEN_ENABLED=false`) and delete it
+
+- [x] Visit rules from device pass 1 (DP1-05, DP1-06, cancel follow-up #1) — 2026-11-07, `feature/visit-rules` (not pushed; [SOP](../sop/2026-11-07-visit-rules.md); no migration, 0021 stays reserved)
+  - [x] Short-visit hold: a visit completed after under 50% of the booked time on site is credited `held` for Finance (constant `SHORT_VISIT_MIN_PERCENT`); `start` unchanged by decision
+  - [x] Final decline: accept after decline is `403 "You declined this offer"`; `response` added to the caregiver notification list
+  - [x] Wallet-credit refunds off in v1: `REFUND_WALLET_CREDIT_ENABLED` (default false), `409 wallet_refunds_disabled`
+  - [ ] Re-run the caregiver and admin FE captures so the guides' **[not live]** passages become captures
+- [ ] Password reset: build a real reset experience: the email carries a ~200-character JWT the caregiver must paste as a "code"; use a short code or a working deep link (needs a product decision and an app change)
 - [ ] Vitals access grant: stop comparing a user ID with a patient ID; use the `accepted` status
 - [x] Only the booking's own caregiver can cancel it or change its state; only paid bookings can be accepted — `security/access-control`, 2026-10-05
 - [x] Public diagnostics removed: `/booking/ws/stats` is admin-only, `/auth/test-cloudinary` deleted — 2026-10-05
@@ -424,6 +431,14 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [x] (Change password) Password reset bumps `token_version` — done 2026-11-07 with the reset code ([SOP](../sop/2026-11-07-password-reset-code.md))
 - [ ] (Change password) App-user `register` has no server-side password policy (`reset-password` now has it); `register`'s 422 also still echoes the password in `input`
 - [ ] (Password reset code) Per-IP / global limiter on `/auth/reset-password` and `/auth/password-recovery`; case-insensitive account lookup; `PUT /auth/profile` does not persist `full_name`/`email`/`password` (pre-existing); add the new FE guide to CI's `render_fe_guide --check` ([SOP](../sop/2026-11-07-password-reset-code.md))
+
+
+- [ ] (Visit rules) Make the 50% short-visit threshold a `booking_policy` field (migration after `0021`; today the code constant `SHORT_VISIT_MIN_PERCENT`)
+- [ ] (Visit rules) Admin console (`apps/admin`): hide the Oakly-wallet refund destination and "Switch to wallet" while `REFUND_WALLET_CREDIT_ENABLED` is off, read the coded 409 (`detail.code`), show a held short-visit earning's reason
+- [ ] (Visit rules) Caregiver app: hide Accept/Decline when the notification `response` is not `null`; label a held earning "Under review"
+- [ ] (Visit rules) Decide whether a caregiver who declined may be re-offered the visit by a drop-out wave or an operator (today yes, as a new offer); a system hold leaves no `admin_audit_log` row (the column is NOT NULL); `start` is still not time-gated (owner: follow the backend)
+- [ ] (Change password) Password reset by email (`/auth/reset-password`) should also bump `token_version` so a reset ends every session; today only change-password does
+- [ ] (Change password) App-user `register` and `reset-password` have no server-side password policy (change-password enforces 8 characters, 72 bytes, 5 distinct); `register`'s 422 also still echoes the password in `input`
 - [ ] (Change password) App-user login and refresh have no lockout or rate limit (only admin login does); `/auth/login/mobile` can be guessed without a wait
 - [ ] (Change password) App-user auth events are not audited (`admin_audit_log` is admin-only); a password change is logged by user id only. Add an app-user audit table, and an email or push notice "your password was changed"
 - [ ] (Care plans, after v1) Family read-only view through W4; admin console screens for plans and templates, and template create/edit; medication reminders and a per-dose record (clinical sign-off); creating a `CareRecipient` for app bookings that have none (today they get no plan); merging the plan's allergies with the patient record's; per-recipient vitals (same subject problem); retention period for plans ([design](../plans/2026-10-27-caregiver-care-plans-design.md) section 15)
