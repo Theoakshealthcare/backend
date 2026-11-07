@@ -11,7 +11,7 @@ from app.schemas.fallguard import (
     FallGuardQuestionCreate, FallGuardQuestionUpdate, FallGuardQuestionResponse,
     FallGuardAssessmentCreate, FallGuardAssessmentResponse
 )
-from app.services.fallguard import FallGuardService
+from app.services.fallguard import FallGuardService, FallGuardSubmissionError
 
 router = APIRouter()
 
@@ -31,7 +31,11 @@ def get_questions(
     return questions
 
 # Patient: Submit assessment
-@router.post("/submit", response_model=FallGuardAssessmentResponse)
+_SUBMIT_ERRORS = {422: {"description": "detail = {code, message[, question_id]}; code is one of fallguard_no_answers, "
+                                       "fallguard_duplicate_question, fallguard_unknown_question, fallguard_invalid_option"}}
+
+
+@router.post("/submit", response_model=FallGuardAssessmentResponse, responses=_SUBMIT_ERRORS)
 async def submit_assessment(
     data: FallGuardAssessmentCreate,
     current_user=Depends(get_current_patient),
@@ -41,7 +45,14 @@ async def submit_assessment(
     db_patient = service.db.query(Patient).filter(Patient.user_id == current_user.id).first()
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    assessment = await service.submit_assessment(db_patient.id, data)
+    # The score is computed on the server from the stored option values; any ``score`` the client sends is ignored.
+    try:
+        assessment = await service.submit_assessment(db_patient.id, data)
+    except FallGuardSubmissionError as exc:
+        detail = {"code": exc.code, "message": exc.message}
+        if exc.question_id is not None:
+            detail["question_id"] = str(exc.question_id)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
     # Prepare answers for response
     answers = []
     for ans in assessment.answers:

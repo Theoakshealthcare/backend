@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class FallGuardOption(BaseModel):
     text: str
@@ -37,8 +37,19 @@ class FallGuardAnswerResponse(FallGuardAnswerBase):
     class Config:
         from_attributes = True
 
+class FallGuardAnswerInput(BaseModel):
+    """One answer as the patient app sends it.
+
+    ``score`` is accepted so the clients already shipped keep working, but it is IGNORED: the server looks the score
+    up from the stored option whose ``text`` equals ``answer`` and computes the total itself.
+    """
+    question_id: uuid.UUID
+    answer: str
+    score: Optional[int] = Field(
+        default=None, description="Ignored. Accepted for older clients; the server scores from the stored options.")
+
 class FallGuardAssessmentCreate(BaseModel):
-    answers: List[FallGuardAnswerBase]
+    answers: List[FallGuardAnswerInput]
 
 class FallGuardAssessmentResponse(BaseModel):
     id: uuid.UUID
