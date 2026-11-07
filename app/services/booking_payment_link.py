@@ -9,6 +9,10 @@ Why it cannot double charge or create a second transaction:
 * **One reference per booking.** The booking keeps the reference it was created with, so every link for it is the same
   Paystack transaction, and Paystack accepts a successful charge on a reference once. Webhook, verify-payment, the expiry
   sweep and refunds all keep finding the booking by that reference, so nothing here needs them to change.
+  KNOWN LIMIT: Paystack's error reference says a reference already used on the integration cannot be initialised again
+  ("Duplicate Transaction Reference"), so against the real Paystack this endpoint is expected to answer 503
+  ``payment_link_unavailable`` for any booking that ``/create`` already initialised. The working fix is to keep the
+  ``authorization_url`` ``/create`` got (a nullable column, so a migration) and hand it back here; see the SOP.
 * **Nothing is written** when a link is handed out (no row, no state change), so a repeat or a retry cannot leave a
   second record behind.
 * **Paystack is asked first.** A payment whose webhook is late is settled (the same ``settle_booking_payment`` the webhook
@@ -40,7 +44,12 @@ from app.services.paystack import PaystackService
 
 logger = logging.getLogger(__name__)
 
-_LOCK_NAMESPACE = 7_204_002  # first half of the advisory lock key; the second half is the booking id
+
+
+def _lock_key(booking_id: uuid.UUID) -> int:
+    """63 bits of the booking id (positive bigint): two bookings colliding, and so a false "in progress", is negligible.
+    The other advisory locks in the app are small constants (booking settings 7_204_001, KYC 7_204_1xx)."""
+    return int.from_bytes(booking_id.bytes[:8], "big") >> 1
 
 
 def _error(status_code: int, code: str, message: str, **extra: Any) -> PatientCancelError:
@@ -51,6 +60,13 @@ def payment_window_closes_at(booking: Booking) -> datetime:
     """When the unpaid booking stops being payable. Rows from before ``payment_expires_at`` existed use created_at + TTL,
     exactly as the expiry sweep does."""
     return booking.payment_expires_at or (booking.created_at + timedelta(minutes=app_settings.PAYMENT_LINK_TTL_MINUTES))
+
+
+def _callback_url(booking: Booking) -> str:
+    """Where Paystack sends the person after paying: the same URL the booking's own channel used when it was created."""
+    if booking.channel == "whatsapp":
+        return f"{app_settings.WHATSAPP_PAYMENT_RETURN_URL}?ref={booking.booking_code}"
+    return f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete"
 
 
 def _paid_error(booking: Booking) -> PatientCancelError:
@@ -88,8 +104,7 @@ def _issue(db: Session, user: User, booking_id: uuid.UUID, now: datetime) -> Dic
         raise _error(403, "not_your_booking", "Only the person who made this booking can pay for it.")
     _refuse_unpayable(booking)  # cheap refusals first: no lock, no Paystack call
 
-    got = db.execute(text("SELECT pg_try_advisory_xact_lock(:ns, hashtext(:bid))"),
-                     {"ns": _LOCK_NAMESPACE, "bid": str(booking_id)}).scalar()
+    got = db.execute(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": _lock_key(booking_id)}).scalar()
     if not got:
         raise _error(409, "payment_link_in_progress",
                      "We are already preparing your payment link. Please try again in a moment.")
@@ -111,8 +126,7 @@ def _issue(db: Session, user: User, booking_id: uuid.UUID, now: datetime) -> Dic
         raise _error(409, "payment_window_expired",
                      "The time to pay for this booking has run out. Please make a new booking.")
 
-    payment = BookingService(db).initialise_payment(
-        booking, callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete")
+    payment = BookingService(db).initialise_payment(booking, callback_url=_callback_url(booking))
     if not payment.get("status"):
         logger.warning("Booking %s: Paystack would not initialise a payment link: %s", booking_id, payment.get("message"))
         raise _error(503, "payment_link_unavailable",

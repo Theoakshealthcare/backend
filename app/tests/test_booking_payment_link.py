@@ -105,7 +105,8 @@ def test_double_tap_is_the_same_reference_and_one_booking(db, client, patient, f
 
 
 def test_the_link_after_create_keeps_the_created_reference(db, client, patient, fake_paystack):
-    """The app restarts after create: the booking comes back from the list and the link is asked for again."""
+    """The app restarts after create: the booking comes back from the list and the link is asked for again. (The fake accepts
+    a repeated reference; the real Paystack is expected not to: see test_real_paystack_refusing_a_repeated_reference.)"""
     b = unpaid(db, patient)
     created = PaystackService().initialize_transaction("a@b.c", b.total_amount_kobo, b.paystack_reference)
     assert created["status"]
@@ -281,6 +282,27 @@ def test_a_paystack_that_says_not_paid_for_an_unknown_reference_still_issues_the
     assert fake_paystack.verified == [b.paystack_reference]
 
 
+def test_real_paystack_refusing_a_repeated_reference_is_a_503_and_the_booking_stays_untouched(db, client, patient, fake_paystack):
+    """Paystack's error reference: a reference already used on the integration cannot be initialised again ("Duplicate
+    Transaction Reference"). With that behaviour the link of a booking /create already initialised is a 503 until the
+    stored-link follow-up lands (see the SOP). Documented here so the gap cannot be forgotten; never a charge, never a cancel."""
+    b = unpaid(db, patient)
+    fake_paystack.reject_duplicate_reference = True
+    fake_paystack.initialize_transaction(None, "p@example.com", b.total_amount_kobo, b.paystack_reference)  # what /create did
+    before = snapshot(reload(db, b))
+    r = link(client, patient.user, b)
+    assert r.status_code == 503 and code(r) == "payment_link_unavailable"
+    assert "Duplicate" not in r.text and snapshot(reload(db, b)) == before
+
+
+def test_a_whatsapp_booking_returns_to_the_whatsapp_page_and_only_its_booker_may_pay(db, client, patient, fake_paystack):
+    other = make_patient(db)
+    b = unpaid(db, patient, channel="whatsapp", booked_by_user_id=other.user_id)
+    assert code(link(client, patient.user, b)) == "not_your_booking"      # the beneficiary is not the booker
+    assert link(client, other.user, b).status_code == 200
+    assert fake_paystack.initialised[-1]["callback_url"] == f"{settings.WHATSAPP_PAYMENT_RETURN_URL}?ref={b.booking_code}"
+
+
 # --- races ------------------------------------------------------------------------------------------------------------
 def _issue(user, booking):
     def job(session):
@@ -317,6 +339,7 @@ def test_simultaneous_requests_never_make_a_second_reference_or_a_stray_row(db, 
     assert all(getattr(e, "code", None) == "payment_link_in_progress" for e in lost), lost
     assert {r["booking"].paystack_reference for r in won} == {b.paystack_reference}
     assert {p["reference"] for p in fake_paystack.initialised} == {b.paystack_reference}
+    assert len(fake_paystack.initialised) == len(won)   # every winner asked Paystack once; every loser never did
     assert db.query(Booking).count() == 1 and db.query(PatientTransaction).count() == 0
     assert reload(db, b).payment_status == PaymentStatus.PENDING
 
