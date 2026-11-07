@@ -306,6 +306,55 @@ def test_counters_idle_for_an_hour_start_again(db, client, smtp, clock):
     assert reset(client, user.email, code).status_code == 400
 
 
+def _spend_the_daily_budget(client, smtp, clock, email):
+    """Ask for a fresh code and burn its five guesses, over and over: what an attacker would do to reset the per-code
+    limit. An hour between rounds keeps under the three-emails-an-hour request limit."""
+    per_code = settings.PASSWORD_RESET_CODE_MAX_ATTEMPTS
+    for _ in range(settings.PASSWORD_RESET_CODE_MAX_ATTEMPTS_PER_DAY // per_code):
+        clock.advance(hours=1, minutes=1)
+        before = len(smtp.collect())
+        assert client.post(RECOVER, json={"email": email}).status_code == 200
+        mails = smtp.collect()
+        real = code_from(mails[-1][2]) if len(mails) > before else "12345"
+        for _ in range(per_code):
+            assert reset(client, email, wrong_code(real)).status_code == 400
+
+
+@pytest.mark.parametrize("known", [True, False])
+def test_asking_for_fresh_codes_does_not_reset_the_daily_guess_budget(db, client, smtp, clock, known):
+    email = make_caregiver(db).user.email if known else "nobody@example.com"
+    _spend_the_daily_budget(client, smtp, clock, email)
+    clock.advance(hours=1, minutes=1)
+    sent = len(smtp.collect())
+
+    # no more codes are sent, and no guess is looked at, until the 24-hour window ends: same for known and unknown
+    assert client.post(RECOVER, json={"email": email}).json() == RECOVERY_REPLY
+    assert len(smtp.collect()) == sent
+    r = reset(client, email, "12345")
+    assert r.status_code == 429
+    assert r.json() == {"detail": {"code": "too_many_attempts", "message": "Too many incorrect attempts. Please try again later."}}
+    assert int(r.headers["retry-after"]) > 0
+
+    clock.advance(hours=24)  # the window opened at the first wrong guess and has now closed
+    if known:
+        code = request_code(client, smtp, email)
+        assert reset(client, email, code).status_code == 200
+    else:
+        assert client.post(RECOVER, json={"email": email}).status_code == 200
+        assert reset(client, email, "12345").status_code == 400
+
+
+def test_a_good_reset_clears_the_daily_budget(db, client, smtp, clock):
+    user = make_caregiver(db).user
+    clock.advance(minutes=1)
+    code = request_code(client, smtp, user.email)
+    for _ in range(settings.PASSWORD_RESET_CODE_MAX_ATTEMPTS - 1):
+        reset(client, user.email, wrong_code(code))
+    assert reset(client, user.email, code).status_code == 200
+
+    assert db.scalars(select(AdminRateLimit).where(AdminRateLimit.key.like("prd:%"))).all() == []
+
+
 # --- weak passwords ---------------------------------------------------------------------------------------
 
 
@@ -529,7 +578,8 @@ def test_a_weak_password_is_refused_on_the_legacy_path_too_without_using_the_tok
 
     r = client.post(RESET, json={"token": legacy, "new_password": "short"})
 
-    assert r.status_code == 400 and r.json()["detail"]["code"] == "weak_password"
+    assert r.status_code == 400
+    assert r.json() == {"detail": "Password must be at least 8 characters."}  # a plain string: the old app never saw an object
     assert client.post(RESET, json={"token": legacy, "new_password": NEW_PASSWORD}).status_code == 200
 
 
@@ -584,3 +634,25 @@ def test_the_plain_service_helper_also_ends_sessions(db):
     assert UserService(db).reset_password(user.email, NEW_PASSWORD)
     db.expire_all()
     assert db.get(User, user.id).token_version == 1
+
+
+def test_a_case_variant_of_an_address_cannot_reset_the_real_addresses_guess_count(db, client, smtp):
+    """Account lookup is exact, so 'VICTIM@..' matches nobody; if it shared counters with 'victim@..' a request for it
+    would clear the victim's wrong-guess count without mailing anything."""
+    user = make_caregiver(db).user
+    code = request_code(client, smtp, user.email)
+    for _ in range(settings.PASSWORD_RESET_CODE_MAX_ATTEMPTS):
+        reset(client, user.email, wrong_code(code))
+    assert reset(client, user.email, code).status_code == 429
+
+    assert client.post(RECOVER, json={"email": user.email.upper()}).json() == RECOVERY_REPLY
+
+    assert reset(client, user.email, code).status_code == 429  # still locked
+
+
+def test_a_422_does_not_echo_other_secret_named_fields_either(client):
+    r = client.post(REFRESH, json={"refresh_token": ["a-secret-value"]})
+    assert r.status_code == 422
+    assert "a-secret-value" not in r.text
+    r = client.post(RESET, json={"new_password": ["x"], "email": "a@example.com", "nested": {"mfa_token": "tok-123"}})
+    assert "tok-123" not in r.text

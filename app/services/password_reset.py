@@ -9,10 +9,13 @@ Properties that matter, and where they come from:
 * The code is only ever stored as ``HMAC-SHA256(key derived from SECRET_KEY, "<user id>:<code>")``. Five digits are
   trivially brute-forced from a bare hash; with a keyed hash a database leak alone does not reveal them. Compared with
   ``hmac.compare_digest``.
-* Wrong codes are counted **per email address, whether or not an account exists** (``admin_rate_limits`` key
+* Wrong codes are counted **per exact email address, whether or not an account exists** (``admin_rate_limits`` key
   ``prc:<sha256(email)>``), so the answer to a guess is the same for every address and cannot be used to find out who is
-  registered. Requests are throttled the same way (``prr:<sha256(email)>``). The email is hashed so the table holds no
-  addresses. Both key kinds are purged after two idle hours.
+  registered. Requests are throttled the same way (``prr:<sha256(email)>``). A second, cumulative budget
+  (``prd:<sha256(email)>``, 20 wrong codes per 24 h across **all** codes) is not cleared by asking for a new code, so
+  fresh codes cannot be used to keep guessing; once spent, resets are 429 with Retry-After and no code is mailed until
+  the window ends. The email is hashed so the table holds no addresses. ``prr``/``prc`` rows are purged after two idle
+  hours, ``prd`` rows after the day is over.
 * Everything for one address runs under a Postgres advisory lock on that address, so a burst of concurrent guesses is
   checked and counted one at a time (none slips past the limit) and a code works once. The user row is then locked for
   the write. Recovery takes the locks in the same order, so the two cannot deadlock.
@@ -33,7 +36,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import case, delete, or_, select, text
+from sqlalchemy import and_, case, delete, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -50,10 +53,11 @@ _CODE_RE = re.compile(r"[0-9]{%d}" % CODE_LENGTH)
 _EPOCH = datetime(1970, 1, 1)  # window_start of a counter row (the other limiters' convention)
 _WINDOW = timedelta(hours=1)  # counters idle for this long start again; a code lives far less
 _PURGE_AFTER = timedelta(hours=2)
-_REQUEST_PREFIX, _ATTEMPT_PREFIX = "prr:", "prc:"
+_DAY = timedelta(hours=24)
+_REQUEST_PREFIX, _ATTEMPT_PREFIX, _DAILY_PREFIX = "prr:", "prc:", "prd:"
 
 __all__ = [
-    "PasswordResetError", "InvalidOrExpiredCode", "TooManyCodeAttempts", "LegacyTokenInvalid", "WeakPassword",
+    "PasswordResetError", "InvalidOrExpiredCode", "TooManyCodeAttempts", "TooManyCodeAttemptsToday", "LegacyTokenInvalid", "WeakPassword",
     "PasswordResetService", "CODE_LENGTH",
 ]
 
@@ -79,6 +83,16 @@ class TooManyCodeAttempts(PasswordResetError):
     status_code = 429
     code = "too_many_attempts"
     message = "Too many incorrect attempts. Request a new code."
+    retry_after: Optional[int] = None  # only the 24-hour budget has a wait to announce
+
+
+class TooManyCodeAttemptsToday(TooManyCodeAttempts):
+    """The 24-hour budget across all codes of the address is spent: a new code does not help until the window ends."""
+
+    def __init__(self, retry_after: int):
+        super().__init__(retry_after)
+        self.retry_after = retry_after
+        self.message = "Too many incorrect attempts. Please try again later."
 
 
 class LegacyTokenInvalid(PasswordResetError):
@@ -90,7 +104,9 @@ class LegacyTokenInvalid(PasswordResetError):
 
 
 def _email_hash(email: str) -> str:
-    return hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()[:32]
+    # Exact, like the account lookup (``User.email == email``): a case variant that matches no account must not share
+    # counters with the real one, or it could reset the real address's guess count without mailing anything.
+    return hashlib.sha256(email.strip().encode("utf-8")).hexdigest()[:32]
 
 
 def _code_key() -> bytes:
@@ -120,9 +136,14 @@ class PasswordResetService:
         ).scalar_one_or_none()
 
     def _purge_stale(self, now: datetime) -> None:
+        # SKIP LOCKED: two requests purging at once must not wait for (or deadlock on) each other's rows.
+        stale = select(AdminRateLimit.key, AdminRateLimit.window_start).where(or_(
+            and_(or_(AdminRateLimit.key.like(f"{_REQUEST_PREFIX}%"), AdminRateLimit.key.like(f"{_ATTEMPT_PREFIX}%")),
+                 AdminRateLimit.updated_at < now - _PURGE_AFTER),
+            and_(AdminRateLimit.key.like(f"{_DAILY_PREFIX}%"), AdminRateLimit.updated_at < now - _DAY - _PURGE_AFTER),
+        )).with_for_update(skip_locked=True).subquery()
         self.db.execute(delete(AdminRateLimit).where(
-            or_(AdminRateLimit.key.like(f"{_REQUEST_PREFIX}%"), AdminRateLimit.key.like(f"{_ATTEMPT_PREFIX}%")),
-            AdminRateLimit.updated_at < now - _PURGE_AFTER))
+            tuple_(AdminRateLimit.key, AdminRateLimit.window_start).in_(select(stale.c.key, stale.c.window_start))))
 
     def _wrong_attempts(self, key: str, now: datetime) -> int:
         row = self.db.execute(
@@ -139,6 +160,26 @@ class PasswordResetService:
             .on_conflict_do_update(
                 index_elements=[AdminRateLimit.key, AdminRateLimit.window_start],
                 set_={"count": case((stale, 1), else_=AdminRateLimit.count + 1), "updated_at": now}))
+
+    def _daily_wait(self, key: str, now: datetime) -> int:
+        """Seconds left of the 24-hour lockout, 0 if the address is not locked out. ``blocked_until`` is the window's end."""
+        row = self.db.execute(
+            select(AdminRateLimit.count, AdminRateLimit.blocked_until)
+            .where(AdminRateLimit.key == key, AdminRateLimit.window_start == _EPOCH)).first()
+        if (row is None or row.blocked_until is None or row.blocked_until <= now
+                or row.count < settings.PASSWORD_RESET_CODE_MAX_ATTEMPTS_PER_DAY):
+            return 0
+        return int((row.blocked_until - now).total_seconds()) + 1
+
+    def _count_wrong_today(self, key: str, now: datetime) -> None:
+        expired = or_(AdminRateLimit.blocked_until.is_(None), AdminRateLimit.blocked_until <= now)
+        self.db.execute(
+            pg_insert(AdminRateLimit)
+            .values(key=key, window_start=_EPOCH, count=1, updated_at=now, blocked_until=now + _DAY)
+            .on_conflict_do_update(
+                index_elements=[AdminRateLimit.key, AdminRateLimit.window_start],
+                set_={"count": case((expired, 1), else_=AdminRateLimit.count + 1), "updated_at": now,
+                      "blocked_until": case((expired, now + _DAY), else_=AdminRateLimit.blocked_until)}))
 
     def _request_allowed(self, key: str, now: datetime) -> bool:
         """At most PASSWORD_RESET_REQUESTS_PER_HOUR emails per address per window; the window opens at the first one.
@@ -182,6 +223,10 @@ class PasswordResetService:
         self._lock_address(ehash)
         self._purge_stale(now)
         user = self._locked_user(email)
+        if self._daily_wait(f"{_DAILY_PREFIX}{ehash}", now):
+            self.db.commit()
+            logger.warning("password-recovery: address locked out for the day, no code issued user=%s", user.id if user else "-")
+            return None
         if not self._request_allowed(f"{_REQUEST_PREFIX}{ehash}", now):
             self.db.commit()  # releases the locks; the purge above is kept
             logger.warning("password-recovery: throttled, no code issued user=%s", user.id if user else "-")
@@ -213,7 +258,13 @@ class PasswordResetService:
         now = _now()
         ehash = _email_hash(email)
         attempts_key = f"{_ATTEMPT_PREFIX}{ehash}"
+        daily_key = f"{_DAILY_PREFIX}{ehash}"
         self._lock_address(ehash)
+        wait = self._daily_wait(daily_key, now)
+        if wait:
+            self.db.commit()
+            logger.warning("password-reset: daily attempts exhausted, refused")
+            raise TooManyCodeAttemptsToday(wait)
         if self._wrong_attempts(attempts_key, now) >= settings.PASSWORD_RESET_CODE_MAX_ATTEMPTS:
             self.db.commit()
             logger.warning("password-reset: attempts exhausted, refused")
@@ -232,12 +283,13 @@ class PasswordResetService:
         )
         if not valid:
             self._count_wrong_attempt(attempts_key, now)
+            self._count_wrong_today(daily_key, now)
             self.db.commit()  # the count is durable before the locks are released
             logger.warning("password-reset: wrong or expired code user=%s", user.id if user else "-")
             raise InvalidOrExpiredCode()
         self._apply_new_password(user, new_password)
         self.db.execute(delete(AdminRateLimit).where(AdminRateLimit.key.in_(
-            [attempts_key, f"{_REQUEST_PREFIX}{ehash}"])))
+            [attempts_key, daily_key, f"{_REQUEST_PREFIX}{ehash}"])))
         self.db.commit()
         logger.info("password-reset: password reset by code, other sessions ended user=%s", user.id)
         return user
@@ -261,8 +313,9 @@ class PasswordResetService:
             self.db.rollback()
             raise LegacyTokenInvalid(400, "Invalid or expired token")
         self._apply_new_password(user, new_password)
+        ehash = _email_hash(email)
         self.db.execute(delete(AdminRateLimit).where(AdminRateLimit.key.in_(
-            [f"{_ATTEMPT_PREFIX}{_email_hash(email)}", f"{_REQUEST_PREFIX}{_email_hash(email)}"])))
+            [f"{_ATTEMPT_PREFIX}{ehash}", f"{_DAILY_PREFIX}{ehash}", f"{_REQUEST_PREFIX}{ehash}"])))
         self.db.commit()
         logger.info("password-reset: password reset by legacy token, other sessions ended user=%s", user.id)
         return user

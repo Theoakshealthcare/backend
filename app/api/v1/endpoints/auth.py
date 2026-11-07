@@ -284,7 +284,8 @@ def reset_password_route(
     429 ``too_many_attempts`` after 5 wrong codes for the address, until a new code is requested.
 
     Deprecated: ``{token, new_password}`` with the long token from the same email still works for the shipped caregiver
-    app, with its old plain-string ``detail`` errors (400 ``Invalid token`` / ``Invalid or expired token``).
+    app, with plain-string ``detail`` errors (400 ``Invalid token`` / ``Invalid or expired token`` / the weak-password
+    sentence).
     """
     service = PasswordResetService(db)
     response.headers["Cache-Control"] = "no-store"
@@ -295,11 +296,12 @@ def reset_password_route(
             service.reset_with_code(reset_data.email, reset_data.code, reset_data.new_password)
     except (PasswordResetError, WeakPassword) as exc:
         db.rollback()
-        if reset_data.token is not None and isinstance(exc, PasswordResetError):
-            detail: Any = exc.message  # deprecated form: the plain string the old app expects
+        if reset_data.token is not None:
+            detail: Any = exc.message  # deprecated form: always the plain string the old app expects
         else:
             detail = {"code": exc.code, "message": exc.message}
-        raise HTTPException(status_code=exc.status_code, detail=detail)
+        headers = {"Retry-After": str(exc.retry_after)} if getattr(exc, "retry_after", None) else None
+        raise HTTPException(status_code=exc.status_code, detail=detail, headers=headers)
 
     return {"message": "Password updated successfully"}
 
@@ -343,6 +345,12 @@ def update_profile(
         current_user.profile_image_url = update_data.profile_image_url
     if update_data.password:
         current_user.hashed_password = get_password_hash(update_data.password)
+    if update_data.password or update_data.email:
+        # a reset code or link emailed earlier must not undo this change (or work for a new address)
+        current_user.password_reset_token = None
+        current_user.password_reset_expires_at = None
+        current_user.password_reset_code_hash = None
+        current_user.password_reset_code_expires_at = None
     db.commit()
     # Update Patient or Caregiver fields
     patient = None
