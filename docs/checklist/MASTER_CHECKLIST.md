@@ -74,6 +74,11 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 - [x] ⚠️ Make the Paystack webhook safe to replay, and check the paid amount against the booking — 2026-10-05, `security/money` (also `verify-payment`)
 - [x] Wallet transactions: remove the nested `db.begin()` — 2026-10-05, `security/money`
 - [x] Password reset: fix the email arguments that cause a 500 — 2026-11-07, `fix/forgot-password-email` (device-pass-1 DP1-01; unknown emails now get the same 200; [SOP](../sop/2026-11-07-forgot-password-email.md))
+- [x] Visit rules from device pass 1 (DP1-05, DP1-06, cancel follow-up #1) — 2026-11-07, `feature/visit-rules` (not pushed; [SOP](../sop/2026-11-07-visit-rules.md); no migration, 0021 stays reserved)
+  - [x] Short-visit hold: a visit completed after under 50% of the booked time on site is credited `held` for Finance (constant `SHORT_VISIT_MIN_PERCENT`); `start` unchanged by decision
+  - [x] Final decline: accept after decline is `403 "You declined this offer"`; `response` added to the caregiver notification list
+  - [x] Wallet-credit refunds off in v1: `REFUND_WALLET_CREDIT_ENABLED` (default false), `409 wallet_refunds_disabled`
+  - [ ] Re-run the caregiver and admin FE captures so the guides' **[not live]** passages become captures
 - [ ] Password reset: build a real reset experience: the email carries a ~200-character JWT the caregiver must paste as a "code"; use a short code or a working deep link (needs a product decision and an app change)
 - [ ] Vitals access grant: stop comparing a user ID with a patient ID; use the `accepted` status
 - [x] Only the booking's own caregiver can cancel it or change its state; only paid bookings can be accepted — `security/access-control`, 2026-10-05
@@ -412,6 +417,10 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (Visit rules) Make the 50% short-visit threshold a `booking_policy` field (migration after `0021`; today the code constant `SHORT_VISIT_MIN_PERCENT`)
+- [ ] (Visit rules) Admin console (`apps/admin`): hide the Oakly-wallet refund destination and "Switch to wallet" while `REFUND_WALLET_CREDIT_ENABLED` is off, read the coded 409 (`detail.code`), show a held short-visit earning's reason
+- [ ] (Visit rules) Caregiver app: hide Accept/Decline when the notification `response` is not `null`; label a held earning "Under review"
+- [ ] (Visit rules) Decide whether a caregiver who declined may be re-offered the visit by a drop-out wave or an operator (today yes, as a new offer); a system hold leaves no `admin_audit_log` row (the column is NOT NULL); `start` is still not time-gated (owner: follow the backend)
 - [ ] (Change password) Password reset by email (`/auth/reset-password`) should also bump `token_version` so a reset ends every session; today only change-password does
 - [ ] (Change password) App-user `register` and `reset-password` have no server-side password policy (change-password enforces 8 characters, 72 bytes, 5 distinct); `register`'s 422 also still echoes the password in `input`
 - [ ] (Change password) App-user login and refresh have no lockout or rate limit (only admin login does); `/auth/login/mobile` can be guessed without a wait

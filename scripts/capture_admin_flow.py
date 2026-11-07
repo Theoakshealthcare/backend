@@ -27,6 +27,10 @@ What is real and what is not
   reconcile step's clock is moved ahead (11 and 31 minutes) instead of waiting; the earning's 24-hour hold and the caregiver's wallet
   balance are moved in the database. Each is labelled in its capture.
 
+- The refunds section approves refunds to the Oakly wallet and switches failed refunds to it, which is off by default since
+  2026-11-07 (REFUND_WALLET_CREDIT_ENABLED=false answers 409 wallet_refunds_disabled). The temp env file for a refunds re-capture
+  must set REFUND_WALLET_CREDIT_ENABLED=true (a name, no secret), or those captures change.
+
 Everything created here uses placeholder data (example.com emails, fake names). Secrets are replaced in
 the files: JWTs, refresh/invite tokens, TOTP secrets and codes, passwords.
 """
