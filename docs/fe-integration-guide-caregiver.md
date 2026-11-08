@@ -1799,9 +1799,9 @@ Other `409`/`403` strings the action endpoint can return (all `{"detail": "<stri
 | 409 | `Booking has not been paid for` | accept on an unpaid booking | not captured; code and unit tests only |
 | 403 | `Your account is not approved to accept bookings` | accept when not `approved` | `079` |
 | 403 | `You were not offered this booking` | accept or decline a booking you were never offered | not captured live; unit tests only |
-| 403 | `This booking is not assigned to you` | start, complete, cancel, on_my_way by someone else | `092` |
+| 403 | `This booking is not assigned to you` | start, complete, cancel, on_my_way by someone else (a plain string; **for `arrived` it is the object `{code: "booking_not_assigned", message}`**, capture `800`) | `092`, `804` |
 | 409 | `Only an accepted booking can be marked on the way` | on_my_way from any other state | `094` |
-| 409 | `Only an accepted booking can be marked as arrived` | arrived from any state other than accepted / en_route (including after start) | `714` (section 7, "Your earning, I've arrived...") |
+| 409 | **object** `{code: "booking_not_arrivable", message: "Only an accepted booking can be marked as arrived"}` | arrived from any state other than accepted / en_route (including after start). `detail` is an object for `arrived` only, see section 7 "Your earning, I've arrived..." | `803` |
 | 409 | `You can mark yourself on the way from 2 hours before the visit` | on_my_way earlier than the booking policy's `onmyway_compensation_window_minutes` before the start (the hours shown follow the policy: `45 minutes`, `3 hours`, ...). **[not live]**: copied from `test_visit_lifecycle.py`, not from a capture; it applies to app and WhatsApp bookings alike | none yet |
 | 409 | `Only an accepted booking can be started` | start from any state but accepted/en_route | `107` |
 | 409 | `Only a booking in progress can be completed` | complete from any other state | `098`, `110` |
@@ -2116,21 +2116,74 @@ What the booking wrote for the family after the two taps: one `caregiver_arrived
 }
 ```
 
-Refusals:
+Refusals. **Since 2026-11-08 the errors of the `arrived` action (and only that action) use `detail = {code, message}`, an object, not a plain string.** Branch on `code`; `message` is for display and keeps the wording the old string had. Every other action still answers a plain string `detail` (last example below), so the app needs two readings of `detail` until the other actions move too.
 
-<!-- capture: 705-o-arrived-not-assigned.json response.body -->
+| Status | `detail.code` | `detail.message` | When |
+|---|---|---|---|
+| 404 | `caregiver_profile_not_found` | `Caregiver profile not found` | a caregiver login that never created its profile. **[not live]**: not captured; asserted by `test_caregiver_arrived_earning.py` |
+| 404 | `booking_not_found` | `Booking not found` | unknown booking id |
+| 403 | `booking_not_assigned` | `This booking is not assigned to you` | someone else's booking, or one where you only hold an offer |
+| 403 | `caregiver_not_approved` | `Your account is not approved to start visits` | the caregiver is suspended. **[not live]**: not captured (suspending a caregiver with an accepted booking also reassigns it); asserted by `test_caregiver_arrived_earning.py` |
+| 409 | `booking_not_arrivable` | `Only an accepted booking can be marked as arrived` | any state but accepted or en_route (including after `start`) |
+
+A caregiver who does not hold the booking:
+
+<!-- capture: 800-o-arrived-not-assigned.json response.body -->
+```json
+{
+  "detail": {
+    "code": "booking_not_assigned",
+    "message": "This booking is not assigned to you"
+  }
+}
+```
+
+Holding only an offer (a paid, pending booking) is the same refusal:
+
+<!-- capture: 801-a-arrived-offer-only.json response.body -->
+```json
+{
+  "detail": {
+    "code": "booking_not_assigned",
+    "message": "This booking is not assigned to you"
+  }
+}
+```
+
+An unknown booking:
+
+<!-- capture: 802-a-arrived-unknown-booking.json response.body -->
+```json
+{
+  "detail": {
+    "code": "booking_not_found",
+    "message": "Booking not found"
+  }
+}
+```
+
+After the visit started:
+
+<!-- capture: 803-a-arrived-after-start.json response.body -->
+```json
+{
+  "detail": {
+    "code": "booking_not_arrivable",
+    "message": "Only an accepted booking can be marked as arrived"
+  }
+}
+```
+
+Unchanged, for contrast: `start` by a caregiver who does not hold the booking still answers a **plain string**:
+
+<!-- capture: 804-o-start-not-assigned-plain-string.json response.body -->
 ```json
 {
   "detail": "This booking is not assigned to you"
 }
 ```
 
-<!-- capture: 708-a-arrived-pending-booking.json response.body -->
-```json
-{
-  "detail": "This booking is not assigned to you"
-}
-```
+A patient token on the route (`403 Access denied. Caregiver account required.`) and no token (`401 Not authenticated`) come from the auth dependency and keep their plain strings:
 
 <!-- capture: 707-p-arrived-patient-token.json response.body -->
 ```json
@@ -2143,13 +2196,6 @@ Refusals:
 ```json
 {
   "detail": "Not authenticated"
-}
-```
-
-<!-- capture: 714-a-arrived-after-start.json response.body -->
-```json
-{
-  "detail": "Only an accepted booking can be marked as arrived"
 }
 ```
 
@@ -3373,8 +3419,9 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | `provider_available` flipping from the engine's outage detection | **Partly** | Capture `231` is the engine setting the flag from a fake Dojah answer. The flag is a Redis key in production; the harness used an in-memory stand-in, and the Redis calls themselves are unit-tested with a fake client, never against a real Redis |
 | Chat, notes, tracking for the caregiver | No | Out of scope for C3 |
 | `caregiver_earning` on detail, list, offer-list (held booking) and the action response; null on an offer; never on the patient's view | **Yes** | 700 to 704, 717 (scratch database, local fake Paystack) |
-| `arrived`: stamps `arrived_at`, status unchanged, a repeat keeps the same time and writes one outbox row; 403 not assigned / patient token, 401, 409 after start, 422 action list | **Yes** | 705 to 711, 713, 714 |
-| `arrived` for a booking in `en_route`, a suspended caregiver, a WhatsApp booking (no notice), a new caregiver starting with `arrived_at` null | **[not live]** | `app/tests/test_caregiver_arrived_earning.py` |
+| `arrived`: stamps `arrived_at`, status unchanged, a repeat keeps the same time and writes one outbox row; patient token 403, no token 401, 422 action list | **Yes** | 706, 707, 709 to 711, 713 |
+| `arrived` errors as `{code, message}` (new 2026-11-08): `booking_not_assigned` (another caregiver; offer only), `booking_not_found`, `booking_not_arrivable` (after start); `start` still a plain string | **Yes** | 800 to 804 |
+| `arrived` for a booking in `en_route`, a suspended caregiver (`403` `caregiver_not_approved`) and a caregiver login with no profile (`404` `caregiver_profile_not_found`) as coded errors, a WhatsApp booking (no notice), a new caregiver starting with `arrived_at` null | **[not live]** | `app/tests/test_caregiver_arrived_earning.py` |
 | The family's `caregiver_arrived` push / feed row after `arrived` | **[not live]** in this guide | outbox row seen (711); delivery needs the worker: unit-tested (`test_patient_notifications.py`) |
 | The short-visit hold uses the booking's `short_visit_min_percent` (held, reason names 40) | **Yes** for the hold; the boundary values and old snapshots are **[not live]** | 715, 716; `test_caregiver_arrived_earning.py` |
 | Delete account: `409` for an active booking (caregiver and patient) and a wallet balance, `200`, old tokens refused (`403`, `400`), login `401`, repeat delete `403`, same email registers again | Yes | 134-145 |

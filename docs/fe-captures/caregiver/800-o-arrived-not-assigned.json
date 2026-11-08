@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/4f60a4ec-b352-47e7-adf1-95fab159c7a4",
+    "path": "/api/v1/booking/caregiver/action/4fdefa58-3c28-46bc-9ab6-11479738c847",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "arrived"
@@ -13,8 +13,11 @@
       "content-type": "application/json"
     },
     "body": {
-      "detail": "This booking is not assigned to you"
+      "detail": {
+        "code": "booking_not_assigned",
+        "message": "This booking is not assigned to you"
+      }
     }
   },
-  "note": "A booking the caregiver was merely offered (not assigned) is refused like any action on one."
+  "note": "A caregiver who does not hold the booking."
 }

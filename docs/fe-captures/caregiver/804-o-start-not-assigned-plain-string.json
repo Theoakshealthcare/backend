@@ -1,10 +1,11 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+    "path": "/api/v1/booking/caregiver/action/4fdefa58-3c28-46bc-9ab6-11479738c847",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "action": "arrived"
+      "action": "start",
+      "visit_code": "0000"
     }
   },
   "response": {
@@ -16,5 +17,5 @@
       "detail": "This booking is not assigned to you"
     }
   },
-  "note": "A caregiver who does not hold the booking."
+  "note": "Unchanged: every other action still answers a plain string `detail`."
 }

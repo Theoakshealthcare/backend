@@ -2,6 +2,7 @@
 threshold as booking policy, and the family's cancel reason stored on the booking."""
 
 import json
+import uuid
 from datetime import datetime, timedelta
 
 import pytest
@@ -14,7 +15,7 @@ from app.db.models.whatsapp_booking import BookingEvent
 from app.schemas.booking import BookingCreate
 from app.services import dispatch, dropout, earnings
 from app.services.booking import BookingService
-from app.tests.factories import auth_headers, make_admin, make_booking, make_caregiver, make_patient
+from app.tests.factories import auth_headers, make_admin, make_booking, make_caregiver, make_patient, make_user
 from app.tests.policy_helpers import set_policy
 from app.tests.test_caregiver_earnings import complete, txs
 from app.tests.test_patient_notifications import (  # noqa: F401  (fixtures)
@@ -157,7 +158,8 @@ def test_only_the_assigned_caregiver_may_arrive(db, client):
     db.commit()
     for who in (stranger, offered):
         r = act(client, b, who, "arrived")
-        assert r.status_code == 403 and r.json()["detail"] == "This booking is not assigned to you"
+        assert r.status_code == 403
+        assert r.json()["detail"] == {"code": "booking_not_assigned", "message": "This booking is not assigned to you"}
     assert reload(db, b).arrived_at is None
     assert client.post(f"{ACTION}/{b.id}", json={"action": "arrived"}).status_code == 401
 
@@ -168,7 +170,9 @@ def test_arrived_only_on_an_accepted_or_en_route_booking(db, client, status):
     cg = make_caregiver(db)
     b = make_booking(db, make_patient(db), cg, status=status)
     r = act(client, b, cg, "arrived")
-    assert r.status_code == 409 and r.json()["detail"] == "Only an accepted booking can be marked as arrived"
+    assert r.status_code == 409
+    assert r.json()["detail"] == {"code": "booking_not_arrivable",
+                                  "message": "Only an accepted booking can be marked as arrived"}
     assert reload(db, b).arrived_at is None
 
 
@@ -177,7 +181,36 @@ def test_a_suspended_caregiver_cannot_arrive_for_a_visit(db, client):
     b = accepted(db, cg)
     cg.profile_status = "suspended"
     db.commit()
-    assert act(client, b, cg, "arrived").status_code == 403
+    r = act(client, b, cg, "arrived")
+    assert r.status_code == 403
+    assert r.json()["detail"] == {"code": "caregiver_not_approved", "message": "Your account is not approved to start visits"}
+
+
+def test_arrived_on_an_unknown_booking_is_a_coded_404(db, client):
+    cg = make_caregiver(db)
+    r = client.post(f"{ACTION}/{uuid.uuid4()}", json={"action": "arrived"}, headers=auth_headers(cg.user))
+    assert r.status_code == 404
+    assert r.json()["detail"] == {"code": "booking_not_found", "message": "Booking not found"}
+
+
+def test_arrived_without_a_caregiver_profile_is_a_coded_404(db, client):
+    user = make_user(db, "caregiver")  # a caregiver login that never created its profile
+    r = client.post(f"{ACTION}/{uuid.uuid4()}", json={"action": "arrived"}, headers=auth_headers(user))
+    assert r.status_code == 404
+    assert r.json()["detail"] == {"code": "caregiver_profile_not_found", "message": "Caregiver profile not found"}
+    r = client.post(f"{ACTION}/{uuid.uuid4()}", json={"action": "start"}, headers=auth_headers(user))
+    assert r.status_code == 404 and r.json()["detail"] == "Caregiver profile not found"
+
+
+def test_the_other_actions_still_answer_plain_string_errors(db, client):
+    """Only ``arrived`` moved to {code, message}: the caregiver app reads the others as strings until it is changed."""
+    cg, stranger = make_caregiver(db), make_caregiver(db)
+    b = accepted(db, cg)
+    r = act(client, b, stranger, "start")
+    assert r.status_code == 403 and r.json()["detail"] == "This booking is not assigned to you"
+    pending = make_booking(db, make_patient(db), cg, status=BookingStatus.PENDING)
+    r = act(client, pending, cg, "start")
+    assert r.status_code == 409 and r.json()["detail"] == "Only an accepted booking can be started"
 
 
 def test_the_family_sees_arrived_at_and_another_caregiver_never_does(db, client):

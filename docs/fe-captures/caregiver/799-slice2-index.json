@@ -30,11 +30,6 @@
       "status": 200
     },
     {
-      "file": "705-o-arrived-not-assigned.json",
-      "label": "o-arrived-not-assigned",
-      "status": 403
-    },
-    {
       "file": "706-none-arrived-no-token.json",
       "label": "none-arrived-no-token",
       "status": 401
@@ -42,11 +37,6 @@
     {
       "file": "707-p-arrived-patient-token.json",
       "label": "p-arrived-patient-token",
-      "status": 403
-    },
-    {
-      "file": "708-a-arrived-pending-booking.json",
-      "label": "a-arrived-pending-booking",
       "status": 403
     },
     {
@@ -75,11 +65,6 @@
       "status": 422
     },
     {
-      "file": "714-a-arrived-after-start.json",
-      "label": "a-arrived-after-start",
-      "status": 409
-    },
-    {
       "file": "715-a-complete-short.json",
       "label": "a-complete-short",
       "status": 200
@@ -94,5 +79,6 @@
       "label": "a-booking-detail-completed",
       "status": 200
     }
-  ]
+  ],
+  "note": "Entries for 705, 708 and 714 were removed on 2026-11-08: those arrived-error captures moved to 800-803 (scripts/capture_arrived_errors_cancel_terms.py) when the errors became {code, message}."
 }
