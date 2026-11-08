@@ -1,0 +1,144 @@
+# Staging stack for ONE Ubuntu VPS: API + ARQ worker + Postgres 16 + Redis 7, all behind the host's nginx.
+#
+# This file is STANDALONE (do not combine it with docker-compose.yml: the dev file bind-mounts ./app and publishes
+# the database and Redis ports on the host). Use it through deploy/compose.sh, which adds the project name and both
+# env files:
+#
+#   /opt/oakly/deploy/compose.sh up -d
+#
+# Two env files (both live on the server, never in git):
+#   /etc/oakly/staging.env   the app's settings + POSTGRES_PASSWORD + REDIS_PASSWORD (template: deploy/staging.env.example)
+#   /opt/oakly/image.env     one line, OAKLY_API_IMAGE=<registry image>:<git sha>; changing it IS the deploy and the rollback
+#
+# What is exposed: only the API, on 127.0.0.1:8000 (host nginx terminates TLS and proxies to it). Postgres and Redis
+# have no published ports at all; they are reachable only from this compose network.
+#
+# Runbook: docs/deploy/staging.md
+name: oakly-staging
+
+x-logging: &default-logging
+  # Docker keeps container logs forever by default and a small VPS disk fills up; cap them.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  api:
+    image: ${OAKLY_API_IMAGE:-oaklycare-backend:staging}
+    # `build` lets `compose build` make the image on the server (first deploy, no registry needed). With a registry
+    # image in OAKLY_API_IMAGE the deploy uses `compose pull` instead and never builds.
+    build: .
+    env_file: ${OAKLY_ENV_FILE_PATH:-/etc/oakly/staging.env}
+    environment:
+      # Built here from POSTGRES_PASSWORD / REDIS_PASSWORD so the two can never disagree with the db / redis services.
+      # Both passwords must be URL-safe (generate with `openssl rand -hex 24`): the boot script parses this URL with a regex.
+      DATABASE_URL: postgresql://oakly:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in /etc/oakly/staging.env}@db:5432/oakly
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in /etc/oakly/staging.env}@redis:6379/0
+    ports:
+      - "127.0.0.1:8000:8000"  # behind host nginx; not reachable from the internet
+    volumes:
+      - private_uploads:/app/private_uploads  # caregiver documents (KYC and licences): must survive a redeploy
+      - uploaded_notes:/app/uploaded_notes    # prescription note files
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # /health answers {"status": "healthy"} without touching the database or Redis (it proves the process is serving).
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s  # the boot script waits for the database, then runs `alembic upgrade head`, then starts gunicorn
+
+  # Scheduled jobs and queues: unpaid-booking expiry, caregiver dispatch, payouts, refunds, KYC, voice notes. The same
+  # image as the API with a different command. It needs Python 3.13 (the Dockerfile pins it): arq breaks on 3.14.
+  # The jobs are lock-safe, so a second replica would be harmless, but one is enough for staging.
+  worker:
+    image: ${OAKLY_API_IMAGE:-oaklycare-backend:staging}
+    command: ["arq", "app.worker.WorkerSettings"]
+    env_file: ${OAKLY_ENV_FILE_PATH:-/etc/oakly/staging.env}
+    environment:
+      DATABASE_URL: postgresql://oakly:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in /etc/oakly/staging.env}@db:5432/oakly
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in /etc/oakly/staging.env}@redis:6379/0
+    volumes:
+      - private_uploads:/app/private_uploads
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_healthy  # the API container runs the migrations at boot
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # arq writes a health key to Redis on its first poll and then every hour (TTL one hour + 1 s): `--check` exits 0 while it exists.
+      test: ["CMD", "arq", "--check", "app.worker.WorkerSettings"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  redis:
+    image: redis:7-alpine
+    # Password required, append-only file on, no eviction: ARQ jobs and parked voice-note audio must never be silently
+    # dropped (a full Redis answers with errors instead). 256 MB is plenty for staging.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in /etc/oakly/staging.env}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in /etc/oakly/staging.env}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: oakly
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in /etc/oakly/staging.env}
+      POSTGRES_DB: oakly
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    stop_grace_period: 60s  # let Postgres checkpoint on `down` / reboot
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oakly -d oakly"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  default:
+    # A fixed subnet so TRUSTED_PROXIES can name it: nginx on the host reaches the API through the bridge gateway,
+    # and the app only believes X-Forwarded-For from a trusted peer (app/core/client_ip.py). Change both if it clashes.
+    ipam:
+      config:
+        - subnet: 172.29.0.0/24
+
+volumes:
+  postgres_data:
+  redis_data:
+  private_uploads:
+  uploaded_notes:

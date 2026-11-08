@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-11-08, staging deploy kit, prepared):** everything for the first staging deploy is written and the offline-checkable parts are checked, **none of it run on a server** (PR #52; [runbook](../deploy/staging.md), [SOP](../sop/2026-11-08-staging-deploy-kit.md), section 16). The owner has no VPS yet; the first run on a real server, real mail, Paystack/Dojah callbacks, push and the app rebuild are all still open.
+
 **Update (2026-11-08, arrived errors, admin cancel terms, Gemini audio proof; branch `fix/arrived-errors-admin-cancel-terms`, not pushed; [SOP](../sop/2026-11-08-arrived-errors-admin-cancel-terms.md)):** the caregiver `arrived` action's errors are now `detail = {code, message}` (`booking_not_assigned`, `caregiver_not_approved`, `booking_not_found`, `caregiver_profile_not_found`, `booking_not_arrivable`; other actions keep plain strings; **the caregiver app must be changed to read the object**), `GET /admin/bookings/{id}` carries `cancel_terms` (live-captured, admin guide 12.4a), and the real Gemini call was run once with synthetic speech: `gemini-3.5-flash` accepts m4a and mp3 and transcribes English and a Pidgin sentence ([SOP](../sop/2026-11-08-ai-note-transcription.md)). The caregiver's `arrived` is now refused earlier than 60 minutes before the visit (`422` `arrived_too_early` with `earliest_at`; `ARRIVAL_EARLIEST_MINUTES_BEFORE`; [SOP](../sop/2026-11-08-arrival-window.md)). **Still open:** a real device recording, an app booking's cancel-policy snapshot is frozen at cancel, not at create (WhatsApp bookings keep the quote's).
 
 **Update (2026-11-08, Gemini model + bank-holder name; PR #50; [SOP](../sop/2026-11-08-gemini-model-bank-name.md)):** the Gemini model is now `Settings.GEMINI_MODEL` (default `gemini-3.5-flash`, because the hard-coded `gemini-2.5-flash` answers 404 for the production key and FallGuard advice always fell back) with a 404 fallback to `gemini-3.1-flash-lite` and a warning log of class and status only; a caregiver's bank account holder must now match the profile name (DP2-05, `422` `bank_account_name_mismatch` on resolve and save). **Not verified live:** no real Gemini call and no real Paystack name lookup were made from this branch; the `422` is not in the live captures.
@@ -456,12 +458,31 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [ ] Patient opt-out; booker sees transcript or only the summary (owner)
 - [ ] Encrypt or move the plaintext typed notes (`booking_notes`)
 
+## 16. Staging deploy kit — 🟡 prepared, NOT run on a server (waiting for the owner's VPS)
+Runbook [`docs/deploy/staging.md`](../deploy/staging.md), [SOP](../sop/2026-11-08-staging-deploy-kit.md). Items are ticked only where the thing was actually checked; "prepared" means written and checked offline, never run on a server.
+- [x] Runbook for a fresh Ubuntu VPS: owner's list, sizing, DNS, server prep, Docker, code and secrets, nginx + Let's Encrypt, first deploy, backups, first-run steps, smoke, mobile rebuild, rollback, voice-notes switch-on, operate, verified-vs-not (prepared, not run on a server)
+- [x] `docker-compose.staging.yml`: db, redis, api, worker, no host db/redis ports, restart policies, healthchecks, log rotation, volumes (`config` parses; `db` and `redis` services run live on a throwaway project; api/worker services not run)
+- [x] nginx server blocks (`deploy/nginx/`): HTTP bootstrap + TLS block (`nginx -t` on 1.24 and stable; not run with real certificates)
+- [x] `deploy/staging.env.example`: all 140 backend settings, grouped, placeholders only, kept in step by `app/tests/test_staging_env_example.py`
+- [x] Deploy, rollback, backup and restore-test scripts (`deploy/*.sh`; shellcheck clean; backup, restore test and restore-over-live run live on a throwaway Postgres; `deploy.sh` tested with a stub, not end to end)
+- [x] `scripts/staging_smoke.py` (health, webhooks, pricing, email code, login, Paystack link, push token, optional Expo receipt) and `scripts/staging_set_pricing.py` (one-time pricing row, never auto-seeded): tested against fake servers only
+- [x] `.github/workflows/deploy-staging.yml`: DRAFT, `workflow_dispatch` only and gated by `STAGING_DEPLOY_ENABLED` (actionlint clean; never run)
+- [x] Proposed `EXPO_PUBLIC_API_URL` diff for both `eas.json` files, written in the runbook (NOT applied to the monorepo)
+- [ ] Owner provides: domain, VPS (recommended 2 vCPU / 4 GB, EU region for staging), SMTP provider with port 465, Paystack test keys, Dojah sandbox values, Gemini key, Cloudinary, first price list, Super Admin email
+- [ ] **First real deploy** following the runbook; then fix what it finds and update the runbook's section 16
+- [ ] Restore test passes on the real schema; nightly backup cron running
+- [ ] Smoke script all PASS against the real server (sign-up code arrives by email, Paystack test payment credits the wallet via the webhook)
+- [ ] Apply the `eas.json` diff, rebuild both Android preview APKs, upload the Firebase Admin key to Expo with `eas credentials`, push test on a real phone
+- [ ] Turn `VOICE_NOTES_ENABLED` on (after push works; real Gemini smoke)
+- [ ] Switch on the deploy workflow (Environment `staging`, secrets, `STAGING_DEPLOY_ENABLED`)
+
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
 - [x] Push notifications for caregiver job offers (Expo). 2026-10-05, C3, [SOP](../sop/2026-10-05-caregiver-mobile-support.md). Patient-side pushes for app bookers: built 2026-11-07 (P8-BE, see section 3).
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
+- [ ] (Staging kit) Admin console on staging; off-server backups and a backup-failure alert; Trivy and Semgrep in the deploy workflow; pin `requires-python` below 3.14; remove the unused settings (`PAYSTACK_WEBHOOK_SECRET`, `FCM_SERVER_KEY`, `APNS_*`, `SMTP_TLS`) or make the mailer honour `SMTP_TLS`; `/docs` is public on staging ([SOP](../sop/2026-11-08-staging-deploy-kit.md))
 - [x] (Patient notifications, bookings, password reset, fallguard) their FE guides are in CI's `render_fe_guide --check` (2026-11-07, `feature/caregiver-arrived-earning`).
 - [ ] (Patient notifications) ~~Add the guide to CI's `render_fe_guide --check`~~ done; feed retention period; `refund_needs_bank_details` wording changes once the app has a bank-details flow ([SOP](../sop/2026-11-07-patient-notifications.md))
 - [x] (Change password) Password reset bumps `token_version` — done 2026-11-07 with the reset code ([SOP](../sop/2026-11-07-password-reset-code.md))

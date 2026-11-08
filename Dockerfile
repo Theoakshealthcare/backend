@@ -41,7 +41,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
-RUN mkdir -p /app/private_uploads /app/uploads
+RUN mkdir -p /app/private_uploads /app/uploads /app/uploaded_notes
 
 COPY ./app /app/app
 

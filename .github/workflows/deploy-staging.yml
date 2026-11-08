@@ -1,0 +1,117 @@
+# DRAFT: deploy the backend to the staging VPS. NOT ACTIVE until the owner has a server.
+#
+#  * Manual only (`workflow_dispatch`): it never runs on push, PR or schedule.
+#  * Switched off even when dispatched: the job needs the repository VARIABLE STAGING_DEPLOY_ENABLED=true.
+#    (Settings > Secrets and variables > Actions > Variables.) Set it only after docs/deploy/staging.md sections 1-9 are done.
+#  * Gated by the GitHub Environment "staging": add yourself as a required reviewer there so a deploy needs a click.
+#  * Never run against production: the host comes from the secrets below and the server is the staging VPS.
+#
+# What it does: build the image from the chosen ref, push it to GHCR tagged with the commit SHA, then over SSH
+# sync the repo on the server, run deploy/deploy.sh (pull, backup, `alembic upgrade head`, restart), and smoke-test.
+#
+# Secrets (Settings > Secrets and variables > Actions > Secrets), all for the "staging" environment:
+#   STAGING_SSH_HOST         VPS IP or hostname
+#   STAGING_SSH_USER         the deploy user on the VPS (member of the docker group, no sudo needed)
+#   STAGING_SSH_KEY          the PRIVATE half of a key whose public half is in that user's authorized_keys
+#   STAGING_SSH_KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <host>` taken from a trusted network (pins the server)
+#   STAGING_API_URL          https://api.<domain>  (for the smoke test)
+#   STAGING_GHCR_USER        GitHub user whose token the server uses to pull the image
+#   STAGING_GHCR_PULL_TOKEN  a token with ONLY read:packages (the server stores it in ~/.docker/config.json)
+# The image push uses the job's own GITHUB_TOKEN (packages: write); no secret is needed for it.
+#
+# Actions are pinned to commit SHAs (the comment names the tag). Not tested on a real server. Validated with actionlint only.
+name: Deploy staging (draft)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to deploy"
+        required: true
+        default: staging
+      skip_backup:
+        description: "Skip the pre-migration database backup (only for the very first deploy: the database is empty)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false  # never interrupt a deploy half way
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ vars.STAGING_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DEPLOY_REF: ${{ inputs.ref }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ env.DEPLOY_REF }}
+
+      - name: Work out the image name
+        id: image
+        run: |
+          sha="$(git rev-parse HEAD)"
+          # GHCR wants a lowercase repository path.
+          repo="$(echo "ghcr.io/${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "name=${repo}:${sha}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prepare SSH
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Deploy over SSH
+        env:
+          SSH_TARGET: ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}
+          GHCR_USER: ${{ secrets.STAGING_GHCR_USER }}
+          GHCR_TOKEN: ${{ secrets.STAGING_GHCR_PULL_TOKEN }}
+          IMAGE: ${{ steps.image.outputs.name }}
+          SHA: ${{ steps.image.outputs.sha }}
+          SKIP_BACKUP: ${{ inputs.skip_backup && '--skip-backup' || '' }}
+        run: |
+          # The token travels on stdin, never on a command line (those show up in `ps` and logs).
+          printf '%s\n' "$GHCR_TOKEN" | ssh -i ~/.ssh/staging_key -o StrictHostKeyChecking=yes "$SSH_TARGET" \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+          ssh -i ~/.ssh/staging_key -o StrictHostKeyChecking=yes "$SSH_TARGET" \
+            "set -euo pipefail; cd /opt/oakly && git fetch --quiet origin && git checkout --quiet --detach '$SHA' && deploy/deploy.sh $SKIP_BACKUP '$IMAGE'"
+
+      - name: Smoke test (health, webhooks, pricing; the email and payment checks need a person)
+        env:
+          API_URL: ${{ secrets.STAGING_API_URL }}
+        run: python3 -m scripts.staging_smoke "$API_URL"
+
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f ~/.ssh/staging_key
