@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-11-08, phase 2 slice 2, booking minutes; branch `feature/booking-minutes`, migration `0027`, stacked on the catalogue, not pushed; [SOP](../sop/2026-11-08-booking-minutes.md)):** bookings are stored and priced in minutes (30-minute steps; nutritionist from 30), `duration_hours` is derived and may now be `1.5`, preview and create take `duration_minutes` or the older `duration_hours`, a bad length is `422 invalid_duration` with the allowed values, one rounding rule prorates the price, and the short-visit rule uses booked minutes. **The apps and console are not changed; see the SOP's compatibility risks (fractional hours, the new 422 object, OpenAPI type drift).**
+
 **Update (2026-11-08, phase 2 slice 1, service catalogue; branch `feature/service-catalogue`, migration `0026`, not pushed; [SOP](../sop/2026-11-08-service-catalogue.md), section 17):** which services are on offer is now an admin-controlled catalogue with no prices: bookable = enabled AND priced (a multiplier in Pricing; the nurse still counts as priced at 1.0 with none set). `GET /booking/services`, `422 service_unavailable` on preview and create, admin `GET`/`PUT /admin/service-catalog`, and the WhatsApp Flow offers only bookable services. **The patient app must read the list; the console screen is not built.**
 
 **Update (2026-11-08, staging deploy kit, prepared):** everything for the first staging deploy is written and the offline-checkable parts are checked, **none of it run on a server** (PR #52; [runbook](../deploy/staging.md), [SOP](../sop/2026-11-08-staging-deploy-kit.md), section 16). The owner has no VPS yet; the first run on a real server, real mail, Paystack/Dojah callbacks, push and the app rebuild are all still open.
@@ -478,7 +480,7 @@ Runbook [`docs/deploy/staging.md`](../deploy/staging.md), [SOP](../sop/2026-11-0
 - [ ] Turn `VOICE_NOTES_ENABLED` on (after push works; real Gemini smoke)
 - [ ] Switch on the deploy workflow (Environment `staging`, secrets, `STAGING_DEPLOY_ENABLED`)
 
-## 17. Phase 2: service catalogue and half-hour bookings — 🟡 slice 1 built, slice 2 in progress (prices and surge UNKNOWN: all configurable, nothing invented)
+## 17. Phase 2: service catalogue and half-hour bookings — 🟡 both backend slices built (not pushed) (prices and surge UNKNOWN: all configurable, nothing invented)
 Owner decisions 2026-11-08: a service with no price stays hidden; every service is a home visit (video deferred); durations move to half-hour steps with a shortest booking per service. [SOP slice 1](../sop/2026-11-08-service-catalogue.md).
 - [x] Slice 1 (`feature/service-catalogue`, migration `0026`): `service_catalog` table seeded without prices (nurse on, other four off)
 - [x] Bookable rule: enabled AND priced (multiplier in `booking_settings`; nurse priced at 1.0 when none set)
@@ -486,7 +488,9 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [x] Admin `GET`/`PUT /admin/service-catalog` (`bookings.read` / `pricing.write`, audited, idempotent, `422 service_has_no_price`)
 - [x] WhatsApp Flow offers only bookable services
 - [x] Live captures (patient 200-208, admin 900-916) and both FE guides
-- [ ] Slice 2 (`feature/booking-minutes`, migration `0027`): `duration_minutes` on bookings, 30-minute steps, `invalid_duration`, proration rule, every `duration_hours` use walked
+- [x] Slice 2 (`feature/booking-minutes`, migration `0027`, [SOP](../sop/2026-11-08-booking-minutes.md)): `duration_minutes` on bookings (hours is derived), 30-minute steps, `422 invalid_duration`, one rounding rule, every `duration_hours` use walked, property tests, live captures (patient 300-319, admin 920)
+- [ ] WhatsApp half-hour bookings (the channel stays whole hours)
+- [ ] Apps and console: send `duration_minutes`, handle `invalid_duration`, type `duration_hours` as a number (compatibility risks are in the SOP)
 - [ ] Admin console screens for the catalogue, pricing and surge (separate slice)
 - [ ] Patient and caregiver apps read `/booking/services` and the minutes fields (separate slices)
 - [ ] Video visits: no provider chosen (deferred)

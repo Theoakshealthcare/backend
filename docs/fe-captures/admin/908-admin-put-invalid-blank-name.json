@@ -8,7 +8,7 @@
       "display_name": "  ",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 60,
+      "step_minutes": 30,
       "max_minutes": 1440,
       "sort_order": 20
     }

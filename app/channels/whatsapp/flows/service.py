@@ -219,8 +219,11 @@ class FlowService:
                        notice=notice)
 
     def _render_details(self, quote: Quote, notice: str = "") -> FlowResult:
-        cap = rules.max_hours((quote.payload or {}).get("service", ""))
-        durations = [{"id": str(h), "title": f"{h} hour" + ("" if h == 1 else "s")} for h in range(1, cap + 1)]
+        service = (quote.payload or {}).get("service", "")
+        cap = rules.max_hours(service)
+        entry = service_catalog.get_row(self.db, service)  # the catalogue's minimum, step and maximum still apply
+        durations = [{"id": str(h), "title": f"{h} hour" + ("" if h == 1 else "s")} for h in range(1, cap + 1)
+                     if entry is None or service_catalog.duration_allowed(entry, h * 60)]
         return _screen("DETAILS", durations=durations, notice=notice)
 
     def _render_address(self, quote: Quote, notice: str = "") -> FlowResult:
@@ -325,7 +328,9 @@ class FlowService:
             hours = int(str(data.get("duration")).strip())
         except (TypeError, ValueError):
             hours = 0
-        if not 1 <= hours <= rules.max_hours(service):
+        entry = service_catalog.get_row(self.db, service)
+        if not 1 <= hours <= rules.max_hours(service) or (
+                entry is not None and not service_catalog.duration_allowed(entry, hours * 60)):
             return self._render_details(quote, "Please choose how long the visit should be.")
         condition = _clean_text(data.get("condition"), MAX_CONDITION)
         if condition is None:

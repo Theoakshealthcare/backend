@@ -1,0 +1,13 @@
+{
+  "generated_by": "scripts/capture_booking_minutes.py",
+  "run_tag": "ea585c",
+  "captured_at": "2026-11-08T21:04:21.350350Z",
+  "folder": "admin",
+  "captures": [
+    {
+      "file": "920-admin-booking-detail.json",
+      "label": "admin-booking-detail",
+      "status": 200
+    }
+  ]
+}

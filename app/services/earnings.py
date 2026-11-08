@@ -158,12 +158,13 @@ def _no_show_hold(booking: Booking) -> Dict[str, Any]:
 
 def is_short_visit(booking: Booking, min_percent: int = SHORT_VISIT_MIN_PERCENT) -> bool:
     """True when the time actually on site (``actual_end_time - actual_start_time``) is under ``min_percent`` (the booking's
-    snapshotted ``short_visit_min_percent``; callers with the booking's terms pass it) of the booked duration. Exactly the minimum is not short, nor is a visit whose start or end was never recorded (the time on
+    snapshotted ``short_visit_min_percent``; callers with the booking's terms pass it) of the booked duration (in minutes,
+    so a 90-minute booking is short under 45 minutes at 50 %). Exactly the minimum is not short, nor is a visit whose start or end was never recorded (the time on
     site cannot be proven short; a caregiver's own ``complete`` always follows a ``start`` that stamped it)."""
-    start, end, booked_hours = booking.actual_start_time, booking.actual_end_time, int(booking.duration_hours or 0)
-    if start is None or end is None or booked_hours <= 0:
+    start, end, booked_minutes = booking.actual_start_time, booking.actual_end_time, int(booking.duration_minutes or 0)
+    if start is None or end is None or booked_minutes <= 0:
         return False
-    return (end - start) * 100 < timedelta(hours=booked_hours) * min_percent
+    return (end - start) * 100 < timedelta(minutes=booked_minutes) * min_percent
 
 
 def _short_visit_hold(booking: Booking, min_percent: int) -> Dict[str, Any]:

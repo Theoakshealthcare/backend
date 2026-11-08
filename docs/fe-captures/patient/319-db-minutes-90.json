@@ -1,0 +1,9 @@
+{
+  "observed": {
+    "duration_minutes": 90,
+    "scheduled_end_minus_start": "1:30:00",
+    "total_amount_kobo": 1650000
+  },
+  "sql": "SELECT duration_minutes, scheduled_end_date - scheduled_date, total_amount_kobo FROM bookings",
+  "note": "SQL observation: minutes stored, end = start + 90 minutes, and the total in kobo."
+}

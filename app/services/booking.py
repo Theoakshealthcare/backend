@@ -125,14 +125,15 @@ class BookingService:
         if not settings:
             raise _no_settings()
         # a hidden or unpriced service is refused, never priced at a guess (raises ServiceUnavailable)
-        service_catalog.get_bookable(self.db, preview_data.service_type, settings)
+        entry = service_catalog.get_bookable(self.db, preview_data.service_type, settings)
+        service_catalog.check_duration(entry, preview_data.duration_minutes)  # raises InvalidDuration
 
         # Price in kobo (single source of truth shared with create_booking)
         multiplier = service_multiplier(settings, preview_data.service_type, channel="app")
         surge_active = bool(settings.surge_pricing and settings.surge_multiplier)
         price = compute_price(
             base_fee_kobo=settings.base_fee_kobo,
-            quantity=preview_data.duration_hours,
+            minutes=preview_data.duration_minutes,
             multiplier=multiplier,
             surge_multiplier=settings.surge_multiplier if surge_active else None,
             discount_percent=settings.discount,
@@ -170,6 +171,7 @@ class BookingService:
         
         return BookingPreviewResponse(
             service_type=preview_data.service_type,
+            duration_minutes=preview_data.duration_minutes,
             duration_hours=preview_data.duration_hours,
             base_fee_per_hour=_naira(settings.base_fee_kobo),
             service_multiplier=multiplier,
@@ -217,9 +219,6 @@ class BookingService:
         can link it to its quote in the same transaction. ``locked_price`` is a price that was shown to the
         person and has not been recomputed since (WA-FR-20); without it the current settings decide."""
 
-        # Calculate end time
-        scheduled_end = booking_data.scheduled_date + timedelta(hours=booking_data.duration_hours)
-
         if locked_price is not None:
             price = locked_price
         else:
@@ -227,19 +226,22 @@ class BookingService:
             settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
             if not settings:
                 raise _no_settings()
-            service_catalog.get_bookable(self.db, booking_data.service_type, settings)  # raises ServiceUnavailable
+            entry = service_catalog.get_bookable(self.db, booking_data.service_type, settings)  # raises ServiceUnavailable
+            service_catalog.check_duration(entry, booking_data.duration_minutes)  # raises InvalidDuration
 
             # Price in kobo. What we store is exactly what we send to Paystack and what settlement
             # later compares against.
             multiplier = service_multiplier(settings, booking_data.service_type, channel="app")
             price = compute_price(
                 base_fee_kobo=settings.base_fee_kobo,
-                quantity=booking_data.duration_hours,
+                minutes=booking_data.duration_minutes,
                 multiplier=multiplier,
                 surge_multiplier=settings.surge_multiplier if settings.surge_pricing else None,
                 discount_percent=settings.discount,
                 platform_fee_percent=settings.platform_fee_percent,
             )
+
+        scheduled_end = booking_data.scheduled_date + timedelta(minutes=booking_data.duration_minutes)
 
         # Generate unique payment reference
         booking_code = self.generate_booking_code()
@@ -252,7 +254,7 @@ class BookingService:
             assistance_type=booking_data.assistance_type,
             condition=booking_data.condition,
             condition_encrypted=condition_encrypted,
-            duration_hours=booking_data.duration_hours,
+            duration_minutes=booking_data.duration_minutes,
             scheduled_date=booking_data.scheduled_date,
             scheduled_end_date=scheduled_end,
             patient_address=booking_data.patient_address,

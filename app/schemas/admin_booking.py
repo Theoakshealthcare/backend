@@ -4,7 +4,7 @@ Money is integer kobo throughout. Datetimes are naive UTC, like every other time
 """
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -281,7 +281,8 @@ class BookingDetail(BaseModel):
     service_type: str
     assistance_type: str
     booking_for: str
-    duration_hours: int
+    duration_minutes: int
+    duration_hours: Union[int, float]
     scheduled_date: datetime
     scheduled_end_date: datetime
     actual_start_time: Optional[datetime] = None

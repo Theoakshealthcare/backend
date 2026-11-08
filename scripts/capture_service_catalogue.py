@@ -2,10 +2,10 @@
 
 * patient (docs/fe-captures/patient/200+): ``GET /booking/services`` (before pricing, nurse only, after another service is
   priced and enabled, without a token) and the 422 ``service_unavailable`` on preview and create;
-* admin (docs/fe-captures/admin/900+): ``GET /admin/service-catalog`` and ``PUT /admin/service-catalog/{service_type}``:
+* admin (docs/fe-captures/admin/900-919): ``GET /admin/service-catalog`` and ``PUT /admin/service-catalog/{service_type}``:
   success, a retried PUT, ``service_has_no_price``, validation errors, an unknown service, a role without ``pricing.write``.
 
-Re-running replaces only this script's own blocks (patient 200-299, admin 900-999). Run on a FRESH database (it creates the first
+Re-running replaces only this script's own blocks (patient 200-299, admin 900-919). Run on a FRESH database (it creates the first
 pricing version). Light local stack, never ``backend/.env``:
 
     OAKLY_ENV_FILE=/path/scratch.env poetry run alembic upgrade head
@@ -34,16 +34,16 @@ API = "/api/v1/booking"
 CATALOG = "/api/v1/admin/service-catalog"
 
 
-def clear_block(folder: Path, first: int) -> None:
+def clear_block(folder: Path, first: int, count: int = 100) -> None:
     for f in folder.glob("*.json"):
-        if re.match(r"\d{3}-", f.name) and first <= int(f.name[:3]) < first + 100:
+        if re.match(r"\d{3}-", f.name) and first <= int(f.name[:3]) < first + count:
             f.unlink()
 
 
 def run(args) -> None:
     patient_dir, admin_dir = Path(args.patient_out), Path(args.admin_out)
     clear_block(patient_dir, PATIENT_FIRST)
-    clear_block(admin_dir, ADMIN_FIRST)
+    clear_block(admin_dir, ADMIN_FIRST, 20)
     env = read_env(args.env_file)
     scratch = Path(args.scratch)
     scratch.mkdir(parents=True, exist_ok=True)
@@ -72,7 +72,7 @@ def run(args) -> None:
     adm.call("admin-catalog-no-pricing-yet", "GET", CATALOG, token=admin,
              note="The seeded catalogue before any pricing exists: nothing is priced, so only enabled-but-unpriced shows.")
     adm.call("admin-enable-before-pricing", "PUT", CATALOG + "/doctor", token=admin, expect=422, json_body={
-        "enabled": True, "display_name": "Doctor visit", "mode": "home", "min_minutes": 60, "step_minutes": 60,
+        "enabled": True, "display_name": "Doctor visit", "mode": "home", "min_minutes": 60, "step_minutes": 30,
         "max_minutes": 1440, "sort_order": 20}, note="No pricing version exists: nothing has a price.")
 
     # --- first pricing: no multipliers (the nurse is still sold, at 1.0) ---------------------------------------------
@@ -92,14 +92,14 @@ def run(args) -> None:
              note="priced: true for the nurse only (no multiplier needed for it); bookable = enabled AND priced.")
 
     # --- enabling needs a price ------------------------------------------------------------------------------------
-    body = {"enabled": True, "display_name": "Doctor visit", "mode": "home", "min_minutes": 60, "step_minutes": 60,
+    body = {"enabled": True, "display_name": "Doctor visit", "mode": "home", "min_minutes": 60, "step_minutes": 30,
             "max_minutes": 1440, "sort_order": 20}
     adm.call("admin-enable-without-price", "PUT", CATALOG + "/doctor", token=admin, expect=422, json_body=body,
              note="The doctor has no multiplier in the pricing yet: the console should say 'set its multiplier in Pricing first'.")
     for label, override, note in (
         ("video-mode", {"mode": "video"}, "Video is deferred: only 'home' is accepted."),
-        ("step-30", {"step_minutes": 30}, "Half-hour steps arrive with the booking-minutes slice."),
-        ("min-90", {"min_minutes": 90}, "Whole hours only for now."),
+        ("step-45", {"step_minutes": 45}, "The step must be 15, 30 or 60 minutes."),
+        ("min-100", {"min_minutes": 100}, "The minimum must be a multiple of the step (30 here)."),
         ("max-1500", {"max_minutes": 1500}, "At most 1440 minutes."),
         ("blank-name", {"display_name": "  "}, "A blank name."),
     ):
@@ -135,7 +135,7 @@ def run(args) -> None:
 
     stamp = {"generated_by": "scripts/capture_service_catalogue.py", "run_tag": tag,
              "captured_at": datetime.utcnow().isoformat() + "Z"}
-    for rec, folder, label, number in ((pat, patient_dir, "patient", 299), (adm, admin_dir, "admin", 999)):
+    for rec, folder, label, number in ((pat, patient_dir, "patient", 299), (adm, admin_dir, "admin", 919)):
         (folder / f"{number}-service-catalogue-index.json").write_text(
             json.dumps({**stamp, "folder": label, "captures": rec.index}, indent=2) + "\n")
         print(f"wrote {len(rec.index)} captures to {folder}")

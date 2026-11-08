@@ -8,7 +8,7 @@
       "display_name": "Doctor visit",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 60,
+      "step_minutes": 30,
       "max_minutes": 1500,
       "sort_order": 20
     }
@@ -25,13 +25,13 @@
           "loc": [
             "body"
           ],
-          "msg": "Value error, max_minutes must be a whole number of hours between 60 and 1440 minutes",
+          "msg": "Value error, max_minutes must be a multiple of step_minutes (30) between 30 and 1440",
           "input": {
             "enabled": false,
             "display_name": "Doctor visit",
             "mode": "home",
             "min_minutes": 60,
-            "step_minutes": 60,
+            "step_minutes": 30,
             "max_minutes": 1500,
             "sort_order": 20
           },

@@ -1,0 +1,76 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_minutes": 45
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "invalid_duration",
+        "message": "Choose a length between 60 and 1440 minutes, in steps of 30 minutes.",
+        "min_minutes": 60,
+        "step_minutes": 30,
+        "max_minutes": 1440,
+        "allowed_minutes": [
+          60,
+          90,
+          120,
+          150,
+          180,
+          210,
+          240,
+          270,
+          300,
+          330,
+          360,
+          390,
+          420,
+          450,
+          480,
+          510,
+          540,
+          570,
+          600,
+          630,
+          660,
+          690,
+          720,
+          750,
+          780,
+          810,
+          840,
+          870,
+          900,
+          930,
+          960,
+          990,
+          1020,
+          1050,
+          1080,
+          1110,
+          1140,
+          1170,
+          1200,
+          1230,
+          1260,
+          1290,
+          1320,
+          1350,
+          1380,
+          1410,
+          1440
+        ]
+      }
+    }
+  },
+  "note": "Not on the 30-minute step from the minimum 60. `detail` is an object: the allowed values are listed."
+}

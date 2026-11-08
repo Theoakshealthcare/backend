@@ -8,7 +8,7 @@
       "display_name": "Doctor visit",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 30,
+      "step_minutes": 45,
       "max_minutes": 1440,
       "sort_order": 20
     }
@@ -25,13 +25,13 @@
           "loc": [
             "body"
           ],
-          "msg": "Value error, step_minutes must be 60 until half-hour bookings are supported",
+          "msg": "Value error, step_minutes must be one of 15, 30, 60",
           "input": {
             "enabled": false,
             "display_name": "Doctor visit",
             "mode": "home",
             "min_minutes": 60,
-            "step_minutes": 30,
+            "step_minutes": 45,
             "max_minutes": 1440,
             "sort_order": 20
           },
@@ -42,5 +42,5 @@
       ]
     }
   },
-  "note": "Half-hour steps arrive with the booking-minutes slice."
+  "note": "The step must be 15, 30 or 60 minutes."
 }

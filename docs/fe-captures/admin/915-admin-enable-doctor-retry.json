@@ -8,7 +8,7 @@
       "display_name": "Doctor home visit",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 60,
+      "step_minutes": 30,
       "max_minutes": 1440,
       "sort_order": 20,
       "reason": "Placeholder: launch doctor visits"
@@ -25,13 +25,13 @@
       "display_name": "Doctor home visit",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 60,
+      "step_minutes": 30,
       "max_minutes": 1440,
       "sort_order": 20,
       "priced": true,
       "bookable": true,
-      "updated_at": "2026-11-08T19:41:01.751359",
-      "updated_by": "58f95f84-7958-4330-b867-0ac7dbf1ac11"
+      "updated_at": "2026-11-08T21:03:59.122916",
+      "updated_by": "f4c1cd34-d955-4d3f-bcf3-cd15586091e2"
     }
   },
   "note": "The same PUT repeated: identical answer (same updated_at); no second audit row is written."

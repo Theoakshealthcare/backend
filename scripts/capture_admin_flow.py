@@ -245,12 +245,12 @@ class OpsSeed:
             else None
         self.db.run(
             "INSERT INTO bookings (id, booking_code, patient_id, caregiver_id, service_type, assistance_type,"
-            " condition, condition_encrypted, duration_hours, scheduled_date, scheduled_end_date, actual_start_time,"
+            " condition, condition_encrypted, duration_minutes, scheduled_date, scheduled_end_date, actual_start_time,"
             " patient_address, patient_latitude, patient_longitude, patient_city, patient_state, needs_address_check,"
             " channel, status, payment_status, dispatch_state, dispatch_started_at, total_amount_kobo,"
             " service_fee_kobo, platform_fee_kobo, paystack_reference, booking_for, special_instructions,"
             " refund_required, visit_code_failed_attempts, created_at, updated_at)"
-            " VALUES (%s,%s,%s,%s,'nurse','Placeholder assistance',%s,%s,2,%s,%s,%s,"
+            " VALUES (%s,%s,%s,%s,'nurse','Placeholder assistance',%s,%s,120,%s,%s,%s,"
             " '12 Placeholder Street, Lekki',%s,%s,'Lagos','Lagos',%s,%s,%s,%s,%s,%s,5500000,5000000,500000,%s,"
             " 'myself','Placeholder instructions (gate code 0000)',false,0,now() - interval '40 minutes',now())",
             (bid, code, patient_id, caregiver_id, condition, encrypted and self.fernet.encrypt(encrypted.encode()).decode(),

@@ -3,6 +3,7 @@
 | | |
 |---|---|
 | **What shipped** | A `service_catalog` table (migration `0026`) with one row per service type; `GET /booking/services` (the bookable list, no prices); preview and create refuse a service that is not bookable (`422 service_unavailable`); admin `GET /admin/service-catalog` and idempotent `PUT /admin/service-catalog/{service_type}` (audited, refuses to enable an unpriced service with `422 service_has_no_price`); the WhatsApp Flow offers only bookable services. **No change to pricing math or durations.** |
+| **Superseded in part by** | [booking minutes](2026-11-08-booking-minutes.md) (migration `0027`, stacked): the catalogue's step becomes 30 and its validation allows steps 15/30/60 and multiples of the step; the nutritionist's minimum becomes 30. The "whole hours only" rows below describe this slice on its own. |
 | **Branch / commit** | `feature/service-catalogue` (first of two stacked PRs; the second is `feature/booking-minutes`, migration `0027`). Not pushed; the lead pushes after review. |
 | **Owner decisions (2026-11-08)** | Phase 2 is built with prices and surge UNKNOWN: everything configurable in the admin console, a service with no price stays hidden, we never invent prices; every service is a home visit (video deferred, no provider chosen); the system has no real data, so the seed is applied by the migration. |
 

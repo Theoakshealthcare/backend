@@ -1,0 +1,45 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_minutes": 120,
+      "duration_hours": 2
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "service_type": "nurse",
+      "duration_minutes": 120,
+      "duration_hours": 2,
+      "base_fee_per_hour": 10000.0,
+      "service_multiplier": 1.0,
+      "service_fee": 20000.0,
+      "platform_fee": 2000.0,
+      "platform_fee_percent": 10.0,
+      "total_amount": 22000.0,
+      "currency": "NGN",
+      "surge_pricing_active": false,
+      "surge_multiplier": null,
+      "discount_active": false,
+      "discount_percent": null,
+      "pricing_breakdown": {
+        "base_calculation": 20000.0,
+        "surge_adjustment": 0.0,
+        "discount_savings": 0.0,
+        "service_fee_final": 20000.0,
+        "platform_fee": 2000.0,
+        "total": 22000.0
+      },
+      "estimated_caregivers_available": null,
+      "peak_hours_warning": null
+    }
+  },
+  "note": "Both fields, agreeing."
+}

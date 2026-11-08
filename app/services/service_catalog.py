@@ -44,6 +44,44 @@ class ServiceNotFound(Exception):
     pass
 
 
+class InvalidDuration(Exception):
+    """The requested length is not one the service allows. Answered as 422 ``invalid_duration`` listing the allowed values."""
+
+    def __init__(self, service_type: str, minutes: int, row: "ServiceCatalog"):
+        super().__init__(f"{service_type}: {minutes} minutes")
+        self.service_type = service_type
+        self.minutes = minutes
+        self.min_minutes, self.step_minutes, self.max_minutes = row.min_minutes, row.step_minutes, row.max_minutes
+
+    @property
+    def allowed_minutes(self) -> List[int]:
+        return allowed_minutes_for(self.min_minutes, self.step_minutes, self.max_minutes)
+
+    def detail(self) -> Dict[str, Any]:
+        return {
+            "code": "invalid_duration",
+            "message": (f"Choose a length between {self.min_minutes} and {self.max_minutes} minutes, "
+                        f"in steps of {self.step_minutes} minutes."),
+            "min_minutes": self.min_minutes, "step_minutes": self.step_minutes, "max_minutes": self.max_minutes,
+            "allowed_minutes": self.allowed_minutes,
+        }
+
+
+def allowed_minutes_for(min_minutes: int, step_minutes: int, max_minutes: int) -> List[int]:
+    return list(range(min_minutes, max_minutes + 1, step_minutes))
+
+
+def duration_allowed(row: "ServiceCatalog", minutes: int) -> bool:
+    return (isinstance(minutes, int) and not isinstance(minutes, bool) and row.min_minutes <= minutes <= row.max_minutes
+            and (minutes - row.min_minutes) % row.step_minutes == 0)
+
+
+def check_duration(row: "ServiceCatalog", minutes: int) -> None:
+    """Raise ``InvalidDuration`` unless ``minutes`` is min, min + step, min + 2 x step ... up to max."""
+    if not duration_allowed(row, minutes):
+        raise InvalidDuration(row.service_type, minutes, row)
+
+
 def latest_settings(db: Session) -> Optional[BookingSettings]:
     return db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
 
@@ -72,6 +110,10 @@ def get_bookable(db: Session, service_type: str, settings: Optional[BookingSetti
     if row is None or not is_bookable(row, settings):
         raise ServiceUnavailable(service_type)
     return row
+
+
+def get_row(db: Session, service_type: str) -> Optional[ServiceCatalog]:
+    return db.query(ServiceCatalog).filter(ServiceCatalog.service_type == service_type).first()
 
 
 def display_name(db: Session, service_type: str) -> str:
