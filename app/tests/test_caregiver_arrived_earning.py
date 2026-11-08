@@ -2,6 +2,7 @@
 threshold as booking policy, and the family's cancel reason stored on the booking."""
 
 import json
+import uuid
 from datetime import datetime, timedelta
 
 import pytest
@@ -11,10 +12,10 @@ from app.core.money import kobo_to_naira
 from app.db.models.booking import Booking, BookingNotification, BookingStatus, PaymentStatus
 from app.db.models.booking_settings import BookingSettings
 from app.db.models.whatsapp_booking import BookingEvent
-from app.schemas.booking import BookingCreate
+from app.schemas.booking import BookingActionRequest, BookingCreate
 from app.services import dispatch, dropout, earnings
-from app.services.booking import BookingService
-from app.tests.factories import auth_headers, make_admin, make_booking, make_caregiver, make_patient
+from app.services.booking import BookingArrivalTooEarly, BookingService
+from app.tests.factories import auth_headers, make_admin, make_booking, make_caregiver, make_patient, make_user
 from app.tests.policy_helpers import set_policy
 from app.tests.test_caregiver_earnings import complete, txs
 from app.tests.test_patient_notifications import (  # noqa: F401  (fixtures)
@@ -44,8 +45,16 @@ def reload(db, booking) -> Booking:
     return db.get(Booking, booking.id)
 
 
+def soon(minutes: int = 30) -> dict:
+    """A visit starting ``minutes`` from now: inside the arrival window (the default is 60 minutes before the start)."""
+    start = datetime.utcnow() + timedelta(minutes=minutes)
+    return {"scheduled_date": start, "scheduled_end_date": start + timedelta(hours=4)}
+
+
 def accepted(db, cg, **kw):
     kw.setdefault("earnings_terms", TERMS)
+    for k, v in soon().items():
+        kw.setdefault(k, v)
     return make_booking(db, make_patient(db), cg, status=BookingStatus.ACCEPTED, **kw)
 
 
@@ -123,7 +132,7 @@ def test_the_earning_never_reaches_patients_admins_or_other_caregivers(db, clien
 # === (b) "I've arrived" ===================================================================================================
 def test_arrived_stamps_the_time_keeps_the_status_and_tells_the_family_once(db, expo, world):
     cg = world["caregiver"]
-    b = app_booking(db, world["patient"], cg, status=BookingStatus.ACCEPTED, earnings_terms=TERMS)
+    b = app_booking(db, world["patient"], cg, status=BookingStatus.ACCEPTED, earnings_terms=TERMS, **soon())
     from app.tests.test_patient_notifications import act as svc_act
     first = svc_act(db, b, cg, "arrived")
     stamp = first.arrived_at
@@ -138,9 +147,87 @@ def test_arrived_stamps_the_time_keeps_the_status_and_tells_the_family_once(db, 
     assert [r.body for r in rows if r.type == "caregiver_arrived"] == ["Open the app to see your visit code."]
 
 
+# --- the arrival window (owner rule 2026-11-08: from 60 minutes before the start) -----------------------------------------
+def arrive_at(db, booking, cg, now):
+    return BookingService(db).handle_booking_action(booking.id, cg.id, BookingActionRequest(action="arrived"), now=now)
+
+
+def far_booking(db, cg, **kw):
+    start = datetime(2030, 1, 1, 12, 0, 0)  # a fixed instant: the checks inject `now`, no clock and no timezone involved
+    return make_booking(db, make_patient(db), cg, status=BookingStatus.ACCEPTED, scheduled_date=start,
+                        scheduled_end_date=start + timedelta(hours=4), earnings_terms=TERMS, **kw)
+
+
+def test_arrived_is_allowed_from_exactly_60_minutes_before_the_start(db, expo):
+    cg = make_caregiver(db)
+    b = far_booking(db, cg)
+    moment = b.scheduled_date - timedelta(minutes=60)
+    assert arrive_at(db, b, cg, moment).arrived_at == moment
+
+
+def test_arrived_61_minutes_before_the_start_is_refused_and_changes_nothing(db, expo):
+    cg = make_caregiver(db)
+    b = far_booking(db, cg)
+    with pytest.raises(BookingArrivalTooEarly) as refused:
+        arrive_at(db, b, cg, b.scheduled_date - timedelta(minutes=61))
+    assert refused.value.earliest_at == b.scheduled_date - timedelta(minutes=60)
+    assert str(refused.value) == "You can mark yourself as arrived from 60 minutes before the visit starts."
+    assert reload(db, b).arrived_at is None
+    assert db.query(BookingEvent).filter(BookingEvent.booking_id == b.id, BookingEvent.event == "caregiver_arrived").count() == 0
+
+
+def test_arrived_is_allowed_after_the_start_time_until_the_visit_starts(db, expo):
+    cg = make_caregiver(db)
+    b = far_booking(db, cg)
+    moment = b.scheduled_date + timedelta(minutes=25)
+    assert arrive_at(db, b, cg, moment).arrived_at == moment
+
+
+def test_a_repeat_tap_stays_a_no_op_even_asked_at_an_instant_before_the_window(db, expo):
+    cg = make_caregiver(db)
+    b = far_booking(db, cg)
+    first = b.scheduled_date - timedelta(minutes=60)
+    arrive_at(db, b, cg, first)
+    again = arrive_at(db, b, cg, b.scheduled_date - timedelta(minutes=300))  # no 422 and no new stamp
+    assert again.arrived_at == first
+    assert db.query(BookingEvent).filter(BookingEvent.booking_id == b.id, BookingEvent.event == "caregiver_arrived").count() == 1
+
+
+def test_the_window_is_a_setting(db, expo, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ARRIVAL_EARLIEST_MINUTES_BEFORE", 30)
+    cg = make_caregiver(db)
+    b = far_booking(db, cg)
+    with pytest.raises(BookingArrivalTooEarly) as refused:
+        arrive_at(db, b, cg, b.scheduled_date - timedelta(minutes=45))
+    assert str(refused.value) == "You can mark yourself as arrived from 30 minutes before the visit starts."
+    moment = b.scheduled_date - timedelta(minutes=30)
+    assert arrive_at(db, b, cg, moment).arrived_at == moment
+
+
+def test_arrived_too_early_over_http_is_a_422_with_the_earliest_instant(db, client):
+    cg = make_caregiver(db)
+    b = make_booking(db, make_patient(db), cg, status=BookingStatus.ACCEPTED, earnings_terms=TERMS, **soon(180))
+    r = act(client, b, cg, "arrived")
+    assert r.status_code == 422
+    assert r.json()["detail"] == {
+        "code": "arrived_too_early",
+        "message": "You can mark yourself as arrived from 60 minutes before the visit starts.",
+        "earliest_at": (b.scheduled_date - timedelta(minutes=60)).isoformat(),
+    }
+    assert reload(db, b).arrived_at is None
+
+
+def test_a_wrong_state_is_still_a_409_far_before_the_window(db, client):
+    cg = make_caregiver(db)
+    b = make_booking(db, make_patient(db), cg, status=BookingStatus.IN_PROGRESS, **soon(600))
+    r = act(client, b, cg, "arrived")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "booking_not_arrivable"
+
+
 def test_arrived_works_from_en_route_and_over_http(db, client):
     cg = make_caregiver(db)
-    b = make_booking(db, make_patient(db), cg, status=BookingStatus.EN_ROUTE, earnings_terms=TERMS)
+    b = make_booking(db, make_patient(db), cg, status=BookingStatus.EN_ROUTE, earnings_terms=TERMS, **soon())
     r = act(client, b, cg, "arrived")
     assert r.status_code == 200 and r.json()["message"] == "Booking arrived successfully"
     body = r.json()["booking"]
@@ -157,7 +244,8 @@ def test_only_the_assigned_caregiver_may_arrive(db, client):
     db.commit()
     for who in (stranger, offered):
         r = act(client, b, who, "arrived")
-        assert r.status_code == 403 and r.json()["detail"] == "This booking is not assigned to you"
+        assert r.status_code == 403
+        assert r.json()["detail"] == {"code": "booking_not_assigned", "message": "This booking is not assigned to you"}
     assert reload(db, b).arrived_at is None
     assert client.post(f"{ACTION}/{b.id}", json={"action": "arrived"}).status_code == 401
 
@@ -166,9 +254,11 @@ def test_only_the_assigned_caregiver_may_arrive(db, client):
                                     BookingStatus.CANCELLED])
 def test_arrived_only_on_an_accepted_or_en_route_booking(db, client, status):
     cg = make_caregiver(db)
-    b = make_booking(db, make_patient(db), cg, status=status)
+    b = make_booking(db, make_patient(db), cg, status=status, **soon())
     r = act(client, b, cg, "arrived")
-    assert r.status_code == 409 and r.json()["detail"] == "Only an accepted booking can be marked as arrived"
+    assert r.status_code == 409
+    assert r.json()["detail"] == {"code": "booking_not_arrivable",
+                                  "message": "Only an accepted booking can be marked as arrived"}
     assert reload(db, b).arrived_at is None
 
 
@@ -177,13 +267,42 @@ def test_a_suspended_caregiver_cannot_arrive_for_a_visit(db, client):
     b = accepted(db, cg)
     cg.profile_status = "suspended"
     db.commit()
-    assert act(client, b, cg, "arrived").status_code == 403
+    r = act(client, b, cg, "arrived")
+    assert r.status_code == 403
+    assert r.json()["detail"] == {"code": "caregiver_not_approved", "message": "Your account is not approved to start visits"}
+
+
+def test_arrived_on_an_unknown_booking_is_a_coded_404(db, client):
+    cg = make_caregiver(db)
+    r = client.post(f"{ACTION}/{uuid.uuid4()}", json={"action": "arrived"}, headers=auth_headers(cg.user))
+    assert r.status_code == 404
+    assert r.json()["detail"] == {"code": "booking_not_found", "message": "Booking not found"}
+
+
+def test_arrived_without_a_caregiver_profile_is_a_coded_404(db, client):
+    user = make_user(db, "caregiver")  # a caregiver login that never created its profile
+    r = client.post(f"{ACTION}/{uuid.uuid4()}", json={"action": "arrived"}, headers=auth_headers(user))
+    assert r.status_code == 404
+    assert r.json()["detail"] == {"code": "caregiver_profile_not_found", "message": "Caregiver profile not found"}
+    r = client.post(f"{ACTION}/{uuid.uuid4()}", json={"action": "start"}, headers=auth_headers(user))
+    assert r.status_code == 404 and r.json()["detail"] == "Caregiver profile not found"
+
+
+def test_the_other_actions_still_answer_plain_string_errors(db, client):
+    """Only ``arrived`` moved to {code, message}: the caregiver app reads the others as strings until it is changed."""
+    cg, stranger = make_caregiver(db), make_caregiver(db)
+    b = accepted(db, cg)
+    r = act(client, b, stranger, "start")
+    assert r.status_code == 403 and r.json()["detail"] == "This booking is not assigned to you"
+    pending = make_booking(db, make_patient(db), cg, status=BookingStatus.PENDING)
+    r = act(client, pending, cg, "start")
+    assert r.status_code == 409 and r.json()["detail"] == "Only an accepted booking can be started"
 
 
 def test_the_family_sees_arrived_at_and_another_caregiver_never_does(db, client):
     cg, other = make_caregiver(db), make_caregiver(db)
     patient = make_patient(db)
-    b = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED, earnings_terms=TERMS)
+    b = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED, earnings_terms=TERMS, **soon())
     act(client, b, cg, "arrived")
     assert client.get(f"{API}/booking/{b.id}", headers=auth_headers(patient.user)).json()["arrived_at"] is not None
     db.add(BookingNotification(booking_id=b.id, caregiver_id=other.id, title="t", message="m",
@@ -195,7 +314,7 @@ def test_the_family_sees_arrived_at_and_another_caregiver_never_does(db, client)
 
 def test_a_whatsapp_booking_records_the_arrival_but_sends_nothing_app_only(db, client):
     cg = make_caregiver(db)
-    b = make_booking(db, make_patient(db), cg, status=BookingStatus.ACCEPTED, channel="whatsapp")
+    b = make_booking(db, make_patient(db), cg, status=BookingStatus.ACCEPTED, channel="whatsapp", **soon())
     assert act(client, b, cg, "arrived").status_code == 200
     assert reload(db, b).arrived_at is not None
     assert db.query(BookingEvent).filter_by(booking_id=b.id, event="caregiver_arrived").count() == 0
@@ -210,7 +329,7 @@ def test_a_new_caregiver_has_not_arrived_yet(db):
 
 def test_starting_the_visit_after_arriving_still_needs_the_code_and_works(db, client):
     cg = make_caregiver(db)
-    b = make_booking(db, make_patient(db), cg, status=BookingStatus.ACCEPTED, visit_code="4321", earnings_terms=TERMS)
+    b = make_booking(db, make_patient(db), cg, status=BookingStatus.ACCEPTED, visit_code="4321", earnings_terms=TERMS, **soon())
     assert act(client, b, cg, "arrived").status_code == 200
     assert act(client, b, cg, "start").status_code == 400
     assert act(client, b, cg, "start", visit_code="4321").status_code == 200
@@ -354,7 +473,7 @@ def test_the_family_s_reason_is_shown_to_no_caregiver_and_not_in_the_booking_vie
     cg = make_caregiver(db)
     patient = make_patient(db)
     b = make_booking(db, patient, cg, status=BookingStatus.ACCEPTED, cancel_note="Private family reason PLACEHOLDER",
-                     earnings_terms=TERMS)
+                     earnings_terms=TERMS, **soon())
     for r in (client.get(f"{API}/booking/{b.id}", headers=auth_headers(cg.user)),
               client.get(f"{API}/caregiver/bookings", headers=auth_headers(cg.user)),
               act(client, b, cg, "arrived"),

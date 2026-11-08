@@ -1,0 +1,185 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/bookings/90661936-a61a-47bb-a94e-dd88a6e91ef0",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "90661936-a61a-47bb-a94e-dd88a6e91ef0",
+      "booking_code": "4F71WWIQ",
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "booking_for": "myself",
+      "duration_hours": 4,
+      "scheduled_date": "2026-11-08T16:33:55",
+      "scheduled_end_date": "2026-11-08T20:33:55",
+      "actual_start_time": null,
+      "actual_end_time": null,
+      "status": "accepted",
+      "channel": "app",
+      "cancel_reason": null,
+      "created_at": "2026-11-08T15:33:55.727688",
+      "updated_at": "2026-11-08T15:33:55.767487",
+      "age_minutes": 0,
+      "patient": {
+        "id": "75636d0f-7251-4eb9-b87d-c012ae95f67a",
+        "full_name": "Placeholder Patient",
+        "phone": "+2340000351003",
+        "masked": false
+      },
+      "caregiver": {
+        "id": "2def8c7e-3f8b-4432-bcb3-f9c39e61879d",
+        "full_name": "Placeholder Caregiver A",
+        "phone": "+2340000351001",
+        "masked": false
+      },
+      "address": {
+        "city": "Lagos",
+        "state": "Lagos",
+        "visible": true,
+        "line": "12 Placeholder Street, Lekki",
+        "latitude": 6.4474,
+        "longitude": 3.4723,
+        "needs_address_check": false
+      },
+      "clinical": {
+        "masked": false,
+        "has_condition": false,
+        "has_special_instructions": false,
+        "condition": null,
+        "special_instructions": null
+      },
+      "price": {
+        "total_kobo": 2200000,
+        "service_fee_kobo": 2000000,
+        "platform_fee_kobo": 200000
+      },
+      "payment": {
+        "status": "paid",
+        "paystack_reference": "BKG_4F71WWIQ_75636d0f",
+        "failure_reason": null,
+        "expires_at": "2026-11-08T16:03:55.727329",
+        "refund_required": false,
+        "refund_required_reason": null,
+        "refund_amount_kobo": null,
+        "attempts": []
+      },
+      "cancel_terms": {
+        "policy_source": "live_policy",
+        "policy": {
+          "free_hours": 24,
+          "late_hours": 6,
+          "fee_percent": 25,
+          "late_fee_percent": 60
+        },
+        "snapshot": null,
+        "would_apply_now": {
+          "allowed": true,
+          "refusal": null,
+          "tier": "late",
+          "fee_percent": 60,
+          "fee_kobo": 1200000,
+          "refund_kobo": 1000000,
+          "as_of": "2026-11-08T15:33:55.861139"
+        },
+        "applied": null
+      },
+      "dispatch": {
+        "state": "matched",
+        "started_at": "2026-11-08T15:33:55.740095",
+        "waves": [
+          {
+            "wave_no": 1,
+            "sent_at": "2026-11-08T15:33:55.740095",
+            "expires_at": "2026-11-08T15:43:55.740095",
+            "notified_count": 1
+          }
+        ],
+        "offers": [
+          {
+            "caregiver_id": "2def8c7e-3f8b-4432-bcb3-f9c39e61879d",
+            "caregiver_name": "Placeholder Caregiver A",
+            "offered_at": "2026-11-08T15:33:55.752807",
+            "response": "accept",
+            "response_at": "2026-11-08T15:33:55.769401"
+          }
+        ]
+      },
+      "events": [
+        {
+          "event": "payment_received",
+          "created_at": "2026-11-08T15:33:55.741558",
+          "delivered_at": null,
+          "attempts": 0,
+          "last_error": null
+        },
+        {
+          "event": "caregiver_assigned",
+          "created_at": "2026-11-08T15:33:55.768053",
+          "delivered_at": null,
+          "attempts": 0,
+          "last_error": null
+        }
+      ],
+      "no_show_flagged_at": null,
+      "no_show_suspected": false,
+      "note_count": 0,
+      "timeline": [
+        {
+          "at": "2026-11-08T15:33:55.727688",
+          "kind": "booking_created",
+          "title": "Booking created via app",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-11-08T15:33:55.740095",
+          "kind": "dispatch_started",
+          "title": "Dispatch started",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-11-08T15:33:55.740095",
+          "kind": "wave_sent",
+          "title": "Wave 1 sent",
+          "actor": "system",
+          "detail": "1 caregiver(s) offered the visit"
+        },
+        {
+          "at": "2026-11-08T15:33:55.741558",
+          "kind": "notification_queued",
+          "title": "Event queued: payment_received",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-11-08T15:33:55.768053",
+          "kind": "notification_queued",
+          "title": "Event queued: caregiver_assigned",
+          "actor": "system",
+          "detail": null
+        },
+        {
+          "at": "2026-11-08T15:33:55.769401",
+          "kind": "offer_response",
+          "title": "Offer accept",
+          "actor": "caregiver: Placeholder A.",
+          "detail": null
+        }
+      ],
+      "available_actions": [
+        "reassign",
+        "cancel",
+        "correct_status"
+      ]
+    }
+  },
+  "note": "Accepted, 1 hour from the start: the late tier would apply now (60 % of the service fee)."
+}

@@ -1,0 +1,33 @@
+{
+  "generated_by": "scripts/capture_arrived_errors_cancel_terms.py",
+  "run_tag": "76eac7",
+  "captured_at": "2026-11-08T15:33:56.126398Z",
+  "folder": "caregiver",
+  "captures": [
+    {
+      "file": "800-o-arrived-not-assigned.json",
+      "label": "o-arrived-not-assigned",
+      "status": 403
+    },
+    {
+      "file": "801-a-arrived-offer-only.json",
+      "label": "a-arrived-offer-only",
+      "status": 403
+    },
+    {
+      "file": "802-a-arrived-unknown-booking.json",
+      "label": "a-arrived-unknown-booking",
+      "status": 404
+    },
+    {
+      "file": "803-a-arrived-after-start.json",
+      "label": "a-arrived-after-start",
+      "status": 409
+    },
+    {
+      "file": "804-o-start-not-assigned-plain-string.json",
+      "label": "o-start-not-assigned-plain-string",
+      "status": 403
+    }
+  ]
+}

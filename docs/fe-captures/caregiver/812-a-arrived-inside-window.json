@@ -1,0 +1,83 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/30ea030d-43f8-42db-9a5b-7ee76afdf1f0",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "arrived"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "message": "Booking arrived successfully",
+      "booking": {
+        "id": "30ea030d-43f8-42db-9a5b-7ee76afdf1f0",
+        "booking_code": "73CCVO3R",
+        "channel": "app",
+        "patient_id": "6d5d7805-b0d2-4a09-a3cc-6a9e2883f47d",
+        "patient_details": {
+          "patient_id": "6d5d7805-b0d2-4a09-a3cc-6a9e2883f47d",
+          "full_name": "Placeholder Patient",
+          "phone_number": "+2340000642002",
+          "profile_image_url": null,
+          "emergency_contact_name": null,
+          "emergency_contact_phone": null
+        },
+        "caregiver_id": "c4814ac7-9ee6-4b52-8df0-df77d37a7123",
+        "caregiver_details": {
+          "caregiver_id": "c4814ac7-9ee6-4b52-8df0-df77d37a7123",
+          "full_name": "Placeholder Caregiver A",
+          "specialization": "Elderly Care",
+          "profile_image_url": null,
+          "current_latitude": 6.4494,
+          "current_longitude": 3.4723,
+          "distance_from_patient": 0.22,
+          "estimated_arrival_time": 5,
+          "last_location_update": "2026-11-08T15:53:01.398696",
+          "is_online": true
+        },
+        "service_type": "nurse",
+        "assistance_type": "Placeholder assistance",
+        "condition": null,
+        "duration_hours": 4,
+        "scheduled_date": "2026-11-08T16:23:02",
+        "scheduled_end_date": "2026-11-08T20:23:02",
+        "actual_start_time": null,
+        "actual_end_time": null,
+        "patient_address": "12 Placeholder Street, Lekki",
+        "patient_latitude": 6.4474,
+        "patient_longitude": 3.4723,
+        "patient_city": "Lagos",
+        "patient_state": "Lagos",
+        "status": "accepted",
+        "payment_status": "paid",
+        "paystack_reference": "BKG_73CCVO3R_6d5d7805",
+        "payment_expires_at": "2026-11-08T16:23:02.098630",
+        "payment_failure_reason": null,
+        "total_amount": "22000.00",
+        "service_fee": "20000.00",
+        "platform_fee": "2000.00",
+        "total_amount_kobo": 2200000,
+        "service_fee_kobo": 2000000,
+        "platform_fee_kobo": 200000,
+        "special_instructions": null,
+        "booking_for": "myself",
+        "cancel_reason": null,
+        "refund_required": false,
+        "refund_required_reason": null,
+        "dispatch_state": "matched",
+        "dispatch_started_at": "2026-11-08T15:53:02.114872",
+        "visit_code": null,
+        "arrived_at": "2026-11-08T15:53:02.174290",
+        "caregiver_earning": 16000.0,
+        "created_at": "2026-11-08T15:53:02.098998",
+        "updated_at": "2026-11-08T15:53:02.174766"
+      }
+    }
+  },
+  "note": "A visit 30 minutes away is inside the window: 200, arrived_at stamped."
+}

@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/e9cae0cf-4cf8-49f0-9ff8-c0ca1cf45df9",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "arrived"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "booking_not_assigned",
+        "message": "This booking is not assigned to you"
+      }
+    }
+  },
+  "note": "Holding only an offer is not being assigned."
+}

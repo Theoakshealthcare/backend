@@ -1,0 +1,72 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/booking/35c93c5d-7ad5-444c-9981-cb2641203d20",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "35c93c5d-7ad5-444c-9981-cb2641203d20",
+      "booking_code": "S7I4VFSG",
+      "channel": "app",
+      "patient_id": "6d5d7805-b0d2-4a09-a3cc-6a9e2883f47d",
+      "patient_details": {
+        "patient_id": "6d5d7805-b0d2-4a09-a3cc-6a9e2883f47d",
+        "full_name": "Placeholder Patient",
+        "phone_number": "+2340000642002",
+        "profile_image_url": null,
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null
+      },
+      "caregiver_id": "c4814ac7-9ee6-4b52-8df0-df77d37a7123",
+      "caregiver_details": {
+        "caregiver_id": "c4814ac7-9ee6-4b52-8df0-df77d37a7123",
+        "full_name": "Placeholder Caregiver A",
+        "specialization": "Elderly Care",
+        "profile_image_url": null,
+        "current_latitude": 6.4494,
+        "current_longitude": 3.4723,
+        "distance_from_patient": 0.22,
+        "estimated_arrival_time": 5,
+        "last_location_update": "2026-11-08T15:53:01.398696",
+        "is_online": true
+      },
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "condition": null,
+      "duration_hours": 4,
+      "scheduled_date": "2026-11-08T18:53:01",
+      "scheduled_end_date": "2026-11-08T22:53:01",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "status": "accepted",
+      "payment_status": "paid",
+      "total_amount": 22000.0,
+      "service_fee": 20000.0,
+      "platform_fee": 2000.0,
+      "special_instructions": null,
+      "booking_for": "myself",
+      "created_at": "2026-11-08T15:53:01.983423",
+      "updated_at": "2026-11-08T15:53:02.073492",
+      "dispatch_state": "matched",
+      "arrived_at": null,
+      "caregiver_earning": 16000.0,
+      "visit_code": null,
+      "cancel_fee_tier": null,
+      "cancel_fee": null,
+      "refund": null,
+      "payment_url": null,
+      "payment_access_code": null,
+      "payment_error": null
+    }
+  },
+  "note": "The refusal changed nothing: arrived_at is still null and the status is still accepted."
+}

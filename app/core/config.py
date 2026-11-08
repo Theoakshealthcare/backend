@@ -117,6 +117,7 @@ class Settings(BaseSettings):
     # Background jobs (ARQ worker) and dispatch tunables.
     REDIS_URL: str = "redis://localhost:6379/0"
     PAYMENT_LINK_TTL_MINUTES: int = 30  # an unpaid booking is cancelled after this long
+    ARRIVAL_EARLIEST_MINUTES_BEFORE: int = 60  # the caregiver's "I've arrived" is allowed from this long before the visit starts
     LOCATION_FRESHNESS_MINUTES: int = 15  # a caregiver location older than this is not matched
     # A payment that lands after the unpaid-expiry cancel reinstates the booking only if the visit is
     # at least this far ahead; otherwise it is flagged for a refund.
@@ -245,7 +246,7 @@ class Settings(BaseSettings):
     # AI voice notes (docs/plans/2026-11-07-ai-note-transcription.md section 10). Off until the owner switches it on: the
     # switch is the kill switch too. Every limit has a default so a missing line never stops the app booting.
     VOICE_NOTES_ENABLED: bool = False
-    VOICE_NOTE_MODEL: str = "gemini-3.5-flash"  # gemini-2.5-flash answers 404 for our key; audio input on this model is not yet proven live
+    VOICE_NOTE_MODEL: str = "gemini-3.5-flash"  # gemini-2.5-flash answers 404 for our key; audio (m4a, mp3) proven live on this model 2026-11-08, synthetic speech only
     VOICE_NOTE_MIN_SECONDS: int = 2
     VOICE_NOTE_MAX_SECONDS: int = 600
     VOICE_NOTE_MAX_BYTES: int = 12 * 1024 * 1024

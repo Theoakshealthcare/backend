@@ -175,6 +175,42 @@ class PriceOut(BaseModel):
     platform_fee_kobo: int
 
 
+class CancelTiersOut(BaseModel):
+    """The booker-cancel tiers (admin booking policy fields): free before ``free_hours`` to the start, ``fee_percent`` of the
+    service fee between ``late_hours`` and ``free_hours``, ``late_fee_percent`` inside ``late_hours`` (or once on the way)."""
+    free_hours: int
+    late_hours: int
+    fee_percent: int
+    late_fee_percent: int
+
+
+class CancelTermsNowOut(BaseModel):
+    """What the booker would pay to cancel at ``as_of`` (read-only; the cancel itself decides again under a lock)."""
+    allowed: bool
+    refusal: Optional[Literal["in_progress", "closed", "unpaid"]] = None  # set when allowed is false
+    tier: Optional[Literal["none", "standard", "late"]] = None  # null when not allowed
+    fee_percent: int
+    fee_kobo: int
+    refund_kobo: int
+    as_of: datetime
+
+
+class CancelAppliedOut(BaseModel):
+    """Set only after a booker cancel: the tier that was applied and the fee it cost."""
+    tier: Literal["none", "standard", "late"]
+    fee_kobo: Optional[int] = None
+    late_cancel_compensable: Optional[bool] = None
+
+
+class CancelTermsOut(BaseModel):
+    """The booking's own cancel terms. These are the *booker's* terms; an admin cancel chooses its own refund (see POST cancel)."""
+    policy_source: Literal["booking_snapshot", "live_policy"]  # live_policy: an older booking with no snapshot of its own
+    policy: CancelTiersOut  # the tiers in force for this booking (the snapshot when there is one)
+    snapshot: Optional[CancelTiersOut] = None  # exactly what is stored on the booking; null on an older booking
+    would_apply_now: CancelTermsNowOut
+    applied: Optional[CancelAppliedOut] = None
+
+
 class PaymentAttemptOut(BaseModel):
     id: UUID
     type: str
@@ -262,6 +298,7 @@ class BookingDetail(BaseModel):
     clinical: ClinicalOut
     price: PriceOut
     payment: PaymentOut
+    cancel_terms: CancelTermsOut
     dispatch: DispatchOut
     events: List[EventOut]
     no_show_flagged_at: Optional[datetime] = None

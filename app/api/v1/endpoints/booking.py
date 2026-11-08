@@ -27,7 +27,7 @@ from app.schemas.booking import (
     CancelBookingRequest, CancelBookingResponse, CancelTermsResponse, PaymentLinkResponse,
 )
 from app.services.booking import (
-    BookingActionForbidden, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
+    BookingActionForbidden, BookingArrivalTooEarly, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
 from app.services import booking_payment_link, earnings, patient_booking_cancel
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
@@ -652,6 +652,17 @@ def get_caregiver_notifications(
     ]
 
 
+# Actions whose errors use the backend convention ``detail = {code, message}``; the older actions still answer a plain
+# string (the caregiver app reads those today). Add an action here together with its codes and an app change.
+_CODED_ACTION_ERRORS = {"arrived"}
+
+
+def _action_detail(action: str, message: str, code: Optional[str]):
+    if action in _CODED_ACTION_ERRORS and code:
+        return {"code": code, "message": message}
+    return message
+
+
 @router.post(
     "/caregiver/action/{booking_id}",
     response_model=CaregiverActionResponse,
@@ -686,7 +697,7 @@ async def handle_booking_action(
     if not caregiver:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Caregiver profile not found"
+            detail=_action_detail(action_data.action, "Caregiver profile not found", "caregiver_profile_not_found")
         )
     
     try:
@@ -700,16 +711,20 @@ async def handle_booking_action(
         attach_caregiver_earning(enriched_booking, booking, caregiver.id)
         return {"message": f"Booking {action_data.action} successfully", "booking": enriched_booking}
     except BookingActionForbidden as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_action_detail(action_data.action, str(e), e.code))
     except BookingStateConflict as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_action_detail(action_data.action, str(e), e.code))
+    except BookingArrivalTooEarly as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "arrived_too_early", "message": str(e), "earliest_at": e.earliest_at.isoformat()})
     except BookingVisitCodeError as e:
         headers = {"Retry-After": str(e.retry_after)} if e.retry_after else None
         raise HTTPException(status_code=e.status_code, detail=e.detail, headers=headers)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
+            detail=_action_detail(action_data.action, str(e), "booking_not_found")
         )
 
 
