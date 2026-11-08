@@ -240,7 +240,7 @@ class Settings(BaseSettings):
 
     # Gemini AI Configuration
     GEMINI_API_KEY: Optional[str] = None
-    
+    GEMINI_MODEL: str = "gemini-3.5-flash"
 
     # Push Notifications
     FCM_SERVER_KEY: Optional[str] = None
