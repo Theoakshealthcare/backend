@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/patient/bookings/1f11e2a9-74a9-4549-b376-7fdea2b9906b/voice-notes",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "not_found",
+        "message": "This note could not be found."
+      }
+    }
+  }
+}

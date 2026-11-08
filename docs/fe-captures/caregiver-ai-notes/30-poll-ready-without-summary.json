@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/voice-notes/58b6fd0b-4303-468b-baa4-de1c630fe1d8",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "id": "58b6fd0b-4303-468b-baa4-de1c630fe1d8",
+      "booking_id": "1f11e2a9-74a9-4549-b376-7fdea2b9906b",
+      "status": "ready",
+      "language": "pcm",
+      "transcript": "Placeholder client had breakfast at nine and took the morning tablets. Blood pressure was one twenty over eighty. She said she slept well.",
+      "summary": null,
+      "summary_available": false,
+      "edited": false,
+      "error": null,
+      "duration_seconds": 42,
+      "consent_version": "2026-11-v1",
+      "consent_confirmed_at": "2026-11-07T23:25:57.365985",
+      "created_at": "2026-11-07T23:25:57.365985",
+      "ready_at": "2026-11-07T23:25:57.390647",
+      "saved_at": null,
+      "expires_at": "2026-11-08T23:25:57.390647"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/visits/1f11e2a9-74a9-4549-b376-7fdea2b9906b/voice-notes",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "consent_confirmed": true,
+      "consent_version": "2020-01-v0",
+      "language": "pcm",
+      "duration_seconds": 42,
+      "client_request_id": null
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "consent_version_unknown",
+        "message": "Update the Oakly app to record notes."
+      }
+    }
+  }
+}

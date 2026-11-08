@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/visits/72070f7c-7c87-46c2-83e5-4c9051de1866/voice-notes",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "consent_confirmed": true,
+      "consent_version": "2026-11-v1",
+      "language": "pcm",
+      "duration_seconds": 42,
+      "client_request_id": null
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "visit_not_active",
+        "message": "Voice notes can be added during a visit."
+      }
+    }
+  }
+}

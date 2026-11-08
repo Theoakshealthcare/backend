@@ -28,6 +28,9 @@ from app.services.kyc_hooks import KycHooks
 from app.services.kyc_reconcile import reconcile as kyc_reconcile
 from app.services.payouts import create_scheduled_batch, dispatch_due as dispatch_payouts, reconcile as reconcile_payouts
 from app.services.refunds import dispatch_due as dispatch_refunds, reconcile as reconcile_refunds
+from app.services.voice_notes.audio_store import get_audio_store
+from app.services.voice_notes.processing import process_note, sweep as sweep_voice_notes
+from app.services.voice_notes.provider import get_transcription_provider
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +176,34 @@ async def kyc_reconcile_job(ctx: dict) -> dict:
     return stats.as_dict()
 
 
+async def transcribe_voice_note_job(ctx: dict, note_id: str) -> str:
+    """Turn one voice note's parked audio into a transcript and a summary (app/services/voice_notes/processing.py). The job argument is the
+    note id and nothing else: no audio, no text. At most ``VOICE_NOTE_MAX_CONCURRENT`` run at once, so the shared worker keeps slots for
+    payments and dispatch; a job over the cap waits and comes back (it does not use up one of the note's own attempts)."""
+    from uuid import UUID
+
+    store = get_audio_store()
+    token = await asyncio.to_thread(store.acquire_slot, settings.VOICE_NOTE_MAX_CONCURRENT)
+    if token is None:
+        raise Retry(defer=10)
+    try:
+        outcome = await process_note(UUID(note_id), provider=get_transcription_provider(), store=store)
+    finally:
+        await asyncio.to_thread(store.release_slot, token)
+    if outcome.kind == "retry":
+        raise Retry(defer=outcome.defer)
+    logger.info("transcribe_voice_note: %s", outcome.kind)  # the outcome only: never the note's text, audio or a provider message
+    return outcome.kind
+
+
+async def voice_note_sweep_job(ctx: dict) -> dict:
+    """Plan section 8: stale and expired voice notes, stuck transcriptions, retention, orphaned audio. Idempotent."""
+    counts = await asyncio.to_thread(_run_with_session, lambda db: sweep_voice_notes(db, get_audio_store()))
+    if any(counts.values()):
+        logger.info("voice_note_sweep: %s", counts)
+    return counts
+
+
 def json_serializer(obj: Any) -> bytes:
     return json.dumps(obj, default=str).encode()
 
@@ -188,7 +219,9 @@ class WorkerSettings:
                  whatsapp_events_job,
                  func(process_whatsapp_inbound_job, keep_result=0),
                  func(kyc_process_event, keep_result=0),
-                 kyc_reconcile_job]
+                 kyc_reconcile_job,
+                 func(transcribe_voice_note_job, timeout=200, max_tries=60, keep_result=0),
+                 voice_note_sweep_job]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
     cron_jobs = [
@@ -205,6 +238,7 @@ class WorkerSettings:
         cron(refund_reconcile_job, minute={7, 22, 37, 52}, second=45),
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
         cron(kyc_reconcile_job, minute={3, 13, 23, 33, 43, 53}, second=15),  # every 10 minutes (design 6)
+        cron(voice_note_sweep_job, minute={1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56}, second=25),  # every 5 minutes
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     job_serializer = staticmethod(json_serializer)

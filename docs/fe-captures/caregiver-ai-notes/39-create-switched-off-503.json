@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/visits/1f11e2a9-74a9-4549-b376-7fdea2b9906b/voice-notes",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "consent_confirmed": true,
+      "consent_version": "2026-11-v1",
+      "language": "pcm",
+      "duration_seconds": 42,
+      "client_request_id": "88888888-2222-4333-8444-555555555555"
+    }
+  },
+  "response": {
+    "status_code": 503,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "transcription_unavailable",
+        "message": "Voice notes are unavailable right now. Please type your note."
+      }
+    }
+  }
+}

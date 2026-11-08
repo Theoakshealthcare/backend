@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/voice-notes/25e7eee7-6a0d-45da-9b59-72a2fa0cc3d5/audio",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": "<707 bytes of raw audio, Content-Type audio/mp4>"
+  },
+  "response": {
+    "status_code": 413,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "audio_too_large",
+        "message": "That recording is too long. Keep notes under 10 minutes."
+      }
+    }
+  },
+  "note": "Captured with the byte cap lowered to 500 so a small body shows it; the real cap is 12 MiB."
+}

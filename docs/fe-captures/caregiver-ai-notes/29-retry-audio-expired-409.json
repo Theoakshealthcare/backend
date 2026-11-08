@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/voice-notes/1cff5d32-9e62-41c8-b864-561e7fb26ccb/retry",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "audio_expired",
+        "message": "The recording is no longer stored. Please send it again."
+      }
+    }
+  },
+  "note": "The audio was removed from the store before this call, as its TTL would."
+}

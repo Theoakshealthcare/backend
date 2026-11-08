@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/caregiver/voice-notes/58b6fd0b-4303-468b-baa4-de1c630fe1d8",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "not_found",
+        "message": "This note could not be found."
+      }
+    }
+  }
+}
