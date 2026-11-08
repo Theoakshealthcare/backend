@@ -27,7 +27,7 @@ from app.schemas.booking import (
     CancelBookingRequest, CancelBookingResponse, CancelTermsResponse, PaymentLinkResponse,
 )
 from app.services.booking import (
-    BookingActionForbidden, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
+    BookingActionForbidden, BookingArrivalTooEarly, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
 from app.services import booking_payment_link, earnings, patient_booking_cancel
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
@@ -714,6 +714,10 @@ async def handle_booking_action(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_action_detail(action_data.action, str(e), e.code))
     except BookingStateConflict as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_action_detail(action_data.action, str(e), e.code))
+    except BookingArrivalTooEarly as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "arrived_too_early", "message": str(e), "earliest_at": e.earliest_at.isoformat()})
     except BookingVisitCodeError as e:
         headers = {"Retry-After": str(e.retry_after)} if e.retry_after else None
         raise HTTPException(status_code=e.status_code, detail=e.detail, headers=headers)

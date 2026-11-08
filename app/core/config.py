@@ -117,6 +117,7 @@ class Settings(BaseSettings):
     # Background jobs (ARQ worker) and dispatch tunables.
     REDIS_URL: str = "redis://localhost:6379/0"
     PAYMENT_LINK_TTL_MINUTES: int = 30  # an unpaid booking is cancelled after this long
+    ARRIVAL_EARLIEST_MINUTES_BEFORE: int = 60  # the caregiver's "I've arrived" is allowed from this long before the visit starts
     LOCATION_FRESHNESS_MINUTES: int = 15  # a caregiver location older than this is not matched
     # A payment that lands after the unpaid-expiry cancel reinstates the booking only if the visit is
     # at least this far ahead; otherwise it is flagged for a refund.

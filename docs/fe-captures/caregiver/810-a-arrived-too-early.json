@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/35c93c5d-7ad5-444c-9981-cb2641203d20",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "arrived"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "arrived_too_early",
+        "message": "You can mark yourself as arrived from 60 minutes before the visit starts.",
+        "earliest_at": "2026-11-08T17:53:01"
+      }
+    }
+  },
+  "note": "A visit 3 hours away: earlier than 60 minutes before the start. earliest_at is naive UTC (no Z)."
+}

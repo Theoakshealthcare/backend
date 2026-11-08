@@ -1801,6 +1801,7 @@ Other `409`/`403` strings the action endpoint can return (all `{"detail": "<stri
 | 403 | `You were not offered this booking` | accept or decline a booking you were never offered | not captured live; unit tests only |
 | 403 | `This booking is not assigned to you` | start, complete, cancel, on_my_way by someone else (a plain string; **for `arrived` it is the object `{code: "booking_not_assigned", message}`**, capture `800`) | `092`, `804` |
 | 409 | `Only an accepted booking can be marked on the way` | on_my_way from any other state | `094` |
+| 422 | **object** `{code: "arrived_too_early", message, earliest_at}` | arrived earlier than 60 minutes before the visit starts (`earliest_at` is the first allowed instant, naive UTC like every timestamp here: no `Z`) | `810` |
 | 409 | **object** `{code: "booking_not_arrivable", message: "Only an accepted booking can be marked as arrived"}` | arrived from any state other than accepted / en_route (including after start). `detail` is an object for `arrived` only, see section 7 "Your earning, I've arrived..." | `803` |
 | 409 | `You can mark yourself on the way from 2 hours before the visit` | on_my_way earlier than the booking policy's `onmyway_compensation_window_minutes` before the start (the hours shown follow the policy: `45 minutes`, `3 hours`, ...). **[not live]**: copied from `test_visit_lifecycle.py`, not from a capture; it applies to app and WhatsApp bookings alike | none yet |
 | 409 | `Only an accepted booking can be started` | start from any state but accepted/en_route | `107` |
@@ -1967,7 +1968,7 @@ _capture `093-a-on-my-way.json`_
 - **Too early (UX consequence):** `on_my_way` is refused with `409` until the booking policy's `onmyway_compensation_window_minutes` (120 by default) before the start, with `{"detail": "You can mark yourself on the way from 2 hours before the visit"}`. **[not live]** (shape from `test_visit_lifecycle.py`). Do not show the on-my-way button earlier than that; if it is tapped anyway, show the `detail` as is. It applies to app bookings and WhatsApp bookings alike. Reason: once a caregiver is on the way a family that cancels pays the late fee, so it must not be possible to set that off days ahead.
 - Complete before start: `409` `{"detail": "Only a booking in progress can be completed"}` _(capture `098-a-complete-before-start.json`)_
 
-**Start is not time-gated, a short visit is held for review (new 2026-11-07).** `start` works at any time for the assigned caregiver (only `on_my_way` is gated by the policy window above); the app's "I've arrived" button being enabled early is the backend's behaviour, by the owner's decision (the `arrived` action itself has no time window either). What changed is the **money**: if the caregiver completes a visit after being on site (`actual_end_time - actual_start_time`) for **under `short_visit_min_percent` (default 50, an admin policy field copied onto the booking when it is created) of the booked time** (`duration_hours`), the visit still completes normally (`200`, status `completed`), but the earning is credited already **`held`** instead of `pending_clearance`, with `status_reason` "Short visit: under 50% of the booked time was spent on site (held for Finance review)" and no admin attached; Finance reviews it and can release it, after which it clears like any earning. Exactly 50% is not short. **[not live]** (rule and states asserted by `app/tests/test_visit_rules.py`; the capture script's visit is backdated to 90 of 2 hours so the earnings captures below still show a normal visit). **Show it:** on the wallet a held earning already counts under `held_balance` and has `status: "held"`; the app should say "Under review" for a held earning rather than "Pending", and not promise a clearing date for it (`available_at` is set but the release job skips a held earning until Finance releases it). Do not tell the caregiver the visit failed: it was completed.
+**Start is not time-gated, a short visit is held for review (new 2026-11-07).** `start` works at any time for the assigned caregiver (only `on_my_way` is gated by the policy window above); "I've arrived" has its own window since 2026-11-08: it is refused earlier than 60 minutes before the start (section 7, "Your earning, I've arrived..."); `start` is still not gated. What changed is the **money**: if the caregiver completes a visit after being on site (`actual_end_time - actual_start_time`) for **under `short_visit_min_percent` (default 50, an admin policy field copied onto the booking when it is created) of the booked time** (`duration_hours`), the visit still completes normally (`200`, status `completed`), but the earning is credited already **`held`** instead of `pending_clearance`, with `status_reason` "Short visit: under 50% of the booked time was spent on site (held for Finance review)" and no admin attached; Finance reviews it and can release it, after which it clears like any earning. Exactly 50% is not short. **[not live]** (rule and states asserted by `app/tests/test_visit_rules.py`; the capture script's visit is backdated to 90 of 2 hours so the earnings captures below still show a normal visit). **Show it:** on the wallet a held earning already counts under `held_balance` and has `status: "held"`; the app should say "Under review" for a held earning rather than "Pending", and not promise a clearing date for it (`available_at` is set but the release job skips a held earning until Finance releases it). Do not tell the caregiver the visit failed: it was completed.
 
 **Start, Complete, Cancel**: see section 8 for start. Complete and cancel return the same raw-dict shape (`109-a-complete.json`, `114-a-cancel-b4.json`):
 - Complete again: `409` `{"detail": "Only a booking in progress can be completed"}` _(capture `110-a-complete-again.json`)_
@@ -2060,7 +2061,7 @@ After accepting, it is in the action response and everywhere you read the bookin
 }
 ```
 
-**2. "I've arrived": `POST /booking/caregiver/action/{booking_id}` with `{"action": "arrived"}`.** Tell the family you are at the door. It is **optional** (the visit still starts with the visit code, and `start` does not need it). Rules: only the booking's assigned caregiver (`403 This booking is not assigned to you` for anyone else, including a caregiver who only holds an offer); the booking must be `accepted` or `en_route` (`409 Only an accepted booking can be marked as arrived` otherwise, including after `start`); a suspended caregiver gets the same `403` as for `start`. There is **no time window** (unlike `on_my_way`). The status does **not** change; `arrived_at` (UTC) is stamped on the booking. **It is idempotent:** a second tap returns `200` with the **same** `arrived_at` and the family is not told again. The family's app gets a `caregiver_arrived` notice ("Your caregiver has arrived"); WhatsApp bookings store `arrived_at` but get no such notice. A new caregiver on the booking (a drop-out or an admin reassign) starts with `arrived_at: null`.
+**2. "I've arrived": `POST /booking/caregiver/action/{booking_id}` with `{"action": "arrived"}`.** Tell the family you are at the door. It is **optional** (the visit still starts with the visit code, and `start` does not need it). Rules: only the booking's assigned caregiver (`403 This booking is not assigned to you` for anyone else, including a caregiver who only holds an offer); the booking must be `accepted` or `en_route` (`409 Only an accepted booking can be marked as arrived` otherwise, including after `start`); a suspended caregiver gets the same `403` as for `start`. **Time window (new 2026-11-08, owner rule):** allowed from **60 minutes before the booking's `scheduled_date`** (the server setting `ARRIVAL_EARLIEST_MINUTES_BEFORE`) and at any time after it, until the visit starts. Earlier than that the answer is `422` `arrived_too_early` (below). The check is made on the first tap only: a repeat tap after a successful arrival is the same `200` no-op whatever the time. The status does **not** change; `arrived_at` (UTC) is stamped on the booking. **It is idempotent:** a second tap returns `200` with the **same** `arrived_at` and the family is not told again. The family's app gets a `caregiver_arrived` notice ("Your caregiver has arrived"); WhatsApp bookings store `arrived_at` but get no such notice. A new caregiver on the booking (a drop-out or an admin reassign) starts with `arrived_at: null`.
 
 <!-- capture: 709-a-arrived.json response.body path=booking keys=id,status,arrived_at,caregiver_earning -->
 ```json
@@ -2125,6 +2126,7 @@ Refusals. **Since 2026-11-08 the errors of the `arrived` action (and only that a
 | 403 | `booking_not_assigned` | `This booking is not assigned to you` | someone else's booking, or one where you only hold an offer |
 | 403 | `caregiver_not_approved` | `Your account is not approved to start visits` | the caregiver is suspended. **[not live]**: not captured (suspending a caregiver with an accepted booking also reassigns it); asserted by `test_caregiver_arrived_earning.py` |
 | 409 | `booking_not_arrivable` | `Only an accepted booking can be marked as arrived` | any state but accepted or en_route (including after `start`) |
+| 422 | `arrived_too_early` | `You can mark yourself as arrived from 60 minutes before the visit starts.` (the number follows the setting) | before the window; the object also has `earliest_at` |
 
 A caregiver who does not hold the booking:
 
@@ -2173,6 +2175,45 @@ After the visit started:
   }
 }
 ```
+
+Too early (a visit three hours away). `earliest_at` is the first instant the tap would work, in UTC without a `Z`:
+
+<!-- capture: 810-a-arrived-too-early.json response.body -->
+```json
+{
+  "detail": {
+    "code": "arrived_too_early",
+    "message": "You can mark yourself as arrived from 60 minutes before the visit starts.",
+    "earliest_at": "2026-11-08T17:53:01"
+  }
+}
+```
+
+The refusal changes nothing on the booking (`arrived_at` stays `null`, status `accepted`):
+
+<!-- capture: 811-a-booking-after-refusal.json response.body keys=id,status,scheduled_date,arrived_at -->
+```json
+{
+  "id": "35c93c5d-7ad5-444c-9981-cb2641203d20",
+  "status": "accepted",
+  "scheduled_date": "2026-11-08T18:53:01",
+  "arrived_at": null
+}
+```
+
+And inside the window (a visit 30 minutes away) the same action works:
+
+<!-- capture: 812-a-arrived-inside-window.json response.body path=booking keys=id,status,scheduled_date,arrived_at -->
+```json
+{
+  "id": "30ea030d-43f8-42db-9a5b-7ee76afdf1f0",
+  "status": "accepted",
+  "scheduled_date": "2026-11-08T16:23:02",
+  "arrived_at": "2026-11-08T15:53:02.174290"
+}
+```
+
+**What the app must do.** Show the refusal's `message` as plain text (it is already a sentence), or disable "I've arrived" until `scheduled_date` minus 60 minutes, and use `earliest_at` (UTC; append `Z` before parsing) to say when it opens: "Available from 5:53 PM" in the phone's local time. Do not hard-code 60: the number is a server setting and the message carries the current value.
 
 Unchanged, for contrast: `start` by a caregiver who does not hold the booking still answers a **plain string**:
 
@@ -3420,6 +3461,8 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Chat, notes, tracking for the caregiver | No | Out of scope for C3 |
 | `caregiver_earning` on detail, list, offer-list (held booking) and the action response; null on an offer; never on the patient's view | **Yes** | 700 to 704, 717 (scratch database, local fake Paystack) |
 | `arrived`: stamps `arrived_at`, status unchanged, a repeat keeps the same time and writes one outbox row; patient token 403, no token 401, 422 action list | **Yes** | 706, 707, 709 to 711, 713 |
+| `arrived` too early: `422` `arrived_too_early` with `earliest_at`, nothing changed on the booking, and the tap working inside the window | **Yes** | 810 to 812 |
+| The window's exact boundary (60 minutes before OK, 61 refused, after the start OK, repeat tap unchanged, the setting honoured) | **[not live]** | `test_caregiver_arrived_earning.py` with an injected clock; the live run used 3 hours and 30 minutes |
 | `arrived` errors as `{code, message}` (new 2026-11-08): `booking_not_assigned` (another caregiver; offer only), `booking_not_found`, `booking_not_arrivable` (after start); `start` still a plain string | **Yes** | 800 to 804 |
 | `arrived` for a booking in `en_route`, a suspended caregiver (`403` `caregiver_not_approved`) and a caregiver login with no profile (`404` `caregiver_profile_not_found`) as coded errors, a WhatsApp booking (no notice), a new caregiver starting with `arrived_at` null | **[not live]** | `app/tests/test_caregiver_arrived_earning.py` |
 | The family's `caregiver_arrived` push / feed row after `arrived` | **[not live]** in this guide | outbox row seen (711); delivery needs the worker: unit-tested (`test_patient_notifications.py`) |
