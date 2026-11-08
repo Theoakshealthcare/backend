@@ -15,6 +15,13 @@ from app.tests.factories import make_booking, make_caregiver, make_patient
 TODAY = local_today()
 
 
+@pytest.fixture(autouse=True)
+def _pin_today(monkeypatch):
+    """TODAY is read once at import, but the app reads the Lagos date per request. A run that crosses Lagos
+    midnight (CI starts near 23:00 UTC and runs about an hour) would otherwise disagree with itself."""
+    monkeypatch.setattr("app.services.care_plans.local_today", lambda: TODAY)
+
+
 def _progress(client, caregiver, plan_id):
     return client.get(f"{BASE}/care-plans/{plan_id}/progress", headers=h(caregiver))
 
