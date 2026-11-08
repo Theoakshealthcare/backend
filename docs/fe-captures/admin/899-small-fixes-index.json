@@ -1,0 +1,53 @@
+{
+  "generated_by": "scripts/capture_arrived_errors_cancel_terms.py",
+  "run_tag": "76eac7",
+  "captured_at": "2026-11-08T15:33:56.126398Z",
+  "folder": "admin",
+  "captures": [
+    {
+      "file": "800-admin-policy-get-before.json",
+      "label": "admin-policy-get-before",
+      "status": 200
+    },
+    {
+      "file": "801-admin-policy-get-after.json",
+      "label": "admin-policy-get-after",
+      "status": 200
+    },
+    {
+      "file": "802-admin-booking-far.json",
+      "label": "admin-booking-far",
+      "status": 200
+    },
+    {
+      "file": "803-admin-booking-late.json",
+      "label": "admin-booking-late",
+      "status": 200
+    },
+    {
+      "file": "804-admin-booking-standard.json",
+      "label": "admin-booking-standard",
+      "status": 200
+    },
+    {
+      "file": "805-admin-booking-unpaid.json",
+      "label": "admin-booking-unpaid",
+      "status": 200
+    },
+    {
+      "file": "806-admin-booking-cancelled-by-booker.json",
+      "label": "admin-booking-cancelled-by-booker",
+      "status": 200
+    },
+    {
+      "file": "807-admin-booking-cancelled-after-policy-edit.json",
+      "label": "admin-booking-cancelled-after-policy-edit",
+      "status": 200
+    },
+    {
+      "file": "808-admin-booking-far-after-policy-edit.json",
+      "label": "admin-booking-far-after-policy-edit",
+      "status": 200
+    }
+  ]
+}

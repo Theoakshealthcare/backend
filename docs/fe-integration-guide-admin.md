@@ -1280,6 +1280,167 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 }
 ```
 
+### 12.4a The booking's own cancel terms: `cancel_terms` on the detail (new 2026-11-08)
+
+`GET /admin/bookings/{id}` now carries a `cancel_terms` object (always present, same `bookings.read` permission). It answers "what would the family pay if they cancelled this booking, and what did they pay when they did". **Captures before 2026-11-08 (e.g. `087` above) predate the field and do not show it.** Examples are captures `800` to `808` (a real `POST /booking/create` against a local fake Paystack on a scratch database; the worker was not running).
+
+| Field | Meaning |
+|---|---|
+| `policy_source` | `"booking_snapshot"` when the booking stores its own copy of the tiers, `"live_policy"` when it does not (the tiers then follow the current booking policy, section 12.9) |
+| `snapshot` | exactly what is stored on the booking (`null` when none) |
+| `policy` | the four tiers in force for this booking: the snapshot when there is one, else the live policy |
+| `would_apply_now` | what a **booker** cancel would cost at `as_of` (naive UTC): `allowed`, `refusal` (`in_progress`, `closed` or `unpaid` when not allowed, else `null`), `tier` (`none`, `standard`, `late`, or `null` when not allowed), `fee_percent`, `fee_kobo`, `refund_kobo` |
+| `applied` | `null` until the booker cancels; then `{tier, fee_kobo, late_cancel_compensable}` of that cancellation |
+
+**The snapshot is taken when the booker cancels, not when the booking is created.** Today a live booking has `snapshot: null` and `policy_source: "live_policy"` (captures `802` to `805`); the cancel freezes the tiers it used onto the booking (`806`), and from then on a policy edit no longer changes the booking's terms (`807`). Do not label a null snapshot as an error: say "follows the current policy".
+
+A booking 48 hours out, accepted (nothing to pay), with the live policy at 24 h free, 6 h late, 25 % and 60 %:
+
+<!-- capture: 802-admin-booking-far.json response.body path=cancel_terms -->
+```json
+{
+  "policy_source": "live_policy",
+  "policy": {
+    "free_hours": 24,
+    "late_hours": 6,
+    "fee_percent": 25,
+    "late_fee_percent": 60
+  },
+  "snapshot": null,
+  "would_apply_now": {
+    "allowed": true,
+    "refusal": null,
+    "tier": "none",
+    "fee_percent": 0,
+    "fee_kobo": 0,
+    "refund_kobo": 2200000,
+    "as_of": "2026-11-08T15:33:55.840594"
+  },
+  "applied": null
+}
+```
+
+One hour out (the late tier):
+
+<!-- capture: 803-admin-booking-late.json response.body path=cancel_terms -->
+```json
+{
+  "policy_source": "live_policy",
+  "policy": {
+    "free_hours": 24,
+    "late_hours": 6,
+    "fee_percent": 25,
+    "late_fee_percent": 60
+  },
+  "snapshot": null,
+  "would_apply_now": {
+    "allowed": true,
+    "refusal": null,
+    "tier": "late",
+    "fee_percent": 60,
+    "fee_kobo": 1200000,
+    "refund_kobo": 1000000,
+    "as_of": "2026-11-08T15:33:55.861139"
+  },
+  "applied": null
+}
+```
+
+Ten hours out (the standard tier):
+
+<!-- capture: 804-admin-booking-standard.json response.body path=cancel_terms -->
+```json
+{
+  "policy_source": "live_policy",
+  "policy": {
+    "free_hours": 24,
+    "late_hours": 6,
+    "fee_percent": 25,
+    "late_fee_percent": 60
+  },
+  "snapshot": null,
+  "would_apply_now": {
+    "allowed": true,
+    "refusal": null,
+    "tier": "standard",
+    "fee_percent": 25,
+    "fee_kobo": 500000,
+    "refund_kobo": 1700000,
+    "as_of": "2026-11-08T15:33:55.877249"
+  },
+  "applied": null
+}
+```
+
+Unpaid and pending (`allowed: false`, `refusal: "unpaid"`: the family cancels it for free, there is nothing to refund, and it is not a fee case):
+
+<!-- capture: 805-admin-booking-unpaid.json response.body path=cancel_terms -->
+```json
+{
+  "policy_source": "live_policy",
+  "policy": {
+    "free_hours": 24,
+    "late_hours": 6,
+    "fee_percent": 25,
+    "late_fee_percent": 60
+  },
+  "snapshot": null,
+  "would_apply_now": {
+    "allowed": false,
+    "refusal": "unpaid",
+    "tier": null,
+    "fee_percent": 0,
+    "fee_kobo": 0,
+    "refund_kobo": 0,
+    "as_of": "2026-11-08T15:33:55.891793"
+  },
+  "applied": null
+}
+```
+
+After the patient cancelled the ten-hours-out booking with the fee shown to them: the cancel froze the snapshot and `applied` records the tier and the fee. `would_apply_now` is now `allowed: false`, `refusal: "closed"`:
+
+<!-- capture: 806-admin-booking-cancelled-by-booker.json response.body path=cancel_terms -->
+```json
+{
+  "policy_source": "booking_snapshot",
+  "policy": {
+    "free_hours": 24,
+    "late_hours": 6,
+    "fee_percent": 25,
+    "late_fee_percent": 60
+  },
+  "snapshot": {
+    "free_hours": 24,
+    "late_hours": 6,
+    "fee_percent": 25,
+    "late_fee_percent": 60
+  },
+  "would_apply_now": {
+    "allowed": false,
+    "refusal": "closed",
+    "tier": null,
+    "fee_percent": 0,
+    "fee_kobo": 0,
+    "refund_kobo": 0,
+    "as_of": "2026-11-08T15:33:55.944782"
+  },
+  "applied": {
+    "tier": "standard",
+    "fee_kobo": 500000,
+    "late_cancel_compensable": null
+  }
+}
+```
+
+After a further policy edit (48 h and 12 h, 40 % and 80 %) the cancelled booking still shows the terms it was cancelled under (`807`, `snapshot` and `applied` unchanged), while a booking with no stored snapshot follows the edit (`808`: the same far booking is now inside the 48 h window and would pay the standard tier).
+
+**What the screen must do.**
+- Show `would_apply_now` as "If the family cancelled now: they would pay N (X % of the service fee) and be refunded M", only while `allowed` is `true`. For `refusal` show the reason ("unpaid", "visit in progress", "closed"), never a fee. Money is **kobo** here (the admin API's convention), unlike the patient app's naira fields.
+- Label `applied` as "Cancelled by the family under the standard / late tier, fee N". A `none` tier means a free cancel.
+- `as_of` is when the answer was computed: the amounts change as the visit approaches, so refetch rather than cache. The terms are the **booker's**: an admin cancel (12.6) chooses its own refund and is not priced from these tiers.
+- These numbers come from the same function the patient's own cancel quote uses (`GET /booking/{id}/cancel-terms`), so what the admin sees is what the family is quoted.
+
 ### 12.5 Actions: the rules they share
 
 - **Every action needs a `reason`** (1 to 2000 characters, not blank). Missing or blank is a request-validation `422` (`detail` is a list); the booking is untouched.
@@ -7352,5 +7513,7 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | Refunds: the WhatsApp notices (sent, complete, needs bank details) | **[not live]** | queued and asserted against a fake Meta in tests; not delivered live |
 | Refunds: real Paystack refunds, their webhooks, and the up to 10 business days for the family to see the money | **[not live]** | never exercised; shapes are Paystack's documented ones as implemented in `app/tests/fake_meta.py` |
 | Booking policy: `short_visit_min_percent` in `GET`, edited with a reason, over 100 `422`, a string `422` | Verified live | 700 to 704 |
+| Booking detail `cancel_terms`: no snapshot (live policy), tier none / standard / late, unpaid refusal, `applied` and the frozen snapshot after a booker cancel, snapshot kept after a policy edit, live policy followed when no snapshot | Verified live | 802 to 808 (policy: 800, 801) |
+| `cancel_terms.would_apply_now` for an in-progress or completed booking (`refusal` `in_progress` / `closed` on a non-cancelled booking), and `applied.late_cancel_compensable` set | Test only | `test_admin_booking_cancel_terms.py`; the live run cancelled a standard-tier booking, so `late_cancel_compensable` is `null` there |
 | `GET /admin/me` for a Super Admin lists `refunds.approve_above_limit` | Test only | captures 010 and 039 were taken before the permission existed; `test_admin_rbac.py` |
 

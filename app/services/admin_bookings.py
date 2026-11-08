@@ -14,6 +14,7 @@ Nothing here makes an HTTP call under a lock, and nothing moves money: a cancel 
 
 import logging
 import secrets
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -47,7 +48,11 @@ from app.schemas.admin_booking import (
     BookingDetail,
     BookingList,
     BookingListItem,
+    CancelAppliedOut,
     CancelIn,
+    CancelTermsNowOut,
+    CancelTermsOut,
+    CancelTiersOut,
     CandidateList,
     CandidateOut,
     ClinicalOut,
@@ -67,7 +72,8 @@ from app.schemas.admin_booking import (
     UnmatchedList,
     WaveOut,
 )
-from app.services import booking_events, dispatch, dropout, earnings
+from app.services import booking_cancellation as cancellation
+from app.services import booking_events, dispatch, dropout, earnings, patient_booking_cancel
 from app.services.booking_cancellation import flag_refund
 from app.services.notification_service import NotificationService
 from app.services import push as push_service
@@ -472,6 +478,7 @@ class AdminBookingService:
                 attempts=[PaymentAttemptOut(
                     id=t.id, type=t.type, status=t.status, amount_kobo=t.amount_kobo,
                     paystack_reference=t.paystack_reference, created_at=t.created_at) for t in attempts]),
+            cancel_terms=self._cancel_terms(b, now),
             dispatch=DispatchOut(
                 state=b.dispatch_state, started_at=b.dispatch_started_at,
                 waves=[WaveOut(wave_no=w.wave_no, sent_at=w.sent_at, expires_at=w.expires_at,
@@ -485,6 +492,26 @@ class AdminBookingService:
             timeline=timeline,
             available_actions=self.available_actions(admin, b, now),
         )
+
+    def _cancel_terms(self, b: Booking, now: datetime) -> CancelTermsOut:
+        """The booker's cancel terms on this booking: the snapshot stored on it, the tiers in force, what applies now and
+        what was applied. Same functions the patient's own cancel quote uses, so the two cannot disagree."""
+        snapshot = cancellation.CancelPolicy.from_snapshot(b.cancel_policy)
+        policy = cancellation.policy_for(self.db, b)
+        decided = cancellation.terms_for(self.db, b, now)
+        applied = None
+        if b.cancel_fee_tier is not None:
+            applied = CancelAppliedOut(
+                tier=b.cancel_fee_tier, fee_kobo=patient_booking_cancel.cancel_fee_kobo(b),
+                late_cancel_compensable=b.late_cancel_compensable)
+        return CancelTermsOut(
+            policy_source="booking_snapshot" if snapshot is not None else "live_policy",
+            policy=CancelTiersOut(**asdict(policy)),
+            snapshot=CancelTiersOut(**asdict(snapshot)) if snapshot is not None else None,
+            would_apply_now=CancelTermsNowOut(
+                allowed=decided.allowed, refusal=decided.refusal, tier=decided.tier if decided.allowed else None,
+                fee_percent=decided.fee_percent, fee_kobo=decided.fee_kobo, refund_kobo=decided.refund_kobo, as_of=now),
+            applied=applied)
 
     @staticmethod
     def _timeline(b: Booking, waves, notices, events, audit_rows) -> List[TimelineEntry]:
