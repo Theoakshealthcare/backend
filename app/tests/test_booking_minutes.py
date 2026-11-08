@@ -304,3 +304,60 @@ def test_flow_duration_options_follow_the_catalogue_minimum_and_step(db):
     db.query(ServiceCatalog).filter(ServiceCatalog.service_type == "nurse").update({"min_minutes": 120, "max_minutes": 300})
     db.commit()
     assert options() == ["2", "3", "4", "5"]
+
+
+def test_flow_hides_a_service_that_has_no_whole_hour_length_and_refuses_it_on_submit(db):
+    """A catalogue maximum under 60 minutes (or a minimum above the WhatsApp cap) leaves the hour dropdown empty: the
+    person could never finish. Such a service is not offered at all, and it is also refused if a stale screen sends it."""
+    from types import SimpleNamespace
+
+    from app.channels.whatsapp.flows.service import FlowService
+
+    make_prices(db, multipliers={"nurse": 1.0, "nutritionist": 1.0})
+    db.query(ServiceCatalog).filter(ServiceCatalog.service_type == "nutritionist").update({"enabled": True})
+    db.commit()
+    flow = FlowService.__new__(FlowService)
+    flow.db = db
+    assert flow._services() == ["nurse", "nutritionist"]
+
+    db.query(ServiceCatalog).filter(ServiceCatalog.service_type == "nutritionist").update(
+        {"min_minutes": 30, "step_minutes": 30, "max_minutes": 30})
+    db.commit()
+    assert flow._hours_for("nutritionist") == []
+    assert flow._services() == ["nurse"]  # still bookable in the app (30 minutes), just not offered in WhatsApp
+    assert [o["id"] for o in flow._render_service(SimpleNamespace(payload={})).body["data"]["services"]] == ["nurse"]
+
+    saved = {}
+    quote = SimpleNamespace(payload={})
+    flow._save = lambda q, **kw: saved.update(kw)
+    flow._render_service = lambda q, notice="": ("service-screen", notice)
+    assert flow._on_service(quote, {"service": "nutritionist"}) == ("service-screen", "Please choose one of the services shown.")
+    assert saved == {}
+
+    # a cap below the catalogue minimum hides it too
+    db.query(ServiceCatalog).filter(ServiceCatalog.service_type == "nutritionist").update(
+        {"min_minutes": 180, "max_minutes": 300})
+    db.commit()
+    from app.core.config import settings
+    original = settings.WHATSAPP_SERVICE_MAX_HOURS
+    try:
+        settings.WHATSAPP_SERVICE_MAX_HOURS = "nutritionist:2"
+        assert flow._services() == ["nurse"]  # min 180 is above the 2-hour WhatsApp cap
+        settings.WHATSAPP_SERVICE_MAX_HOURS = "nutritionist:3"
+        assert flow._services() == ["nurse", "nutritionist"] and flow._hours_for("nutritionist") == [3]
+    finally:
+        settings.WHATSAPP_SERVICE_MAX_HOURS = original
+
+
+@pytest.mark.parametrize("field", ["duration_minutes", "duration_hours"])
+@pytest.mark.parametrize("flag", [True, False])
+def test_json_booleans_are_refused_for_the_duration_fields_not_read_as_one(db, client, fake_paystack, field, flag):
+    """``true`` must not become 1 minute / 1 hour: field-level 422 in FastAPI's list shape, on preview and create."""
+    make_prices(db)
+    headers = auth_headers(make_patient(db).user)
+    for url, body in ((f"{API}/preview", preview_body(**{field: flag})), (f"{API}/create", create_body(**{field: flag}))):
+        r = client.post(url, json=body, headers=headers)
+        assert r.status_code == 422, (url, r.text)
+        detail = r.json()["detail"]
+        assert isinstance(detail, list) and detail[0]["loc"][-1] == field, detail
+        assert db.query(Booking).count() == 0 and fake_paystack.initialised == []

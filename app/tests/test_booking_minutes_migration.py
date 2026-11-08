@@ -89,6 +89,31 @@ def test_0027_backfills_minutes_drops_hours_and_the_downgrade_restores_hours(scr
             240, 60, 120]
 
 
+def test_0027_downgrade_survives_a_catalogue_row_whose_min_and_max_share_a_part_hour(scratch):
+    _run(scratch, command.upgrade, MINUTES)
+    with scratch.begin() as conn:  # the admin schema accepts min = max = 90 at step 30, and min 45 / max 75 at step 15
+        conn.execute(text("UPDATE service_catalog SET min_minutes = 90, max_minutes = 90 WHERE service_type = 'doctor'"))
+        conn.execute(text("UPDATE service_catalog SET step_minutes = 15, min_minutes = 45, max_minutes = 75 "
+                          "WHERE service_type = 'caregiver'"))
+        conn.execute(text("UPDATE service_catalog SET min_minutes = 30, max_minutes = 30 "
+                          "WHERE service_type = 'nutritionist'"))
+        conn.execute(text("UPDATE service_catalog SET min_minutes = 90, max_minutes = 210 WHERE service_type = 'nurse'"))
+
+    _run(scratch, command.downgrade, BEFORE_MINUTES)
+    with scratch.connect() as conn:
+        rows = {r[0]: tuple(r[1:]) for r in conn.execute(text(
+            "SELECT service_type, min_minutes, step_minutes, max_minutes FROM service_catalog"))}
+    assert rows["doctor"] == (120, 60, 120)
+    assert rows["caregiver"] == (60, 60, 60)
+    assert rows["nutritionist"] == (60, 60, 60)
+    assert rows["nurse"] == (120, 60, 180)
+    assert all(lo <= hi for lo, _, hi in rows.values())
+
+    _run(scratch, command.upgrade, MINUTES)  # and upgrades cleanly again
+    with scratch.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM service_catalog")).scalar() == 5
+
+
 def _booking_minutes(conn, n, minutes):
     conn.execute(text(
         "INSERT INTO bookings (id, booking_code, patient_id, service_type, assistance_type, duration_minutes, "

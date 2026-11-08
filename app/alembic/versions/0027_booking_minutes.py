@@ -14,7 +14,7 @@ Phase 2, slice 2.
 
 Downgrade restores ``duration_hours`` as minutes / 60 **rounded up** to a whole hour (a 90-minute booking becomes 2 hours:
 the old column is an integer; no real data exists yet), drops ``duration_minutes``, and puts the catalogue back on 60-minute
-steps (minimum rounded up and maximum rounded down to whole hours).
+steps (minimum rounded up and maximum rounded down to whole hours, the maximum never below the new minimum).
 """
 from typing import Sequence, Union
 
@@ -39,10 +39,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # One statement: every SET expression reads the OLD row, so the new maximum is built from the new minimum.
+    # (A row whose min and max sit in the same part-hour, e.g. 90 and 90, would otherwise round min up to 120 and
+    # max down to 60 and break ck_service_catalog_minutes; here such a row ends up as 120 and 120.)
+    new_min = "GREATEST(60, CEIL(min_minutes / 60.0)::int * 60)"
     op.execute("UPDATE service_catalog SET step_minutes = 60, "
-               "min_minutes = GREATEST(60, CEIL(min_minutes / 60.0)::int * 60), "
-               "max_minutes = GREATEST(60, FLOOR(max_minutes / 60.0)::int * 60)")
-    op.execute("UPDATE service_catalog SET max_minutes = min_minutes WHERE max_minutes < min_minutes")
+               f"min_minutes = {new_min}, "
+               f"max_minutes = GREATEST({new_min}, FLOOR(max_minutes / 60.0)::int * 60)")
 
     op.add_column('bookings', sa.Column('duration_hours', sa.Integer(), nullable=True))
     op.execute("UPDATE bookings SET duration_hours = GREATEST(1, CEIL(duration_minutes / 60.0)::int)")

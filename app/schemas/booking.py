@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional, List, Literal, Union, Dict
-from pydantic import BaseModel, validator, Field, model_validator
+from pydantic import BaseModel, validator, Field, field_validator, model_validator
 import uuid
 
 from app.db.models.booking import BookingStatus, PaymentStatus
@@ -33,6 +33,13 @@ def resolve_duration(minutes: Optional[int], hours: Optional[float]) -> int:
     if minutes is not None and from_hours is not None and minutes != from_hours:
         raise ValueError("duration_minutes and duration_hours disagree; send one of them")
     return minutes if minutes is not None else from_hours
+
+
+def _refuse_boolean(value):
+    """JSON ``true`` / ``false`` must not be read as 1 / 0 minutes or hours (pydantic's lax mode would accept them)."""
+    if isinstance(value, bool):
+        raise ValueError("must be a number, not true or false")
+    return value
 
 
 def _hours(minutes: int) -> Hours:
@@ -96,6 +103,8 @@ class BookingCreate(BaseModel):
         example="Myself"
     )
 
+    _no_booleans = field_validator("duration_minutes", "duration_hours", mode="before")(_refuse_boolean)
+
     @model_validator(mode="after")
     def _resolve_duration(self):
         self.duration_minutes = resolve_duration(self.duration_minutes, self.duration_hours)
@@ -127,6 +136,8 @@ class BookingPreviewRequest(BaseModel):
         ge=-180, le=180,
         example=3.3792
     )
+
+    _no_booleans = field_validator("duration_minutes", "duration_hours", mode="before")(_refuse_boolean)
 
     @model_validator(mode="after")
     def _resolve_duration(self):
