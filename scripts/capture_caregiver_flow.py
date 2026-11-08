@@ -480,7 +480,6 @@ def run(args) -> None:
     fake_paystack = FakePaystack()
     fake_paystack.accounts[("0000000000", "058")] = "PLACEHOLDER CAREGIVER A"
     fake_paystack.accounts[("0000000001", "090")] = "PLACEHOLDER CAREGIVER A"  # the bank name must match the profile name
-    fake_paystack.accounts[("0000000002", "058")] = "PLACEHOLDER SOMEONE ELSE"  # a name that is not the caregiver's
     paystack_server = serve_fake_paystack(fake_paystack, port=args.paystack_port)
     ctx = Ctx(rec, db, env, expo, tag, fake_paystack)
     mail = lambda who: f"{who}-{tag}@example.com"  # noqa: E731

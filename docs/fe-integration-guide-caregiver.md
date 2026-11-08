@@ -2938,7 +2938,23 @@ Errors, all `{"detail": "<sentence>"}` and safe to show:
 | 429 | `Too many account checks. Please wait a minute and try again.` | more than 10 lookups in a minute **[not live: automated test]** |
 | 503 | `We cannot check the account right now. Please try again in a moment.` | Paystack did not answer **[not live: automated test]** |
 | 503 | `We cannot load the list of banks right now. Please try again in a moment.` | no bank list could be loaded **[not live: automated test]** |
+| 422 | `detail` is an **object**, see "The account holder must be the caregiver" below | the name the bank holds is not the caregiver's profile name **[not live: automated test]** |
 | 403 | `Access denied. Caregiver account required.` | not a caregiver |
+
+**The account holder must be the caregiver (new).** After the bank resolves the account, the backend compares the holder's name with the **name on the caregiver's Oakly profile** (`full_name`). It ignores case, punctuation, word order, middle names and one-letter initials, and requires the profile's first and last word to both appear in the account name (so the profile "Ada Nurse" matches the account "ADA OKAFOR NURSE"; a one-word profile name must appear in the account name). If it does not match, **both** `POST /bank-account/resolve` and `PUT /bank-account` answer `422` and nothing is saved, so the caregiver never reaches the "is this you?" confirmation for someone else's account. Unlike the other bank errors, `detail` is an object (the backend's `detail.code` convention), and the body is exactly:
+
+```json
+{
+  "detail": {
+    "code": "bank_account_name_mismatch",
+    "message": "The account name must match the name on your Oakly profile. If your name is different, contact support."
+  }
+}
+```
+
+_Shape source: asserted verbatim by `app/tests/test_payout_bank_accounts.py::test_a_different_account_holder_is_refused_with_a_code_and_no_names` (real app, throwaway Postgres, fake Paystack). **Not captured against the running stack**: the next full run of `scripts/capture_caregiver_flow.py` does not yet include this call._
+
+What the app must do: switch on `detail.code`, show `detail.message` (it is safe to show), and offer a "Contact support" action; the caregiver cannot fix this by retyping, only by choosing an account in their own name or having support correct the profile name. **Neither name is in the response**, so do not try to display them. Because `detail` is an object here and a plain string for the other bank errors, check `typeof detail === "string"` before reading `detail.code`. The existing 24 hour pause after changing to a different account is unchanged and only applies to a save that passed this check. Captures `125`, `127` and `178` above were taken before this rule; their account names are the profile's own, except `178` (an account named "PLACEHOLDER ACCOUNT 0001") which would now be refused for that profile, so treat that one as illustrating the response shape only.
 
 `PUT /api/v1/caregiver/bank-account` saves it. The body is **only `bank_code` and `account_number`**; the backend resolves the name again itself (the old body with `bank_name` and `account_name` is no longer accepted as the source of those: a request without `bank_code` is a `422`). The same `400`/`503` messages as above apply, plus `400` `This account cannot receive payouts. Check the account number and the bank.` when Paystack refuses to register it **[not live: automated test]**.
 
