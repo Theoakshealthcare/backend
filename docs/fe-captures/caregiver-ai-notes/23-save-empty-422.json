@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/voice-notes/25e7eee7-6a0d-45da-9b59-72a2fa0cc3d5",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "transcript": "   ",
+      "summary": ""
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "transcript"
+          ],
+          "msg": "Value error, must be 1 to 20000 characters",
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  }
+}

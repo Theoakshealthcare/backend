@@ -1,0 +1,64 @@
+# SOP: AI note transcription (caregiver voice notes), backend
+
+| | |
+|---|---|
+| **What shipped** | A caregiver records a spoken note during a visit; Oakly turns it into an editable transcript and a short summary (English or Nigerian Pidgin) through Gemini, behind a provider interface with a `FakeGemini` for tests. Caregiver routes (create with consent, raw-body audio upload, poll, list, retry, save, delete), read-only routes for the booker and for admins with `clinical.read`, an ARQ transcription job and a sweeper, audit rows, stable `detail.code` errors. **The feature is off by default (`VOICE_NOTES_ENABLED=false`).** |
+| **Branch / commits** | `feature/ai-note-transcription`, cut from `oakly/feature/caregiver-arrived-earning` (slice 2, Alembic head `0024`). Not pushed; the lead opens the PR. Commit SHAs are in the lead report. It depends on slice 2 being merged first (the migration chain). |
+| **Design** | `docs/plans/2026-11-07-ai-note-transcription.md` (merged as #47). Section 16 of it lists where the build differs. |
+| **Migration** | **`0025_visit_voice_notes`** (the plan reserved 0026; slice 2 took 0024, so 0025 was next free). Two new tables, nothing else touched. |
+| **API shape** | New routes only, additive. `docs/fe-integration-guide-caregiver-ai-notes.md` is the FE contract, rendered from live captures (`docs/fe-captures/caregiver-ai-notes/`), checked in CI. |
+| **Owner decisions applied (2026-11-07)** | Audio deleted as soon as the transcript text is stored; consent flag stored per recording and required before any audio is accepted; transcript encrypted at rest; care-team-only reads; English and Pidgin; transcript plus summary, both editable before saving. |
+| **Not verified** | **The real Gemini call has never run** (no key, no network in tests). Whether Gemini accepts the phone's m4a (`audio/mp4`; not on its documented list), latency, token cost and Pidgin quality are unknown. No device run. The FE guide says so. |
+
+## Why
+The caregiver app's note taker had a microphone that recorded and then said "voice transcription isn't available yet". The owner accepted defaults for consent, privacy, languages and output, and the app side was built against a written contract (monorepo PR, fake service). This is the backend half. It handles in-home audio of patients, so the design is built around not keeping it and not leaking it.
+
+## How (decisions)
+| Area | Decision | Rejected / why |
+|---|---|---|
+| Data | `visit_voice_notes` (status, language, consent flag and version, sizes, **encrypted** transcript and summary, error code, attempts, claim time, token counts, expiry) and `voice_note_events` (audit; **no foreign key to the note** so it outlives it; `detail` holds ids, counts, codes only). Transcript and summary use the existing Fernet helpers and are nullable so retention and erasure can wipe them. Both columns are in `scripts/reencrypt_health_data.py`, so key rotation reaches them. | Writing voice notes into `booking_notes`: that table is plaintext. |
+| Audio | Never written to disk, a temp file or object storage. `PUT .../audio` reads the **raw request body** with a counted cap (not `UploadFile`, which Starlette spools to a temp file above 1 MB), checks the type header and the first bytes, **encrypts it** and parks it in Redis under `vn:audio:<id>` with a 30-minute TTL (Redis runs with an append-only file, so plaintext must never be stored). Deleted in the same step the text is stored, on discard, and at its TTL. | Multipart upload (disk spool); plaintext in Redis. |
+| Two-step upload | `POST create` (stores the consent, idempotent on `client_request_id`) then `PUT audio`. | One call: no clean place to record consent before audio, no idempotency. |
+| Job | ARQ job `transcribe_voice_note_job(note_id)`: the argument is **only the note id**. At most 2 transcriptions at once (Redis slot counter) so the shared worker keeps slots for payments. `process_note` claims the note atomically (`UPDATE ... WHERE status='processing' AND claimed_at stale`), calls the provider **outside any transaction**, then locks the row again to write the result and delete the audio. A duplicate job stands down; a note discarded during transcription stores nothing. Timeouts: 90 s transcription, 30 s summary, job `timeout=200`, `max_tries=60` (waiting for a slot spends a try in ARQ; the note's own limits are its `attempts`). Retries: transient errors 3 tries (waits 5 s then 30 s), timeouts 2; then a failed note with a stable code. A failed summary does not lose the transcript. | Holding a row lock across the provider call. |
+| Provider | `TranscriptionProvider` protocol; `GeminiProvider` is the only module importing the SDK; two calls (audio to transcript, then transcript to summary), temperature 0, versioned prompts (`PROMPT_VERSION`, stored on the row) that keep Pidgin as spoken, forbid guessing and treat audio and text as data. It never logs a prompt, answer or exception message, only the failure class. | One structured call (a summary failure would lose the transcript). |
+| Access | `access.py`, one 404 for every refusal. Caregiver: assigned, patient active; start a note while `in_progress` (or within 120 minutes after completing); read, save and delete their own notes while the visit is live and for 24 hours after it ended; a suspended caregiver keeps only `in_progress`; reassignment ends access at once. Booker (`is_booker`): saved notes only, any time. Admin: `clinical.read` (no new permission, so no RBAC seed change). Drafts are private to the author. | A new admin permission (needs a migration and a seed change). |
+| Audit | `created`, `audio_received`, `transcribed`, `transcription_failed`, `retried`, `audio_deleted`, `saved`, `discarded`, `deleted`, `read` (every non-author read, per note), `purged`. Admin reads also write `admin_audit_log` `voice_note.read` (entity type `booking`, the booking id; ids only). The caregiver's own polling is not audited. | |
+| Caps and switch | Per visit 20, per caregiver 30 a day (uploads **and retries**), all users 36,000 audio-seconds a day (owner sets the real number), counted from `audio_received` and `retried` events at the audio or retry, not at create. The budget is charged the larger of the app's claimed duration and what the bytes say (16 kB per second), so a false claim is not undercounted. A cap can overshoot by one note under a race (the check is not locked). `VOICE_NOTES_ENABLED` (default **false**) is also the kill switch: new work answers `503 transcription_unavailable`, reads and deletes still work. | |
+| Retention | `voice_note_sweep_job` every 5 minutes: never-uploaded notes after 1 hour, stuck `processing` after 5 minutes, drafts after 24 hours, saved notes after `VOICE_NOTE_RETENTION_DAYS` (**365, a proposal the owner and counsel must decide**), the old caregiver's drafts after reassignment, orphaned audio keys. Account erasure of a patient deletes the notes of their own bookings and parked audio. | |
+
+## What's involved
+| Path | What |
+|---|---|
+| `app/db/models/voice_note.py`, `app/alembic/versions/0025_visit_voice_notes.py` | Tables and migration |
+| `app/services/voice_notes/` | `constants` (codes and sentences), `provider`, `prompts`, `gemini_provider`, `audio_store` (Redis and in-memory), `queue`, `access`, `service` (API side), `processing` (job body and sweeper) |
+| `app/api/v1/endpoints/{caregiver,patient,admin}_voice_notes.py`, `app/schemas/voice_note.py`, `app/api/v1/api.py` | Routes |
+| `app/worker.py` | `transcribe_voice_note_job` (`timeout=150`, `max_tries=10`, no result kept) and the sweep cron |
+| `app/core/config.py`, `.env.example` | 15 `VOICE_NOTE*` settings, all with defaults (names only in the example) |
+| `app/core/security.py` | `encrypt_bytes` / `decrypt_bytes` |
+| `app/services/account_erasure.py`, `scripts/reencrypt_health_data.py` | Erasure wipe; rotation columns |
+| `app/tests/fake_gemini.py`, `voice_note_helpers.py`, `test_voice_notes_*.py`, `test_capture_voice_notes.py` | `FakeGemini`, fixtures, tests, the capture run |
+| `docs/fe-integration-guide-caregiver-ai-notes.md`, `docs/fe-captures/caregiver-ai-notes/`, `.github/workflows/ci.yml` | FE guide, its captures, and its `--check` line |
+
+## Verification
+| Check | Result |
+|---|---|
+| Plan tests 1-37 | Implemented in `test_voice_notes_api / job / privacy / ops / redis` (see the plan's section 13). Tests 38 and 39 (real Gemini) are **not run** |
+| Privacy tests | Sentinel strings in audio, transcript, summary and a provider exception message are searched for in every log record (DEBUG, success and every failure kind, save, reads, delete), both tables' rows, `admin_audit_log`, Redis values and the ARQ job keys: none found. The stored audio is ciphertext. No temp file is created for a 3 MB upload (the spool is patched to fail) |
+| Real Redis and ARQ | `test_voice_notes_redis.py`: a real Redis container, the real queue and a burst worker run the job end to end; the job payload holds only the note id |
+| Live captures | 40 responses captured through the real app over a real Postgres, with `FakeGemini`, an in-memory audio store and a recording queue (the three stand-ins are listed in the FE guide) |
+| Local CI | `poetry check --lock`, ruff `E9,F63,F7,F82`, `ci_smoke` (one Alembic head, `0025`) and all eight `render_fe_guide --check` pairs pass. Full pytest was run in five chunks plus the voice note files (the 10-minute foreground limit), one at a time under the pytest lock: **4,419 passed, 5 skipped, 0 failed** after fixing two tests that pin lists a new feature must extend (`test_admin_rbac` route matrix, `test_worker` cron set). The first chunk ran before the review fixes; they touch only the voice note code, `worker.py` and the settings, so CI is the backstop for that chunk |
+| Opus review | One read-only privacy review (no blockers, 6 should-fix, 5 nits). **Fixed:** retries count against the caps and the TTL is extended only once; the budget is charged from the bytes; slot waits no longer exhaust the job's tries and the job timeout has margin (200 s); the sweeper keeps audio of `awaiting_audio` notes; `consent_confirmed` is a strict boolean (a string or 1 is a 422); a fresh ARQ job id per enqueue; the caregiver window never falls back to `updated_at`; the admin audit row names the booking; a job queued before the switch was turned off sends nothing to Gemini. **Left (documented):** the audio route does short DB calls on the event loop and holds a transaction while the body streams in; caps are not locked (can overshoot by one). One re-review was not needed: no blocker remained |
+
+## Operate / roll back
+- **Switch on:** set `VOICE_NOTES_ENABLED=true`, and `GEMINI_API_KEY` on a **paid, non-training API tier** (confirm Google's current terms and retention), and a real `VITALS_ENCRYPTION_KEY`. Redis must be reachable by the API and the worker. Set the daily audio budget and the retention days deliberately. Run the live smoke first (a real device m4a and a Pidgin one); if Gemini refuses m4a, decide between recording in another format on the device or transcoding on the server (plan risk R3).
+- **Kill switch:** `VOICE_NOTES_ENABLED=false` (no redeploy of code; restart the API and worker). Existing notes stay readable.
+- **Roll back:** revert the branch; the downgrade of `0025` drops both tables (any note and audit row is lost; nothing existed before). Parked audio in Redis expires by TTL.
+- **Key rotation:** the two encrypted columns are in `scripts/reencrypt_health_data.py` like the other health columns.
+
+## Follow-ups
+1. **Live smoke with the real Gemini** (tests 38, 39): m4a acceptance, latency, tokens, Pidgin quality (a small clinician-checked sample). Nothing about the real service is verified.
+2. **Counsel review** of the consent copy and the NDPA position (plan section 11); a data processing agreement with Google; the retention number.
+3. **Patient opt-out** (a patient-app setting) and whether the booker sees the transcript or only the summary (plan section 15).
+4. `booking_notes` (the typed notes) is plaintext at rest: encrypt it or move it (plan R6).
+5. If volume grows: a separate queue and worker for transcription (plan R9).
+6. A device pass of the whole flow in the caregiver app (the app wiring is a separate PR).

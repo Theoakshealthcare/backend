@@ -136,6 +136,7 @@ class AccountErasureService:
             self._wipe_patient(patient, email)
         self._wipe_care_recipients(user)
         self._wipe_care_plans(patient, user)
+        self._wipe_voice_notes(patient, now)
         self.db.query(PushToken).filter(PushToken.user_id == user.id).delete(synchronize_session=False)
         self.db.query(Notification).filter(Notification.user_id == user.id).delete(synchronize_session=False)  # their feed
         self._withdraw_whatsapp(user, phones, now)
@@ -407,6 +408,30 @@ class AccountErasureService:
         )
         for (recipient_id,) in self_recipients:
             wipe_plans_for_subject(self.db, recipient_id=recipient_id)
+
+    def _wipe_voice_notes(self, patient: Optional[Patient], now: datetime) -> None:
+        """The voice notes of the person's own bookings are health text, not a legal-retention record: the rows (and any audio still parked
+        in Redis) are deleted, each with a ``purged`` / ``account_erased`` event. A caregiver's own erasure keeps the notes they wrote until
+        retention (they describe the client, not the caregiver)."""
+        if patient is None:
+            return
+        from app.db.models.voice_note import VisitVoiceNote
+        from app.services.voice_notes.audio_store import get_audio_store
+        from app.services.voice_notes.service import add_event
+
+        notes = (
+            self.db.query(VisitVoiceNote).join(Booking, Booking.id == VisitVoiceNote.booking_id)
+            .filter(Booking.patient_id == patient.id).all()
+        )
+        store = get_audio_store()
+        for note in notes:
+            add_event(self.db, voice_note_id=note.id, booking_id=note.booking_id, actor_type="system", actor_id=None, action="purged",
+                      detail={"reason": "account_erased"}, now=now)
+            try:
+                store.delete(str(note.id))
+            except Exception:
+                logger.warning("voice note audio key not deleted at erasure (its TTL removes it)")
+            self.db.delete(note)
 
     def _withdraw_whatsapp(self, user: User, phones: set, now: datetime) -> None:
         """Unlink and anonymise the person's WhatsApp contact the way STOP DATA does (consents withdrawn,
