@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/services",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "services": [
+        {
+          "service_type": "nurse",
+          "display_name": "Nurse visit",
+          "mode": "home",
+          "min_minutes": 60,
+          "step_minutes": 60,
+          "max_minutes": 1440
+        }
+      ]
+    }
+  },
+  "note": "Priced but disabled: still hidden."
+}

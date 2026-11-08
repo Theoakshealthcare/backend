@@ -1,0 +1,43 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_hours": 2
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "service_type": "nurse",
+      "duration_hours": 2,
+      "base_fee_per_hour": 5000.0,
+      "service_multiplier": 1.0,
+      "service_fee": 10000.0,
+      "platform_fee": 1000.0,
+      "platform_fee_percent": 10.0,
+      "total_amount": 11000.0,
+      "currency": "NGN",
+      "surge_pricing_active": false,
+      "surge_multiplier": null,
+      "discount_active": false,
+      "discount_percent": null,
+      "pricing_breakdown": {
+        "base_calculation": 10000.0,
+        "surge_adjustment": 0.0,
+        "discount_savings": 0.0,
+        "service_fee_final": 10000.0,
+        "platform_fee": 1000.0,
+        "total": 11000.0
+      },
+      "estimated_caregivers_available": null,
+      "peak_hours_warning": "Peak hours (5-9 PM): Higher demand may affect caregiver availability"
+    }
+  },
+  "note": "The nurse still previews with no multiplier configured (unchanged)."
+}

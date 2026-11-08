@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/service-catalog/doctor",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "enabled": false,
+      "display_name": "Doctor visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 30,
+      "max_minutes": 1440,
+      "sort_order": 20
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, step_minutes must be 60 until half-hour bookings are supported",
+          "input": {
+            "enabled": false,
+            "display_name": "Doctor visit",
+            "mode": "home",
+            "min_minutes": 60,
+            "step_minutes": 30,
+            "max_minutes": 1440,
+            "sort_order": 20
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  "note": "Half-hour steps arrive with the booking-minutes slice."
+}

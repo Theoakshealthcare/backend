@@ -165,13 +165,14 @@ def test_a_complete_booking_for_myself(db, flow):
     assert quote.payload["city"] == "Lagos" and quote.payload["address"] == "12 Test Close, Lekki Phase 1"
 
 
-def test_services_show_the_price_per_hour_and_an_unconfigured_service_is_offered_at_the_default(db, flow, booking_env):
+def test_services_show_the_price_per_hour_and_a_service_with_no_multiplier_is_not_offered(db, flow, booking_env):
     flow.call("INIT")
     _, body = flow.exchange("WHO", {"who": "self"})
     offered = {s["id"]: s["description"] for s in body["data"]["services"]}
     assert offered == {"nurse": "₦11,000 per hour", "caregiver": "₦8,800 per hour",
-                       "physiotherapist": "₦13,200 per hour", "doctor": "₦22,000 per hour",
-                       "nutritionist": "₦11,000 per hour"}  # no multiplier configured: the default of 1.0
+                       "physiotherapist": "₦13,200 per hour", "doctor": "₦22,000 per hour"}
+    # nutritionist has no multiplier in the test pricing: it is not offered (service catalogue, phase 2); it used to be
+    # offered at the default of 1.0
 
 
 def test_a_service_we_do_not_sell_cannot_be_chosen_even_if_the_client_sends_it(flow):
@@ -181,12 +182,12 @@ def test_a_service_we_do_not_sell_cannot_be_chosen_even_if_the_client_sends_it(f
     assert body["screen"] == "SERVICE" and body["data"]["notice"]
 
 
-def test_no_multipliers_at_all_still_lists_every_service_at_the_default(db, flow, booking_env):
+def test_no_multipliers_at_all_lists_only_the_nurse_at_the_default(db, flow, booking_env):
     booking_env.prices.multipliers = {}
     db.commit()
     flow.call("INIT")
     _, body = flow.exchange("WHO", {"who": "self"})
-    assert {s["id"] for s in body["data"]["services"]} == set(rules.SERVICE_ORDER)
+    assert [s["id"] for s in body["data"]["services"]] == ["nurse"]  # the only service sold without a multiplier
 
 
 def test_no_price_settings_at_all_ends_the_flow_instead_of_an_empty_list(db, flow, booking_env):

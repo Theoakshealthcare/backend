@@ -7372,6 +7372,201 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 ]
 ```
 
+## 13.1 Service catalogue (phase 2, slice 1): `/api/v1/admin/service-catalog`
+
+Which services patients can book, what they are called and how long a visit may be. **The catalogue holds no prices.** A price is the
+base fee times the service's multiplier, both in Pricing (section 13). A service is **bookable** only when it is **enabled** here AND
+**priced** (the newest pricing version has a multiplier for it). The nurse also counts as priced at 1.0 when no multiplier is set
+(that is how it has always been sold); every other service needs an explicit multiplier. Migration `0026` seeds the five services:
+the nurse enabled, the other four disabled, all `mode: "home"`, minutes 60 / 60 / 1440.
+
+| | Permission |
+|---|---|
+| `GET /admin/service-catalog` | `bookings.read` (same as the Pricing and Policy reads) |
+| `PUT /admin/service-catalog/{service_type}` | `pricing.write` (the permission that guards the multipliers) |
+
+Console flow: Pricing first (add the multiplier), then Catalogue (switch it on). A service that is enabled but has lost its multiplier
+shows `enabled: true, priced: false, bookable: false`: show it as "hidden from patients: no price".
+
+### 13.1.1 List: `GET /api/v1/admin/service-catalog`
+
+Always the five services, ordered by `sort_order`. `priced` and `bookable` are computed from the newest pricing, not stored.
+
+<!-- capture: 902-admin-catalog-nurse-only.json response.body -->
+```json
+[
+  {
+    "service_type": "nurse",
+    "enabled": true,
+    "display_name": "Nurse visit",
+    "mode": "home",
+    "min_minutes": 60,
+    "step_minutes": 60,
+    "max_minutes": 1440,
+    "sort_order": 10,
+    "priced": true,
+    "bookable": true,
+    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_by": null
+  },
+  {
+    "service_type": "doctor",
+    "enabled": false,
+    "display_name": "Doctor visit",
+    "mode": "home",
+    "min_minutes": 60,
+    "step_minutes": 60,
+    "max_minutes": 1440,
+    "sort_order": 20,
+    "priced": false,
+    "bookable": false,
+    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_by": null
+  },
+  {
+    "service_type": "physiotherapist",
+    "enabled": false,
+    "display_name": "Physiotherapy visit",
+    "mode": "home",
+    "min_minutes": 60,
+    "step_minutes": 60,
+    "max_minutes": 1440,
+    "sort_order": 30,
+    "priced": false,
+    "bookable": false,
+    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_by": null
+  },
+  {
+    "service_type": "caregiver",
+    "enabled": false,
+    "display_name": "Caregiver visit",
+    "mode": "home",
+    "min_minutes": 60,
+    "step_minutes": 60,
+    "max_minutes": 1440,
+    "sort_order": 40,
+    "priced": false,
+    "bookable": false,
+    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_by": null
+  },
+  {
+    "service_type": "nutritionist",
+    "enabled": false,
+    "display_name": "Nutrition consult",
+    "mode": "home",
+    "min_minutes": 60,
+    "step_minutes": 60,
+    "max_minutes": 1440,
+    "sort_order": 50,
+    "priced": false,
+    "bookable": false,
+    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_by": null
+  }
+]
+```json
+```
+
+### 13.1.2 Update: `PUT /api/v1/admin/service-catalog/{service_type}`
+
+**PUT replaces all seven fields** (`enabled`, `display_name`, `mode`, `min_minutes`, `step_minutes`, `max_minutes`, `sort_order`) plus an
+optional `reason` (kept in the audit log). Send the whole row from the list, changed where needed. Unknown keys are refused. It is
+**idempotent**: the same body twice gives the same answer and writes **one** audit row (retry freely after a timeout).
+
+Validation in this slice (the next slice relaxes the step): `mode` must be `"home"` (`video`/`both` are refused until video exists);
+`step_minutes` must be 60; `min_minutes` and `max_minutes` whole hours within 60 to 1440, min not above max; `display_name` 1 to 60
+characters, not blank; `sort_order` 0 to 1000.
+
+Success (the doctor was priced in Pricing first):
+
+<!-- capture: 914-admin-enable-doctor.json request.body -->
+```json
+{
+  "enabled": true,
+  "display_name": "Doctor home visit",
+  "mode": "home",
+  "min_minutes": 60,
+  "step_minutes": 60,
+  "max_minutes": 1440,
+  "sort_order": 20,
+  "reason": "Placeholder: launch doctor visits"
+}
+```json
+```
+
+The retry returns the identical body (same `updated_at`):
+
+<!-- capture: 915-admin-enable-doctor-retry.json response.body keys=updated_at,bookable -->
+```json
+{
+  "updated_at": "2026-11-08T19:41:01.751359",
+  "bookable": true
+}
+```json
+```
+
+**Enabling a service with no price: `422 service_has_no_price`.** Show the message; link to Pricing.
+
+<!-- capture: 903-admin-enable-without-price.json response.body -->
+```json
+{
+  "detail": {
+    "code": "service_has_no_price",
+    "message": "This service has no price yet. Set its multiplier in Pricing first, then enable it."
+  }
+}
+```json
+```
+
+Only switching a service **on** needs a price. Disabling always works, and an already-enabled service can still be edited if its multiplier
+was removed meanwhile.
+
+**Validation errors are FastAPI's list shape** (`detail` is an array, not the `{code, message}` object). `loc` says which field:
+
+<!-- capture: 904-admin-put-invalid-video-mode.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body",
+        "mode"
+      ],
+      "msg": "Value error, only 'home' is supported until video visits exist",
+      "input": "video",
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```json
+```
+
+Other refusals, all `422` with that shape: `step_minutes` 30 (905), `max_minutes` 1500 (907), a blank `display_name` (908).
+
+Plain-string errors: unknown service type `404`, no token `401`, a role without `pricing.write` `403` (an Operations admin can read but not write):
+
+<!-- capture: 909-admin-put-unknown-service.json response.body -->
+```json
+{
+  "detail": "Service not found"
+}
+```json
+```
+
+<!-- capture: 912-admin-put-no-token.json response.body -->
+```json
+```
+
+**Traps.** (1) `422` has two shapes: `service_has_no_price` is an object with `code`; field validation is an array. (2) `priced` / `bookable`
+are in the GET and in the PUT answer, never inputs. (3) Changing Pricing can silently un-price an enabled service; reload the catalogue after a
+Pricing save. (4) The WhatsApp booking Flow offers the same bookable list but still shows its own fixed labels ("Nurse", "Doctor home visit"),
+not `display_name`.
+
 ## 14. Verification table
 
 "Live" means a request/response was captured from the running docker stack (the capture number is given). "Test only" means covered by pytest but not captured. "Not live" means neither could be exercised end to end; the shape or behaviour comes from the named source.
@@ -7516,4 +7711,5 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | Booking detail `cancel_terms`: no snapshot (live policy), tier none / standard / late, unpaid refusal, `applied` and the frozen snapshot after a booker cancel, snapshot kept after a policy edit, live policy followed when no snapshot | Verified live | 802 to 808 (policy: 800, 801) |
 | `cancel_terms.would_apply_now` for an in-progress or completed booking (`refusal` `in_progress` / `closed` on a non-cancelled booking), and `applied.late_cancel_compensable` set | Test only | `test_admin_booking_cancel_terms.py`; the live run cancelled a standard-tier booking, so `late_cancel_compensable` is `null` there |
 | `GET /admin/me` for a Super Admin lists `refunds.approve_above_limit` | Test only | captures 010 and 039 were taken before the permission existed; `test_admin_rbac.py` |
-
+| Service catalogue: list (nurse only priced; before any pricing; doctor priced but disabled), enable with a price, a retried PUT (same body, one audit row), `service_has_no_price` (no multiplier, and no pricing at all), validation `422`s (video mode, step 30, min 90, max 1500, blank name), unknown service `404`, Operations `403` on write and `200` on read, no token `401` | Verified live | 900 to 916 |
+| Service catalogue: the audit row's `before` / `after` contents, an enabled service whose multiplier is later removed (`priced: false`), a `reason`-less PUT, concurrent PUTs | Test only | `test_service_catalogue.py` |

@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "doctor",
+      "duration_hours": 2
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "service_unavailable",
+        "message": "This service is not available right now. Please choose another service."
+      }
+    }
+  },
+  "note": "Doctor is disabled in the catalogue."
+}

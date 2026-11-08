@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, admin_auth, admin_users, devices, caregiver_app, admin_bookings, admin_booking_policy, admin_earnings, admin_payouts, admin_refunds, caregiver_clients, caregiver_care_plans, admin_care_plans
 from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, devices, caregiver_app, whatsapp
 from app.api.v1.endpoints import kyc_webhook, kyc_widget, patient_notifications
-from app.api.v1.endpoints import caregiver_voice_notes, patient_voice_notes, admin_voice_notes
+from app.api.v1.endpoints import caregiver_voice_notes, patient_voice_notes, admin_voice_notes, admin_service_catalog
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
@@ -25,6 +25,7 @@ api_router.include_router(patient_voice_notes.router, prefix="/patient", tags=["
 api_router.include_router(admin_caregivers.router, prefix="/admin/caregivers", tags=["admin-caregivers"])
 api_router.include_router(admin_bookings.router, prefix="/admin/bookings", tags=["admin-bookings"])
 api_router.include_router(admin_booking_policy.router, prefix="/admin/booking-policy", tags=["admin-booking-policy"])
+api_router.include_router(admin_service_catalog.router, prefix="/admin/service-catalog", tags=["admin-service-catalog"])
 api_router.include_router(admin_earnings.router, prefix="/admin/earnings", tags=["admin-earnings"])
 api_router.include_router(admin_payouts.router, prefix="/admin/payouts", tags=["admin-payouts"])
 api_router.include_router(admin_refunds.router, prefix="/admin/refunds", tags=["admin-refunds"])

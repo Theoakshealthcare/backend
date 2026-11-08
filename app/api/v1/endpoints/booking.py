@@ -16,6 +16,7 @@ from app.db.models.booking import Booking, BookingStatus, PaymentStatus, Caregiv
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.user import User
+from app.schemas.service_catalog import BookableServiceOut, BookableServicesOut
 from app.schemas.booking import (
     BookingCreate, BookingResponse, BookingActionRequest, CaregiverActionResponse,
     BookingPreviewRequest, BookingPreviewResponse,
@@ -30,6 +31,7 @@ from app.services.booking import (
     BookingActionForbidden, BookingArrivalTooEarly, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
 from app.services import booking_payment_link, earnings, patient_booking_cancel
+from app.services import service_catalog
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
@@ -45,6 +47,14 @@ def _settings_not_configured() -> HTTPException:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail={"code": "booking_settings_not_configured",
                 "message": "Pricing is not available right now. Please try again later."},
+    )
+
+
+def _service_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": "service_unavailable",
+                "message": "This service is not available right now. Please choose another service."},
     )
 
 
@@ -265,6 +275,8 @@ def get_booking_preview(
         return preview
     except BookingSettingsNotConfigured:
         raise _settings_not_configured()
+    except service_catalog.ServiceUnavailable:
+        raise _service_unavailable()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -298,6 +310,7 @@ def get_booking_preview(
                 }
             }
         },
+        422: {"description": "detail.code service_unavailable: the service is not on offer (disabled or unpriced)"},
         503: {"description": "No pricing version exists yet. detail.code is booking_settings_not_configured"},
     },
     tags=["Patient Bookings"]
@@ -370,11 +383,34 @@ async def create_booking(
         
     except BookingSettingsNotConfigured:
         raise _settings_not_configured()
+    except service_catalog.ServiceUnavailable:
+        raise _service_unavailable()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.get(
+    "/services",
+    response_model=BookableServicesOut,
+    summary="Which services can be booked right now",
+    tags=["Patient Bookings"],
+)
+def list_bookable_services(
+    _user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """The services a person may book now, in display order: enabled in the catalogue AND priced. A service with no
+    price is simply absent. The response carries no prices (use ``/booking/preview`` for those). ``min_minutes``,
+    ``step_minutes`` and ``max_minutes`` describe the allowed visit lengths."""
+    rows = service_catalog.bookable_services(db)
+    return BookableServicesOut(services=[
+        BookableServiceOut(
+            service_type=row.service_type, display_name=row.display_name, mode=row.mode,
+            min_minutes=row.min_minutes, step_minutes=row.step_minutes, max_minutes=row.max_minutes)
+        for row in rows])
 
 
 @router.get(

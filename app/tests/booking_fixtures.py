@@ -17,12 +17,19 @@ def flow_keys():
     return _KEYS["private"], _KEYS["public"]
 
 
-def make_prices(db, **overrides) -> BookingSettings:
+def make_prices(db, *, enable_services: bool = True, **overrides) -> BookingSettings:
+    """A pricing version. By default it also switches on, in the service catalogue, every service it has a multiplier for
+    (the catalogue only seeds the nurse), so a test that prices a service can book it; pass ``enable_services=False`` to
+    leave the catalogue as the migration seeded it."""
     fields = dict(base_fee_kobo=1_000_000, platform_fee_percent=10.0, surge_pricing=False, surge_multiplier=1.0,
                   discount=0.0, multipliers={"nurse": 1.0, "caregiver": 0.8, "physiotherapist": 1.2, "doctor": 2.0})
     fields.update(overrides)
     row = BookingSettings(**fields)
     db.add(row)
+    if enable_services:
+        from app.db.models.service_catalog import ServiceCatalog
+        for service in (row.multipliers or {}):
+            db.query(ServiceCatalog).filter(ServiceCatalog.service_type == service).update({"enabled": True})
     db.commit()
     db.refresh(row)
     return row

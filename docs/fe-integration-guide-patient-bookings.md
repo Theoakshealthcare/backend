@@ -1190,3 +1190,94 @@ Payment window over (the row was edited to be a minute past; the expiry sweep ha
 | `payment-link` against the **real Paystack**: that a stored checkout link keeps opening for the whole window, and the real "Duplicate Transaction Reference" answer | **No** | the fake copies Paystack's documented refusal of a repeated reference; no live Paystack call was made |
 | `payment_link_in_progress`, `payment_under_review`, `booking_not_payable`, a WhatsApp booking's link, a failed save of the link | **Not live** | unit tests with real concurrent sessions (`app/tests/test_booking_payment_link.py`, `app/tests/test_booking_payment_link_stored.py`) |
 | Behaviour on a real phone | **No** | the patient app screens are not built yet |
+| `GET /booking/services`: nothing before pricing exists, nurse only with no multipliers, a priced-but-disabled service hidden, an enabled and priced service listed after the nurse, no token `401` | **Yes** (scratch database) | 200 to 202, 206, 207 |
+| Preview and create refuse a service that is not bookable with `422 service_unavailable`; the nurse still previews with no multiplier; an enabled, priced service previews at its multiplier | **Yes** | 203 to 205, 208 |
+| An enabled service whose multiplier is removed later; a service disabled between a WhatsApp quote and its booking | Test only | `test_service_catalogue.py` (the WhatsApp quote path is not re-checked at booking time; see the SOP follow-ups) |
+
+## 12. Which services can be booked (service catalogue, phase 2)
+
+**New 2026-11-08 (migration `0026`).** The app must stop hard-coding the five service types: ask the backend which ones are on offer, show
+`display_name`, and treat a service that is not in the list as not sold. **A service with no price is simply absent** (we never invent prices).
+
+### 12.1 `GET /api/v1/booking/services`
+
+Auth: a logged-in app user (`401` without a token, like the other booking routes except `/preview`, which is public). Response: the bookable services in display
+order. **No prices**: get those from `/booking/preview` after the person picks a service and a length.
+
+<!-- capture: 201-p-services-nurse-only.json response.body -->
+```json
+{
+  "services": [
+    {
+      "service_type": "nurse",
+      "display_name": "Nurse visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440
+    }
+  ]
+}
+```json
+```
+
+When the doctor is priced and enabled it appears after the nurse (the order is the admin's `sort_order`):
+
+<!-- capture: 207-p-services-doctor-offered.json response.body -->
+```json
+{
+  "services": [
+    {
+      "service_type": "nurse",
+      "display_name": "Nurse visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440
+    },
+    {
+      "service_type": "doctor",
+      "display_name": "Doctor home visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440
+    }
+  ]
+}
+```json
+```
+
+### 12.2 `422 service_unavailable` on preview and create
+
+`POST /booking/preview` and `POST /booking/create` refuse a service that is not bookable (disabled, or no price) with an object `detail`.
+Nothing is created and Paystack is not called. Treat it as "this service just stopped being offered": go back to the service list and reload it.
+
+<!-- capture: 204-p-preview-hidden-service.json response.body -->
+```json
+{
+  "detail": {
+    "code": "service_unavailable",
+    "message": "This service is not available right now. Please choose another service."
+  }
+}
+```json
+```
+
+The nurse previews as before even when no multiplier is configured:
+
+<!-- capture: 203-p-preview-nurse.json response.body keys=service_type,duration_hours,service_multiplier,total_amount -->
+```json
+{
+  "service_type": "nurse",
+  "duration_hours": 2,
+  "service_multiplier": 1.0,
+  "total_amount": 11000.0
+}
+```json
+```
+
+**What the app must do.** (1) Fetch `/booking/services` when the booking flow opens; never show a fixed list. (2) Show `display_name`, not the
+`service_type` string. (3) Handle `422 service_unavailable` on the price check and on confirm. (4) The pricing multiplier for a service can
+disappear while the person is on the confirm screen; the same `422` covers it.
+

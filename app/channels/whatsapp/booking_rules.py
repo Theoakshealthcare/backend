@@ -13,8 +13,9 @@ from app.core.config import settings
 
 LAGOS = ZoneInfo("Africa/Lagos")
 
-# The order services are offered in, and what the person sees. Every service is offered; one without a configured
-# multiplier is priced at the default of 1.0, the same as in the app (see services/pricing.service_multiplier).
+# What the person sees for each service. Which services are OFFERED, and in what order, is the service catalogue's call
+# (``services/service_catalog.bookable_services``: enabled and priced); SERVICE_ORDER is only the default order of the
+# labels below.
 SERVICE_ORDER: Tuple[str, ...] = ("nurse", "caregiver", "physiotherapist", "doctor", "nutritionist")
 SERVICE_LABELS: Dict[str, str] = {
     "nurse": "Nurse",

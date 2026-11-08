@@ -1,0 +1,93 @@
+{
+  "generated_by": "scripts/capture_service_catalogue.py",
+  "run_tag": "98f87e",
+  "captured_at": "2026-11-08T19:41:01.797527Z",
+  "folder": "admin",
+  "captures": [
+    {
+      "file": "900-admin-catalog-no-pricing-yet.json",
+      "label": "admin-catalog-no-pricing-yet",
+      "status": 200
+    },
+    {
+      "file": "901-admin-enable-before-pricing.json",
+      "label": "admin-enable-before-pricing",
+      "status": 422
+    },
+    {
+      "file": "902-admin-catalog-nurse-only.json",
+      "label": "admin-catalog-nurse-only",
+      "status": 200
+    },
+    {
+      "file": "903-admin-enable-without-price.json",
+      "label": "admin-enable-without-price",
+      "status": 422
+    },
+    {
+      "file": "904-admin-put-invalid-video-mode.json",
+      "label": "admin-put-invalid-video-mode",
+      "status": 422
+    },
+    {
+      "file": "905-admin-put-invalid-step-30.json",
+      "label": "admin-put-invalid-step-30",
+      "status": 422
+    },
+    {
+      "file": "906-admin-put-invalid-min-90.json",
+      "label": "admin-put-invalid-min-90",
+      "status": 422
+    },
+    {
+      "file": "907-admin-put-invalid-max-1500.json",
+      "label": "admin-put-invalid-max-1500",
+      "status": 422
+    },
+    {
+      "file": "908-admin-put-invalid-blank-name.json",
+      "label": "admin-put-invalid-blank-name",
+      "status": 422
+    },
+    {
+      "file": "909-admin-put-unknown-service.json",
+      "label": "admin-put-unknown-service",
+      "status": 404
+    },
+    {
+      "file": "910-admin-put-forbidden-operations.json",
+      "label": "admin-put-forbidden-operations",
+      "status": 403
+    },
+    {
+      "file": "911-admin-get-operations.json",
+      "label": "admin-get-operations",
+      "status": 200
+    },
+    {
+      "file": "912-admin-put-no-token.json",
+      "label": "admin-put-no-token",
+      "status": 401
+    },
+    {
+      "file": "913-admin-catalog-doctor-priced.json",
+      "label": "admin-catalog-doctor-priced",
+      "status": 200
+    },
+    {
+      "file": "914-admin-enable-doctor.json",
+      "label": "admin-enable-doctor",
+      "status": 200
+    },
+    {
+      "file": "915-admin-enable-doctor-retry.json",
+      "label": "admin-enable-doctor-retry",
+      "status": 200
+    },
+    {
+      "file": "916-db-audit-rows.json",
+      "label": "db-audit-rows",
+      "status": null
+    }
+  ]
+}
