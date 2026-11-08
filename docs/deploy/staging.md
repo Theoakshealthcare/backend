@@ -348,7 +348,7 @@ Uploads: `docker run --rm -v oakly-staging_private_uploads:/data -v /var/backups
 3. Settings > Secrets and variables > Actions > **Variables**: `STAGING_DEPLOY_ENABLED` = `true`.
 4. Run it: `gh workflow run deploy-staging.yml --ref main -f ref=staging` (a dispatch workflow must exist on the default branch to be listed).
 
-Not run anywhere; checked with `actionlint` only. Not included yet: an image scan (Trivy) and a Semgrep run before deploy (follow-up).
+Not run anywhere; checked with `actionlint` only. The four third-party/official actions are pinned to commit SHAs. Not included yet: an image scan (Trivy) and a Semgrep run before deploy (follow-up).
 
 ## 15. Operate: cheat sheet
 
@@ -383,7 +383,7 @@ The `staging` URL structure the rest of the system needs: API `https://api.stagi
 1. **Run it once on a real server** and fix whatever the first run finds; then update section 16.
 2. **Admin console on staging** (open decision 12 in section 0).
 3. **Off-server backups** (bucket or provider snapshots) and a failure alert on the backup cron (e.g. a healthchecks.io ping).
-4. **Image scan and Semgrep before deploy** in the deploy workflow; pin the third-party action versions by SHA if the repo requires it.
+4. **Image scan and Semgrep before deploy** in the deploy workflow.
 5. `/docs` and `/api/v1/openapi.json` are public on staging; put basic auth in front in nginx if that matters.
 6. **Prescription note files** go to `/app/uploaded_notes` (a volume now). The legacy `/app/uploads/profile_images` mount is not persisted (profile photos use Cloudinary).
 7. `FCM_SERVER_KEY`, `APNS_*` and `PAYSTACK_WEBHOOK_SECRET` are declared in `Settings` but read by nothing; removing them is a separate cleanup.

@@ -59,7 +59,7 @@ Everything is in the runbook. To drop the kit: revert the branch (no migration, 
 1. **Run the runbook once on a real server**, fix what it finds, then update section 16 of the runbook and the checklist.
 2. Admin console on staging (without it, caregivers are approved by API calls only).
 3. Off-server backups and a failure alert on the backup cron.
-4. Trivy and Semgrep steps in the deploy workflow; decide whether third-party actions must be pinned by SHA.
+4. Trivy and Semgrep steps in the deploy workflow (its actions are pinned to commit SHAs; `ci.yml` still uses tags).
 5. Pin `requires-python` below 3.14 (or fix the worker start) so a fresh environment cannot pick the interpreter `arq` breaks on.
 6. Remove the unused settings (`PAYSTACK_WEBHOOK_SECRET`, `FCM_SERVER_KEY`, `APNS_*`, `SMTP_TLS`) in a separate cleanup, or make the mailer honour `SMTP_TLS` (STARTTLS on 587).
 7. Apply the proposed `eas.json` diff in the monorepo once the domain exists.
