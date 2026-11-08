@@ -1,8 +1,8 @@
 """The Gemini implementation of ``TranscriptionProvider``. The only module that imports the SDK.
 
-It has never been exercised against the real service in this repository (no key, no network in tests). Everything about what Gemini
-accepts (``audio/mp4`` in particular, plan risk R3), what it returns and how it fails is written from the SDK's documented shapes
-and is unverified until a live smoke run.
+It was exercised once against the real service on 2026-11-08 with synthetic speech (``gemini-3.5-flash`` accepted ``audio/mp4``
+m4a and ``audio/mpeg`` mp3 and transcribed English and Nigerian Pidgin; see the SOP's Verification). Real device recordings, latency
+under load and error behaviour of the real service (429/5xx handling) remain unproven.
 
 Nothing here logs a prompt, an answer, an audio byte or an exception message: only the failure class name.
 """

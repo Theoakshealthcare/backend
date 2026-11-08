@@ -6,7 +6,7 @@
 | **Base URL** | every path starts with `/api/v1` |
 | **Design** | `docs/plans/2026-11-07-ai-note-transcription.md` (the decisions and the reasons). This guide is what the routes **actually answered**. |
 | **Source of truth** | Every body, status code and error string below was **copied from a real response** captured by `app/tests/test_capture_voice_notes.py` (files in `docs/fe-captures/caregiver-ai-notes/`), through the real FastAPI app over a real Postgres. Examples are re-rendered from those files by `scripts/render_fe_guide.py`; CI fails if one drifts. |
-| **What was NOT real in the capture** | Three stand-ins, so **no real Gemini call has ever been made**: the AI provider is `FakeGemini` (scripted placeholder text), the audio store is in memory instead of Redis, and the queue only records the job (the test then runs the worker's processing function). The real ARQ + Redis path is exercised by `app/tests/test_voice_notes_redis.py`, not by these captures. **Whether the real Gemini accepts the phone's m4a (`audio/mp4`), how long it takes, and how good the Pidgin transcript is: unverified.** |
+| **What was NOT real in the capture** | Three stand-ins, so **no real Gemini call is in these captures**: the AI provider is `FakeGemini` (scripted placeholder text), the audio store is in memory instead of Redis, and the queue only records the job (the test then runs the worker's processing function). The real ARQ + Redis path is exercised by `app/tests/test_voice_notes_redis.py`, not by these captures. **Whether the real Gemini accepts the phone's m4a (`audio/mp4`), how long it takes, and how good the Pidgin transcript is: unverified.** |
 | **Placeholders** | All names and text are placeholders. Ids and timestamps are real values from a throwaway database. |
 | **Switch** | The feature is off by default on the server (`VOICE_NOTES_ENABLED=false`): until it is on, create and send answer `503 transcription_unavailable` (3.1, section 4). Keep the app's own flag off until the backend is deployed and switched on. |
 
@@ -641,5 +641,6 @@ After `PUT audio` (202), poll `GET .../voice-notes/{id}` every **2 seconds** for
 | Failure codes `transcription_failed`, `transcription_timeout`, `audio_unsupported`, `provider_blocked` | **not captured**; covered by backend tests with `FakeGemini` |
 | `consent_missing`, `invalid_state`, `daily` budget `503` | **not captured** (defensive or covered by tests) |
 | Redis and the ARQ queue | **not in the captures**; real Redis + worker covered by `test_voice_notes_redis.py` |
-| **The real Gemini call**: m4a accepted, latency, token use, Pidgin quality | **UNVERIFIED. Never run.** Needs the owner's key and a device recording |
+| **The real Gemini call** with synthetic speech (2026-11-08): `audio/mp4` m4a and `audio/mpeg` accepted on `gemini-3.5-flash`, English and a Pidgin sentence transcribed, 3 to 4.4 s for 7 to 8 s of audio | **Verified live, but not through the API or a device**: the provider code was called directly (backend SOP, Verification); the captures in this guide still use `FakeGemini` |
+| A real caregiver recording (accent, noise, phone codec), a note of minutes, Pidgin accuracy on a clinician-checked sample | **UNVERIFIED** |
 | A real phone upload through the app | **UNVERIFIED** (no device run) |

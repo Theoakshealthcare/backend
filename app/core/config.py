@@ -245,7 +245,7 @@ class Settings(BaseSettings):
     # AI voice notes (docs/plans/2026-11-07-ai-note-transcription.md section 10). Off until the owner switches it on: the
     # switch is the kill switch too. Every limit has a default so a missing line never stops the app booting.
     VOICE_NOTES_ENABLED: bool = False
-    VOICE_NOTE_MODEL: str = "gemini-3.5-flash"  # gemini-2.5-flash answers 404 for our key; audio input on this model is not yet proven live
+    VOICE_NOTE_MODEL: str = "gemini-3.5-flash"  # gemini-2.5-flash answers 404 for our key; audio (m4a, mp3) proven live on this model 2026-11-08, synthetic speech only
     VOICE_NOTE_MIN_SECONDS: int = 2
     VOICE_NOTE_MAX_SECONDS: int = 600
     VOICE_NOTE_MAX_BYTES: int = 12 * 1024 * 1024
