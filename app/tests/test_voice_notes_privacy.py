@@ -109,7 +109,7 @@ def test_31_audit_rows_hold_no_content_and_every_non_author_read_is_recorded(db,
     dump = _dump(db, "voice_note_events") + _dump(db, "admin_audit_log")
     assert not any(s in dump for s in SENTINELS)
     admin_rows = db.execute(text("SELECT action, entity_type FROM admin_audit_log WHERE action = 'voice_note.read'")).fetchall()
-    assert admin_rows == [("voice_note.read", "voice_note")]
+    assert admin_rows == [("voice_note.read", "booking")]
     # the events hold ids, counts, sizes and codes: check every detail value is that kind of thing
     for e in events:
         for value in (e.detail or {}).values():

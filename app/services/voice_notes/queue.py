@@ -2,6 +2,7 @@
 nothing derived from either. ``keep_result=0`` and ``log_results=False`` are already the worker's settings."""
 
 import logging
+import uuid
 from typing import Optional, Protocol
 
 from arq import create_pool
@@ -33,8 +34,9 @@ class ArqVoiceNoteQueue:
 
     async def enqueue(self, note_id: str) -> None:
         pool = await self._get_pool()
-        # A job with this id already waiting means the note is already queued: enqueue_job answers None, which is fine.
-        await pool.enqueue_job(JOB_NAME, note_id, _job_id=f"voice-note-{note_id}")
+                # A fresh id per enqueue (a retry may land while the last job's key is still being cleaned up); a duplicate job is harmless,
+        # ``_claim`` makes it stand down.
+        await pool.enqueue_job(JOB_NAME, note_id, _job_id=f"voice-note-{note_id}-{uuid.uuid4().hex[:8]}")
 
 
 _queue: Optional[VoiceNoteQueue] = None

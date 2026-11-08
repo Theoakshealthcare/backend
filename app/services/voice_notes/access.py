@@ -41,7 +41,9 @@ def _owned_booking(db: Session, caregiver: Caregiver, booking_id: UUID) -> Optio
 
 
 def _ended_at(booking: Booking) -> datetime:
-    return booking.actual_end_time or booking.updated_at or datetime.utcnow()
+    # Never ``updated_at``: any later edit of the booking would stretch the caregiver's window. A completed booking with no recorded end
+    # falls back to when it was scheduled to end.
+    return booking.actual_end_time or booking.scheduled_end_date or booking.scheduled_date
 
 
 def booking_for_create(db: Session, caregiver: Caregiver, booking_id: UUID, now: datetime) -> Booking:

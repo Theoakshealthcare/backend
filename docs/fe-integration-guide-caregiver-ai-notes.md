@@ -35,7 +35,7 @@ Flow: `POST create` (stores the consent) -> `PUT audio` -> poll `GET` until `rea
 All need the caregiver's bearer token (the booker's for 3.8, an admin's for 3.9). Every success carries `Cache-Control: no-store`.
 
 ### 3.1 Create a note (records the consent): `POST /caregiver/visits/{booking_id}/voice-notes`
-Body: `consent_confirmed` (**must be `true`**), `consent_version` (the version of the consent copy the app showed: `2026-11-v1`), `language` (`en` or `pcm`), `duration_seconds` (2 to 600, the recorder's length), `client_request_id` (a UUID the app makes **once per recording**; optional but always send it).
+Body: `consent_confirmed` (**the JSON literal `true`**; `false` is a 400, and any other value such as `"true"` or `1` is a 422), `consent_version` (the version of the consent copy the app showed: `2026-11-v1`), `language` (`en` or `pcm`), `duration_seconds` (2 to 600, the recorder's length), `client_request_id` (a UUID the app makes **once per recording**; optional but always send it).
 
 <!-- capture: 01-create-201.json request.body -->
 ```json
@@ -193,7 +193,7 @@ Refusals (all with the `detail.code` shape, see section 4):
 | `13-audio-not-audio-415.json` | 415 | the type is allowed but the bytes are not that kind of file |
 | `14-audio-too-large-413.json` | 413 | over the size cap (captured with the cap lowered; the real one is 12 MiB) |
 | `16-audio-again-409.json` | 409 | a second send while one is being processed |
-| `37-audio-daily-limit-429.json` | 429 | the caregiver's daily limit (30 notes with audio; has `Retry-After`) |
+| `37-audio-daily-limit-429.json` | 429 | the caregiver's daily limit (30 uploads **and retries** a day; has `Retry-After`). A retry (3.5) can answer this too |
 
 <!-- capture: 14-audio-too-large-413.json response.body -->
 ```json

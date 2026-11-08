@@ -1,5 +1,5 @@
 """An admin with ``clinical.read`` reads the saved voice notes of a booking (plan section 3.7). Each read is a ``voice_note_events`` row per
-note and an ``admin_audit_log`` row (``voice_note.read``, ids only)."""
+note and an ``admin_audit_log`` row (``voice_note.read`` on the booking, ids only)."""
 
 from datetime import datetime
 from typing import Any
@@ -26,7 +26,7 @@ def admin_voice_notes(booking_id: UUID, request: Request, admin: AdminUser = Dep
     notes = service.saved_notes_for_booking(db, booking)
     now = datetime.utcnow()
     service.record_reads(db, notes, actor_type="admin", actor_id=admin.id, now=now)
-    AuditService(db).record(admin_user_id=admin.id, action="voice_note.read", entity_type="voice_note", entity_id=booking.id,
+    AuditService(db).record(admin_user_id=admin.id, action="voice_note.read", entity_type="booking", entity_id=booking.id,
                             after={"booking_id": str(booking.id), "count": len(notes)}, request=request)
     db.commit()
     return {"items": [service.read_view(note) for note in notes]}

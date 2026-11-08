@@ -91,20 +91,36 @@ def _seconds_to_utc_midnight(now: datetime) -> int:
     return max(1, int((midnight - now).total_seconds()))
 
 
-def _check_daily_caps(db: Session, caregiver: Caregiver, duration_seconds: int, now: datetime) -> None:
-    """Per-caregiver count and the all-users audio-seconds budget for the UTC day, read from the ``audio_received`` events (they
-    survive a discarded note, so discarding never resets a cap). Counted when the audio arrives, not when the note is created."""
+# Roughly the bytes a second of the app's recording takes (m4a at about 128 kbit/s). The audio-seconds budget is charged the larger of
+# the app's own duration claim and what the bytes say, so an app that claims 2 seconds for a 10-minute body is not undercounted.
+BYTES_PER_SECOND = 16_000
+# Work that spends provider calls: every upload and every user retry counts against the caregiver's day and the all-users budget.
+SPENDING_ACTIONS = ("audio_received", "retried")
+
+
+def charged_seconds(claimed_seconds: int, audio_bytes: int) -> int:
+    return max(claimed_seconds, -(-audio_bytes // BYTES_PER_SECOND))
+
+
+def _check_caregiver_day(db: Session, caregiver: Caregiver, now: datetime) -> None:
+    """Per-caregiver count for the UTC day, read from the ``audio_received`` and ``retried`` events (they survive a discarded note, so
+    discarding never resets a cap). Counted when the audio arrives or a retry is asked for, not when the note is created."""
     day_start = datetime(now.year, now.month, now.day)
     mine = db.query(func.count(VoiceNoteEvent.id)).filter(
-        VoiceNoteEvent.action == "audio_received", VoiceNoteEvent.actor_id == caregiver.user_id,
+        VoiceNoteEvent.action.in_(SPENDING_ACTIONS), VoiceNoteEvent.actor_id == caregiver.user_id,
         VoiceNoteEvent.created_at >= day_start,
     ).scalar() or 0
     if mine >= settings.VOICE_NOTE_MAX_PER_CAREGIVER_PER_DAY:
         raise refuse(429, "daily_limit_reached", headers={"Retry-After": str(_seconds_to_utc_midnight(now))})
+
+
+def _check_budget(db: Session, charge_seconds: int, now: datetime) -> None:
+    """The all-users audio-seconds budget for the UTC day (the ``duration_seconds`` of each spending event is what was charged)."""
+    day_start = datetime(now.year, now.month, now.day)
     used = db.query(func.coalesce(func.sum(cast(VoiceNoteEvent.detail["duration_seconds"].astext, INTEGER)), 0)).filter(
-        VoiceNoteEvent.action == "audio_received", VoiceNoteEvent.created_at >= day_start,
+        VoiceNoteEvent.action.in_(SPENDING_ACTIONS), VoiceNoteEvent.created_at >= day_start,
     ).scalar() or 0
-    if used + duration_seconds > settings.VOICE_NOTE_DAILY_AUDIO_SECONDS_CAP:
+    if used + charge_seconds > settings.VOICE_NOTE_DAILY_AUDIO_SECONDS_CAP:
         raise refuse(503, "transcription_unavailable")
 
 
@@ -188,7 +204,7 @@ def prepare_audio(db: Session, caregiver: Caregiver, note_id: UUID, *, content_t
         raise refuse(415, "unsupported_audio_type")
     if declared_length is not None and declared_length > settings.VOICE_NOTE_MAX_BYTES:
         raise refuse(413, "audio_too_large")
-    _check_daily_caps(db, caregiver, note.duration_seconds, now)
+    _check_caregiver_day(db, caregiver, now)
     return note, mime
 
 
@@ -207,6 +223,8 @@ def accept_audio(db: Session, caregiver: Caregiver, note_id: UUID, audio: bytes,
     if note.status not in (STATUS_AWAITING, STATUS_FAILED):
         raise refuse(409, "invalid_state")
     require_consent(note)
+    charge = charged_seconds(note.duration_seconds, len(audio))
+    _check_budget(db, charge, now)
     try:
         park_audio(store, str(note.id), audio)
     except Exception:
@@ -221,7 +239,8 @@ def accept_audio(db: Session, caregiver: Caregiver, note_id: UUID, audio: bytes,
     note.expires_at = None
     note.updated_at = now
     add_event(db, voice_note_id=note.id, booking_id=note.booking_id, actor_type="caregiver", actor_id=caregiver.user_id,
-              action="audio_received", detail={"bytes": len(audio), "mime": mime, "duration_seconds": note.duration_seconds}, now=now)
+              action="audio_received",
+              detail={"bytes": len(audio), "mime": mime, "duration_seconds": charge, "claimed_seconds": note.duration_seconds}, now=now)
     db.commit()
     return note
 
@@ -249,6 +268,10 @@ def retry_note(db: Session, caregiver: Caregiver, note_id: UUID, store: AudioSto
         raise refuse(409, "invalid_state")
     if not store.exists(str(note.id)):
         raise refuse(409, "audio_expired")
+    # A retry is another paid provider call on in-home audio: it counts against the caregiver's day and the all-users budget.
+    _check_caregiver_day(db, caregiver, now)
+    charge = charged_seconds(note.duration_seconds, note.audio_bytes or 0)
+    _check_budget(db, charge, now)
     note.status = STATUS_PROCESSING
     note.error_code = None
     note.claimed_at = None
@@ -256,7 +279,7 @@ def retry_note(db: Session, caregiver: Caregiver, note_id: UUID, store: AudioSto
     note.expires_at = None
     note.updated_at = now
     add_event(db, voice_note_id=note.id, booking_id=note.booking_id, actor_type="caregiver", actor_id=caregiver.user_id, action="retried",
-              detail={}, now=now)
+              detail={"duration_seconds": charge}, now=now)
     db.commit()
     return note
 

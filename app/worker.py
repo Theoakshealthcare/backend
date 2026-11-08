@@ -220,7 +220,7 @@ class WorkerSettings:
                  func(process_whatsapp_inbound_job, keep_result=0),
                  func(kyc_process_event, keep_result=0),
                  kyc_reconcile_job,
-                 func(transcribe_voice_note_job, timeout=150, max_tries=10, keep_result=0),
+                 func(transcribe_voice_note_job, timeout=200, max_tries=60, keep_result=0),
                  voice_note_sweep_job]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.

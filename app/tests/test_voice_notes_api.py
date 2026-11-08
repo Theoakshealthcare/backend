@@ -55,6 +55,13 @@ def test_03_duration_limits(db, client, voice, seconds, expected):
     assert create(client, cg, booking, duration_seconds=seconds).status_code == expected
 
 
+@pytest.mark.parametrize("value", ["true", 1, "yes", "on", None])
+def test_02_consent_must_be_the_literal_true(db, client, voice, value):
+    cg, _, booking = visit(db)
+    r = create(client, cg, booking, consent_confirmed=value)
+    assert r.status_code == 422 and db.query(VisitVoiceNote).count() == 0
+
+
 def test_03_language_and_visit_state(db, client, voice):
     cg, _, booking = visit(db)
     assert create(client, cg, booking, language="fr").status_code == 422

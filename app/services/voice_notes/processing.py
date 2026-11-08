@@ -105,7 +105,12 @@ def _fail(factory: SessionFactory, store: AudioStore, note_id: UUID, code: str, 
         add_event(db, voice_note_id=note.id, booking_id=note.booking_id, actor_type="system", actor_id=None,
                   action="transcription_failed", detail={"code": code, "attempts": attempts}, now=now)
         if retryable:
-            store.touch(str(note_id), settings.VOICE_NOTE_AUDIO_TTL_SECONDS)
+            # The parked audio's life is extended once, by the first failure; later failures never extend it again, so a note that
+            # keeps failing cannot keep audio alive.
+            db.flush()  # the session does not autoflush: count this failure's own event too
+            if db.query(VoiceNoteEvent.id).filter(VoiceNoteEvent.voice_note_id == note_id, VoiceNoteEvent.action == "transcription_failed",
+                                                  VoiceNoteEvent.detail["sweeper"].astext.is_(None)).count() == 1:
+                store.touch(str(note_id), settings.VOICE_NOTE_AUDIO_TTL_SECONDS)
         else:
             store.delete(str(note_id))
             add_event(db, voice_note_id=note.id, booking_id=note.booking_id, actor_type="system", actor_id=None,
@@ -126,6 +131,9 @@ async def process_note(note_id: UUID, *, provider: TranscriptionProvider, store:
     if claim is None:
         return Outcome("skipped")
     attempts = int(claim["attempts"])  # type: ignore[arg-type]
+    if not settings.VOICE_NOTES_ENABLED:
+        # The switch was turned off after this job was queued: no audio goes to the provider. The note fails as retryable.
+        return await asyncio.to_thread(_fail, session_factory, store, note_id, "provider_unavailable", attempts, now())
 
     audio = await asyncio.to_thread(read_audio, store, str(note_id))
     if audio is None:
@@ -268,7 +276,7 @@ def sweep(db: Session, store: AudioStore, now: Optional[datetime] = None) -> Dic
         counts["caregiver_changed"] += 1
 
     db.flush()
-    live = {str(i) for (i,) in db.query(VisitVoiceNote.id).filter(VisitVoiceNote.status.in_((STATUS_PROCESSING, STATUS_FAILED)))}
+    live = {str(i) for (i,) in db.query(VisitVoiceNote.id).filter(VisitVoiceNote.status.in_((STATUS_AWAITING, STATUS_PROCESSING, STATUS_FAILED)))}
     for key in store.list_ids():
         if key not in live:
             store.delete(key)

@@ -255,3 +255,72 @@ def test_37_the_new_settings_have_defaults_and_are_in_env_example():
     for name in names:
         assert f"{name}=" in example, name
     assert Settings.model_config.get("extra") == "forbid"
+
+
+# --- fixes from the privacy review -----------------------------------------------------------------------------------
+
+def test_a_retry_counts_against_the_caregivers_day_and_the_budget(db, client, voice, monkeypatch):
+    monkeypatch.setattr(settings, "VOICE_NOTE_MAX_PER_CAREGIVER_PER_DAY", 3)
+    cg, _, booking = visit(db)
+    note_id = create(client, cg, booking).json()["id"]
+    send_audio(client, cg, note_id)  # spends 1
+    voice.gemini.fail_next("transient", times=3)
+    for _ in range(3):
+        voice.run_job(note_id)
+    assert client.post(f"{BASE}/voice-notes/{note_id}/retry", headers=h(cg)).status_code == 202  # spends 2
+    voice.gemini.fail_next("transient", times=3)
+    for _ in range(3):
+        voice.run_job(note_id)
+    assert client.post(f"{BASE}/voice-notes/{note_id}/retry", headers=h(cg)).status_code == 202  # spends 3
+    voice.gemini.fail_next("transient", times=3)
+    for _ in range(3):
+        voice.run_job(note_id)
+    r = client.post(f"{BASE}/voice-notes/{note_id}/retry", headers=h(cg))
+    assert r.status_code == 429 and code_of(r) == "daily_limit_reached"
+    assert db.query(VisitVoiceNote).filter_by(id=note_id).one().status == "failed"
+
+
+def test_the_budget_is_charged_from_the_bytes_not_only_the_claim(db, client, voice, monkeypatch):
+    monkeypatch.setattr(settings, "VOICE_NOTE_DAILY_AUDIO_SECONDS_CAP", 20)
+    cg, _, booking = visit(db)
+    note_id = create(client, cg, booking, duration_seconds=2).json()["id"]  # claims 2 seconds ...
+    from app.tests.fake_gemini import FAKE_AUDIO
+
+    r = send_audio(client, cg, note_id, data=FAKE_AUDIO + bytes(480_000))  # ... but the body is about 30 seconds of audio
+    assert r.status_code == 503 and code_of(r) == "transcription_unavailable"
+    assert not voice.store.exists(note_id)
+
+
+def test_the_parked_audio_is_extended_once_not_on_every_failure(db, client, voice):
+    from app.services.voice_notes.constants import STATUS_FAILED  # noqa: F401
+
+    cg, _, booking = visit(db)
+    note_id = create(client, cg, booking).json()["id"]
+    send_audio(client, cg, note_id)
+    voice.gemini.fail_next("crash")
+    voice.run_job(note_id)  # first failure: the TTL is refreshed to a full window from now
+    voice.clock.t += settings.VOICE_NOTE_AUDIO_TTL_SECONDS - 100
+    assert client.post(f"{BASE}/voice-notes/{note_id}/retry", headers=h(cg)).status_code == 202
+    voice.gemini.fail_next("crash")
+    voice.run_job(note_id)  # second failure: NOT extended again
+    voice.clock.t += 150
+    assert not voice.store.exists(note_id)  # it expired at the first window's end
+
+
+def test_turning_the_switch_off_stops_queued_jobs_from_sending_audio(db, client, voice, monkeypatch):
+    cg, _, booking = visit(db)
+    note_id = create(client, cg, booking).json()["id"]
+    send_audio(client, cg, note_id)
+    monkeypatch.setattr(settings, "VOICE_NOTES_ENABLED", False)
+    assert voice.run_job(note_id).kind == "failed"
+    assert voice.gemini.calls == []
+    assert db.query(VisitVoiceNote).filter_by(id=note_id).one().error_code == "provider_unavailable"
+    assert voice.store.exists(note_id)  # kept: switched back on, a retry works
+
+
+def test_the_sweeper_does_not_delete_audio_that_is_being_uploaded(db, client, voice):
+    cg, _, booking = visit(db)
+    note_id = create(client, cg, booking).json()["id"]  # still awaiting_audio ...
+    voice.store.put(note_id, b"gAAAAA-just-parked", 600)  # ... with audio parked a moment before its status is committed
+    assert sweep(db, voice.store)["audio_orphans"] == 0
+    assert voice.store.exists(note_id)

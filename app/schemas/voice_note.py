@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from app.core.config import settings
 from app.services.voice_notes.constants import SUMMARY_MAX_CHARS, TRANSCRIPT_MAX_CHARS
@@ -15,7 +15,7 @@ VoiceNoteStatus = Literal["awaiting_audio", "processing", "ready", "failed", "sa
 class VoiceNoteCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    consent_confirmed: bool  # must be true; false is 400 consent_required (a missing field is a 422)
+    consent_confirmed: StrictBool  # the literal true; false is 400 consent_required, anything else ('true', 1, 'yes') or a missing field is a 422
     consent_version: str = Field(min_length=1, max_length=40)
     language: Literal["en", "pcm"]
     duration_seconds: int = Field(ge=settings.VOICE_NOTE_MIN_SECONDS, le=settings.VOICE_NOTE_MAX_SECONDS)
