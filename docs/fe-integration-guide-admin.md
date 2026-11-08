@@ -1292,7 +1292,7 @@ The condition of a WhatsApp booking is stored encrypted and is never returned to
 | `would_apply_now` | what a **booker** cancel would cost at `as_of` (naive UTC): `allowed`, `refusal` (`in_progress`, `closed` or `unpaid` when not allowed, else `null`), `tier` (`none`, `standard`, `late`, or `null` when not allowed), `fee_percent`, `fee_kobo`, `refund_kobo` |
 | `applied` | `null` until the booker cancels; then `{tier, fee_kobo, late_cancel_compensable}` of that cancellation |
 
-**The snapshot is taken when the booker cancels, not when the booking is created.** Today a live booking has `snapshot: null` and `policy_source: "live_policy"` (captures `802` to `805`); the cancel freezes the tiers it used onto the booking (`806`), and from then on a policy edit no longer changes the booking's terms (`807`). Do not label a null snapshot as an error: say "follows the current policy".
+**When the snapshot exists depends on the channel.** A **WhatsApp** booking stores the tiers shown with its quote (so `snapshot` is set from the start; **[not live]**: asserted by the WhatsApp booking tests, not captured here). An **app** booking made through `POST /booking/create` stores nothing at creation: it has `snapshot: null` and `policy_source: "live_policy"` (captures `802` to `805`), and the booker's cancel freezes the tiers it used onto the booking (`806`); from then on a policy edit no longer changes the booking's terms (`807`). Do not label a null snapshot as an error: say "follows the current policy". (Section 12.9's sentence that every quote and booking keeps a copy of the tiers is true for WhatsApp bookings only.)
 
 A booking 48 hours out, accepted (nothing to pay), with the live policy at 24 h free, 6 h late, 25 % and 60 %:
 
