@@ -7466,7 +7466,42 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "updated_by": null
   }
 ]
+```
+
+`updated_by` is `null` until an admin edits the row. Before any pricing version exists nothing is priced (even the nurse):
+
+<!-- capture: 900-admin-catalog-no-pricing-yet.json response.body first=2 -->
 ```json
+[
+  {
+    "service_type": "nurse",
+    "enabled": true,
+    "display_name": "Nurse visit",
+    "mode": "home",
+    "min_minutes": 60,
+    "step_minutes": 60,
+    "max_minutes": 1440,
+    "sort_order": 10,
+    "priced": false,
+    "bookable": false,
+    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_by": null
+  },
+  {
+    "service_type": "doctor",
+    "enabled": false,
+    "display_name": "Doctor visit",
+    "mode": "home",
+    "min_minutes": 60,
+    "step_minutes": 60,
+    "max_minutes": 1440,
+    "sort_order": 20,
+    "priced": false,
+    "bookable": false,
+    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_by": null
+  }
+]
 ```
 
 ### 13.1.2 Update: `PUT /api/v1/admin/service-catalog/{service_type}`
@@ -7493,7 +7528,24 @@ Success (the doctor was priced in Pricing first):
   "sort_order": 20,
   "reason": "Placeholder: launch doctor visits"
 }
+```
+
+<!-- capture: 914-admin-enable-doctor.json response.body -->
 ```json
+{
+  "service_type": "doctor",
+  "enabled": true,
+  "display_name": "Doctor home visit",
+  "mode": "home",
+  "min_minutes": 60,
+  "step_minutes": 60,
+  "max_minutes": 1440,
+  "sort_order": 20,
+  "priced": true,
+  "bookable": true,
+  "updated_at": "2026-11-08T19:41:01.751359",
+  "updated_by": "58f95f84-7958-4330-b867-0ac7dbf1ac11"
+}
 ```
 
 The retry returns the identical body (same `updated_at`):
@@ -7504,7 +7556,15 @@ The retry returns the identical body (same `updated_at`):
   "updated_at": "2026-11-08T19:41:01.751359",
   "bookable": true
 }
+```
+
+<!-- capture: 916-db-audit-rows.json observed -->
 ```json
+{
+  "observed": true,
+  "sql": "SELECT count(*) FROM admin_audit_log WHERE entity_type = 'service_catalog'",
+  "count": 1
+}
 ```
 
 **Enabling a service with no price: `422 service_has_no_price`.** Show the message; link to Pricing.
@@ -7517,7 +7577,18 @@ The retry returns the identical body (same `updated_at`):
     "message": "This service has no price yet. Set its multiplier in Pricing first, then enable it."
   }
 }
+```
+
+The same code (and nothing changes) when no pricing version exists at all:
+
+<!-- capture: 901-admin-enable-before-pricing.json response.body -->
 ```json
+{
+  "detail": {
+    "code": "service_has_no_price",
+    "message": "This service has no price yet. Set its multiplier in Pricing first, then enable it."
+  }
+}
 ```
 
 Only switching a service **on** needs a price. Disabling always works, and an already-enabled service can still be edited if its multiplier
@@ -7543,7 +7614,35 @@ was removed meanwhile.
     }
   ]
 }
+```
+
+A rule across fields has `loc: ["body"]`:
+
+<!-- capture: 906-admin-put-invalid-min-90.json response.body keys=detail -->
 ```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, min_minutes must be a whole number of hours between 60 and 1440 minutes",
+      "input": {
+        "enabled": false,
+        "display_name": "Doctor visit",
+        "mode": "home",
+        "min_minutes": 90,
+        "step_minutes": 60,
+        "max_minutes": 1440,
+        "sort_order": 20
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
 ```
 
 Other refusals, all `422` with that shape: `step_minutes` 30 (905), `max_minutes` 1500 (907), a blank `display_name` (908).
@@ -7555,11 +7654,20 @@ Plain-string errors: unknown service type `404`, no token `401`, a role without 
 {
   "detail": "Service not found"
 }
+```
+
+<!-- capture: 910-admin-put-forbidden-operations.json response.body -->
 ```json
+{
+  "detail": "Access denied. Missing permission: pricing.write"
+}
 ```
 
 <!-- capture: 912-admin-put-no-token.json response.body -->
 ```json
+{
+  "detail": "Not authenticated"
+}
 ```
 
 **Traps.** (1) `422` has two shapes: `service_has_no_price` is an object with `code`; field validation is an array. (2) `priced` / `bookable`

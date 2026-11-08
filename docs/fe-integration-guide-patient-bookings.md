@@ -1218,7 +1218,18 @@ order. **No prices**: get those from `/booking/preview` after the person picks a
     }
   ]
 }
+```
+
+`min_minutes`, `step_minutes` and `max_minutes` say how long a visit may be. **In this release they are always whole hours (60 / 60 /
+1440)** and bookings are still in `duration_hours`; a later release moves bookings to minutes. `mode` is always `"home"`.
+
+An empty list is possible (a new environment before pricing exists): show "No services are available right now", not an error.
+
+<!-- capture: 200-p-services-no-pricing-yet.json response.body -->
 ```json
+{
+  "services": []
+}
 ```
 
 When the doctor is priced and enabled it appears after the nurse (the order is the admin's `sort_order`):
@@ -1245,7 +1256,13 @@ When the doctor is priced and enabled it appears after the nurse (the order is t
     }
   ]
 }
+```
+
+<!-- capture: 202-p-services-no-token.json response.body -->
 ```json
+{
+  "detail": "Not authenticated"
+}
 ```
 
 ### 12.2 `422 service_unavailable` on preview and create
@@ -1261,7 +1278,16 @@ Nothing is created and Paystack is not called. Treat it as "this service just st
     "message": "This service is not available right now. Please choose another service."
   }
 }
+```
+
+<!-- capture: 205-p-create-hidden-service.json response.body -->
 ```json
+{
+  "detail": {
+    "code": "service_unavailable",
+    "message": "This service is not available right now. Please choose another service."
+  }
+}
 ```
 
 The nurse previews as before even when no multiplier is configured:
@@ -1274,10 +1300,20 @@ The nurse previews as before even when no multiplier is configured:
   "service_multiplier": 1.0,
   "total_amount": 11000.0
 }
+```
+
+An enabled and priced service previews at its own multiplier (the doctor's is 2.0):
+
+<!-- capture: 208-p-preview-doctor.json response.body keys=service_type,duration_hours,service_multiplier,total_amount -->
 ```json
+{
+  "service_type": "doctor",
+  "duration_hours": 2,
+  "service_multiplier": 2.0,
+  "total_amount": 22000.0
+}
 ```
 
 **What the app must do.** (1) Fetch `/booking/services` when the booking flow opens; never show a fixed list. (2) Show `display_name`, not the
 `service_type` string. (3) Handle `422 service_unavailable` on the price check and on confirm. (4) The pricing multiplier for a service can
 disappear while the person is on the confirm screen; the same `422` covers it.
-
