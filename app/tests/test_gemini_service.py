@@ -4,7 +4,12 @@ import asyncio
 import warnings
 from types import SimpleNamespace
 
-from app.services.gemini import MODEL, GeminiService
+import logging
+
+import pytest
+
+from app.core.config import settings
+from app.services.gemini import FALLBACK_MODELS, GeminiService
 
 
 class FakeClient:
@@ -53,7 +58,7 @@ def test_analyze_vitals_parses_fenced_json_and_sends_the_vitals():
     out = run(svc.analyze_vitals([{"type": "bp", "value": "120/80"}]))
     assert out == {"summary": "stable", "concerns": [], "recommendations": ["rest"], "key_vitals": ["bp"]}
     model, prompt = fake.calls[0]
-    assert model == MODEL and "120/80" in prompt
+    assert model == settings.GEMINI_MODEL and "120/80" in prompt
 
 
 def test_analyze_vitals_falls_back_on_error():
@@ -89,3 +94,79 @@ def test_recommendations_and_patterns():
     assert run(err.generate_care_recommendations([], "c")) == "Unable to generate recommendations at this time."
     pat, _ = service('{"improvement_trends": ["a"], "concerning_patterns": [], "care_effectiveness": "improving", "recommendations": []}')
     assert run(pat.analyze_care_patterns([{"content": "c"}]))["care_effectiveness"] == "improving"
+
+
+class ApiError(Exception):
+    """Shaped like google.genai.errors.APIError: the HTTP status is ``code``."""
+
+    def __init__(self, code, message="SECRET prompt text echoed by the server"):
+        super().__init__(message)
+        self.code = code
+
+
+class ScriptedClient(FakeClient):
+    """Fails with the scripted error for each model named in ``failing``; answers OK for the others."""
+
+    def __init__(self, failing, text='{"summary": "s", "recommendations": []}'):
+        super().__init__(text)
+        self._failing = failing
+
+    async def _generate(self, *, model, contents):
+        self.calls.append((model, contents))
+        if model in self._failing:
+            raise self._failing[model]
+        return SimpleNamespace(text=self._text)
+
+
+def scripted(failing) -> tuple[GeminiService, ScriptedClient]:
+    svc, fake = GeminiService(), ScriptedClient(failing)
+    svc._client = fake
+    return svc, fake
+
+
+def test_the_model_comes_from_settings(monkeypatch):
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-test-model")
+    svc, fake = service('{"summary": "s", "recommendations": []}')
+    run(svc.analyze_fallguard_assessment([], 0))
+    assert [m for m, _ in fake.calls] == ["gemini-test-model"]
+
+
+def test_default_model_is_not_the_retired_one():
+    assert settings.GEMINI_MODEL == "gemini-3.5-flash"
+    assert "gemini-2.5-flash" not in (settings.GEMINI_MODEL, *FALLBACK_MODELS)
+
+
+def test_a_404_on_the_first_model_falls_back_to_the_next(monkeypatch):
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-primary")
+    svc, fake = scripted({"gemini-primary": ApiError(404)})
+    out = run(svc.analyze_fallguard_assessment([], 1))
+    assert out == {"summary": "s", "recommendations": []}
+    assert [m for m, _ in fake.calls] == ["gemini-primary", FALLBACK_MODELS[0]]
+
+
+def test_a_non_404_error_does_not_try_the_fallback(monkeypatch, caplog):
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-primary")
+    svc, fake = scripted({"gemini-primary": ApiError(429)})
+    out = run(svc.analyze_fallguard_assessment([], 1))
+    assert out == {"summary": "Unable to analyze", "recommendations": []}
+    assert [m for m, _ in fake.calls] == ["gemini-primary"]
+
+
+def test_total_failure_returns_the_no_advice_result_and_logs_class_and_status_only(monkeypatch, caplog):
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-primary")
+    svc, fake = scripted({"gemini-primary": ApiError(404), FALLBACK_MODELS[0]: ApiError(404)})
+    with caplog.at_level(logging.WARNING, logger="app.services.gemini"):
+        out = run(svc.analyze_fallguard_assessment([{"answer": "PRIVATE-ANSWER"}], 9))
+    assert out == {"summary": "Unable to analyze", "recommendations": []}
+    assert len(fake.calls) == 2
+    text = caplog.text
+    assert "ApiError" in text and "status=404" in text
+    assert "SECRET" not in text and "PRIVATE-ANSWER" not in text and "Total Score" not in text
+    assert all(r.exc_info is None for r in caplog.records)  # no traceback (it would carry the exception text)
+
+
+def test_the_primary_model_is_not_tried_twice_when_it_is_the_fallback(monkeypatch):
+    monkeypatch.setattr(settings, "GEMINI_MODEL", FALLBACK_MODELS[0])
+    svc, fake = scripted({FALLBACK_MODELS[0]: ApiError(404)})
+    run(svc.analyze_vitals([]))
+    assert [m for m, _ in fake.calls] == [FALLBACK_MODELS[0]]

@@ -1,10 +1,14 @@
 import json
+import logging
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.models.fallguard import FallGuardQuestion, FallGuardAssessment, FallGuardAnswer
 from app.db.models.patient import Patient
 from app.services.gemini import gemini_service
 from app.schemas.fallguard import FallGuardAssessmentCreate
+
+log = logging.getLogger(__name__)
+
 
 class FallGuardSubmissionError(Exception):
     """A submission the server refuses (HTTP 422). ``code`` and ``message`` are stable: the app may switch on them."""
@@ -100,9 +104,16 @@ class FallGuardService:
         self.db.commit()
         # AI analysis (optional: the Gemini service falls back to "Unable to analyze" without a key)
         answers_for_ai = [{**a, "question_id": str(a["question_id"])} for a in scored]
-        ai_result = await gemini_service.analyze_fallguard_assessment(answers_for_ai, total_score)
-        assessment.ai_summary = ai_result.get('summary')
-        assessment.ai_recommendations = ai_result.get('recommendations')
+        # The score is already committed: whatever Gemini does, the submission must not fail. Log class only
+        # (the answers are health data).
+        try:
+            ai_result = await gemini_service.analyze_fallguard_assessment(answers_for_ai, total_score)
+            summary, recommendations = ai_result.get('summary'), ai_result.get('recommendations')
+        except Exception as exc:
+            log.warning("FallGuard AI advice unavailable: %s", type(exc).__name__)
+            summary, recommendations = "Unable to analyze", []
+        assessment.ai_summary = summary
+        assessment.ai_recommendations = recommendations
         self.db.commit()
         self.db.refresh(assessment)
         return assessment

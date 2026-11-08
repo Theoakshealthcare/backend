@@ -8,7 +8,19 @@ from app.core.config import settings
 
 log = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash"
+# Tried in order after settings.GEMINI_MODEL when a model answers 404 (retired or not enabled for the key).
+FALLBACK_MODELS = ("gemini-3.1-flash-lite",)
+
+
+def _status_code(exc: Exception) -> Optional[int]:
+    """HTTP status carried by a google-genai APIError (``code``), if any."""
+    code = getattr(exc, "code", None)
+    return code if isinstance(code, int) else None
+
+
+def _model_chain() -> List[str]:
+    primary = settings.GEMINI_MODEL
+    return [primary] + [m for m in FALLBACK_MODELS if m != primary]
 
 
 class GeminiService:
@@ -23,9 +35,24 @@ class GeminiService:
             self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
         return self._client
 
+    @staticmethod
+    def _log_failure(operation: str, exc: Exception) -> None:
+        """Warn about a failed AI call. Only the exception class and HTTP status are logged: the prompt and the
+        answers are health data, and the exception text can echo request details."""
+        log.warning("Gemini %s failed: %s (status=%s)", operation, type(exc).__name__, _status_code(exc))
+
     async def _generate_text(self, prompt: str) -> str:
-        response = await self.client.aio.models.generate_content(model=MODEL, contents=prompt)
-        return response.text
+        """Ask the configured model; on a 404 (model retired for this key) try the next one in the chain."""
+        chain = _model_chain()
+        for i, model in enumerate(chain):
+            try:
+                response = await self.client.aio.models.generate_content(model=model, contents=prompt)
+                return response.text
+            except Exception as exc:
+                if _status_code(exc) == 404 and i < len(chain) - 1:
+                    log.warning("Gemini model %s answered 404, trying %s", model, chain[i + 1])
+                    continue
+                raise
 
     async def transcribe_and_analyze_audio(self, audio_transcript: str, 
                                          patient_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -68,7 +95,7 @@ class GeminiService:
             return result
             
         except Exception as e:
-            log.exception("Error analyzing audio transcript")
+            self._log_failure("transcript analysis", e)
             return {
                 "summary": "Unable to analyze transcript",
                 "observations": [],
@@ -106,7 +133,7 @@ class GeminiService:
             json_text = self._extract_json_from_markdown(raw_text)
             return json_text  # Return the extracted JSON or text
         except Exception as e:
-            log.exception("Error generating recommendations")
+            self._log_failure("care recommendations", e)
             return "Unable to generate recommendations at this time."
 
     async def analyze_care_patterns(self, notes: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -133,7 +160,7 @@ class GeminiService:
             json_text = self._extract_json_from_markdown(raw_text)
             return json.loads(json_text)
         except Exception as e:
-            log.exception("Error analyzing care patterns")
+            self._log_failure("care patterns", e)
             return {
                 "improvement_trends": [],
                 "concerning_patterns": [],
@@ -161,7 +188,7 @@ class GeminiService:
             result = json.loads(json_text)
             return result
         except Exception as e:
-            log.exception("Error analyzing vitals")
+            self._log_failure("vitals analysis", e)
             return {
                 "summary": "Unable to analyze vitals.",
                 "concerns": [],
@@ -190,7 +217,7 @@ class GeminiService:
             result = json.loads(json_text)
             return result
         except Exception as e:
-            log.exception("Error analyzing fallguard assessment")
+            self._log_failure("fallguard assessment", e)
             return {"summary": "Unable to analyze", "recommendations": []}
 
 
