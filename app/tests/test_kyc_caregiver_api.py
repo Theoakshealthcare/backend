@@ -227,7 +227,10 @@ def test_creating_a_session_records_the_separate_consent_trail_and_moves_to_in_p
     assert r.status_code == 201
 
 
-def test_the_active_attempt_is_returned_not_duplicated(db, client):
+def test_the_active_attempt_is_returned_not_duplicated(db, client, monkeypatch):
+    # widget_url carries a token whose expiry is built from the current second: freeze the clock so two calls that
+    # straddle a second boundary cannot differ (this test failed intermittently on main CI).
+    monkeypatch.setattr("app.services.kyc_widget._now", lambda: 1_800_000_000.0)
     caregiver = cg(db)
     first = start(client, caregiver)
     second = start(client, caregiver)
