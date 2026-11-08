@@ -18,7 +18,7 @@ from app.db.models.booking_settings import BookingSettings
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.schemas.booking import BookingCreate, BookingActionRequest, BookingPreviewRequest, BookingPreviewResponse
-from app.services import booking_policy, earnings
+from app.services import booking_policy, earnings, service_catalog
 from app.services.booking_cancellation import flag_refund
 from app.services.location import LocationService
 from app.services.notification_service import NotificationService
@@ -124,7 +124,9 @@ class BookingService:
         settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
         if not settings:
             raise _no_settings()
-        
+        # a hidden or unpriced service is refused, never priced at a guess (raises ServiceUnavailable)
+        service_catalog.get_bookable(self.db, preview_data.service_type, settings)
+
         # Price in kobo (single source of truth shared with create_booking)
         multiplier = service_multiplier(settings, preview_data.service_type, channel="app")
         surge_active = bool(settings.surge_pricing and settings.surge_multiplier)
@@ -225,6 +227,7 @@ class BookingService:
             settings = self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
             if not settings:
                 raise _no_settings()
+            service_catalog.get_bookable(self.db, booking_data.service_type, settings)  # raises ServiceUnavailable
 
             # Price in kobo. What we store is exactly what we send to Paystack and what settlement
             # later compares against.

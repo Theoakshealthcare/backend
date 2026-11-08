@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/service-catalog/doctor",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "enabled": false,
+      "display_name": "Doctor visit",
+      "mode": "video",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440,
+      "sort_order": 20
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "mode"
+          ],
+          "msg": "Value error, only 'home' is supported until video visits exist",
+          "input": "video",
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  "note": "Video is deferred: only 'home' is accepted."
+}

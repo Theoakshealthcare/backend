@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/service-catalog/wizard",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "enabled": true,
+      "display_name": "Doctor visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440,
+      "sort_order": 20
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Service not found"
+    }
+  }
+}

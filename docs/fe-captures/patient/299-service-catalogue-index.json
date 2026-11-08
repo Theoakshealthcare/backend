@@ -1,0 +1,53 @@
+{
+  "generated_by": "scripts/capture_service_catalogue.py",
+  "run_tag": "98f87e",
+  "captured_at": "2026-11-08T19:41:01.797527Z",
+  "folder": "patient",
+  "captures": [
+    {
+      "file": "200-p-services-no-pricing-yet.json",
+      "label": "p-services-no-pricing-yet",
+      "status": 200
+    },
+    {
+      "file": "201-p-services-nurse-only.json",
+      "label": "p-services-nurse-only",
+      "status": 200
+    },
+    {
+      "file": "202-p-services-no-token.json",
+      "label": "p-services-no-token",
+      "status": 401
+    },
+    {
+      "file": "203-p-preview-nurse.json",
+      "label": "p-preview-nurse",
+      "status": 200
+    },
+    {
+      "file": "204-p-preview-hidden-service.json",
+      "label": "p-preview-hidden-service",
+      "status": 422
+    },
+    {
+      "file": "205-p-create-hidden-service.json",
+      "label": "p-create-hidden-service",
+      "status": 422
+    },
+    {
+      "file": "206-p-services-doctor-priced-not-enabled.json",
+      "label": "p-services-doctor-priced-not-enabled",
+      "status": 200
+    },
+    {
+      "file": "207-p-services-doctor-offered.json",
+      "label": "p-services-doctor-offered",
+      "status": 200
+    },
+    {
+      "file": "208-p-preview-doctor.json",
+      "label": "p-preview-doctor",
+      "status": 200
+    }
+  ]
+}

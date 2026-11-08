@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/service-catalog/doctor",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "enabled": true,
+      "display_name": "Doctor visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440,
+      "sort_order": 20
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "service_has_no_price",
+        "message": "This service has no price yet. Set its multiplier in Pricing first, then enable it."
+      }
+    }
+  },
+  "note": "No pricing version exists: nothing has a price."
+}

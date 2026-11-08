@@ -1,0 +1,87 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/service-catalog",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": [
+      {
+        "service_type": "nurse",
+        "enabled": true,
+        "display_name": "Nurse visit",
+        "mode": "home",
+        "min_minutes": 60,
+        "step_minutes": 60,
+        "max_minutes": 1440,
+        "sort_order": 10,
+        "priced": true,
+        "bookable": true,
+        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_by": null
+      },
+      {
+        "service_type": "doctor",
+        "enabled": false,
+        "display_name": "Doctor visit",
+        "mode": "home",
+        "min_minutes": 60,
+        "step_minutes": 60,
+        "max_minutes": 1440,
+        "sort_order": 20,
+        "priced": true,
+        "bookable": false,
+        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_by": null
+      },
+      {
+        "service_type": "physiotherapist",
+        "enabled": false,
+        "display_name": "Physiotherapy visit",
+        "mode": "home",
+        "min_minutes": 60,
+        "step_minutes": 60,
+        "max_minutes": 1440,
+        "sort_order": 30,
+        "priced": false,
+        "bookable": false,
+        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_by": null
+      },
+      {
+        "service_type": "caregiver",
+        "enabled": false,
+        "display_name": "Caregiver visit",
+        "mode": "home",
+        "min_minutes": 60,
+        "step_minutes": 60,
+        "max_minutes": 1440,
+        "sort_order": 40,
+        "priced": false,
+        "bookable": false,
+        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_by": null
+      },
+      {
+        "service_type": "nutritionist",
+        "enabled": false,
+        "display_name": "Nutrition consult",
+        "mode": "home",
+        "min_minutes": 60,
+        "step_minutes": 60,
+        "max_minutes": 1440,
+        "sort_order": 50,
+        "priced": false,
+        "bookable": false,
+        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_by": null
+      }
+    ]
+  },
+  "note": "Doctor is now priced (a multiplier exists) but still disabled, so not bookable."
+}

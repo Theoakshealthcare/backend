@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/service-catalog/doctor",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "enabled": true,
+      "display_name": "Doctor visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440,
+      "sort_order": 20
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Access denied. Missing permission: pricing.write"
+    }
+  },
+  "note": "An Operations admin may read the catalogue but not change it (needs pricing.write)."
+}

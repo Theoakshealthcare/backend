@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/create",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "service_type": "doctor",
+      "assistance_type": "Placeholder assistance",
+      "duration_hours": 2,
+      "scheduled_date": "2030-01-01T10:00:00",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "booking_for": "myself"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "service_unavailable",
+        "message": "This service is not available right now. Please choose another service."
+      }
+    }
+  },
+  "note": "Create refuses it too, before any booking or payment."
+}

@@ -1,0 +1,6 @@
+{
+  "observed": true,
+  "sql": "SELECT count(*) FROM admin_audit_log WHERE entity_type = 'service_catalog'",
+  "count": 1,
+  "note": "SQL observation after the PUT and its retry: one audit row."
+}

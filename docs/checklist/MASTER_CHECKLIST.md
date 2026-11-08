@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-11-08, phase 2 slice 1, service catalogue; branch `feature/service-catalogue`, migration `0026`, not pushed; [SOP](../sop/2026-11-08-service-catalogue.md), section 17):** which services are on offer is now an admin-controlled catalogue with no prices: bookable = enabled AND priced (a multiplier in Pricing; the nurse still counts as priced at 1.0 with none set). `GET /booking/services`, `422 service_unavailable` on preview and create, admin `GET`/`PUT /admin/service-catalog`, and the WhatsApp Flow offers only bookable services. **The patient app must read the list; the console screen is not built.**
+
 **Update (2026-11-08, staging deploy kit, prepared):** everything for the first staging deploy is written and the offline-checkable parts are checked, **none of it run on a server** (PR #52; [runbook](../deploy/staging.md), [SOP](../sop/2026-11-08-staging-deploy-kit.md), section 16). The owner has no VPS yet; the first run on a real server, real mail, Paystack/Dojah callbacks, push and the app rebuild are all still open.
 
 **Update (2026-11-08, arrived errors, admin cancel terms, Gemini audio proof; branch `fix/arrived-errors-admin-cancel-terms`, not pushed; [SOP](../sop/2026-11-08-arrived-errors-admin-cancel-terms.md)):** the caregiver `arrived` action's errors are now `detail = {code, message}` (`booking_not_assigned`, `caregiver_not_approved`, `booking_not_found`, `caregiver_profile_not_found`, `booking_not_arrivable`; other actions keep plain strings; **the caregiver app must be changed to read the object**), `GET /admin/bookings/{id}` carries `cancel_terms` (live-captured, admin guide 12.4a), and the real Gemini call was run once with synthetic speech: `gemini-3.5-flash` accepts m4a and mp3 and transcribes English and a Pidgin sentence ([SOP](../sop/2026-11-08-ai-note-transcription.md)). The caregiver's `arrived` is now refused earlier than 60 minutes before the visit (`422` `arrived_too_early` with `earliest_at`; `ARRIVAL_EARLIEST_MINUTES_BEFORE`; [SOP](../sop/2026-11-08-arrival-window.md)). **Still open:** a real device recording, an app booking's cancel-policy snapshot is frozen at cancel, not at create (WhatsApp bookings keep the quote's).
@@ -475,6 +477,19 @@ Runbook [`docs/deploy/staging.md`](../deploy/staging.md), [SOP](../sop/2026-11-0
 - [ ] Apply the `eas.json` diff, rebuild both Android preview APKs, upload the Firebase Admin key to Expo with `eas credentials`, push test on a real phone
 - [ ] Turn `VOICE_NOTES_ENABLED` on (after push works; real Gemini smoke)
 - [ ] Switch on the deploy workflow (Environment `staging`, secrets, `STAGING_DEPLOY_ENABLED`)
+
+## 17. Phase 2: service catalogue and half-hour bookings — 🟡 slice 1 built, slice 2 in progress (prices and surge UNKNOWN: all configurable, nothing invented)
+Owner decisions 2026-11-08: a service with no price stays hidden; every service is a home visit (video deferred); durations move to half-hour steps with a shortest booking per service. [SOP slice 1](../sop/2026-11-08-service-catalogue.md).
+- [x] Slice 1 (`feature/service-catalogue`, migration `0026`): `service_catalog` table seeded without prices (nurse on, other four off)
+- [x] Bookable rule: enabled AND priced (multiplier in `booking_settings`; nurse priced at 1.0 when none set)
+- [x] `GET /booking/services` (no prices); `422 service_unavailable` on preview and create
+- [x] Admin `GET`/`PUT /admin/service-catalog` (`bookings.read` / `pricing.write`, audited, idempotent, `422 service_has_no_price`)
+- [x] WhatsApp Flow offers only bookable services
+- [x] Live captures (patient 200-208, admin 900-916) and both FE guides
+- [ ] Slice 2 (`feature/booking-minutes`, migration `0027`): `duration_minutes` on bookings, 30-minute steps, `invalid_duration`, proration rule, every `duration_hours` use walked
+- [ ] Admin console screens for the catalogue, pricing and surge (separate slice)
+- [ ] Patient and caregiver apps read `/booking/services` and the minutes fields (separate slices)
+- [ ] Video visits: no provider chosen (deferred)
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit

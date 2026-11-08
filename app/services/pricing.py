@@ -82,6 +82,31 @@ DEFAULT_MULTIPLIER = 1.0
 MAX_MULTIPLIER = 10.0  # a typo (150 for 1.5) must not be sold at 150x; above this counts as not configured
 
 
+def _usable_multiplier(value: Any) -> bool:
+    return not (value is None or isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= MAX_MULTIPLIER)
+
+
+# Services that count as priced (at DEFAULT_MULTIPLIER) while no multiplier is configured: the app has always sold the
+# nurse visit that way, and local flows and tests book it without any multipliers. Every other service needs an explicit one.
+UNCONFIGURED_PRICED_SERVICES = ("nurse",)
+
+
+def is_priced(settings: Any, service_type: str) -> bool:
+    """Does ``service_type`` have a price, so it may be offered? (Used by ``services/service_catalog``.)
+
+    True when ``booking_settings.multipliers`` holds a usable multiplier for it (same test as ``service_multiplier``),
+    or, for ``UNCONFIGURED_PRICED_SERVICES``, when none is set. No settings row means nothing can be priced. The catalogue
+    never stores a price: the multiplier stays in the booking settings so there is one place to change it.
+    """
+    if settings is None:
+        return False
+    multipliers = getattr(settings, "multipliers", None) or {}
+    value = multipliers.get(service_type) if isinstance(multipliers, dict) else None
+    if _usable_multiplier(value):
+        return True
+    return service_type in UNCONFIGURED_PRICED_SERVICES
+
+
 def service_multiplier(settings: Any, service_type: str, *, channel: str = "app") -> float:
     """The price multiplier for ``service_type``: the one in the booking settings, else ``DEFAULT_MULTIPLIER``.
 
@@ -93,7 +118,7 @@ def service_multiplier(settings: Any, service_type: str, *, channel: str = "app"
     """
     multipliers = getattr(settings, "multipliers", None) or {}
     value = multipliers.get(service_type) if isinstance(multipliers, dict) else None
-    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= MAX_MULTIPLIER:
+    if not _usable_multiplier(value):
         logger.warning("pricing: no usable multiplier configured, using default %s service=%s channel=%s",
                        DEFAULT_MULTIPLIER, service_type, channel)
         return DEFAULT_MULTIPLIER

@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/service-catalog/doctor",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "enabled": true,
+      "display_name": "Doctor home visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440,
+      "sort_order": 20,
+      "reason": "Placeholder: launch doctor visits"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "service_type": "doctor",
+      "enabled": true,
+      "display_name": "Doctor home visit",
+      "mode": "home",
+      "min_minutes": 60,
+      "step_minutes": 60,
+      "max_minutes": 1440,
+      "sort_order": 20,
+      "priced": true,
+      "bookable": true,
+      "updated_at": "2026-11-08T19:41:01.751359",
+      "updated_by": "58f95f84-7958-4330-b867-0ac7dbf1ac11"
+    }
+  },
+  "note": "Success: returns the whole row with priced and bookable."
+}

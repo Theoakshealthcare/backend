@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/service-catalog/doctor",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "enabled": false,
+      "display_name": "Doctor visit",
+      "mode": "home",
+      "min_minutes": 90,
+      "step_minutes": 60,
+      "max_minutes": 1440,
+      "sort_order": 20
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, min_minutes must be a whole number of hours between 60 and 1440 minutes",
+          "input": {
+            "enabled": false,
+            "display_name": "Doctor visit",
+            "mode": "home",
+            "min_minutes": 90,
+            "step_minutes": 60,
+            "max_minutes": 1440,
+            "sort_order": 20
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  "note": "Whole hours only for now."
+}
