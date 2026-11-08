@@ -56,7 +56,14 @@ def _no_settings() -> BookingSettingsNotConfigured:
 
 
 class BookingActionForbidden(Exception):
-    """The caregiver is not allowed to perform this action on this booking (HTTP 403)."""
+    """The caregiver is not allowed to perform this action on this booking (HTTP 403).
+
+    ``code`` is set only for the actions whose errors already use the ``detail = {code, message}`` convention (today:
+    ``arrived``); the others still answer a plain string, which the app reads."""
+
+    def __init__(self, message: str = "", code: Optional[str] = None):
+        super().__init__(message)
+        self.code = code
 
 
 LOCATION_FRESH_MINUTES = 5  # a fix older than this is not "where they were when they tapped on my way"
@@ -70,7 +77,19 @@ def _minutes_words(minutes: int) -> str:
 
 
 class BookingStateConflict(Exception):
-    """The booking is not in a state that allows this action (HTTP 409)."""
+    """The booking is not in a state that allows this action (HTTP 409). ``code``: see ``BookingActionForbidden``."""
+
+    def __init__(self, message: str = "", code: Optional[str] = None):
+        super().__init__(message)
+        self.code = code
+
+
+class BookingArrivalTooEarly(Exception):
+    """"I've arrived" before the allowed window (HTTP 422). ``earliest_at`` is the first allowed instant (naive UTC)."""
+
+    def __init__(self, message: str, earliest_at: datetime):
+        super().__init__(message)
+        self.earliest_at = earliest_at
 
 
 class BookingVisitCodeError(Exception):
@@ -511,12 +530,15 @@ class BookingService:
             self._after_caregiver_cancel(booking)
 
     def handle_booking_action(self, booking_id: UUID, caregiver_id: UUID,
-                            action_data: BookingActionRequest) -> Booking:
+                            action_data: BookingActionRequest, now: Optional[datetime] = None) -> Booking:
         """Handle a caregiver action on a booking.
 
         Raises BookingActionForbidden (403) when this caregiver may not act on the booking,
         BookingStateConflict (409) when the booking is not in a state that allows the action,
+        BookingArrivalTooEarly (422) when "arrived" is sent before the allowed window,
         ValueError (404) when the booking does not exist.
+
+        ``now`` (naive UTC) is injectable so the arrival window can be tested at exact instants; it defaults to the clock.
         """
         action = action_data.action
 
@@ -606,7 +628,8 @@ class BookingService:
 
             else:  # start / complete / cancel: assigned caregiver only
                 if not is_assigned:
-                    raise BookingActionForbidden("This booking is not assigned to you")
+                    raise BookingActionForbidden("This booking is not assigned to you",
+                                                 code="booking_not_assigned" if action == "arrived" else None)
                 if action in ("on_my_way", "arrived", "start"):
                     # A suspended caregiver may still finish a visit already under way (they're with
                     # the patient), but must not set out for or begin a new one.
@@ -617,7 +640,8 @@ class BookingService:
                         .scalar()
                     )
                     if status_row != "approved":
-                        raise BookingActionForbidden("Your account is not approved to start visits")
+                        raise BookingActionForbidden("Your account is not approved to start visits",
+                                                     code="caregiver_not_approved" if action == "arrived" else None)
 
                 if action == "on_my_way":
                     if booking.status != BookingStatus.ACCEPTED:
@@ -635,9 +659,19 @@ class BookingService:
                     # visit code), allowed from accepted or en_route, and a repeat is a no-op (the first tap's time is kept
                     # and the family is told once: the notification is keyed by the assignment too).
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE):
-                        raise BookingStateConflict("Only an accepted booking can be marked as arrived")
+                        raise BookingStateConflict("Only an accepted booking can be marked as arrived",
+                                                   code="booking_not_arrivable")
                     if booking.arrived_at is None:
-                        booking.arrived_at = datetime.utcnow()
+                        # Not before ARRIVAL_EARLIEST_MINUTES_BEFORE the start (owner rule 2026-11-08: 60). A repeat tap
+                        # (arrived_at already set) is a no-op and never reaches this check. After the start time it is
+                        # allowed until the visit starts, by the status rule above.
+                        arrival_now = now or datetime.utcnow()
+                        window = app_settings.ARRIVAL_EARLIEST_MINUTES_BEFORE
+                        earliest = booking.scheduled_date - timedelta(minutes=window)
+                        if arrival_now < earliest:
+                            raise BookingArrivalTooEarly(
+                                f"You can mark yourself as arrived from {window} minutes before the visit starts.", earliest)
+                        booking.arrived_at = arrival_now
                         NotificationService(self.db).caregiver_arrived(booking)
                 elif action == "start":
                     # on_my_way is optional: a caregiver who never pressed it can still start.

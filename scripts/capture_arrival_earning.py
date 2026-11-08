@@ -41,8 +41,10 @@ CG_FIRST, ADMIN_FIRST, PATIENT_FIRST = 700, 700, 100
 
 
 def clear_from(folder: Path, first: int) -> None:
+    """Remove only this script's own block (``first`` to ``first + 99``): later blocks, e.g. 800+ written by
+    ``capture_arrived_errors_cancel_terms.py``, belong to other scripts."""
     for f in folder.glob("*.json"):
-        if re.match(r"\d{3}-", f.name) and int(f.name[:3]) >= first:
+        if re.match(r"\d{3}-", f.name) and first <= int(f.name[:3]) < first + 100:
             f.unlink()
 
 
