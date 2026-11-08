@@ -29,6 +29,7 @@ from app.core.client_ip import client_ip
 from app.db.models.caregiver import Caregiver, CaregiverBankAccount
 from app.db.models.payout import CaregiverBankEvent
 from app.services import earnings
+from app.services.kyc_matching import name_tokens
 from app.services.paystack import PaystackService
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,16 @@ class BankInvalid(BankError):
 
 class BankUnavailable(BankError):
     """Paystack could not be reached, or refused for a reason that is not the caregiver's (HTTP 503)."""
+
+
+class BankNameMismatch(BankError):
+    """The name the bank holds for the account is not the caregiver's profile name (HTTP 422, ``detail.code``). Neither name
+    is ever put in the message."""
+
+    code = "bank_account_name_mismatch"
+
+    def __init__(self):
+        super().__init__("The account name must match the name on your Oakly profile. If your name is different, contact support.")
 
 
 class BankThrottled(BankError):
@@ -115,6 +126,17 @@ def _throttle(caregiver_id) -> None:
         window.append(now)
 
 
+def account_name_matches_profile(profile_name: Optional[str], account_name: Optional[str]) -> bool:
+    """Is the account held by the person on the profile? Tolerant of case, punctuation, word order, a middle name and
+    initials: the profile's first and last words (one-letter initials ignored) must both be words of the account name, so
+    "ADA OKAFOR NURSE" matches the profile "Ada Nurse". A one-word profile needs that word. No words -> no match."""
+    profile = [t for t in name_tokens(profile_name) if len(t) > 1]
+    account = set(name_tokens(account_name))
+    if not profile or not account:
+        return False
+    return profile[0] in account and profile[-1] in account
+
+
 @dataclass(frozen=True)
 class Resolved:
     account_number: str
@@ -123,7 +145,10 @@ class Resolved:
     account_name: str
 
 
-def resolve(caregiver_id, account_number: str, bank_code: str, paystack: Optional[PaystackService] = None) -> Resolved:
+def resolve(caregiver_id, account_number: str, bank_code: str, profile_name: Optional[str],
+            paystack: Optional[PaystackService] = None) -> Resolved:
+    """Look the account up and require its holder to be the caregiver: ``profile_name`` is the name on their Oakly
+    profile. Raises ``BankNameMismatch`` otherwise (the names are not logged or returned)."""
     paystack = paystack or PaystackService()
     account_number, bank_code = (account_number or "").strip(), (bank_code or "").strip()
     if not ACCOUNT_NUMBER.match(account_number):
@@ -138,6 +163,10 @@ def resolve(caregiver_id, account_number: str, bank_code: str, paystack: Optiona
             logger.warning("account resolve failed (%s) for ****%s", result.get("message"), account_number[-4:])
             raise BankUnavailable("We cannot check the account right now. Please try again in a moment.")
         raise BankInvalid("We could not find that account. Check the account number and the bank.")
+    if not account_name_matches_profile(profile_name, result.get("account_name")):
+        logger.warning("bank account name does not match the profile name: caregiver %s, account ****%s", caregiver_id,
+                       account_number[-4:])
+        raise BankNameMismatch()
     return Resolved(account_number=account_number, bank_code=bank_code, bank_name=bank["name"],
                     account_name=result["account_name"])
 
@@ -153,9 +182,9 @@ class SaveResult:
 
 def save(db: Session, caregiver: Caregiver, account_number: str, bank_code: str, *, request: Optional[Request] = None,
          paystack: Optional[PaystackService] = None, now: Optional[datetime] = None) -> SaveResult:
-    """Resolve, register with Paystack, then store. Commits."""
+    """Resolve (the holder must be the caregiver), register with Paystack, then store. Commits."""
     paystack = paystack or PaystackService()
-    resolved = resolve(caregiver.id, account_number, bank_code, paystack)
+    resolved = resolve(caregiver.id, account_number, bank_code, caregiver.full_name, paystack)
     recipient = paystack.create_transfer_recipient(name=resolved.account_name, account_number=resolved.account_number,
                                                    bank_code=resolved.bank_code)
     if not recipient.get("status"):

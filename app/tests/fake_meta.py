@@ -419,7 +419,7 @@ class FakePaystack:
 
     # --- payouts -------------------------------------------------------------------------------------
     def account_name(self, account_number: str, bank_code: str) -> str:
-        return self.accounts.get((account_number, bank_code)) or f"PLACEHOLDER ACCOUNT {account_number[-4:]}"
+        return self.accounts.get((account_number, bank_code)) or f"TEST CAREGIVER {account_number[-4:]}"  # the stock test caregiver is "Test Caregiver"
 
     def _resolve(self, query: dict) -> tuple[int, dict]:
         number, bank_code = str(query.get("account_number", "")), str(query.get("bank_code", ""))
