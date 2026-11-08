@@ -1,0 +1,33 @@
+{
+  "generated_by": "scripts/capture_arrival_earning.py",
+  "run_tag": "87e210",
+  "captured_at": "2026-11-07T21:43:15.912745Z",
+  "folder": "admin",
+  "captures": [
+    {
+      "file": "700-admin-policy-get.json",
+      "label": "admin-policy-get",
+      "status": 200
+    },
+    {
+      "file": "701-admin-policy-update-short-visit.json",
+      "label": "admin-policy-update-short-visit",
+      "status": 200
+    },
+    {
+      "file": "702-admin-policy-update-short-visit-over-100.json",
+      "label": "admin-policy-update-short-visit-over-100",
+      "status": 422
+    },
+    {
+      "file": "703-admin-policy-update-short-visit-not-a-number.json",
+      "label": "admin-policy-update-short-visit-not-a-number",
+      "status": 422
+    },
+    {
+      "file": "704-admin-policy-get-after.json",
+      "label": "admin-policy-get-after",
+      "status": 200
+    }
+  ]
+}

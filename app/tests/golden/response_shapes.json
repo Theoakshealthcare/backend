@@ -3,6 +3,7 @@
     "booking": {
       "actual_end_time": "null",
       "actual_start_time": "null",
+      "arrived_at": "null",
       "assistance_type": "str",
       "booking_code": "str",
       "booking_for": "str",
@@ -19,6 +20,7 @@
         "profile_image_url": "null",
         "specialization": "str"
       },
+      "caregiver_earning": "null",
       "caregiver_id": "str",
       "channel": "str",
       "condition": "null",
@@ -67,11 +69,13 @@
     "booking": {
       "actual_end_time": "null",
       "actual_start_time": "null",
+      "arrived_at": "null",
       "assistance_type": "str",
       "booking_code": "str",
       "booking_for": "str",
       "cancel_reason": "null",
       "caregiver_details": "null",
+      "caregiver_earning": "null",
       "caregiver_id": "null",
       "channel": "str",
       "condition": "null",

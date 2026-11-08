@@ -1690,7 +1690,7 @@ Every action above and every clinical read is in `GET /admin/audit` (section 11)
 
 ### 12.9 Booking policy: `GET` and `PATCH /api/v1/admin/booking-policy`
 
-The cancellation fee tiers and the caregiver drop-out timings are **data an admin edits**, not settings. One policy: thirteen settings (twelve whole numbers and one choice, `payout_cadence`). Reading needs `bookings.read` (Support has it); changing needs `settings.write` (Operations and Super Admin) **and a `reason`**, and writes an audit entry with the old and new values. Errors here are `{"detail": ...}` like the other admin routes.
+The cancellation fee tiers and the caregiver drop-out timings are **data an admin edits**, not settings. One policy: fourteen settings (thirteen whole numbers and one choice, `payout_cadence`). Reading needs `bookings.read` (Support has it); changing needs `settings.write` (Operations and Super Admin) **and a `reason`**, and writes an audit entry with the old and new values. Errors here are `{"detail": ...}` like the other admin routes.
 
 | Field | Meaning | Default |
 |---|---|---|
@@ -1707,10 +1707,67 @@ The cancellation fee tiers and the caregiver drop-out timings are **data an admi
 | `payout_cadence` | `weekly`, `biweekly` or `monthly`. Stored for the payouts work; **nothing reads it yet** | `weekly` |
 | `payout_min_naira` | smallest balance a scheduled payout will pay, in **naira**. Not read yet | 5000 |
 | `finance_refund_limit_naira` | largest refund Finance may approve alone, in **naira**. Not read yet | 50000 |
+| `short_visit_min_percent` | **new 2026-11-07 (migration `0024`).** A completed visit with **under** this percent of the booked time on site is credited already **held** for Finance (exactly the percent is not short). 0 to 100. Copied onto each booking when it is created, like the visit share | 50 |
 
-Rules the form should mirror (the server enforces them, and so does the database): percents 0 to 100, hours 0 to 168, minutes 0 or more, the two `_naira` fields 0 to 100,000,000, `payout_cadence` one of the three words (anything else is a `422` validation object, below), `cancel_late_hours` shorter than `cancel_free_hours`, `dropout_decision_lead_minutes` shorter than `dropout_redispatch_min_lead_minutes`. Send **only the fields that change**; the merged result is validated as a whole.
+Rules the form should mirror (the server enforces them, and so does the database): percents 0 to 100 (this includes `short_visit_min_percent`), hours 0 to 168, minutes 0 or more, the two `_naira` fields 0 to 100,000,000, `payout_cadence` one of the three words (anything else is a `422` validation object, below), `cancel_late_hours` shorter than `cancel_free_hours`, `dropout_decision_lead_minutes` shorter than `dropout_redispatch_min_lead_minutes`. Send **only the fields that change**; the merged result is validated as a whole.
 
 **UX consequences to surface.** An edit changes the cancellation terms only for bookings **quoted afterwards**: each quote and booking keeps a copy of the tiers the family was shown. The caregiver share and the hold are copied onto a booking the same way, **when it is created**, so changing them never alters what a caregiver was already promised. The drop-out timings and the on-my-way window apply immediately. Say so on the save confirmation.
+
+**Short-visit threshold (`short_visit_min_percent`, new 2026-11-07).** It was a constant in the code (50); now an admin edits it here, with a reason and an audit entry like every other field. Like the caregiver share it is **copied onto a booking when the booking is created**, so a change only affects bookings made afterwards (a booking made at 50 keeps 50 when the policy later says 30; a booking from before the field existed means 50). The hold reason Finance sees names the booking's percent. **The older policy examples below (captures 119 and 131 to 134) were taken before this field existed and do not list it; the examples here (captures 700 to 704, a scratch database) do.**
+
+<!-- capture: 700-admin-policy-get.json response.body keys=short_visit_min_percent,earning_hold_hours,caregiver_visit_share_percent,updated_at -->
+```json
+{
+  "short_visit_min_percent": 50,
+  "earning_hold_hours": 24,
+  "caregiver_visit_share_percent": 80,
+  "updated_at": "2026-11-07T21:43:02.796233"
+}
+```
+
+<!-- capture: 701-admin-policy-update-short-visit.json request.body -->
+```json
+{
+  "reason": "Placeholder: pilot threshold",
+  "short_visit_min_percent": 40
+}
+```
+
+<!-- capture: 701-admin-policy-update-short-visit.json response.body keys=short_visit_min_percent,earning_hold_hours,caregiver_visit_share_percent,updated_at -->
+```json
+{
+  "short_visit_min_percent": 40,
+  "earning_hold_hours": 24,
+  "caregiver_visit_share_percent": 80,
+  "updated_at": "2026-11-07T21:43:15.524879"
+}
+```
+
+Out of range (a plain string, like the other rule errors) and a non-integer (a validation list):
+
+<!-- capture: 702-admin-policy-update-short-visit-over-100.json response.body -->
+```json
+{
+  "detail": "short_visit_min_percent must be between 0 and 100"
+}
+```
+
+<!-- capture: 703-admin-policy-update-short-visit-not-a-number.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "int_type",
+      "loc": [
+        "body",
+        "short_visit_min_percent"
+      ],
+      "msg": "Input should be a valid integer",
+      "input": "40"
+    }
+  ]
+}
+```
 
 Read (Support), `GET`:
 
@@ -7294,5 +7351,6 @@ Every publish writes one `admin_audit_log` entry (`GET /admin/audit?entity_type=
 | Refunds: the owed balance recovered from a later release or payout reservation; retry of a payout refused while a debt is owed | Test only | `test_refunds_take_back.py` |
 | Refunds: the WhatsApp notices (sent, complete, needs bank details) | **[not live]** | queued and asserted against a fake Meta in tests; not delivered live |
 | Refunds: real Paystack refunds, their webhooks, and the up to 10 business days for the family to see the money | **[not live]** | never exercised; shapes are Paystack's documented ones as implemented in `app/tests/fake_meta.py` |
+| Booking policy: `short_visit_min_percent` in `GET`, edited with a reason, over 100 `422`, a string `422` | Verified live | 700 to 704 |
 | `GET /admin/me` for a Super Admin lists `refunds.approve_above_limit` | Test only | captures 010 and 039 were taken before the permission existed; `test_admin_rbac.py` |
 

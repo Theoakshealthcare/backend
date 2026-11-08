@@ -71,9 +71,8 @@ class NotificationService:
         self._emit(booking, "caregiver_en_route", self._issuance_key(booking))
 
     def caregiver_arrived(self, booking: Booking) -> None:
-        """The caregiver is at the door (app bookings only: told in the app, which then shows the visit code). Nothing in
-        the domain records an arrival yet (the visit starts when the caregiver types the code), so no booking action
-        calls this; it is here, tested, for the "I've arrived" step to call."""
+        """The caregiver is at the door (app bookings only: told in the app, which then shows the visit code). Called by the
+        caregiver's "arrived" action (``BookingService.handle_booking_action``), which stamps ``bookings.arrived_at``."""
         self._emit(booking, "caregiver_arrived", self._issuance_key(booking))
 
     def no_caregiver_found(self, booking: Booking) -> None:

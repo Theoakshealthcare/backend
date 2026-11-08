@@ -78,6 +78,7 @@ def dropped_ids(db: Session, booking_id: uuid.UUID) -> set:
 def clear_on_assignment(booking: Booking) -> None:
     """A caregiver now holds the booking (their own accept, or an admin's assign): no drop-out is in progress."""
     booking.dropout_state = None
+    booking.arrived_at = None  # the new caregiver has not arrived yet
 
 
 # --- the caregiver cancels -------------------------------------------------------------------------------------
@@ -106,6 +107,7 @@ def on_caregiver_cancel(db: Session, booking: Booking, caregiver_id: uuid.UUID, 
     booking.visit_code_locked_until = None
     booking.on_my_way_at = None
     booking.on_my_way_distance_m = None
+    booking.arrived_at = None
     booking.no_show_flagged_at = None
     booking.no_show_flagged_by = None
     booking.dispatch_state = dispatch.DISPATCHING

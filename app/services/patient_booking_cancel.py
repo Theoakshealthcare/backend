@@ -302,7 +302,7 @@ def cancel(db: Session, user: User, booking_id: uuid.UUID, *, reason: Optional[s
     db.rollback()  # read-only so far: end the transaction before anything slow (Paystack) or locking
     try:
         if unpaid:
-            outcome = _cancel_unpaid(db, booking_id, now)
+            outcome = _cancel_unpaid(db, booking_id, reason, now)
             if outcome is not None:
                 return outcome
         return _cancel_paid(db, booking_id, reason, accepted_fee_kobo, now)
@@ -311,7 +311,13 @@ def cancel(db: Session, user: User, booking_id: uuid.UUID, *, reason: Optional[s
         raise
 
 
-def _cancel_unpaid(db: Session, booking_id: uuid.UUID, now: datetime) -> Optional[Result]:
+def _clean_note(reason: Optional[str]) -> Optional[str]:
+    """The family's reason as stored on the booking (``cancel_note``): trimmed, at most REASON_MAX_LENGTH, None when blank."""
+    text = (reason or "").strip()[:REASON_MAX_LENGTH]
+    return text or None
+
+
+def _cancel_unpaid(db: Session, booking_id: uuid.UUID, reason: Optional[str], now: datetime) -> Optional[Result]:
     """Verify-before-cancel. Returns the result, or None when the booking turned out to be paid (the caller then cancels it
     as a paid booking). Only the booking row is ever locked, and never across the Paystack call."""
     from app.services.booking_payment import SettleOutcome, verify_and_settle
@@ -340,6 +346,7 @@ def _cancel_unpaid(db: Session, booking_id: uuid.UUID, now: datetime) -> Optiona
         raise _state_error(_state_code(booking, None))
     booking.status = BookingStatus.CANCELLED
     booking.cancel_reason = USER_CANCELLED
+    booking.cancel_note = _clean_note(reason)
     booking.cancel_fee_tier = cancellation.TIER_NONE
     NotificationService(db).cancelled_by_booker(booking)  # nobody is assigned before payment: a no-op kept for symmetry
     db.commit()
@@ -382,6 +389,7 @@ def _cancel_paid(db: Session, booking_id: uuid.UUID, reason: Optional[str], acce
         # afterwards can never change when an admin edits the policy later.
         booking.cancel_policy = {"free_hours": terms.policy.free_hours, "late_hours": terms.policy.late_hours,
                                  "fee_percent": terms.policy.fee_percent, "late_fee_percent": terms.policy.late_fee_percent}
+    booking.cancel_note = _clean_note(reason)
     _note_on_refund(db, booking, reason)
     db.commit()
     db.refresh(booking)

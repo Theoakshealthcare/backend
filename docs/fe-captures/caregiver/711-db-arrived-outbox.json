@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT event, count(*) FROM booking_events WHERE booking_id = <booking 1> GROUP BY event",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "event": "caregiver_arrived",
+        "count": 1
+      },
+      {
+        "event": "caregiver_assigned",
+        "count": 1
+      },
+      {
+        "event": "payment_received",
+        "count": 1
+      }
+    ]
+  },
+  "note": "The outbox rows the booking wrote: exactly one caregiver_arrived after two taps. NOT a delivered push: the worker was not running (its feed row and Expo push are covered by the notifications guide and unit tests)."
+}

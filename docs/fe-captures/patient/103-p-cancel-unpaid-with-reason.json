@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/3eb8e9d3-e3c8-49c9-9613-e166219b2d24/cancel",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: plans changed",
+      "accepted_fee_kobo": 0
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "booking_id": "3eb8e9d3-e3c8-49c9-9613-e166219b2d24",
+      "booking_code": "6ZTTIGD5",
+      "status": "cancelled",
+      "already_cancelled": false,
+      "fee_tier": "none",
+      "fee_percent": 0,
+      "fee_amount": 0.0,
+      "fee_amount_kobo": 0,
+      "paid_amount": 0.0,
+      "paid_amount_kobo": 0,
+      "refundable_amount": 0.0,
+      "refundable_amount_kobo": 0,
+      "refund_queued": false,
+      "refund_destination": null,
+      "refund_needs_approval": false,
+      "caregiver_assigned": false,
+      "refund": null
+    }
+  },
+  "note": "Free cancel of an unpaid booking. The reason is now stored on the booking (it was dropped before)."
+}

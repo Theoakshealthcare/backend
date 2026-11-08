@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "SELECT status, status_reason, amount, base_amount_kobo, share_percent FROM caregiver_transactions WHERE booking_id = <booking 1> AND type = 'earning'",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": [
+      {
+        "status": "held",
+        "status_reason": "Short visit: under 40% of the booked time was spent on site (held for Finance review)",
+        "amount": 1600000,
+        "base_amount_kobo": 2000000,
+        "share_percent": 80
+      }
+    ]
+  },
+  "note": "The hold reason names the booking's own threshold (40), and amount equals the earning shown before completion."
+}

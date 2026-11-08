@@ -43,6 +43,10 @@ jobs:
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-caregiver.md docs/fe-captures/caregiver --check
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-admin.md docs/fe-captures/admin --check
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-patient-profile-vitals.md docs/fe-captures/patient-profile-vitals --check
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-patient-notifications.md docs/fe-captures/patient-notifications --check
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-patient-bookings.md docs/fe-captures/patient --check
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-password-reset.md docs/fe-captures/password-reset --check
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-patient-fallguard.md docs/fe-captures/patient-fallguard --check
 
       - name: Tests (throwaway Postgres via testcontainers)
         run: poetry run pytest -q -p no:warnings

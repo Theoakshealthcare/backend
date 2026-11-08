@@ -260,6 +260,14 @@ class BookingResponse(BaseModel):
     updated_at: datetime
     dispatch_state: Optional[str] = Field(
         None, description="dispatching | matched | unmatched; null before payment or for legacy bookings")
+    arrived_at: Optional[datetime] = Field(
+        None, description="When the assigned caregiver tapped \"I've arrived\" (UTC); null until then. The status does not "
+                          "change: the visit still starts with the visit code.")
+    caregiver_earning: Optional[float] = Field(
+        None, description="Naira the assigned caregiver earns for completing this visit (their share of the service fee, from "
+                          "the terms copied onto the booking when it was created). Caregiver views only, for an accepted, "
+                          "en route, in progress or completed booking; null for everyone else and when the booking carries "
+                          "no snapshot.", example=12000.0)
     visit_code: Optional[str] = Field(
         None,
         description="4-digit code the patient gives the caregiver to start the visit. Only returned to the "
@@ -404,6 +412,8 @@ class CaregiverActionBooking(BaseModel):
     dispatch_state: Optional[str] = None
     dispatch_started_at: Optional[datetime] = None
     visit_code: Optional[str] = None
+    arrived_at: Optional[datetime] = None
+    caregiver_earning: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 
@@ -414,7 +424,7 @@ class CaregiverActionResponse(BaseModel):
 
 
 class BookingActionRequest(BaseModel):
-    action: Literal["accept", "decline", "on_my_way", "start", "complete", "cancel"]
+    action: Literal["accept", "decline", "on_my_way", "arrived", "start", "complete", "cancel"]
     reason: Optional[str] = None
     # Required by `start`: the 4-digit code the patient reads out at the door.
     visit_code: Optional[str] = Field(None, pattern=r"^[0-9]{4}$")

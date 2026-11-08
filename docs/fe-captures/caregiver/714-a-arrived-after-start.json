@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/b7eb9e1b-2edd-4500-b408-ba6f1ccb9195",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "arrived"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "Only an accepted booking can be marked as arrived"
+    }
+  },
+  "note": "Arriving after the visit started is a 409."
+}

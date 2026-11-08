@@ -56,7 +56,7 @@ The patient app had no notification path at all: the backend told the booker on 
 - **Roll back:** `alembic downgrade 0020` drops the feed (rows are lost) and deletes `caregiver_arrived` / `no_caregiver_found` outbox rows; the code revert restores "an app booking records no booker events". Undelivered app events recorded before a code-only rollback would be marked `no_contact` by the old code, i.e. dropped.
 
 ## Follow-ups
-- **A caregiver "I've arrived" step** so `caregiver_arrived` has a trigger (the notice, wording and delivery exist and are tested). Needs a caregiver-app action; owner decision on whether arrival is a step.
+- ~~A caregiver "I've arrived" step so `caregiver_arrived` has a trigger~~ **DONE (backend)**: the `arrived` action ([2026-11-07-caregiver-arrived-earning-policy.md](2026-11-07-caregiver-arrived-earning-policy.md)); the caregiver app button and delivery proof on a device remain.
 - Patient cancels (P4-BE) are intentionally not announced; revisit if the owner wants a receipt row.
 - `refund_needs_bank_details` says "Our team will contact you" because only the admin console can submit refund bank details; when the app gets a bank-details flow, change the wording and the guide.
 - Add the new guide to CI's `render_fe_guide --check` (workflow files are out of scope for this slice).
