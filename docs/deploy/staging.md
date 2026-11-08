@@ -337,7 +337,7 @@ Uploads: `docker run --rm -v oakly-staging_private_uploads:/data -v /var/backups
 
 ## 13. Turning voice notes on (after push works)
 
-`VOICE_NOTES_ENABLED=false` for the first deploy. Turn it on only after (a) section 11's push test passed, (b) `GEMINI_API_KEY` is a **paid, non-training tier** key, (c) the owner has set the daily audio budget (`VOICE_NOTE_DAILY_AUDIO_SECONDS_CAP`) and the retention days (`VOICE_NOTE_RETENTION_DAYS`, 365 is only a proposal). Edit `/etc/oakly/staging.env`, `deploy/compose.sh up -d --force-recreate api worker`, record a real voice note from the phone. The real Gemini call has **never** run: whether it accepts the phone's m4a is unknown (`docs/sop/2026-11-08-ai-note-transcription.md`). It is also the kill switch: set it back to `false` and recreate.
+`VOICE_NOTES_ENABLED=false` for the first deploy. Turn it on only after (a) section 11's push test passed, (b) `GEMINI_API_KEY` is a **paid, non-training tier** key, (c) the owner has set the daily audio budget (`VOICE_NOTE_DAILY_AUDIO_SECONDS_CAP`) and the retention days (`VOICE_NOTE_RETENTION_DAYS`, 365 is only a proposal). Edit `/etc/oakly/staging.env`, `deploy/compose.sh up -d --force-recreate api worker`, record a real voice note from the phone. A synthetic-speech smoke on 2026-11-08 showed `gemini-3.5-flash` accepts m4a and mp3 (`docs/sop/2026-11-08-ai-note-transcription.md`); a real phone recording and a real Pidgin sample are still unproven. It is also the kill switch: set it back to `false` and recreate.
 
 ## 14. CI deploy workflow (draft, disabled)
 

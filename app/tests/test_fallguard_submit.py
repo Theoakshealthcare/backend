@@ -175,6 +175,18 @@ def test_the_summary_failing_still_stores_the_score(client, patient, qs, monkeyp
     assert r.json()["total_score"] == 3 and r.json()["ai_summary"] == "Unable to analyze"
 
 
+def test_a_gemini_service_that_raises_never_fails_the_submission(client, patient, qs, monkeypatch):
+    class Boom:
+        async def analyze_fallguard_assessment(self, answers, total_score):
+            raise RuntimeError("PRIVATE-ANSWER leaked in the message")
+
+    monkeypatch.setattr(fallguard_service, "gemini_service", Boom())
+    r = submit(client, patient.user, [{"question_id": str(qs[0].id), "answer": "85+"}])
+    assert r.status_code == 200
+    assert r.json()["total_score"] == 3 and r.json()["ai_summary"] == "Unable to analyze"
+    assert r.json()["ai_recommendations"] == []
+
+
 def test_only_a_patient_may_submit(client, db, qs):
     caregiver = make_caregiver(db)
     r = submit(client, caregiver.user, [{"question_id": str(qs[0].id), "answer": "85+"}])

@@ -479,6 +479,7 @@ def run(args) -> None:
     tag = uuid.uuid4().hex[:6]
     fake_paystack = FakePaystack()
     fake_paystack.accounts[("0000000000", "058")] = "PLACEHOLDER CAREGIVER A"
+    fake_paystack.accounts[("0000000001", "090")] = "PLACEHOLDER CAREGIVER A"  # the bank name must match the profile name
     paystack_server = serve_fake_paystack(fake_paystack, port=args.paystack_port)
     ctx = Ctx(rec, db, env, expo, tag, fake_paystack)
     mail = lambda who: f"{who}-{tag}@example.com"  # noqa: E731

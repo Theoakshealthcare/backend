@@ -481,6 +481,9 @@ def _caregiver_or_403(current_user: User, db: Session) -> Caregiver:
 
 
 def _bank_error(exc: bank_accounts.BankError) -> HTTPException:
+    if isinstance(exc, bank_accounts.BankNameMismatch):
+        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                             detail={"code": exc.code, "message": str(exc)})
     if isinstance(exc, bank_accounts.BankThrottled):
         return HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc))
     if isinstance(exc, bank_accounts.BankUnavailable):
@@ -521,10 +524,10 @@ def resolve_bank_account(
     """Check an account number and bank and return the name the bank holds for it, so the caregiver can confirm it is
     theirs before saving. Rate limited per caregiver."""
     caregiver = _caregiver_or_403(current_user, db)
-    caregiver_id = caregiver.id
+    caregiver_id, profile_name = caregiver.id, caregiver.full_name
     db.rollback()
     try:
-        resolved = bank_accounts.resolve(caregiver_id, data.account_number, data.bank_code)
+        resolved = bank_accounts.resolve(caregiver_id, data.account_number, data.bank_code, profile_name)
     except bank_accounts.BankError as exc:
         raise _bank_error(exc)
     return BankAccountResolveOut(account_name=resolved.account_name, account_number=resolved.account_number,
