@@ -1,0 +1,44 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_hours": 1.5
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "service_type": "nurse",
+      "duration_minutes": 90,
+      "duration_hours": 1.5,
+      "base_fee_per_hour": 10000.0,
+      "service_multiplier": 1.0,
+      "service_fee": 15000.0,
+      "platform_fee": 1500.0,
+      "platform_fee_percent": 10.0,
+      "total_amount": 16500.0,
+      "currency": "NGN",
+      "surge_pricing_active": false,
+      "surge_multiplier": null,
+      "discount_active": false,
+      "discount_percent": null,
+      "pricing_breakdown": {
+        "base_calculation": 15000.0,
+        "surge_adjustment": 0.0,
+        "discount_savings": 0.0,
+        "service_fee_final": 15000.0,
+        "platform_fee": 1500.0,
+        "total": 16500.0
+      },
+      "estimated_caregivers_available": null,
+      "peak_hours_warning": null
+    }
+  },
+  "note": "Hours may now be fractional: 1.5 hours is 90 minutes."
+}

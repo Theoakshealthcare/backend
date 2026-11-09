@@ -1,0 +1,108 @@
+{
+  "generated_by": "scripts/capture_booking_minutes.py",
+  "run_tag": "ea585c",
+  "captured_at": "2026-11-08T21:04:21.350350Z",
+  "folder": "patient",
+  "captures": [
+    {
+      "file": "300-p-services.json",
+      "label": "p-services",
+      "status": 200
+    },
+    {
+      "file": "301-p-preview-minutes-90.json",
+      "label": "p-preview-minutes-90",
+      "status": 200
+    },
+    {
+      "file": "302-p-preview-hours-4.json",
+      "label": "p-preview-hours-4",
+      "status": 200
+    },
+    {
+      "file": "303-p-preview-hours-1-5.json",
+      "label": "p-preview-hours-1-5",
+      "status": 200
+    },
+    {
+      "file": "304-p-preview-both-agree.json",
+      "label": "p-preview-both-agree",
+      "status": 200
+    },
+    {
+      "file": "305-p-preview-nutrition-30.json",
+      "label": "p-preview-nutrition-30",
+      "status": 200
+    },
+    {
+      "file": "306-p-preview-both-disagree.json",
+      "label": "p-preview-both-disagree",
+      "status": 422
+    },
+    {
+      "file": "307-p-preview-neither.json",
+      "label": "p-preview-neither",
+      "status": 422
+    },
+    {
+      "file": "308-p-preview-hours-not-whole-minutes.json",
+      "label": "p-preview-hours-not-whole-minutes",
+      "status": 422
+    },
+    {
+      "file": "309-p-preview-invalid-45.json",
+      "label": "p-preview-invalid-45",
+      "status": 422
+    },
+    {
+      "file": "310-p-preview-invalid-30-nurse.json",
+      "label": "p-preview-invalid-30-nurse",
+      "status": 422
+    },
+    {
+      "file": "311-p-preview-invalid-0.json",
+      "label": "p-preview-invalid-0",
+      "status": 422
+    },
+    {
+      "file": "312-p-preview-invalid-1470.json",
+      "label": "p-preview-invalid-1470",
+      "status": 422
+    },
+    {
+      "file": "313-p-preview-invalid-hours-25.json",
+      "label": "p-preview-invalid-hours-25",
+      "status": 422
+    },
+    {
+      "file": "314-p-create-minutes-90.json",
+      "label": "p-create-minutes-90",
+      "status": 200
+    },
+    {
+      "file": "315-p-create-invalid-45.json",
+      "label": "p-create-invalid-45",
+      "status": 422
+    },
+    {
+      "file": "316-p-create-hours-3.json",
+      "label": "p-create-hours-3",
+      "status": 200
+    },
+    {
+      "file": "317-p-booking-detail.json",
+      "label": "p-booking-detail",
+      "status": 200
+    },
+    {
+      "file": "318-p-booking-list.json",
+      "label": "p-booking-list",
+      "status": 200
+    },
+    {
+      "file": "319-db-minutes-90.json",
+      "label": "db-minutes-90",
+      "status": null
+    }
+  ]
+}

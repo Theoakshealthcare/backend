@@ -185,9 +185,21 @@ class FlowService:
     def _render_recipient(self, quote: Quote, notice: str = "") -> FlowResult:
         return _screen("RECIPIENT", relationships=_options(RELATIONSHIPS), genders=_options(GENDERS), notice=notice)
 
+    def _hours_for(self, service: str) -> List[int]:
+        """The whole-hour lengths the Flow can offer for ``service``: the WhatsApp cap and the catalogue's minimum, step
+        and maximum both apply. WhatsApp books whole hours only, so a service whose catalogue allows none (e.g. min 30,
+        max 30, or min 90 with a cap of 1 hour) has an empty list here."""
+        entry = service_catalog.get_row(self.db, service)
+        return [h for h in range(1, rules.max_hours(service) + 1)
+                if entry is None or service_catalog.duration_allowed(entry, h * 60)]
+
     def _services(self) -> List[str]:
+        """The services the Flow lists: bookable (enabled and priced) AND with at least one whole-hour length, so the
+        person is never sent to a length screen they cannot complete."""
         row = self._settings()
-        return service_catalog.bookable_types(self.db, row) if row is not None else []
+        if row is None:
+            return []
+        return [s for s in service_catalog.bookable_types(self.db, row) if self._hours_for(s)]
 
     def _settings(self) -> Optional[BookingSettings]:
         return self.db.query(BookingSettings).order_by(BookingSettings.created_at.desc(), BookingSettings.id.desc()).first()
@@ -195,7 +207,7 @@ class FlowService:
     def _render_service(self, quote: Quote, notice: str = "") -> FlowResult:
         row = self._settings()
         options = []
-        for service in (service_catalog.bookable_types(self.db, row) if row is not None else ()):
+        for service in (self._services() if row is not None else ()):
             per_hour = price_service(row, service, 1).total_kobo
             options.append({"id": service, "title": rules.SERVICE_LABELS[service],
                             "description": f"{rules.naira(per_hour)} per hour"})
@@ -219,8 +231,8 @@ class FlowService:
                        notice=notice)
 
     def _render_details(self, quote: Quote, notice: str = "") -> FlowResult:
-        cap = rules.max_hours((quote.payload or {}).get("service", ""))
-        durations = [{"id": str(h), "title": f"{h} hour" + ("" if h == 1 else "s")} for h in range(1, cap + 1)]
+        service = (quote.payload or {}).get("service", "")
+        durations = [{"id": str(h), "title": f"{h} hour" + ("" if h == 1 else "s")} for h in self._hours_for(service)]
         return _screen("DETAILS", durations=durations, notice=notice)
 
     def _render_address(self, quote: Quote, notice: str = "") -> FlowResult:
@@ -325,7 +337,7 @@ class FlowService:
             hours = int(str(data.get("duration")).strip())
         except (TypeError, ValueError):
             hours = 0
-        if not 1 <= hours <= rules.max_hours(service):
+        if hours not in self._hours_for(service):
             return self._render_details(quote, "Please choose how long the visit should be.")
         condition = _clean_text(data.get("condition"), MAX_CONDITION)
         if condition is None:

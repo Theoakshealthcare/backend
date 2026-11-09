@@ -1,0 +1,44 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nutritionist",
+      "duration_minutes": 30
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "service_type": "nutritionist",
+      "duration_minutes": 30,
+      "duration_hours": 0.5,
+      "base_fee_per_hour": 10000.0,
+      "service_multiplier": 0.9,
+      "service_fee": 4500.0,
+      "platform_fee": 450.0,
+      "platform_fee_percent": 10.0,
+      "total_amount": 4950.0,
+      "currency": "NGN",
+      "surge_pricing_active": false,
+      "surge_multiplier": null,
+      "discount_active": false,
+      "discount_percent": null,
+      "pricing_breakdown": {
+        "base_calculation": 4500.0,
+        "surge_adjustment": 0.0,
+        "discount_savings": 0.0,
+        "service_fee_final": 4500.0,
+        "platform_fee": 450.0,
+        "total": 4950.0
+      },
+      "estimated_caregivers_available": null,
+      "peak_hours_warning": null
+    }
+  },
+  "note": "A 30-minute consult at 0.9 x 10,000.00 an hour: 4,500.00 service fee."
+}

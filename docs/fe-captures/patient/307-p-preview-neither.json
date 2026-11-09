@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, duration_minutes (or duration_hours) is required",
+          "input": {
+            "service_type": "nurse"
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  }
+}

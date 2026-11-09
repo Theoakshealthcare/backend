@@ -7378,7 +7378,7 @@ Which services patients can book, what they are called and how long a visit may 
 base fee times the service's multiplier, both in Pricing (section 13). A service is **bookable** only when it is **enabled** here AND
 **priced** (the newest pricing version has a multiplier for it). The nurse also counts as priced at 1.0 when no multiplier is set
 (that is how it has always been sold); every other service needs an explicit multiplier. Migration `0026` seeds the five services:
-the nurse enabled, the other four disabled, all `mode: "home"`, minutes 60 / 60 / 1440.
+the nurse enabled, the other four disabled, all `mode: "home"`. Migration `0027` then sets every service to a 30-minute step and the nutritionist's shortest booking to 30 minutes (min / step / max: 60 / 30 / 1440, nutritionist 30 / 30 / 1440).
 
 | | Permission |
 |---|---|
@@ -7401,12 +7401,12 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "display_name": "Nurse visit",
     "mode": "home",
     "min_minutes": 60,
-    "step_minutes": 60,
+    "step_minutes": 30,
     "max_minutes": 1440,
     "sort_order": 10,
     "priced": true,
     "bookable": true,
-    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_at": "2026-11-08T21:03:42.005239",
     "updated_by": null
   },
   {
@@ -7415,12 +7415,12 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "display_name": "Doctor visit",
     "mode": "home",
     "min_minutes": 60,
-    "step_minutes": 60,
+    "step_minutes": 30,
     "max_minutes": 1440,
     "sort_order": 20,
     "priced": false,
     "bookable": false,
-    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_at": "2026-11-08T21:03:42.005239",
     "updated_by": null
   },
   {
@@ -7429,12 +7429,12 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "display_name": "Physiotherapy visit",
     "mode": "home",
     "min_minutes": 60,
-    "step_minutes": 60,
+    "step_minutes": 30,
     "max_minutes": 1440,
     "sort_order": 30,
     "priced": false,
     "bookable": false,
-    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_at": "2026-11-08T21:03:42.005239",
     "updated_by": null
   },
   {
@@ -7443,12 +7443,12 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "display_name": "Caregiver visit",
     "mode": "home",
     "min_minutes": 60,
-    "step_minutes": 60,
+    "step_minutes": 30,
     "max_minutes": 1440,
     "sort_order": 40,
     "priced": false,
     "bookable": false,
-    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_at": "2026-11-08T21:03:42.005239",
     "updated_by": null
   },
   {
@@ -7456,13 +7456,13 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "enabled": false,
     "display_name": "Nutrition consult",
     "mode": "home",
-    "min_minutes": 60,
-    "step_minutes": 60,
+    "min_minutes": 30,
+    "step_minutes": 30,
     "max_minutes": 1440,
     "sort_order": 50,
     "priced": false,
     "bookable": false,
-    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_at": "2026-11-08T21:03:42.005239",
     "updated_by": null
   }
 ]
@@ -7479,12 +7479,12 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "display_name": "Nurse visit",
     "mode": "home",
     "min_minutes": 60,
-    "step_minutes": 60,
+    "step_minutes": 30,
     "max_minutes": 1440,
     "sort_order": 10,
     "priced": false,
     "bookable": false,
-    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_at": "2026-11-08T21:03:42.005239",
     "updated_by": null
   },
   {
@@ -7493,12 +7493,12 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
     "display_name": "Doctor visit",
     "mode": "home",
     "min_minutes": 60,
-    "step_minutes": 60,
+    "step_minutes": 30,
     "max_minutes": 1440,
     "sort_order": 20,
     "priced": false,
     "bookable": false,
-    "updated_at": "2026-11-08T19:40:38.919761",
+    "updated_at": "2026-11-08T21:03:42.005239",
     "updated_by": null
   }
 ]
@@ -7510,9 +7510,10 @@ Always the five services, ordered by `sort_order`. `priced` and `bookable` are c
 optional `reason` (kept in the audit log). Send the whole row from the list, changed where needed. Unknown keys are refused. It is
 **idempotent**: the same body twice gives the same answer and writes **one** audit row (retry freely after a timeout).
 
-Validation in this slice (the next slice relaxes the step): `mode` must be `"home"` (`video`/`both` are refused until video exists);
-`step_minutes` must be 60; `min_minutes` and `max_minutes` whole hours within 60 to 1440, min not above max; `display_name` 1 to 60
-characters, not blank; `sort_order` 0 to 1000.
+Validation: `mode` must be `"home"` (`video`/`both` are refused until video exists); `step_minutes` must be 15, 30 or 60;
+`min_minutes` and `max_minutes` must be multiples of the step, from the step up to 1440, min not above max (so the allowed lengths are
+min, min + step, ... max); `display_name` 1 to 60 characters, not blank; `sort_order` 0 to 1000. These are the lengths patients may book:
+see section 13.1.3.
 
 Success (the doctor was priced in Pricing first):
 
@@ -7523,7 +7524,7 @@ Success (the doctor was priced in Pricing first):
   "display_name": "Doctor home visit",
   "mode": "home",
   "min_minutes": 60,
-  "step_minutes": 60,
+  "step_minutes": 30,
   "max_minutes": 1440,
   "sort_order": 20,
   "reason": "Placeholder: launch doctor visits"
@@ -7538,13 +7539,13 @@ Success (the doctor was priced in Pricing first):
   "display_name": "Doctor home visit",
   "mode": "home",
   "min_minutes": 60,
-  "step_minutes": 60,
+  "step_minutes": 30,
   "max_minutes": 1440,
   "sort_order": 20,
   "priced": true,
   "bookable": true,
-  "updated_at": "2026-11-08T19:41:01.751359",
-  "updated_by": "58f95f84-7958-4330-b867-0ac7dbf1ac11"
+  "updated_at": "2026-11-08T21:03:59.122916",
+  "updated_by": "f4c1cd34-d955-4d3f-bcf3-cd15586091e2"
 }
 ```
 
@@ -7553,7 +7554,7 @@ The retry returns the identical body (same `updated_at`):
 <!-- capture: 915-admin-enable-doctor-retry.json response.body keys=updated_at,bookable -->
 ```json
 {
-  "updated_at": "2026-11-08T19:41:01.751359",
+  "updated_at": "2026-11-08T21:03:59.122916",
   "bookable": true
 }
 ```
@@ -7618,7 +7619,7 @@ was removed meanwhile.
 
 A rule across fields has `loc: ["body"]`:
 
-<!-- capture: 906-admin-put-invalid-min-90.json response.body keys=detail -->
+<!-- capture: 906-admin-put-invalid-min-100.json response.body keys=detail -->
 ```json
 {
   "detail": [
@@ -7627,13 +7628,13 @@ A rule across fields has `loc: ["body"]`:
       "loc": [
         "body"
       ],
-      "msg": "Value error, min_minutes must be a whole number of hours between 60 and 1440 minutes",
+      "msg": "Value error, min_minutes must be a multiple of step_minutes (30) between 30 and 1440",
       "input": {
         "enabled": false,
         "display_name": "Doctor visit",
         "mode": "home",
-        "min_minutes": 90,
-        "step_minutes": 60,
+        "min_minutes": 100,
+        "step_minutes": 30,
         "max_minutes": 1440,
         "sort_order": 20
       },
@@ -7645,7 +7646,7 @@ A rule across fields has `loc: ["body"]`:
 }
 ```
 
-Other refusals, all `422` with that shape: `step_minutes` 30 (905), `max_minutes` 1500 (907), a blank `display_name` (908).
+Other refusals, all `422` with that shape: `step_minutes` 45 (905), `max_minutes` 1500 (907), a blank `display_name` (908).
 
 Plain-string errors: unknown service type `404`, no token `401`, a role without `pricing.write` `403` (an Operations admin can read but not write):
 
@@ -7669,6 +7670,29 @@ Plain-string errors: unknown service type `404`, no token `401`, a role without 
   "detail": "Not authenticated"
 }
 ```
+
+### 13.1.3 What the catalogue means for a booking's length (new with migration `0027`)
+
+A booking's length is validated against its service: it must be `min_minutes`, `min_minutes + step_minutes`, ... up to `max_minutes`. Changing
+these here changes what preview and create accept at once (a patient sending anything else gets `422 invalid_duration` listing the allowed
+values; the patient guide section 13 shows it). Bookings already made keep their length. Booking responses now carry `duration_minutes` and
+`duration_hours` (decimal when not whole, for example `1.5`); the admin booking detail shows both (the example is a booking created with the
+older `duration_hours: 2`):
+
+<!-- capture: 920-admin-booking-detail.json response.body keys=id,booking_code,service_type,duration_minutes,duration_hours,scheduled_date,scheduled_end_date -->
+```json
+{
+  "id": "7078c27c-bae6-43bf-8ac6-e1563beb6a40",
+  "booking_code": "J3VU4ID0",
+  "service_type": "nurse",
+  "duration_minutes": 180,
+  "duration_hours": 3,
+  "scheduled_date": "2030-01-01T10:00:00",
+  "scheduled_end_date": "2030-01-01T13:00:00"
+}
+```
+
+Show lengths as hours and minutes ("1 h 30 min"), never `duration_hours` as an integer.
 
 **Traps.** (1) `422` has two shapes: `service_has_no_price` is an object with `code`; field validation is an array. (2) `priced` / `bookable`
 are in the GET and in the PUT answer, never inputs. (3) Changing Pricing can silently un-price an enabled service; reload the catalogue after a
@@ -7819,5 +7843,6 @@ not `display_name`.
 | Booking detail `cancel_terms`: no snapshot (live policy), tier none / standard / late, unpaid refusal, `applied` and the frozen snapshot after a booker cancel, snapshot kept after a policy edit, live policy followed when no snapshot | Verified live | 802 to 808 (policy: 800, 801) |
 | `cancel_terms.would_apply_now` for an in-progress or completed booking (`refusal` `in_progress` / `closed` on a non-cancelled booking), and `applied.late_cancel_compensable` set | Test only | `test_admin_booking_cancel_terms.py`; the live run cancelled a standard-tier booking, so `late_cancel_compensable` is `null` there |
 | `GET /admin/me` for a Super Admin lists `refunds.approve_above_limit` | Test only | captures 010 and 039 were taken before the permission existed; `test_admin_rbac.py` |
-| Service catalogue: list (nurse only priced; before any pricing; doctor priced but disabled), enable with a price, a retried PUT (same body, one audit row), `service_has_no_price` (no multiplier, and no pricing at all), validation `422`s (video mode, step 30, min 90, max 1500, blank name), unknown service `404`, Operations `403` on write and `200` on read, no token `401` | Verified live | 900 to 916 |
+| Service catalogue: list (nurse only priced; before any pricing; doctor priced but disabled), enable with a price, a retried PUT (same body, one audit row), `service_has_no_price` (no multiplier, and no pricing at all), validation `422`s (video mode, step 45, min 100, max 1500, blank name), unknown service `404`, Operations `403` on write and `200` on read, no token `401` | Verified live | 900 to 916 |
+| Booking length: the admin booking detail carries `duration_minutes` and `duration_hours` | Verified live | 920 |
 | Service catalogue: the audit row's `before` / `after` contents, an enabled service whose multiplier is later removed (`priced: false`), a `reason`-less PUT, concurrent PUTs | Test only | `test_service_catalogue.py` |

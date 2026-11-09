@@ -15,6 +15,7 @@
     },
     "body": {
       "service_type": "nurse",
+      "duration_minutes": 120,
       "duration_hours": 2,
       "base_fee_per_hour": 5000.0,
       "service_multiplier": 1.0,
@@ -36,7 +37,7 @@
         "total": 11000.0
       },
       "estimated_caregivers_available": null,
-      "peak_hours_warning": "Peak hours (5-9 PM): Higher demand may affect caregiver availability"
+      "peak_hours_warning": null
     }
   },
   "note": "The nurse still previews with no multiplier configured (unchanged)."

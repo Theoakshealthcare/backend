@@ -17,7 +17,7 @@
           "display_name": "Nurse visit",
           "mode": "home",
           "min_minutes": 60,
-          "step_minutes": 60,
+          "step_minutes": 30,
           "max_minutes": 1440
         },
         {
@@ -25,7 +25,7 @@
           "display_name": "Doctor home visit",
           "mode": "home",
           "min_minutes": 60,
-          "step_minutes": 60,
+          "step_minutes": 30,
           "max_minutes": 1440
         }
       ]

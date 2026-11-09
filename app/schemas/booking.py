@@ -1,10 +1,49 @@
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, List, Literal, Union, Dict
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, validator, Field, field_validator, model_validator
 import uuid
 
 from app.db.models.booking import BookingStatus, PaymentStatus
+
+
+# A length in hours: ``4`` stays an int, ``1.5`` is a float (a JSON number either way).
+Hours = Union[int, float]
+
+_DURATION_DESCRIPTION = (
+    "Length of the visit in minutes (30-minute steps by default; the service's own minimum, step and maximum are in "
+    "GET /booking/services). Send this OR duration_hours.")
+
+
+def resolve_duration(minutes: Optional[int], hours: Optional[float]) -> int:
+    """The booked length in whole minutes from what a client sent: ``duration_minutes``, the older ``duration_hours``
+    (converted: 4 -> 240, 1.5 -> 90), or both when they agree. Whether the length is allowed for the service is the
+    catalogue's call (``422 invalid_duration``), not this function's."""
+    from_hours = None
+    if hours is not None:
+        try:
+            exact = Decimal(str(hours)) * 60
+        except InvalidOperation:
+            raise ValueError("duration_hours must be a number")
+        if exact != exact.to_integral_value():
+            raise ValueError("duration_hours must be a whole number of minutes (for example 1.5 for 90 minutes)")
+        from_hours = int(exact)
+    if minutes is None and from_hours is None:
+        raise ValueError("duration_minutes (or duration_hours) is required")
+    if minutes is not None and from_hours is not None and minutes != from_hours:
+        raise ValueError("duration_minutes and duration_hours disagree; send one of them")
+    return minutes if minutes is not None else from_hours
+
+
+def _refuse_boolean(value):
+    """JSON ``true`` / ``false`` must not be read as 1 / 0 minutes or hours (pydantic's lax mode would accept them)."""
+    if isinstance(value, bool):
+        raise ValueError("must be a number, not true or false")
+    return value
+
+
+def _hours(minutes: int) -> Hours:
+    return minutes // 60 if minutes % 60 == 0 else minutes / 60
 
 
 # Booking Creation
@@ -22,9 +61,10 @@ class BookingCreate(BaseModel):
         description="Medical condition or specific health needs",
         example="Diabetes management"
     )
-    duration_hours: int = Field(
-        description="Duration of service in hours (1-24)",
-        ge=1, le=24,
+    duration_minutes: Optional[int] = Field(None, description=_DURATION_DESCRIPTION, example=90)
+    duration_hours: Optional[Hours] = Field(
+        None, allow_inf_nan=False,
+        description="Older way to send the length, in hours (4 or 1.5). Converted to minutes; both are returned.",
         example=4
     )
     scheduled_date: datetime = Field(
@@ -63,11 +103,13 @@ class BookingCreate(BaseModel):
         example="Myself"
     )
 
-    @validator('duration_hours')
-    def validate_duration(cls, v):
-        if v < 1 or v > 24:
-            raise ValueError('Duration must be between 1 and 24 hours')
-        return v
+    _no_booleans = field_validator("duration_minutes", "duration_hours", mode="before")(_refuse_boolean)
+
+    @model_validator(mode="after")
+    def _resolve_duration(self):
+        self.duration_minutes = resolve_duration(self.duration_minutes, self.duration_hours)
+        self.duration_hours = _hours(self.duration_minutes)
+        return self
 
 
 # Booking Preview (for pricing estimates before booking creation)
@@ -76,9 +118,10 @@ class BookingPreviewRequest(BaseModel):
         description="Type of healthcare service requested",
         example="caregiver"
     )
-    duration_hours: int = Field(
-        description="Duration of service in hours (1-24)",
-        ge=1, le=24,
+    duration_minutes: Optional[int] = Field(None, description=_DURATION_DESCRIPTION, example=90)
+    duration_hours: Optional[Hours] = Field(
+        None, allow_inf_nan=False,
+        description="Older way to send the length, in hours (4 or 1.5). Converted to minutes; both are returned.",
         example=4
     )
     patient_latitude: Optional[float] = Field(
@@ -94,16 +137,19 @@ class BookingPreviewRequest(BaseModel):
         example=3.3792
     )
 
-    @validator('duration_hours')
-    def validate_duration(cls, v):
-        if v < 1 or v > 24:
-            raise ValueError('Duration must be between 1 and 24 hours')
-        return v
+    _no_booleans = field_validator("duration_minutes", "duration_hours", mode="before")(_refuse_boolean)
+
+    @model_validator(mode="after")
+    def _resolve_duration(self):
+        self.duration_minutes = resolve_duration(self.duration_minutes, self.duration_hours)
+        self.duration_hours = _hours(self.duration_minutes)
+        return self
 
 
 class BookingPreviewResponse(BaseModel):
     service_type: str = Field(description="Type of healthcare service", example="caregiver")
-    duration_hours: int = Field(description="Service duration in hours", example=4)
+    duration_minutes: int = Field(description="Service duration in minutes", example=240)
+    duration_hours: Hours = Field(description="Service duration in hours (1.5 for 90 minutes)", example=4)
     base_fee_per_hour: float = Field(description="Base fee per hour", example=5000.0)
     service_multiplier: float = Field(description="Service type multiplier", example=1.0)
     service_fee: float = Field(description="Total service fee before additional charges", example=20000.0)
@@ -241,7 +287,8 @@ class BookingResponse(BaseModel):
     service_type: str
     assistance_type: str
     condition: Optional[str] = None
-    duration_hours: int
+    duration_minutes: int
+    duration_hours: Hours
     scheduled_date: datetime
     scheduled_end_date: datetime
     patient_address: Optional[str] = None
@@ -383,7 +430,8 @@ class CaregiverActionBooking(BaseModel):
     service_type: str
     assistance_type: str
     condition: Optional[str] = None
-    duration_hours: int
+    duration_minutes: int
+    duration_hours: Hours
     scheduled_date: datetime
     scheduled_end_date: datetime
     actual_start_time: Optional[datetime] = None

@@ -6,11 +6,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
 
-MINUTES_PER_HOUR = 60
 MAX_MINUTES = 1440
-# Until bookings are priced and stored in minutes (the next slice) a booking is a whole number of hours, so the
-# catalogue may only describe whole hours. That slice relaxes the step.
-ALLOWED_STEP_MINUTES = (60,)
+# Bookings are priced and stored in minutes. The owner's rule is 30-minute steps; an admin may choose 15 or 60 instead.
+ALLOWED_STEP_MINUTES = (15, 30, 60)
 ALLOWED_MODES = ("home",)  # 'video' and 'both' exist in the table but are refused until a video provider exists
 
 
@@ -81,11 +79,12 @@ class ServiceCatalogWrite(BaseModel):
     @model_validator(mode="after")
     def _durations(self) -> "ServiceCatalogWrite":
         if self.step_minutes not in ALLOWED_STEP_MINUTES:
-            raise ValueError("step_minutes must be 60 until half-hour bookings are supported")
+            raise ValueError(f"step_minutes must be one of {', '.join(map(str, ALLOWED_STEP_MINUTES))}")
         for name in ("min_minutes", "max_minutes"):
             value = getattr(self, name)
-            if value % MINUTES_PER_HOUR or not MINUTES_PER_HOUR <= value <= MAX_MINUTES:
-                raise ValueError(f"{name} must be a whole number of hours between 60 and {MAX_MINUTES} minutes")
+            if not self.step_minutes <= value <= MAX_MINUTES or value % self.step_minutes:
+                raise ValueError(
+                    f"{name} must be a multiple of step_minutes ({self.step_minutes}) between {self.step_minutes} and {MAX_MINUTES}")
         if self.min_minutes > self.max_minutes:
             raise ValueError("min_minutes must not exceed max_minutes")
         return self

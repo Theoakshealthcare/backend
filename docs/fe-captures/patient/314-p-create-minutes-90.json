@@ -1,0 +1,73 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/create",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "scheduled_date": "2030-01-01T10:00:00",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "booking_for": "myself",
+      "duration_minutes": 90
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "cefce841-1122-48a8-aa98-29308ea16eb1",
+      "booking_code": "KHP804U0",
+      "channel": "app",
+      "patient_id": "e92ffad1-6e1f-4b3c-853a-227a3c255868",
+      "patient_details": {
+        "patient_id": "e92ffad1-6e1f-4b3c-853a-227a3c255868",
+        "full_name": "Placeholder Patient",
+        "phone_number": "+2340000044001",
+        "profile_image_url": null,
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null
+      },
+      "caregiver_id": null,
+      "caregiver_details": null,
+      "service_type": "nurse",
+      "assistance_type": "Placeholder assistance",
+      "condition": null,
+      "duration_minutes": 90,
+      "duration_hours": 1.5,
+      "scheduled_date": "2030-01-01T10:00:00",
+      "scheduled_end_date": "2030-01-01T11:30:00",
+      "patient_address": "12 Placeholder Street, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "status": "pending",
+      "payment_status": "pending",
+      "total_amount": 16500.0,
+      "service_fee": 15000.0,
+      "platform_fee": 1500.0,
+      "special_instructions": null,
+      "booking_for": "myself",
+      "created_at": "2026-11-08T21:04:21.241280",
+      "updated_at": "2026-11-08T21:04:21.258019",
+      "dispatch_state": null,
+      "arrived_at": null,
+      "caregiver_earning": null,
+      "visit_code": null,
+      "cancel_fee_tier": null,
+      "cancel_fee": null,
+      "refund": null,
+      "payment_url": "https://checkout.paystack.com/ac_43f548b94e67",
+      "payment_access_code": "ac_43f548b94e67",
+      "payment_error": null
+    }
+  },
+  "note": "Create in minutes."
+}

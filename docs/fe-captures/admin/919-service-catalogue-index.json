@@ -1,7 +1,7 @@
 {
   "generated_by": "scripts/capture_service_catalogue.py",
-  "run_tag": "98f87e",
-  "captured_at": "2026-11-08T19:41:01.797527Z",
+  "run_tag": "5111b6",
+  "captured_at": "2026-11-08T21:03:59.151768Z",
   "folder": "admin",
   "captures": [
     {
@@ -30,13 +30,13 @@
       "status": 422
     },
     {
-      "file": "905-admin-put-invalid-step-30.json",
-      "label": "admin-put-invalid-step-30",
+      "file": "905-admin-put-invalid-step-45.json",
+      "label": "admin-put-invalid-step-45",
       "status": 422
     },
     {
-      "file": "906-admin-put-invalid-min-90.json",
-      "label": "admin-put-invalid-min-90",
+      "file": "906-admin-put-invalid-min-100.json",
+      "label": "admin-put-invalid-min-100",
       "status": 422
     },
     {

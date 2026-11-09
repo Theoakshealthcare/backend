@@ -30,7 +30,7 @@ def make_prices(db, **kw):
 
 
 def _put_body(**overrides):
-    body = dict(enabled=True, display_name="Doctor visit", mode="home", min_minutes=60, step_minutes=60,
+    body = dict(enabled=True, display_name="Doctor visit", mode="home", min_minutes=60, step_minutes=30,
                 max_minutes=1440, sort_order=20)
     body.update(overrides)
     return body
@@ -54,7 +54,9 @@ def test_seed_is_five_services_nurse_only_enabled_with_no_prices(db):
     assert {t: r.display_name for t, r in rows.items()} == {
         "nurse": "Nurse visit", "doctor": "Doctor visit", "physiotherapist": "Physiotherapy visit",
         "caregiver": "Caregiver visit", "nutritionist": "Nutrition consult"}
-    assert all((r.mode, r.min_minutes, r.step_minutes, r.max_minutes) == ("home", 60, 60, 1440) for r in rows.values())
+    # migration 0027: 30-minute steps everywhere, and the nutritionist's shortest booking is 30 minutes
+    assert {t: (r.mode, r.min_minutes, r.step_minutes, r.max_minutes) for t, r in rows.items()} == {
+        t: ("home", 30 if t == "nutritionist" else 60, 30, 1440) for t in rows}
     assert not any("price" in c.name or "multiplier" in c.name or "fee" in c.name for c in ServiceCatalog.__table__.columns)
 
 
@@ -114,7 +116,7 @@ def test_services_list_is_nurse_only_with_no_multipliers_and_has_no_prices(db, c
     r = client.get(f"{API}/booking/services", headers=auth_headers(patient.user))
     assert r.status_code == 200
     assert r.json() == {"services": [{"service_type": "nurse", "display_name": "Nurse visit", "mode": "home",
-                                      "min_minutes": 60, "step_minutes": 60, "max_minutes": 1440}]}
+                                      "min_minutes": 60, "step_minutes": 30, "max_minutes": 1440}]}
     assert "fee" not in r.text and "multiplier" not in r.text and "price" not in r.text
 
 
@@ -247,8 +249,9 @@ def test_disabling_needs_no_price_and_an_enabled_service_may_be_edited_after_its
 
 @pytest.mark.parametrize("override", [
     {"mode": "video"}, {"mode": "both"}, {"mode": "teleport"},
-    {"step_minutes": 30}, {"step_minutes": 120},
-    {"min_minutes": 30}, {"min_minutes": 90}, {"max_minutes": 1500}, {"max_minutes": 90},
+    {"step_minutes": 45}, {"step_minutes": 120}, {"step_minutes": 0},
+    {"min_minutes": 20}, {"min_minutes": 45}, {"min_minutes": 100}, {"max_minutes": 1500}, {"max_minutes": 100},
+    {"min_minutes": 0},
     {"min_minutes": 180, "max_minutes": 120},
     {"display_name": "  "}, {"display_name": "x" * 61}, {"sort_order": -1},
     {"enabled": "yes"}, {"min_minutes": 60.5}, {"unknown": 1},
@@ -259,6 +262,17 @@ def test_admin_put_validation(db, client, override):
     r = client.put(f"{API}/admin/service-catalog/doctor", json=_put_body(**override), headers=auth_headers(admin))
     assert r.status_code == 422
     assert db.query(AdminAuditLog).count() == 0
+
+
+@pytest.mark.parametrize("override", [
+    {"step_minutes": 60}, {"step_minutes": 30, "min_minutes": 30}, {"min_minutes": 90}, {"step_minutes": 15, "min_minutes": 45, "max_minutes": 600},
+    {"min_minutes": 120, "max_minutes": 120},
+])
+def test_admin_put_accepts_half_hour_and_other_valid_lengths(db, client, override):
+    make_prices(db, multipliers={"nurse": 1.0, "doctor": 2.0})
+    admin = make_admin(db, roles=("super_admin",))
+    r = client.put(f"{API}/admin/service-catalog/doctor", json=_put_body(**override), headers=auth_headers(admin))
+    assert r.status_code == 200, r.text
 
 
 def test_admin_put_unknown_service_is_404(db, client):

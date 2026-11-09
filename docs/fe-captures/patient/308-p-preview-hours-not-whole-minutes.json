@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_hours": 1.001
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, duration_hours must be a whole number of minutes (for example 1.5 for 90 minutes)",
+          "input": {
+            "service_type": "nurse",
+            "duration_hours": 1.001
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  }
+}

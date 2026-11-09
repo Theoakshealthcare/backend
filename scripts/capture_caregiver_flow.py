@@ -396,11 +396,11 @@ def seed_booking(ctx: Ctx, patient_email: str, hours_ahead: float = 0.25) -> Dic
     ref = f"BKG_{code}_{uuid.uuid4().hex[:8]}"
     start = datetime.utcnow() + timedelta(hours=hours_ahead)
     ctx.db.run(
-        "INSERT INTO bookings (id, booking_code, patient_id, service_type, assistance_type, condition, duration_hours,"
+        "INSERT INTO bookings (id, booking_code, patient_id, service_type, assistance_type, condition, duration_minutes,"
         " scheduled_date, scheduled_end_date, patient_address, patient_latitude, patient_longitude, patient_city,"
         " patient_state, status, payment_status, total_amount_kobo, service_fee_kobo, platform_fee_kobo,"
         " paystack_reference, booking_for, special_instructions, payment_expires_at, created_at, updated_at)"
-        " VALUES (%s,%s,%s,'nurse','Placeholder assistance','Placeholder condition',2,%s,%s,"
+        " VALUES (%s,%s,%s,'nurse','Placeholder assistance','Placeholder condition',120,%s,%s,"
         " '12 Placeholder Street, Lekki',%s,%s,'Lagos','Lagos','PENDING','PENDING',5500000,5000000,500000,%s,"
         " 'myself','Placeholder instructions',%s,now(),now())",
         (str(bid), code, str(patient_id), start, start + timedelta(hours=2), LAT, LON, ref,

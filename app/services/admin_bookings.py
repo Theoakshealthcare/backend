@@ -454,7 +454,7 @@ class AdminBookingService:
         timeline = self._timeline(b, waves, notices, events, audit_rows)
         return BookingDetail(
             id=b.id, booking_code=b.booking_code, service_type=b.service_type, assistance_type=b.assistance_type,
-            booking_for=b.booking_for, duration_hours=b.duration_hours, scheduled_date=b.scheduled_date,
+            booking_for=b.booking_for, duration_minutes=b.duration_minutes, duration_hours=b.duration_hours, scheduled_date=b.scheduled_date,
             scheduled_end_date=b.scheduled_end_date, actual_start_time=b.actual_start_time,
             actual_end_time=b.actual_end_time, status=b.status.value, channel=b.channel,
             cancel_reason=b.cancel_reason, created_at=b.created_at, updated_at=b.updated_at,

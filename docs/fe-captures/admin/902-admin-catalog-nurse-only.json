@@ -17,12 +17,12 @@
         "display_name": "Nurse visit",
         "mode": "home",
         "min_minutes": 60,
-        "step_minutes": 60,
+        "step_minutes": 30,
         "max_minutes": 1440,
         "sort_order": 10,
         "priced": true,
         "bookable": true,
-        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_at": "2026-11-08T21:03:42.005239",
         "updated_by": null
       },
       {
@@ -31,12 +31,12 @@
         "display_name": "Doctor visit",
         "mode": "home",
         "min_minutes": 60,
-        "step_minutes": 60,
+        "step_minutes": 30,
         "max_minutes": 1440,
         "sort_order": 20,
         "priced": false,
         "bookable": false,
-        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_at": "2026-11-08T21:03:42.005239",
         "updated_by": null
       },
       {
@@ -45,12 +45,12 @@
         "display_name": "Physiotherapy visit",
         "mode": "home",
         "min_minutes": 60,
-        "step_minutes": 60,
+        "step_minutes": 30,
         "max_minutes": 1440,
         "sort_order": 30,
         "priced": false,
         "bookable": false,
-        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_at": "2026-11-08T21:03:42.005239",
         "updated_by": null
       },
       {
@@ -59,12 +59,12 @@
         "display_name": "Caregiver visit",
         "mode": "home",
         "min_minutes": 60,
-        "step_minutes": 60,
+        "step_minutes": 30,
         "max_minutes": 1440,
         "sort_order": 40,
         "priced": false,
         "bookable": false,
-        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_at": "2026-11-08T21:03:42.005239",
         "updated_by": null
       },
       {
@@ -72,13 +72,13 @@
         "enabled": false,
         "display_name": "Nutrition consult",
         "mode": "home",
-        "min_minutes": 60,
-        "step_minutes": 60,
+        "min_minutes": 30,
+        "step_minutes": 30,
         "max_minutes": 1440,
         "sort_order": 50,
         "priced": false,
         "bookable": false,
-        "updated_at": "2026-11-08T19:40:38.919761",
+        "updated_at": "2026-11-08T21:03:42.005239",
         "updated_by": null
       }
     ]

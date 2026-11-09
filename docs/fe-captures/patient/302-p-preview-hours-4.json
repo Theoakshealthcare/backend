@@ -1,0 +1,44 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_hours": 4
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "service_type": "nurse",
+      "duration_minutes": 240,
+      "duration_hours": 4,
+      "base_fee_per_hour": 10000.0,
+      "service_multiplier": 1.0,
+      "service_fee": 40000.0,
+      "platform_fee": 4000.0,
+      "platform_fee_percent": 10.0,
+      "total_amount": 44000.0,
+      "currency": "NGN",
+      "surge_pricing_active": false,
+      "surge_multiplier": null,
+      "discount_active": false,
+      "discount_percent": null,
+      "pricing_breakdown": {
+        "base_calculation": 40000.0,
+        "surge_adjustment": 0.0,
+        "discount_savings": 0.0,
+        "service_fee_final": 40000.0,
+        "platform_fee": 4000.0,
+        "total": 44000.0
+      },
+      "estimated_caregivers_available": null,
+      "peak_hours_warning": null
+    }
+  },
+  "note": "The older field still works: both fields come back, `duration_hours` is the integer 4."
+}

@@ -58,6 +58,10 @@ def _service_unavailable() -> HTTPException:
     )
 
 
+def _invalid_duration(exc: service_catalog.InvalidDuration) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.detail())
+
+
 def get_booking_service(db: Session = Depends(get_db)) -> BookingService:
     return BookingService(db)
 
@@ -119,6 +123,7 @@ def enrich_booking_with_details(
                    "paystack_authorization_url", "paystack_access_code", "cancel_note"):
         booking_dict.pop(secret, None)
     booking_dict["visit_code"] = None
+    booking_dict["duration_hours"] = booking.duration_hours  # derived from duration_minutes (not a column any more)
     booking_dict["caregiver_earning"] = None  # only the assigned caregiver's own views add it (attach_caregiver_earning)
     # What the booker paid to cancel and the refund's state belong to the booker only: the patient views add them back
     # (patient_booking_cancel.attach_cancel_info); caregivers and admins never get them from here.
@@ -277,6 +282,8 @@ def get_booking_preview(
         raise _settings_not_configured()
     except service_catalog.ServiceUnavailable:
         raise _service_unavailable()
+    except service_catalog.InvalidDuration as exc:
+        raise _invalid_duration(exc)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -310,7 +317,8 @@ def get_booking_preview(
                 }
             }
         },
-        422: {"description": "detail.code service_unavailable: the service is not on offer (disabled or unpriced)"},
+        422: {"description": "detail.code service_unavailable (the service is not on offer: disabled or unpriced) or "
+                             "invalid_duration (the length is not one the service allows; the detail lists the allowed values)"},
         503: {"description": "No pricing version exists yet. detail.code is booking_settings_not_configured"},
     },
     tags=["Patient Bookings"]
@@ -326,7 +334,7 @@ async def create_booking(
     **Required Fields:**
     - **service_type**: Type of healthcare service (nurse, doctor, physiotherapist, caregiver, nutritionist)
     - **assistance_type**: Specific type of assistance needed
-    - **duration_hours**: Duration of service (1-24 hours)
+    - **duration_minutes** (or the older **duration_hours**): length of the service; each service's own minimum, step and maximum are in `GET /booking/services` (invalid lengths are `422 invalid_duration`)
     - **scheduled_date**: When the service should be provided (ISO 8601 format)
     - **patient_address**: Full address where service will be provided
     - **patient_latitude**: Latitude coordinate of service location
@@ -385,6 +393,8 @@ async def create_booking(
         raise _settings_not_configured()
     except service_catalog.ServiceUnavailable:
         raise _service_unavailable()
+    except service_catalog.InvalidDuration as exc:
+        raise _invalid_duration(exc)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

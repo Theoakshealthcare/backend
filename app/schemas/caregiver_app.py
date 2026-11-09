@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,7 +24,8 @@ class HomeVisit(BaseModel):
     dispatch_state: Optional[str] = None
     scheduled_date: datetime
     scheduled_end_date: datetime
-    duration_hours: int
+    duration_minutes: int
+    duration_hours: Union[int, float]
     patient_name: Optional[str] = None
     patient_address: Optional[str] = None
     patient_city: str
@@ -37,7 +38,8 @@ class HomeOffer(BaseModel):
     service_type: str
     scheduled_date: datetime
     scheduled_end_date: datetime
-    duration_hours: int
+    duration_minutes: int
+    duration_hours: Union[int, float]
     area: str
     state: str
     offered_at: datetime

@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/preview",
+    "auth": null,
+    "body": {
+      "service_type": "nurse",
+      "duration_minutes": 60,
+      "duration_hours": 2
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body"
+          ],
+          "msg": "Value error, duration_minutes and duration_hours disagree; send one of them",
+          "input": {
+            "service_type": "nurse",
+            "duration_minutes": 60,
+            "duration_hours": 2
+          },
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  },
+  "note": "A malformed request keeps FastAPI's list shape (`detail` is an array)."
+}

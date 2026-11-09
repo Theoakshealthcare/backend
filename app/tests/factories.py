@@ -209,6 +209,8 @@ def make_booking(
     if visit_code is not None:
         fields["visit_code_enc"] = encrypt(visit_code)
     fields.update(overrides)
+    if "duration_minutes" in overrides and "duration_hours" not in overrides:
+        fields.pop("duration_hours")  # a test that names minutes does not also get the default 4 hours
     booking = Booking(**fields)
     db.add(booking)
     db.commit()

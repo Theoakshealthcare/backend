@@ -45,6 +45,7 @@ class Booking(Base):
             "dispatch_state IN ('dispatching','matched','unmatched')", name="ck_bookings_dispatch_state"
         ),
         CheckConstraint("channel IN ('app','whatsapp','admin')", name="ck_bookings_channel"),
+        CheckConstraint("duration_minutes > 0", name="ck_bookings_duration_positive"),
         CheckConstraint("cancel_fee_tier IN ('none','standard','late')", name="ck_bookings_cancel_fee_tier"),
         CheckConstraint(
             "dropout_state IN ('redispatching','awaiting_choice','waiting','handed_over','closed')",
@@ -64,7 +65,7 @@ class Booking(Base):
     service_type = Column(String, nullable=False)  # 'nurse', 'doctor', 'physiotherapist', 'caregiver'
     assistance_type = Column(String, nullable=False)
     condition = Column(String, nullable=True)
-    duration_hours = Column(Integer, nullable=False)
+    duration_minutes = Column(Integer, nullable=False)  # the booked length; ``duration_hours`` is derived from it
     
     # Scheduling
     scheduled_date = Column(DateTime, nullable=False)
@@ -173,6 +174,19 @@ class Booking(Base):
     notifications = relationship("BookingNotification", back_populates="booking")
     messages = relationship("ChatMessage", back_populates="booking")
     notes = relationship("BookingNote", back_populates="booking")
+
+    @property
+    def duration_hours(self):
+        """The booked length in hours, derived from ``duration_minutes``: an ``int`` when it is a whole number of hours
+        (4, as the apps always saw), else a ``float`` (1.5). Writable for old callers: ``duration_hours = 2`` sets 120 minutes."""
+        minutes = self.duration_minutes
+        if minutes is None:
+            return None
+        return minutes // 60 if minutes % 60 == 0 else minutes / 60
+
+    @duration_hours.setter
+    def duration_hours(self, hours):
+        self.duration_minutes = None if hours is None else int(round(float(hours) * 60))
 
     @property
     def total_amount(self):

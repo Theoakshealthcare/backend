@@ -1213,15 +1213,16 @@ order. **No prices**: get those from `/booking/preview` after the person picks a
       "display_name": "Nurse visit",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 60,
+      "step_minutes": 30,
       "max_minutes": 1440
     }
   ]
 }
 ```
 
-`min_minutes`, `step_minutes` and `max_minutes` say how long a visit may be. **In this release they are always whole hours (60 / 60 /
-1440)** and bookings are still in `duration_hours`; a later release moves bookings to minutes. `mode` is always `"home"`.
+`min_minutes`, `step_minutes` and `max_minutes` say how long a visit may be (section 13): the allowed lengths are `min_minutes`,
+`min_minutes + step_minutes`, ... up to `max_minutes`. Today every service steps by 30 minutes; the nutritionist starts at 30, the others at
+60. Read them per service, never hard-code them. `mode` is always `"home"`.
 
 An empty list is possible (a new environment before pricing exists): show "No services are available right now", not an error.
 
@@ -1243,7 +1244,7 @@ When the doctor is priced and enabled it appears after the nurse (the order is t
       "display_name": "Nurse visit",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 60,
+      "step_minutes": 30,
       "max_minutes": 1440
     },
     {
@@ -1251,7 +1252,7 @@ When the doctor is priced and enabled it appears after the nurse (the order is t
       "display_name": "Doctor home visit",
       "mode": "home",
       "min_minutes": 60,
-      "step_minutes": 60,
+      "step_minutes": 30,
       "max_minutes": 1440
     }
   ]
@@ -1317,3 +1318,551 @@ An enabled and priced service previews at its own multiplier (the doctor's is 2.
 **What the app must do.** (1) Fetch `/booking/services` when the booking flow opens; never show a fixed list. (2) Show `display_name`, not the
 `service_type` string. (3) Handle `422 service_unavailable` on the price check and on confirm. (4) The pricing multiplier for a service can
 disappear while the person is on the confirm screen; the same `422` covers it.
+
+## 13. Booking length in minutes (phase 2, migration `0027`)
+
+**New 2026-11-08.** Bookings are stored and priced in minutes, so a visit can be 30 or 90 minutes. **The apps that already ship keep working**
+(they send `duration_hours`); to offer half-hour choices an app must read the lengths from `GET /booking/services` and send `duration_minutes`.
+
+### 13.1 What to send
+
+`POST /booking/preview` and `POST /booking/create` take **`duration_minutes`** (integer) **or** the older **`duration_hours`** (a number: `4` or
+`1.5`), or both when they agree. Neither, both but different, or an hours value that is not a whole number of minutes is `422` with FastAPI's
+list shape (`detail` is an array; `loc` is `["body"]`):
+
+<!-- capture: 306-p-preview-both-disagree.json response.body -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, duration_minutes and duration_hours disagree; send one of them",
+      "input": {
+        "service_type": "nurse",
+        "duration_minutes": 60,
+        "duration_hours": 2
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 307-p-preview-neither.json response.body keys=detail -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, duration_minutes (or duration_hours) is required",
+      "input": {
+        "service_type": "nurse"
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 308-p-preview-hours-not-whole-minutes.json response.body keys=detail -->
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": [
+        "body"
+      ],
+      "msg": "Value error, duration_hours must be a whole number of minutes (for example 1.5 for 90 minutes)",
+      "input": {
+        "service_type": "nurse",
+        "duration_hours": 1.001
+      },
+      "ctx": {
+        "error": {}
+      }
+    }
+  ]
+}
+```
+
+### 13.2 What comes back: both fields
+
+Every booking response (preview, create, detail, list, the caregiver's views, the admin detail) now carries **`duration_minutes`** (integer) and
+**`duration_hours`**. **`duration_hours` is an integer for whole hours and a decimal otherwise**: type it as a number, never an integer, and
+prefer showing "1 h 30 min" built from `duration_minutes`.
+
+<!-- capture: 301-p-preview-minutes-90.json response.body keys=service_type,duration_minutes,duration_hours,service_multiplier,service_fee,platform_fee,total_amount -->
+```json
+{
+  "service_type": "nurse",
+  "duration_minutes": 90,
+  "duration_hours": 1.5,
+  "service_multiplier": 1.0,
+  "service_fee": 15000.0,
+  "platform_fee": 1500.0,
+  "total_amount": 16500.0
+}
+```
+
+The older field still works and comes back as an integer (4):
+
+<!-- capture: 302-p-preview-hours-4.json response.body keys=service_type,duration_minutes,duration_hours,service_fee,platform_fee,total_amount -->
+```json
+{
+  "service_type": "nurse",
+  "duration_minutes": 240,
+  "duration_hours": 4,
+  "service_fee": 40000.0,
+  "platform_fee": 4000.0,
+  "total_amount": 44000.0
+}
+```
+
+Fractional hours are accepted (1.5 is 90 minutes):
+
+<!-- capture: 303-p-preview-hours-1-5.json response.body keys=service_type,duration_minutes,duration_hours,total_amount -->
+```json
+{
+  "service_type": "nurse",
+  "duration_minutes": 90,
+  "duration_hours": 1.5,
+  "total_amount": 16500.0
+}
+```
+
+A 30-minute consult (the nutritionist's shortest booking):
+
+<!-- capture: 305-p-preview-nutrition-30.json response.body keys=service_type,duration_minutes,duration_hours,service_multiplier,service_fee,platform_fee,total_amount -->
+```json
+{
+  "service_type": "nutritionist",
+  "duration_minutes": 30,
+  "duration_hours": 0.5,
+  "service_multiplier": 0.9,
+  "service_fee": 4500.0,
+  "platform_fee": 450.0,
+  "total_amount": 4950.0
+}
+```
+
+**Price.** `service fee = base fee per hour x the service multiplier x minutes / 60`, then surge, discount and platform fee as before. Each amount is
+rounded to a whole kobo, half-up, once, from the exact value; the service fee is at least 1 kobo unless the visit is free (100 % discount). Whole
+hours cost exactly what they always did. Show the amounts from the response; never recompute them in the app.
+
+### 13.3 `422 invalid_duration`
+
+A length the service does not allow (not on the step from the minimum, below the minimum, above the maximum, zero or negative) is `422` with an
+**object** `detail`; it also replaces the older `Duration must be between 1 and 24 hours` list error. `allowed_minutes` lists every valid length:
+
+<!-- capture: 309-p-preview-invalid-45.json response.body -->
+```json
+{
+  "detail": {
+    "code": "invalid_duration",
+    "message": "Choose a length between 60 and 1440 minutes, in steps of 30 minutes.",
+    "min_minutes": 60,
+    "step_minutes": 30,
+    "max_minutes": 1440,
+    "allowed_minutes": [
+      60,
+      90,
+      120,
+      150,
+      180,
+      210,
+      240,
+      270,
+      300,
+      330,
+      360,
+      390,
+      420,
+      450,
+      480,
+      510,
+      540,
+      570,
+      600,
+      630,
+      660,
+      690,
+      720,
+      750,
+      780,
+      810,
+      840,
+      870,
+      900,
+      930,
+      960,
+      990,
+      1020,
+      1050,
+      1080,
+      1110,
+      1140,
+      1170,
+      1200,
+      1230,
+      1260,
+      1290,
+      1320,
+      1350,
+      1380,
+      1410,
+      1440
+    ]
+  }
+}
+```
+
+The nurse's minimum is 60 (the nutritionist's is 30):
+
+<!-- capture: 310-p-preview-invalid-30-nurse.json response.body keys=detail -->
+```json
+{
+  "detail": {
+    "code": "invalid_duration",
+    "message": "Choose a length between 60 and 1440 minutes, in steps of 30 minutes.",
+    "min_minutes": 60,
+    "step_minutes": 30,
+    "max_minutes": 1440,
+    "allowed_minutes": [
+      60,
+      90,
+      120,
+      150,
+      180,
+      210,
+      240,
+      270,
+      300,
+      330,
+      360,
+      390,
+      420,
+      450,
+      480,
+      510,
+      540,
+      570,
+      600,
+      630,
+      660,
+      690,
+      720,
+      750,
+      780,
+      810,
+      840,
+      870,
+      900,
+      930,
+      960,
+      990,
+      1020,
+      1050,
+      1080,
+      1110,
+      1140,
+      1170,
+      1200,
+      1230,
+      1260,
+      1290,
+      1320,
+      1350,
+      1380,
+      1410,
+      1440
+    ]
+  }
+}
+```
+
+<!-- capture: 311-p-preview-invalid-0.json response.body keys=detail -->
+```json
+{
+  "detail": {
+    "code": "invalid_duration",
+    "message": "Choose a length between 60 and 1440 minutes, in steps of 30 minutes.",
+    "min_minutes": 60,
+    "step_minutes": 30,
+    "max_minutes": 1440,
+    "allowed_minutes": [
+      60,
+      90,
+      120,
+      150,
+      180,
+      210,
+      240,
+      270,
+      300,
+      330,
+      360,
+      390,
+      420,
+      450,
+      480,
+      510,
+      540,
+      570,
+      600,
+      630,
+      660,
+      690,
+      720,
+      750,
+      780,
+      810,
+      840,
+      870,
+      900,
+      930,
+      960,
+      990,
+      1020,
+      1050,
+      1080,
+      1110,
+      1140,
+      1170,
+      1200,
+      1230,
+      1260,
+      1290,
+      1320,
+      1350,
+      1380,
+      1410,
+      1440
+    ]
+  }
+}
+```
+
+The same rule applies to the older field (25 hours is 1500 minutes):
+
+<!-- capture: 313-p-preview-invalid-hours-25.json response.body keys=detail -->
+```json
+{
+  "detail": {
+    "code": "invalid_duration",
+    "message": "Choose a length between 60 and 1440 minutes, in steps of 30 minutes.",
+    "min_minutes": 60,
+    "step_minutes": 30,
+    "max_minutes": 1440,
+    "allowed_minutes": [
+      60,
+      90,
+      120,
+      150,
+      180,
+      210,
+      240,
+      270,
+      300,
+      330,
+      360,
+      390,
+      420,
+      450,
+      480,
+      510,
+      540,
+      570,
+      600,
+      630,
+      660,
+      690,
+      720,
+      750,
+      780,
+      810,
+      840,
+      870,
+      900,
+      930,
+      960,
+      990,
+      1020,
+      1050,
+      1080,
+      1110,
+      1140,
+      1170,
+      1200,
+      1230,
+      1260,
+      1290,
+      1320,
+      1350,
+      1380,
+      1410,
+      1440
+    ]
+  }
+}
+```
+
+`/booking/create` answers the same `422` and creates nothing (no booking, no Paystack call):
+
+<!-- capture: 315-p-create-invalid-45.json response.body keys=detail -->
+```json
+{
+  "detail": {
+    "code": "invalid_duration",
+    "message": "Choose a length between 60 and 1440 minutes, in steps of 30 minutes.",
+    "min_minutes": 60,
+    "step_minutes": 30,
+    "max_minutes": 1440,
+    "allowed_minutes": [
+      60,
+      90,
+      120,
+      150,
+      180,
+      210,
+      240,
+      270,
+      300,
+      330,
+      360,
+      390,
+      420,
+      450,
+      480,
+      510,
+      540,
+      570,
+      600,
+      630,
+      660,
+      690,
+      720,
+      750,
+      780,
+      810,
+      840,
+      870,
+      900,
+      930,
+      960,
+      990,
+      1020,
+      1050,
+      1080,
+      1110,
+      1140,
+      1170,
+      1200,
+      1230,
+      1260,
+      1290,
+      1320,
+      1350,
+      1380,
+      1410,
+      1440
+    ]
+  }
+}
+```
+
+A service that is not on offer is refused first (`service_unavailable`, section 12), then the length.
+
+### 13.4 Create, and the booking views
+
+<!-- capture: 314-p-create-minutes-90.json response.body keys=id,booking_code,service_type,duration_minutes,duration_hours,scheduled_date,scheduled_end_date,total_amount,service_fee,platform_fee,status,payment_status -->
+```json
+{
+  "id": "cefce841-1122-48a8-aa98-29308ea16eb1",
+  "booking_code": "KHP804U0",
+  "service_type": "nurse",
+  "duration_minutes": 90,
+  "duration_hours": 1.5,
+  "scheduled_date": "2030-01-01T10:00:00",
+  "scheduled_end_date": "2030-01-01T11:30:00",
+  "total_amount": 16500.0,
+  "service_fee": 15000.0,
+  "platform_fee": 1500.0,
+  "status": "pending",
+  "payment_status": "pending"
+}
+```
+
+`scheduled_end_date` is the start plus the booked minutes. Creating with the older field (`duration_hours: 3`) stores 180 minutes:
+
+<!-- capture: 316-p-create-hours-3.json response.body keys=duration_minutes,duration_hours,scheduled_date,scheduled_end_date,total_amount -->
+```json
+{
+  "duration_minutes": 180,
+  "duration_hours": 3,
+  "scheduled_date": "2030-01-01T10:00:00",
+  "scheduled_end_date": "2030-01-01T13:00:00",
+  "total_amount": 33000.0
+}
+```
+
+The detail and the list carry both fields too:
+
+<!-- capture: 317-p-booking-detail.json response.body keys=id,duration_minutes,duration_hours,scheduled_end_date,total_amount -->
+```json
+{
+  "id": "cefce841-1122-48a8-aa98-29308ea16eb1",
+  "duration_minutes": 90,
+  "duration_hours": 1.5,
+  "scheduled_end_date": "2030-01-01T11:30:00",
+  "total_amount": 16500.0
+}
+```
+
+<!-- capture: 318-p-booking-list.json response.body path=0 keys=id,duration_minutes,duration_hours,scheduled_end_date,total_amount -->
+```json
+{
+  "id": "7078c27c-bae6-43bf-8ac6-e1563beb6a40",
+  "duration_minutes": 180,
+  "duration_hours": 3,
+  "scheduled_end_date": "2030-01-01T13:00:00",
+  "total_amount": 33000.0
+}
+```
+
+<!-- capture: 319-db-minutes-90.json observed -->
+```json
+{
+  "observed": {
+    "duration_minutes": 90,
+    "scheduled_end_minus_start": "1:30:00",
+    "total_amount_kobo": 1650000
+  },
+  "sql": "SELECT duration_minutes, scheduled_end_date - scheduled_date, total_amount_kobo FROM bookings"
+}
+```
+
+### 13.5 What the app must do
+
+1. Offer lengths from `GET /booking/services` (`min`, `step`, `max`), per service. Send `duration_minutes`.
+2. Handle `422` with `detail.code == "invalid_duration"` (an object), next to the list-shaped `422`s above.
+3. Type `duration_hours` as a number and label with hours and minutes. A caregiver's visit list and an offer also carry both fields.
+4. Short visit: a visit with less than half of the booked **minutes** on site is held for Finance (was: whole booked hours); nothing for the app to do.
+
+| Behaviour | Verified live? | Evidence |
+|---|---|---|
+| Preview with minutes, hours, 1.5, both agreeing, a 30-minute consult; malformed combinations | **Yes** | 300 to 308 |
+| `invalid_duration` (45, below minimum, zero, above maximum, 25 hours) on preview and on create | **Yes** | 309 to 313, 315 |
+| Create in minutes and in hours; detail and list carry both; stored minutes and end time | **Yes** (fake Paystack) | 314, 316 to 319 |
+| The caregiver's home and booking list carry both fields; the short-visit rule in minutes; the rounding rule and its properties | Test only | `test_booking_minutes.py`, `test_caregiver_home.py` |
+| WhatsApp: still whole hours, the Flow's choices follow the catalogue | Test only | `test_booking_minutes.py`, `test_whatsapp_flow_endpoint.py` |
