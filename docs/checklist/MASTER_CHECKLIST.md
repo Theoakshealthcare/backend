@@ -480,7 +480,7 @@ Runbook [`docs/deploy/staging.md`](../deploy/staging.md), [SOP](../sop/2026-11-0
 - [ ] Turn `VOICE_NOTES_ENABLED` on (after push works; real Gemini smoke)
 - [ ] Switch on the deploy workflow (Environment `staging`, secrets, `STAGING_DEPLOY_ENABLED`)
 
-## 17. Phase 2: service catalogue and half-hour bookings — 🟡 both backend slices built (not pushed) (prices and surge UNKNOWN: all configurable, nothing invented)
+## 17. Phase 2: service catalogue and half-hour bookings — 🟡 both backend slices merged (#55 `fb1f16b`, #56 `a4d6b79`, 2026-11-08/09); apps and console not built (prices and surge UNKNOWN: all configurable, nothing invented)
 Owner decisions 2026-11-08: a service with no price stays hidden; every service is a home visit (video deferred); durations move to half-hour steps with a shortest booking per service. [SOP slice 1](../sop/2026-11-08-service-catalogue.md).
 - [x] Slice 1 (`feature/service-catalogue`, migration `0026`): `service_catalog` table seeded without prices (nurse on, other four off)
 - [x] Bookable rule: enabled AND priced (multiplier in `booking_settings`; nurse priced at 1.0 when none set)
@@ -494,6 +494,17 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] Admin console screens for the catalogue, pricing and surge (separate slice)
 - [ ] Patient and caregiver apps read `/booking/services` and the minutes fields (separate slices)
 - [ ] Video visits: no provider chosen (deferred)
+
+## 18. Deployment pipeline (adopt `backend-devops-template`) — ⚪ planned 2026-11-21, nothing installed
+[Plan](../plans/2026-11-21-deployment-workflow.md). Model: `develop` builds one image, staging tests it, `main` redeploys that exact image by digest. The template has never run live; Oakly's first deploy is its first test. Needs the owner's VPS for the live run.
+- [ ] Owner decisions DEP-1 (two-branch model), DEP-2 (secrets on the server or encrypted in git), DEP-3 (repo is public: intended?), DEP-4 (one VPS or two), DEP-5 (first production release waits for sign-off and live passes)
+- [ ] WP1 create `develop` from `main`
+- [ ] WP2 install the template by hand-merge (flags `--health-path /health --py-version 3.13 --poetry-version 2.2.1`), keep our CI checks
+- [ ] WP3 one compose file for both environments; pre-migration `pg_dump` in the shared deploy action
+- [ ] WP4 shard the backend tests (CI is 45-60 minutes today)
+- [ ] WP5 staging E2E from `scripts/staging_smoke.py`
+- [ ] WP6 GitHub Environments, secrets, branch rules (owner clicks)
+- [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
