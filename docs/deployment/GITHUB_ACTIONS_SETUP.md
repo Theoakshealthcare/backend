@@ -79,7 +79,7 @@ Open each Environment and add (**Add environment secret** / **Add environment va
 | `VPS_SSH_FINGERPRINT` | the `SHA256:...` line from step 1 | the same (one server) |
 | `VPS_SSH_PASSPHRASE` | only if the key has one | same |
 | `DEPLOY_PATH` | exactly `/opt/oakly-staging` | exactly `/opt/oakly-production` |
-| `ENV_ENCRYPTION_KEY` | key for `.env.staging.enc` | a DIFFERENT key for `.env.production.enc` |
+| `ENV_ENCRYPTION_KEY` | the encryption key | the same key |
 
 The deploy refuses any `DEPLOY_PATH` other than those two, and refuses an env file whose `COMPOSE_PROJECT_NAME` is not `oakly-<environment>`, so the two stacks cannot be mixed up.
 
@@ -88,7 +88,7 @@ The deploy refuses any `DEPLOY_PATH` other than those two, and refuses an env fi
 | `APP_URL` | `https://api.staging.<yourdomain>` | `https://api.<yourdomain>` |
 | `VPS_PORT` | `22` (optional) | `22` (optional) |
 
-Generate each key on your laptop with `./scripts/env.sh generate-key staging` (then `production`); it prints the key once. Paste it into the GitHub secret and your password manager. Never paste it into chat.
+Generate the key once on your laptop with `./scripts/env.sh generate-key`; it prints the key once. The same key encrypts both env files, so paste the same value into the secret of both Environments and into your password manager. Never paste it into chat.
 
 There is **no registry secret to create**: the VPS pulls the image with the workflow run's own short-lived token.
 

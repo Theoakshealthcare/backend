@@ -36,7 +36,7 @@ inputs:
     description: "Stack directory on the VPS: /opt/oakly-staging or /opt/oakly-production."
     required: true
   env_encryption_key:
-    description: "Passphrase for .env.<environment>.enc (a different key per environment)."
+    description: "Passphrase for .env.<environment>.enc (the same key for both environments)."
     required: true
   ghcr_username:
     description: "GHCR user for the VPS-side docker login (the caller passes github.actor)."

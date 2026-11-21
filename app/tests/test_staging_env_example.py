@@ -2,7 +2,8 @@
 
 .env.example is the development template (copy to .env). deploy/env.example is the template for .env.staging and
 .env.production (then encrypted). A setting missing from either is a setting nobody knows exists; a key Settings does not
-declare stops the app booting (extra="forbid" when it loads a .env file). Neither file carries comments.
+declare is ignored by the app, so a misspelled key would silently do nothing: the files may name only real settings (plus
+the keys docker compose reads). The only comments allowed are the decorative group headers.
 """
 
 import ipaddress
@@ -20,10 +21,11 @@ DEPLOY_EXAMPLE = ROOT / "deploy" / "env.example"
 COMPOSE = ROOT / "docker-compose.prod.yml"
 BOTH = [pytest.param(DEV_EXAMPLE, id=".env.example"), pytest.param(DEPLOY_EXAMPLE, id="deploy/env.example")]
 
-# Read by docker compose only (the stack's name, port, subnet, the database service and DATABASE_URL), or by the container's
-# boot script (GUNICORN_WORKERS): none of them is a Settings field. REDIS_MAXMEMORY is also compose-only.
+# Read by docker compose only (the stack's name, port, subnet, the database and Redis passwords), or by the container's boot
+# script (GUNICORN_WORKERS): none of them is a Settings field. The development compose file reads REDIS_PASSWORD too.
 COMPOSE_ONLY = {
     "POSTGRES_PASSWORD",
+    "REDIS_PASSWORD",
     "COMPOSE_PROJECT_NAME",
     "API_PORT",
     "DOCKER_SUBNET",
@@ -50,10 +52,15 @@ def _values(path):
     return dict(_lines(path))
 
 
+HEADER = re.compile(r"^# -{10} .+ -{10}$")
+
+
 @pytest.mark.parametrize("path", BOTH)
-def test_the_file_has_no_comments(path):
+def test_the_only_comments_are_group_headers(path):
     comments = [line for line in path.read_text().splitlines() if line.lstrip().startswith("#")]
-    assert not comments, f"{path.name} must not carry comments: {comments[:3]}"
+    stray = [line for line in comments if not HEADER.match(line)]
+    assert comments, f"{path.name} lost its group headers"
+    assert not stray, f"{path.name} must not carry explanatory comments: {stray[:3]}"
 
 
 @pytest.mark.parametrize("path", BOTH)
@@ -66,7 +73,7 @@ def test_every_setting_is_named(path):
 
 @pytest.mark.parametrize("path", BOTH)
 def test_names_nothing_settings_does_not_declare(path):
-    allowed = set(Settings.model_fields) | (COMPOSE_ONLY if path == DEPLOY_EXAMPLE else set())
+    allowed = set(Settings.model_fields) | (COMPOSE_ONLY if path == DEPLOY_EXAMPLE else {"REDIS_PASSWORD"})
     unknown = sorted({key for key, _ in _lines(path)} - allowed)
     assert not unknown, f"keys in {path.name} that Settings would refuse: {unknown}"
 

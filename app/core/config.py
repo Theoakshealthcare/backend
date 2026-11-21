@@ -4,7 +4,7 @@ import os
 from typing import Annotated, Any, Dict, List, Optional, Union
 from urllib.parse import urlsplit
 
-from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, model_validator, validator
+from pydantic import AnyHttpUrl, EmailStr, model_validator, validator
 from pydantic_settings import BaseSettings, NoDecode
 
 
@@ -27,9 +27,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # 7 days for refresh token
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    # Read by docker compose (Redis --requirepass) from the same env file. Declared so the file
-    # loads with extra="forbid"; the app itself only uses REDIS_URL.
-    REDIS_PASSWORD: Optional[str] = None
     # BACKEND_CORS_ORIGINS is a JSON-formatted list of origins
     # e.g: '["http://localhost", "http://localhost:4200", "http://localhost:3000"]'
     # NoDecode: pydantic-settings would JSON-decode a List env value before our validator runs and
@@ -52,7 +49,6 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Oaklycare"
     
     # Email
-    SMTP_TLS: bool = True
     SMTP_PORT: Optional[int] = None
     SMTP_HOST: Optional[str] = None
     SMTP_USER: Optional[str] = None
@@ -71,7 +67,6 @@ class Settings(BaseSettings):
     
     # OTP
     OTP_EXPIRE_MINUTES: int = 10
-    OTP_LENGTH: int = 5
 
     # Caregiver KYC (Dojah, as of 2026-10-30), docs/plans/2026-10-27-caregiver-kyc-design.md section 9.3 and the Dojah delta
     # (docs/plans/2026-10-30-caregiver-kyc-dojah-delta.md). The app id and public key are public (the API hands them to the app with
@@ -95,20 +90,14 @@ class Settings(BaseSettings):
     KYC_SESSION_TTL_HOURS: int = 24
     KYC_FACE_THRESHOLD: int = 85  # a placeholder until the K0 spike tunes it
     KYC_FACE_FLOOR: int = 70
-    KYC_LIVENESS_FLOOR: int = 50  # UNUSED since Dojah (liveness is a boolean); kept so an env file that sets it still loads (extra=forbid)
     KYC_ALERT_EMAIL: str = ""  # who is told when the Dojah wallet is empty or the key is refused (owner question O5); empty = log only
     KYC_POLICY_VERSION: str = "kyc-2026-10"  # the consent text version recorded with identity_verification consents
     
     # Paystack Configuration
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
-    PAYSTACK_WEBHOOK_SECRET: str = ""
     PAYSTACK_BASE_URL: str = "https://api.paystack.co"  # the local end-to-end script points this at a fake
     PAYMENT_CALLBACK_URL: str = "https://www.oaklycare.com/payment/callback"
-    PAYMENT_CURRENCY: str = "NGN"
-    MAX_DEPOSIT_AMOUNT: int = 1000000  # 1 Million Naira
-    MIN_DEPOSIT_AMOUNT: int = 100  # 100 Naira
-    MIN_WITHDRAWAL_KOBO: int = 100000  # 1,000 Naira, minimum caregiver withdrawal
     # v1: the patient app hides the Oakly wallet, so credit put there would be stranded. Off, a Super Admin cannot choose
     # the wallet destination for a refund (approve with destination "wallet", or switch a failed refund to the wallet):
     # 409 wallet_refunds_disabled. Refunds go to the original payment method. Turn on once the wallet is visible to users.
@@ -262,11 +251,6 @@ class Settings(BaseSettings):
     VOICE_NOTE_PROVIDER_TIMEOUT_SECONDS: int = 90
     
 
-    # Push Notifications
-    FCM_SERVER_KEY: Optional[str] = None
-    APNS_KEY_ID: Optional[str] = None
-    APNS_TEAM_ID: Optional[str] = None
-
     # Cloudinary Configuration
     CLOUDINARY_CLOUD_NAME: Optional[str] = None
     CLOUDINARY_API_KEY: Optional[str] = None
@@ -339,10 +323,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
-        # An unknown key in the env file fails at boot, so a misspelled optional secret (e.g. a
-        # webhook secret) can't silently fall back to its empty default. Keys only docker compose
-        # reads are declared above instead of ignored.
-        extra = "forbid"
+        extra = "ignore"
         # OAKLY_ENV_FILE="" disables .env loading (the test suite relies on this so a
         # developer's real .env can never leak into tests).
         env_file = os.environ.get("OAKLY_ENV_FILE", ".env") or None
