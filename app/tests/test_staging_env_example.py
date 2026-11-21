@@ -126,7 +126,7 @@ def test_the_example_names_the_staging_stack():
     """The deploy refuses an env file whose COMPOSE_PROJECT_NAME is not oakly-<environment>."""
     values = _values(DEPLOY_EXAMPLE)
     assert values["COMPOSE_PROJECT_NAME"] == "oakly-staging"
-    assert values["API_PORT"] == "8000"
+    assert values["API_PORT"] == "8100"
 
 
 def test_the_compose_file_has_no_environment_specific_values():

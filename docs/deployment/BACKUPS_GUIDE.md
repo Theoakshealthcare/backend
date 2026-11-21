@@ -64,7 +64,7 @@ $C exec -T db pg_restore -U oakly -d oakly --no-owner --exit-on-error < "$DUMP"
 # 4. if a migration caused this, also roll the image back to the previous digest (ROLLBACK.md) BEFORE starting,
 #    otherwise the old image will see the old schema but the new image would re-run the migration
 $C up -d api worker
-curl -sS http://127.0.0.1:8001/health      # staging: 8000
+curl -sS http://127.0.0.1:8101/health      # staging: 8100
 ```
 
 Caregiver documents: `tar xzf backups/private_uploads-<stamp>.tgz` into the volume with a throwaway container: `docker run --rm -v oakly-production_private_uploads:/data -v "$PWD/backups":/in alpine:3.20 tar xzf /in/private_uploads-<stamp>.tgz -C /data`.

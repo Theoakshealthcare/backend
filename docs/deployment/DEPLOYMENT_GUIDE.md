@@ -10,10 +10,10 @@ One Ubuntu VPS (8 GB RAM, 4 vCPU), one nginx on the host, **two stacks** kept ap
 |---|---|---|
 | Directory | `/opt/oakly-staging` | `/opt/oakly-production` |
 | `COMPOSE_PROJECT_NAME` | `oakly-staging` | `oakly-production` |
-| API on the host | `127.0.0.1:8000` | `127.0.0.1:8001` |
+| API on the host | `127.0.0.1:8100` | `127.0.0.1:8101` |
 | Docker network | `172.29.0.0/24` | `172.29.1.0/24` |
 | `TRUSTED_PROXIES` (same range) | `172.29.0.0/24` | `172.29.1.0/24` |
-| Domain | `api.staging.<domain>` | `api.<domain>` |
+| Domain | `staging-api.<domain>` | `api.<domain>` |
 | nginx file | `sites-available/oakly-api-staging` | `sites-available/oakly-api-production` |
 | Backup cron | 02:15 UTC | 02:00 UTC |
 | Branch that deploys | `develop` | `main` |
@@ -46,7 +46,7 @@ PRs go to `develop`; staging deploys on each merge; a release is a fast-forward 
 
 ## Operating a stack
 
-Replace the directory and port for production (`/opt/oakly-production`, 8001).
+Replace the directory and port for production (`/opt/oakly-production`, 8101).
 
 ```bash
 cd /opt/oakly-staging
@@ -54,7 +54,7 @@ C="docker compose -f docker-compose.prod.yml --env-file .env"
 
 $C ps                                   # every service should be (healthy)
 $C logs -f --tail 100 api worker        # follow the logs
-curl -sS http://127.0.0.1:8000/health   # {"status":"healthy"}
+curl -sS http://127.0.0.1:8100/health   # {"status":"healthy"}
 grep '^API_IMAGE=' .env                 # the exact image digest running (not a secret)
 
 $C exec db psql -U oakly -d oakly       # a database shell

@@ -4,7 +4,7 @@
 # environment's `.env` (the decrypted .env.<environment>.enc; see docs/deployment/ENV_ENCRYPTION.md), never in this file:
 #
 #   COMPOSE_PROJECT_NAME  oakly-staging | oakly-production   (names the containers, the network and every volume)
-#   API_PORT              8000 | 8001                         (the 127.0.0.1 port nginx proxies to)
+#   API_PORT              8100 | 8101                         (the 127.0.0.1 port nginx proxies to)
 #   DOCKER_SUBNET         172.29.0.0/24 | 172.29.1.0/24       (must match TRUSTED_PROXIES in the same .env)
 #   API_IMAGE             written by the deploy, pinned by digest (never edit by hand)
 #

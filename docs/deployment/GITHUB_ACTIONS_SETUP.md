@@ -85,7 +85,7 @@ The deploy refuses any `DEPLOY_PATH` other than those two, and refuses an env fi
 
 | Variable | `staging` | `production` |
 |---|---|---|
-| `APP_URL` | `https://api.staging.<yourdomain>` | `https://api.<yourdomain>` |
+| `APP_URL` | `https://staging-api.<yourdomain>` | `https://api.<yourdomain>` |
 | `VPS_PORT` | `22` (optional) | `22` (optional) |
 
 Generate the key once on your laptop with `./scripts/env.sh generate-key`; it prints the key once. The same key encrypts both env files, so paste the same value into the secret of both Environments and into your password manager. Never paste it into chat.
@@ -119,7 +119,7 @@ The next push to `develop` builds, deploys and tests staging. Leave `PRODUCTION_
 cd /opt/oakly-staging            # or /opt/oakly-production
 docker compose -f docker-compose.prod.yml --env-file .env ps
 docker compose -f docker-compose.prod.yml --env-file .env logs --tail=100 api
-curl -sS http://127.0.0.1:8000/health     # staging 8000, production 8001
+curl -sS http://127.0.0.1:8100/health     # staging 8100, production 8101
 grep '^API_IMAGE=' .env                   # the exact digest running (an image name, not a secret)
 ```
 
