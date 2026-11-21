@@ -1,6 +1,6 @@
 # Staging deploy runbook (first deploy on a fresh Ubuntu VPS)
 
-**Updated 2026-11-21 (deployment adoption):** staging and production are now two stacks on ONE server, deployed by the build-once pipeline (`docs/deployment/`), not by hand from a git clone. Sections 5-8, 12-15 describe that flow; the map is `docs/deployment/DEPLOYMENT_GUIDE.md` and the owner's GitHub clicks are `docs/deployment/GITHUB_ACTIONS_SETUP.md`. Where a section says "staging" the same steps apply to production with the production names (directory `/opt/oakly-production`, port 8001, domain `api.<domain>`).
+**Updated 2026-11-21 (deployment adoption):** staging and production are now two stacks on ONE server, deployed by the build-once pipeline (`docs/deployment/`), not by hand from a git clone. Sections 5-8, 12-15 describe that flow; the map is `docs/deployment/DEPLOYMENT_GUIDE.md` and the owner's GitHub clicks are `docs/deployment/GITHUB_ACTIONS_SETUP.md`. Where a section says "staging" the same steps apply to production with the production names (directory `/opt/oakly-production`, port 8101, domain `api.<domain>`).
 
 **Status: prepared, not run on a server.** Nothing here has touched a real VPS, domain, mail provider, Paystack, Dojah or Expo account. Section 16 lists exactly what was checked offline and what was not. Everything is written so the first deploy is a short checklist once the owner has a server.
 
@@ -10,8 +10,8 @@ The stack: **api** (FastAPI behind gunicorn), **worker** (ARQ: dispatch, payouts
 
 | # | Decision / item | Recommendation | Needed by |
 |---|---|---|---|
-| 1 | **Domain** (and who controls its DNS) | A subdomain you already own, e.g. `api.staging.<yourdomain>` for the API. Tell me the domain; I replace `staging.example.com` everywhere. | before section 2 |
-| 2 | **VPS provider and plan** | **DECIDED (2026-11-21): one server for both environments, 8 GB RAM / 4 vCPU / 80+ GB SSD, Ubuntu 24.04 LTS** (DEP-4: staging and production share it and so share its failure modes; see `docs/deployment/DEPLOYMENT_GUIDE.md`). Pick the cheapest reputable EU region (London or Frankfurt) for now; decide a production region later with the latency measurement: from Lagos run `curl -o /dev/null -s -w '%{time_connect} %{time_total}\n' https://api.staging.<domain>/health` against staging and against a trial server in Johannesburg/Cape Town. Practical blocker in Nigeria: most providers want an international (dollar) card or PayPal; a virtual dollar card works. | before section 3 |
+| 1 | **Domain** (and who controls its DNS) | A subdomain you already own, e.g. `staging-api.<yourdomain>` for the API. Tell me the domain; I replace `staging.example.com` everywhere. | before section 2 |
+| 2 | **VPS provider and plan** | **DECIDED (2026-11-21): one server for both environments, 8 GB RAM / 4 vCPU / 80+ GB SSD, Ubuntu 24.04 LTS** (DEP-4: staging and production share it and so share its failure modes; see `docs/deployment/DEPLOYMENT_GUIDE.md`). Pick the cheapest reputable EU region (London or Frankfurt) for now; decide a production region later with the latency measurement: from Lagos run `curl -o /dev/null -s -w '%{time_connect} %{time_total}\n' https://staging-api.<domain>/health` against staging and against a trial server in Johannesburg/Cape Town. Practical blocker in Nigeria: most providers want an international (dollar) card or PayPal; a virtual dollar card works. | before section 3 |
 | 3 | **SMTP provider** (sign-up codes, password-reset codes) | **Zoho Mail SMTP** (`smtp.zoho.com`, port **465**) for staging if the Oakly domain is already on Zoho: no new account. SES is the better production choice (cheap, high volume, but needs a verified domain and a request to leave the sandbox). Resend is the quickest to set up. **Hard requirement from the code: the provider must accept implicit TLS on port 465** (`app/services/email.py` uses `SMTP_SSL`; STARTTLS on 587 does not work). | before section 7 |
 | 4 | **Sender address** | `noreply@<yourdomain>`, with SPF and DKIM set up at the provider or the codes land in spam. | with item 3 |
 | 5 | **Support email** | one address, used as the Let's Encrypt contact and as `KYC_ALERT_EMAIL` | section 6 |
@@ -32,9 +32,9 @@ One **8 GB RAM / 4 vCPU** server runs both stacks: production about 2.5-3 GB (ap
 
 ```
 phones ──https──> nginx :443 (host, Let's Encrypt)
-                    ├─ api.staging.<domain> ──> 127.0.0.1:8000  oakly-staging    api ─┬─> db (Postgres, no host port)
+                    ├─ staging-api.<domain> ──> 127.0.0.1:8100  oakly-staging    api ─┬─> db (Postgres, no host port)
                     │                                                               └─> redis (no host port) <── worker (ARQ)
-                    └─ api.<domain>         ──> 127.0.0.1:8001  oakly-production   (same four services, own network and volumes)
+                    └─ api.<domain>         ──> 127.0.0.1:8101  oakly-production   (same four services, own network and volumes)
 ```
 Only 22, 80 and 443 are open to the internet. Postgres and Redis have no published ports at all.
 
@@ -44,11 +44,11 @@ At the DNS host of the domain, add:
 
 | Type | Name | Value | TTL |
 |---|---|---|---|
-| A | `api.staging` (full name `api.staging.<domain>`) | the VPS's public IPv4 | 300 |
+| A | `staging-api` (full name `staging-api.<domain>`) | the VPS's public IPv4 | 300 |
 | A | `api` (full name `api.<domain>`), when production exists | the same IPv4 | 300 |
 | AAAA | same | the VPS's IPv6, **only if** you will use it | 300 |
 
-Check from your laptop before section 6: `dig +short api.staging.<domain>` must print the VPS IP. Let's Encrypt fails if it does not.
+Check from your laptop before section 6: `dig +short staging-api.<domain>` must print the VPS IP. Let's Encrypt fails if it does not.
 
 ## 3. First login: a non-root user, SSH keys, firewall, updates
 
@@ -71,7 +71,7 @@ From your laptop, confirm `ssh deploy@<ip>` works **before** the next step. Then
 sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/; s/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 sudo systemctl reload ssh
 
-# Firewall: only SSH, HTTP, HTTPS. (Docker publishes only 127.0.0.1:8000, so it cannot open a hole around ufw.)
+# Firewall: only SSH, HTTP, HTTPS. (Docker publishes the APIs only on 127.0.0.1, so it cannot open a hole around ufw.)
 sudo ufw default deny incoming && sudo ufw default allow outgoing
 sudo ufw allow OpenSSH && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
 sudo ufw --force enable
@@ -127,7 +127,7 @@ set_key SECRET_KEY             "$(openssl rand -hex 32)"
 set_key VITALS_ENCRYPTION_KEY  "$(openssl rand -base64 32 | tr '+/' '-_')"
 set_key KYC_FINGERPRINT_KEY    "$(openssl rand -hex 32)"
 set_key DOJAH_WEBHOOK_SECRET   "$(openssl rand -hex 32)"   # also paste this one into the Dojah dashboard (section 9.3)
-sed -i.bak 's/staging\.example\.com/staging.<yourdomain>/g' .env.staging   # becomes api.staging.<yourdomain>, admin.staging..., noreply@staging...
+sed -i.bak 's/staging\.example\.com/staging.<yourdomain>/g' .env.staging   # becomes staging-api.<yourdomain>, admin.staging..., noreply@staging...
 rm -f .env.staging.bak
 nano .env.staging    # fill every remaining CHANGE_ME: SMTP_*, PAYSTACK_*, DOJAH_*, GEMINI_API_KEY, CLOUDINARY_*; set FRONTEND_URL
 grep -E '^[A-Z_]+=.*CHANGE_ME' .env.staging | cut -d= -f1    # names only: must print nothing when you are done
@@ -165,8 +165,8 @@ site() {
   sed "s/__ENV__/$env/g; s/__API_PORT__/$port/g; s/__API_DOMAIN__/$domain/g" /tmp/oakly-api.conf | sudo tee /etc/nginx/sites-available/oakly-api-$env >/dev/null
   sudo nginx -t && sudo systemctl reload nginx
 }
-site staging    8000 api.staging.<yourdomain>
-site production 8001 api.<yourdomain>      # later, when production exists (DEP-5)
+site staging    8100 staging-api.<yourdomain>
+site production 8101 api.<yourdomain>      # later, when production exists (DEP-5)
 
 # Renewal: certbot installs a systemd timer; make nginx pick up renewed certificates
 printf '#!/bin/sh\nsystemctl reload nginx\n' | sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh >/dev/null
@@ -174,7 +174,7 @@ sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
 sudo certbot renew --dry-run
 ```
 
-Until the API is up, `https://<domain>/health` answers 502: that is expected here. The server block files are in `deploy/nginx/`; with both sites rendered they pass `nginx -t` on current stable nginx with throwaway certificates (one harmless warning each about the deprecated `listen ... http2` form, which Ubuntu 24.04's nginx 1.24 needs). What they do: redirect HTTP to HTTPS, serve the ACME challenge, refuse any other hostname (`oakly-common.conf`), TLS 1.2/1.3, 16 MB bodies (voice notes cap at 12 MB), a generous per-IP rate limit (mobile carriers put many phones behind one IP), and a **set** (not appended) `X-Forwarded-For` so the app's `TRUSTED_PROXIES` logic (`app/core/client_ip.py`) sees the real client. Each site proxies to its own stack's port (staging 8000, production 8001).
+Until the API is up, `https://<domain>/health` answers 502: that is expected here. The server block files are in `deploy/nginx/`; with both sites rendered they pass `nginx -t` on current stable nginx with throwaway certificates (one harmless warning each about the deprecated `listen ... http2` form, which Ubuntu 24.04's nginx 1.24 needs). What they do: redirect HTTP to HTTPS, serve the ACME challenge, refuse any other hostname (`oakly-common.conf`), TLS 1.2/1.3, 16 MB bodies (voice notes cap at 12 MB), a generous per-IP rate limit (mobile carriers put many phones behind one IP), and a **set** (not appended) `X-Forwarded-For` so the app's `TRUSTED_PROXIES` logic (`app/core/client_ip.py`) sees the real client. Each site proxies to its own stack's port (staging 8100, production 8101).
 
 ## 7. First deploy (through the pipeline)
 
@@ -188,7 +188,7 @@ Confirm on the server, before anything else:
 cd /opt/oakly-staging
 C="docker compose -f docker-compose.prod.yml --env-file .env"
 $C ps                                       # api, worker, db, redis: all "healthy"
-curl -s https://api.staging.<yourdomain>/health          # {"status":"healthy"}
+curl -s https://staging-api.<yourdomain>/health          # {"status":"healthy"}
 $C run --rm --no-deps api python -c "from app.core.config import settings; print('settings OK', settings.ENVIRONMENT)"
 $C logs --tail 40 api worker                # no tracebacks; the worker logs its cron jobs
 ```
@@ -231,7 +231,7 @@ A fresh database has no pricing row. Until one exists every booking preview and 
 Run this from **your laptop** in the backend repo (needs only Python 3, no install). It signs the admin in (hidden password prompt, authenticator code prompt), refuses to change anything if pricing already exists, and shows the numbers for a yes/no before it sends:
 
 ```bash
-python3 -m scripts.staging_set_pricing https://api.staging.<yourdomain> --admin-email <owner-email> \
+python3 -m scripts.staging_set_pricing https://staging-api.<yourdomain> --admin-email <owner-email> \
   --base-fee <naira> --platform-fee-percent <percent> --multiplier nurse=<x> --multiplier doctor=<x> \
   --reason "Opening staging price list"
 ```
@@ -247,11 +247,11 @@ On the **first** sign-in it prints the authenticator setup key once: add it in y
 
 **Paystack** (TEST mode): dashboard, make sure the **Test mode** switch at the top is on, then Settings > **API Keys & Webhooks**. In **Test Webhook URL** paste
 
-`https://api.staging.<yourdomain>/api/v1/payment/paystack/webhook`
+`https://staging-api.<yourdomain>/api/v1/payment/paystack/webhook`
 
 and Save. (Paystack signs webhooks with your secret key; there is no separate secret to enter.) The same page shows the `sk_test_`/`pk_test_` keys for the env file. A booking, a wallet deposit, a refund and a payout transfer all arrive on this one URL.
 
-**Dojah** (sandbox): dashboard > your app > Webhooks (wording may vary): URL `https://api.staging.<yourdomain>/api/v1/kyc/dojah/webhook`, and as **Secret** the exact `DOJAH_WEBHOOK_SECRET` value from the env file (not the API secret key).
+**Dojah** (sandbox): dashboard > your app > Webhooks (wording may vary): URL `https://staging-api.<yourdomain>/api/v1/kyc/dojah/webhook`, and as **Secret** the exact `DOJAH_WEBHOOK_SECRET` value from the env file (not the API secret key).
 
 **WhatsApp** is parked (blocked on Meta business verification); its env keys stay empty and the webhook refuses every call.
 
@@ -260,7 +260,7 @@ and Save. (Paystack signs webhooks with your secret key; there is no separate se
 Run from your laptop (Python 3 only):
 
 ```bash
-python3 -m scripts.staging_smoke https://api.staging.<yourdomain> --email <a-real-mailbox-you-can-read> --wait-payment 180
+python3 -m scripts.staging_smoke https://staging-api.<yourdomain> --email <a-real-mailbox-you-can-read> --wait-payment 180
 ```
 Each line prints PASS / FAIL / SKIP; any FAIL gives exit code 1 and says what to check.
 
@@ -275,7 +275,7 @@ Each line prints PASS / FAIL / SKIP; any FAIL gives exit code 1 and says what to
 | 7 | **Push token round trip** | `POST /devices/push-token` 200, `DELETE` 204 | auth or DB error in the logs |
 | 8 | Optional: **real push chain** | `--expo-token 'ExponentPushToken[...]'` from a phone: Expo accepts it and the receipt says delivered | `InvalidCredentials`: the Firebase Admin SDK key was not uploaded to Expo (section 11) |
 
-Extra by hand: `$C logs --tail 100 worker` (from `/opt/oakly-staging`, with `C` set as in section 7) shows cron jobs running every minute with no tracebacks, and `curl -I http://api.staging.<yourdomain>/health` answers a `301` to HTTPS. A user's address in the API logs should be the phone's public IP, not `172.29.0.1` (that proves `TRUSTED_PROXIES` matches the compose subnet): check `deploy/compose.sh logs api | tail`.
+Extra by hand: `$C logs --tail 100 worker` (from `/opt/oakly-staging`, with `C` set as in section 7) shows cron jobs running every minute with no tracebacks, and `curl -I http://staging-api.<yourdomain>/health` answers a `301` to HTTPS. A user's address in the API logs should be the phone's public IP, not `172.29.0.1` (that proves `TRUSTED_PROXIES` matches the compose subnet): check `deploy/compose.sh logs api | tail`.
 
 ## 11. Rebuild both apps against staging, and test push on a real phone
 
@@ -289,7 +289,7 @@ The apps read the server origin from `EXPO_PUBLIC_API_URL` (`apps/*/src/api/conf
 -      "distribution": "internal"
 +      "distribution": "internal",
 +      "env": {
-+        "EXPO_PUBLIC_API_URL": "https://api.staging.<yourdomain>"
++        "EXPO_PUBLIC_API_URL": "https://staging-api.<yourdomain>"
 +      }
      },
 ```
@@ -338,7 +338,7 @@ Not run on a real server yet (section 16). The actions are pinned to commit SHAs
 ## 15. Operate: cheat sheet
 
 ```bash
-cd /opt/oakly-staging        # production: /opt/oakly-production (port 8001)
+cd /opt/oakly-staging        # production: /opt/oakly-production (port 8101)
 C="docker compose -f docker-compose.prod.yml --env-file .env"
 $C ps                                  # state and health
 $C logs -f --tail 100 api worker       # logs (rotated: 10 MB x 5 per container)
@@ -349,7 +349,7 @@ grep '^API_IMAGE=' .env                # the image digest running
 df -h / && docker system df            # disk; `docker image prune -f` after many deploys
 sudo certbot certificates              # certificate expiry
 ```
-The `staging` URL structure the rest of the system needs: API `https://api.staging.<yourdomain>`; Paystack webhook `/api/v1/payment/paystack/webhook`; Dojah webhook `/api/v1/kyc/dojah/webhook`; `KYC_WIDGET_PUBLIC_BASE_URL` = the API origin.
+The `staging` URL structure the rest of the system needs: API `https://staging-api.<yourdomain>`; Paystack webhook `/api/v1/payment/paystack/webhook`; Dojah webhook `/api/v1/kyc/dojah/webhook`; `KYC_WIDGET_PUBLIC_BASE_URL` = the API origin.
 
 ## 16. What was verified offline, and what was not
 
