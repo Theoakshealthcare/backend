@@ -36,6 +36,7 @@ Measure with `docker stats --no-stream` after the first week and adjust. **Stagi
 ## Security notes (accepted risks)
 
 - **One server, one SSH user.** Both stacks are reached by the same `deploy` user, and that user is in the `docker` group, which is root-equivalent on the machine. Anyone holding a deploy secret for staging can in principle reach production's containers. The two Environments still hold separate secrets, branch rules and (for production) a required reviewer, and each can have its own SSH key; the shared server is the accepted price of DEP-4 (one VPS). Give production its own server when real users depend on it.
+- **The registry token travels as an SSH environment variable** (`envs` of `appleboy/ssh-action`): it is the run's own short-lived, read-only-for-packages `GITHUB_TOKEN`, masked in logs. It is unverified whether that action puts it in the remote command line; check `ps` on the VPS during the first live deploy (WP7). If it shows, pipe the token over stdin instead (`printf %s "$TOKEN" | ssh ... 'docker login ghcr.io -u ... --password-stdin'`).
 - **The server is pinned.** The deploy checks the VPS's host key against `VPS_SSH_FINGERPRINT` and refuses an unknown host.
 - **"Verified" is a registry tag**, not a signature (`CICD_PIPELINE.md`, "Trust boundary"): people who can run workflows with the staging Environment's rights could mint one. Fine for a small team; signed attestations are the upgrade (SOP follow-up).
 
