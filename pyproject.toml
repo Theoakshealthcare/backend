@@ -50,6 +50,7 @@ package-mode = false
 pytest = "^9.1.1"
 ruff = "^0.16.9"
 testcontainers = {version = "^4.15.0", extras = ["postgres"]}
+pytest-split = "^0.11.0"
 
 [tool.ruff]
 target-version = "py313"

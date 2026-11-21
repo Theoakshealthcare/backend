@@ -99,7 +99,7 @@ def upgrade() -> None:
         sa.CheckConstraint('provider_cost IS NULL OR provider_cost >= 0', name='ck_identity_verifications_provider_cost'),
     )
     op.create_index('uq_identity_verifications_one_active', 'identity_verifications', ['caregiver_id'], unique=True,
-                    postgresql_where=sa.text(f"status IN ({ACTIVE})"))
+                    postgresql_where=sa.text(f"status IN ({ACTIVE})"))  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text  (ACTIVE is a module constant, not user input)
     op.create_index('ix_identity_verifications_caregiver', 'identity_verifications', ['caregiver_id'])
     op.create_index('ix_identity_verifications_status', 'identity_verifications', ['status', 'created_at'])
     op.create_index('ix_identity_verifications_fingerprint', 'identity_verifications', ['id_fingerprint'])

@@ -40,6 +40,14 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 
+# The running app never calls pip, and pip bundles its own copies of msgpack, urllib3 and setuptools that image scanners
+# flag (CVEs we cannot upgrade from the app's lock file). Remove pip, both the base image's and the virtualenv's, instead of
+# carrying it. Dependencies are installed in the builder stage; nothing here installs packages.
+RUN rm -rf /usr/local/lib/python3*/site-packages/pip /usr/local/lib/python3*/site-packages/pip-*.dist-info \
+           /usr/local/bin/pip /usr/local/bin/pip3* \
+           /app/.venv/lib/python3*/site-packages/pip /app/.venv/lib/python3*/site-packages/pip-*.dist-info \
+           /app/.venv/bin/pip*
+
 # Copy application code
 RUN mkdir -p /app/private_uploads /app/uploads /app/uploaded_notes
 

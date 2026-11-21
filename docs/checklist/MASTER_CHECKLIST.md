@@ -462,23 +462,23 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [ ] Patient opt-out; booker sees transcript or only the summary (owner)
 - [ ] Encrypt or move the plaintext typed notes (`booking_notes`)
 
-## 16. Staging deploy kit — 🟡 prepared, NOT run on a server (waiting for the owner's VPS)
+## 16. Staging deploy kit — 🟡 prepared, NOT run on a server (waiting for the owner's VPS). Partly superseded 2026-11-21 by section 18: one compose file, encrypted env files, shared VPS
 Runbook [`docs/deploy/staging.md`](../deploy/staging.md), [SOP](../sop/2026-11-08-staging-deploy-kit.md). Items are ticked only where the thing was actually checked; "prepared" means written and checked offline, never run on a server.
 - [x] Runbook for a fresh Ubuntu VPS: owner's list, sizing, DNS, server prep, Docker, code and secrets, nginx + Let's Encrypt, first deploy, backups, first-run steps, smoke, mobile rebuild, rollback, voice-notes switch-on, operate, verified-vs-not (prepared, not run on a server)
-- [x] `docker-compose.staging.yml`: db, redis, api, worker, no host db/redis ports, restart policies, healthchecks, log rotation, volumes (`config` parses; `db` and `redis` services run live on a throwaway project; api/worker services not run)
+- [x] `docker-compose.staging.yml` (since 2026-11-21 the one `docker-compose.prod.yml` for both environments): db, redis, api, worker, no host db/redis ports, restart policies, healthchecks, log rotation, volumes (`config` parses; `db` and `redis` services run live on a throwaway project; api/worker services not run)
 - [x] nginx server blocks (`deploy/nginx/`): HTTP bootstrap + TLS block (`nginx -t` on 1.24 and stable; not run with real certificates)
-- [x] `deploy/staging.env.example`: all 140 backend settings, grouped, placeholders only, kept in step by `app/tests/test_staging_env_example.py`
-- [x] Deploy, rollback, backup and restore-test scripts (`deploy/*.sh`; shellcheck clean; backup, restore test and restore-over-live run live on a throwaway Postgres; `deploy.sh` tested with a stub, not end to end)
+- [x] `deploy/staging.env.example` (now `deploy/env.example`): all 140 backend settings, grouped, placeholders only, kept in step by `app/tests/test_staging_env_example.py`
+- [x] Deploy, rollback, backup and restore-test scripts (now `scripts/remote_deploy.sh`, `backup_cron.sh`, `restore_test.sh`; `deploy/deploy.sh` and `compose.sh` are gone; shellcheck clean; backup, restore test and restore-over-live run live on a throwaway Postgres; `deploy.sh` tested with a stub, not end to end)
 - [x] `scripts/staging_smoke.py` (health, webhooks, pricing, email code, login, Paystack link, push token, optional Expo receipt) and `scripts/staging_set_pricing.py` (one-time pricing row, never auto-seeded): tested against fake servers only
-- [x] `.github/workflows/deploy-staging.yml`: DRAFT, `workflow_dispatch` only and gated by `STAGING_DEPLOY_ENABLED` (actionlint clean; never run)
+- [x] ~~`.github/workflows/deploy-staging.yml` (draft)~~ replaced 2026-11-21 by `cd-staging.yml` / `cd-production.yml` (section 18)
 - [x] Proposed `EXPO_PUBLIC_API_URL` diff for both `eas.json` files, written in the runbook (NOT applied to the monorepo)
-- [ ] Owner provides: domain, VPS (recommended 2 vCPU / 4 GB, EU region for staging), SMTP provider with port 465, Paystack test keys, Dojah sandbox values, Gemini key, Cloudinary, first price list, Super Admin email
+- [ ] Owner provides: domain, VPS (**decided: 8 GB RAM / 4 vCPU, one server for both environments**, EU region for now), SMTP provider with port 465, Paystack test keys, Dojah sandbox values, Gemini key, Cloudinary, first price list, Super Admin email
 - [ ] **First real deploy** following the runbook; then fix what it finds and update the runbook's section 16
 - [ ] Restore test passes on the real schema; nightly backup cron running
 - [ ] Smoke script all PASS against the real server (sign-up code arrives by email, Paystack test payment credits the wallet via the webhook)
 - [ ] Apply the `eas.json` diff, rebuild both Android preview APKs, upload the Firebase Admin key to Expo with `eas credentials`, push test on a real phone
 - [ ] Turn `VOICE_NOTES_ENABLED` on (after push works; real Gemini smoke)
-- [ ] Switch on the deploy workflow (Environment `staging`, secrets, `STAGING_DEPLOY_ENABLED`)
+- [ ] Switch on the deploy workflow (Environments, secrets, `STAGING_DEPLOY_ENABLED`): section 18, WP6
 
 ## 17. Phase 2: service catalogue and half-hour bookings — 🟡 both backend slices merged (#55 `fb1f16b`, #56 `a4d6b79`, 2026-11-08/09); apps and console not built (prices and surge UNKNOWN: all configurable, nothing invented)
 Owner decisions 2026-11-08: a service with no price stays hidden; every service is a home visit (video deferred); durations move to half-hour steps with a shortest booking per service. [SOP slice 1](../sop/2026-11-08-service-catalogue.md).
@@ -495,16 +495,18 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] Patient and caregiver apps read `/booking/services` and the minutes fields (separate slices)
 - [ ] Video visits: no provider chosen (deferred)
 
-## 18. Deployment pipeline (adopt `backend-devops-template`) — ⚪ planned 2026-11-21, nothing installed
-[Plan](../plans/2026-11-21-deployment-workflow.md). Model: `develop` builds one image, staging tests it, `main` redeploys that exact image by digest. The template has never run live; Oakly's first deploy is its first test. Needs the owner's VPS for the live run.
-- [ ] Owner decisions DEP-1 (two-branch model), DEP-2 (secrets on the server or encrypted in git), DEP-3 (repo is public: intended?), DEP-4 (one VPS or two), DEP-5 (first production release waits for sign-off and live passes)
-- [ ] WP1 create `develop` from `main`
-- [ ] WP2 install the template by hand-merge (flags `--health-path /health --py-version 3.13 --poetry-version 2.2.1`), keep our CI checks
-- [ ] WP3 one compose file for both environments; pre-migration `pg_dump` in the shared deploy action
-- [ ] WP4 shard the backend tests (CI is 45-60 minutes today)
-- [ ] WP5 staging E2E from `scripts/staging_smoke.py`
-- [ ] WP6 GitHub Environments, secrets, branch rules (owner clicks)
-- [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once
+## 18. Deployment pipeline (adopt `backend-devops-template`) — 🟡 WP1-WP5 built 2026-11-21 (PR `ci/adopt-devops-template` into `develop`, CI pending); WP6 owner clicks and WP7 live run wait
+[Plan](../plans/2026-11-21-deployment-workflow.md), [SOP](../sop/2026-11-21-deployment-adoption.md), guides in [`docs/deployment/`](../deployment/). Model: `develop` builds one image, staging tests it, `main` redeploys that exact image by digest. Staging and production are two stacks on **one** VPS. **All CD jobs are off** until the repository variables `STAGING_DEPLOY_ENABLED` / `PRODUCTION_DEPLOY_ENABLED` are `true`. The template has never run live; Oakly's first deploy is its first test.
+- [x] Owner decisions DEP-1 (two branches: yes), DEP-2 (encrypted `.env.<env>.enc` in git, key per environment; none committed until the leaked keys are rotated), DEP-3 (repo now private), DEP-4 (one VPS for both, 8 GB / 4 vCPU), DEP-5 (first production release waits for sign-off and live passes). All answered 2026-11-21.
+- [x] WP1 `develop` created from `main` on `oakly` at `1cf9c75` (2026-11-21). Not done: `develop` as the default branch (an owner click in WP6); the stale 2025 `oakly/staging` branch is still there (owner deletes it).
+- [ ] WP2 template installed by hand-merge (no `--force`): CI merged (our checks kept, template structure, `CI gate`), `cd-staging.yml`, `cd-production.yml`, `registry-cleanup.yml`, `actions/deploy-stack`, `dependabot.yml`, `docs/deployment/` tailored. `actionlint`, `shellcheck`, pinned-SHA check clean. **Built; ticks when the PR merges and its CI is green.**
+- [ ] WP3 one compose file for both environments; `scripts/remote_deploy.sh` with the pre-migration backup, `--wait` health gate and rollback of api and worker; nginx for two sites. **Verified on a scratch stack** (first deploy, redeploy, backup, restore test, rollback of a broken image). Ticks on merge.
+- [ ] WP4 backend tests in 4 shards (`pytest-split`). **Wall time is measured by the PR's first CI run**; billed minutes do not fall. Ticks on merge.
+- [ ] WP5 staging smoke test from `scripts/staging_smoke.py` as the `staging-e2e` job. **Verified against the scratch stack.** Ticks on merge.
+- [ ] WP6 GitHub Environments, secrets, branch rules, default branch, off-switch variables (owner clicks: [`GITHUB_ACTIONS_SETUP.md`](../deployment/GITHUB_ACTIONS_SETUP.md))
+- [ ] Rotate the leaked Paystack, Zoho, Gemini, Cloudinary and Prembly keys, then create and commit `.env.staging.enc` (owner)
+- [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once; then production only after DEP-5 sign-off
+- [ ] Follow-ups: read the PR's first Semgrep and Trivy results; commit `.test_durations`; off-server backups and an alert; gitleaks in CI; feed three fixes back to the template repo (SOP follow-ups)
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
@@ -512,7 +514,7 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] Medical records and family members endpoints (tables exist, no API)
 
 ## Deferred follow-ups
-- [ ] (Staging kit) Admin console on staging; off-server backups and a backup-failure alert; Trivy and Semgrep in the deploy workflow; pin `requires-python` below 3.14; remove the unused settings (`PAYSTACK_WEBHOOK_SECRET`, `FCM_SERVER_KEY`, `APNS_*`, `SMTP_TLS`) or make the mailer honour `SMTP_TLS`; `/docs` is public on staging ([SOP](../sop/2026-11-08-staging-deploy-kit.md))
+- [ ] (Staging kit) Admin console on staging; off-server backups and a backup-failure alert; Trivy and Semgrep (now in CI, results pending); pin `requires-python` below 3.14; remove the unused settings (`PAYSTACK_WEBHOOK_SECRET`, `FCM_SERVER_KEY`, `APNS_*`, `SMTP_TLS`) or make the mailer honour `SMTP_TLS`; `/docs` is public on staging ([SOP](../sop/2026-11-08-staging-deploy-kit.md))
 - [x] (Patient notifications, bookings, password reset, fallguard) their FE guides are in CI's `render_fe_guide --check` (2026-11-07, `feature/caregiver-arrived-earning`).
 - [ ] (Patient notifications) ~~Add the guide to CI's `render_fe_guide --check`~~ done; feed retention period; `refund_needs_bank_details` wording changes once the app has a bank-details flow ([SOP](../sop/2026-11-07-patient-notifications.md))
 - [x] (Change password) Password reset bumps `token_version` — done 2026-11-07 with the reset code ([SOP](../sop/2026-11-07-password-reset-code.md))

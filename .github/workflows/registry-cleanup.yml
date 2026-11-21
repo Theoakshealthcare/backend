@@ -1,0 +1,69 @@
+name: Registry cleanup
+
+# Weekly: delete old image versions from GHCR so the registry does not grow
+# forever. Keeps what a rollback needs (see scripts/ghcr_prune.sh):
+#
+#   - the 20 newest versions of any kind
+#   - the 10 newest staging-verified versions (the rollback targets)
+#   - the images at the tips of main and develop (what is deployed or about to be)
+#   - anything younger than 14 days
+#
+# Scheduled runs DELETE. A manual run defaults to a dry run that only lists what
+# would go; untick "dry_run" to delete.
+#
+# If deletions fail with 403: give this repository the Admin role on the package
+# (Package settings -> Manage Actions access).
+
+on:
+  schedule:
+    - cron: "23 3 * * 0"   # Sundays 03:23 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only list what would be deleted"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: oakly-registry-cleanup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prune:
+    name: Prune old image versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Work out the tags to protect
+        id: protect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAGS=""
+          for branch in main develop; do
+            sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${branch}" --jq .sha 2>/dev/null || true)"
+            [ -n "${sha}" ] && TAGS="${TAGS} sha-$(printf '%s' "${sha}" | cut -c1-7)"
+          done
+          echo "tags=${TAGS# }" >> "$GITHUB_OUTPUT"
+          echo "Protected tags: ${TAGS# }"
+
+      - name: Prune
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          # Scheduled runs delete; manual runs follow the dry_run input.
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry_run == 'false' && 'false' || 'true') }}
+          PROTECT_TAGS: ${{ steps.protect.outputs.tags }}
+        run: |
+          set -euo pipefail
+          # The package is named after the repository, lowercase.
+          PACKAGE="$(printf '%s' "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')"
+          export PACKAGE
+          ./scripts/ghcr_prune.sh

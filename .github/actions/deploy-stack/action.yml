@@ -1,0 +1,174 @@
+name: "Deploy the compose stack to a VPS"
+description: >-
+  Decrypts the environment's .env, ships it, the compose file and the deploy scripts to the VPS, then runs
+  scripts/remote_deploy.sh there: pull the image by digest, back up, migrate, start, wait for health, and roll back to
+  the previous image if anything fails. Staging and production run this same action; only the GitHub Environment's
+  secrets (and so DEPLOY_PATH and the decrypted .env) differ. Staging and production share one VPS.
+
+inputs:
+  environment:
+    description: "staging or production. Selects .env.<environment>.enc."
+    required: true
+  image_ref:
+    description: "Full image reference, normally pinned by @sha256 digest."
+    required: true
+  vps_host:
+    description: "VPS hostname or IP."
+    required: true
+  vps_username:
+    description: "SSH user (must be in the docker group)."
+    required: true
+  vps_ssh_key:
+    description: "Private SSH key for that user."
+    required: true
+  vps_fingerprint:
+    description: "SHA256 fingerprint of the VPS's SSH host key (SHA256:...). Pins the server: without it the SSH and scp actions would accept any host."
+    required: true
+  vps_ssh_passphrase:
+    description: "Passphrase for the key, if it has one."
+    required: false
+    default: ""
+  vps_port:
+    description: "SSH port."
+    required: false
+    default: "22"
+  deploy_path:
+    description: "Stack directory on the VPS: /opt/oakly-staging or /opt/oakly-production."
+    required: true
+  env_encryption_key:
+    description: "Passphrase for .env.<environment>.enc (a different key per environment)."
+    required: true
+  ghcr_username:
+    description: "GHCR user for the VPS-side docker login (the caller passes github.actor)."
+    required: true
+  ghcr_token:
+    description: "GHCR token (the caller passes the run's own GITHUB_TOKEN; the job needs packages read)."
+    required: true
+  health_path:
+    description: "Health endpoint path."
+    required: false
+    default: "/health"
+  default_api_port:
+    description: "Port to probe if the stack's .env has no API_PORT."
+    required: false
+    default: "8000"
+
+runs:
+  using: composite
+  steps:
+    # Composite actions do not enforce `required`: an input wired to a missing
+    # secret silently becomes "". Fail here, naming it, before touching the VPS.
+    - name: Check every deploy input is present
+      shell: bash
+      env:
+        VPS_HOST: ${{ inputs.vps_host }}
+        VPS_USERNAME: ${{ inputs.vps_username }}
+        VPS_SSH_KEY: ${{ inputs.vps_ssh_key }}
+        VPS_FINGERPRINT: ${{ inputs.vps_fingerprint }}
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+        ENV_ENCRYPTION_KEY: ${{ inputs.env_encryption_key }}
+        GHCR_USERNAME: ${{ inputs.ghcr_username }}
+        GHCR_TOKEN: ${{ inputs.ghcr_token }}
+        IMAGE_REF: ${{ inputs.image_ref }}
+      run: |
+        set -euo pipefail
+        MISSING=""
+        for v in VPS_HOST VPS_USERNAME VPS_SSH_KEY VPS_FINGERPRINT DEPLOY_PATH \
+                 ENV_ENCRYPTION_KEY GHCR_USERNAME GHCR_TOKEN IMAGE_REF; do
+          [ -n "${!v:-}" ] || MISSING="${MISSING} ${v}"
+        done
+        if [ -n "${MISSING}" ]; then
+          echo "::error::Empty deploy input(s):${MISSING}. A secret of that name is unset for this environment. Nothing was shipped. See docs/deployment/GITHUB_ACTIONS_SETUP.md."
+          exit 1
+        fi
+        case "${VPS_FINGERPRINT}" in
+          SHA256:*) ;;
+          *) echo "::error::VPS_SSH_FINGERPRINT must look like SHA256:... (see docs/deployment/GITHUB_ACTIONS_SETUP.md step 1)."; exit 1 ;;
+        esac
+        # Two stacks share the VPS: DEPLOY_PATH is what keeps them apart, so refuse a path that is not this environment's.
+        case "${DEPLOY_PATH}" in
+          /opt/oakly-staging|/opt/oakly-production) ;;
+          *) echo "::error::DEPLOY_PATH must be /opt/oakly-staging or /opt/oakly-production (got '${DEPLOY_PATH}')."; exit 1 ;;
+        esac
+
+    - name: Decrypt the environment file
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+        ENV_ENCRYPTION_KEY: ${{ inputs.env_encryption_key }}
+      run: |
+        set -euo pipefail
+        ENC=".env.${ENVIRONMENT}.enc"
+        # A missing .enc is a hard failure: deploying against whatever stale .env
+        # happens to sit on the server is unauditable.
+        if [ ! -f "${ENC}" ]; then
+          echo "::error::${ENC} not found. Create it: ./scripts/env.sh encrypt ${ENVIRONMENT}"
+          exit 1
+        fi
+        if ! openssl enc -aes-256-cbc -d -pbkdf2 -iter 100000 \
+              -in "${ENC}" -out .env -pass fd:3 3<<<"${ENV_ENCRYPTION_KEY}"; then
+          rm -f .env
+          echo "::error::Could not decrypt ${ENC}. Wrong ENV_ENCRYPTION_KEY for ${ENVIRONMENT}?"
+          exit 1
+        fi
+        chmod 600 .env
+        VARS=$(grep -cE '^[A-Za-z_][A-Za-z0-9_]*=' .env || true)
+        if [ "${VARS:-0}" -lt 3 ]; then
+          rm -f .env
+          echo "::error::${ENC} decrypted to only ${VARS} variables; refusing to deploy a truncated environment."
+          exit 1
+        fi
+        # The two stacks must never be mixed up: the file has to name this environment's project.
+        PROJECT="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env | tail -n 1)"
+        if [ "${PROJECT}" != "oakly-${ENVIRONMENT}" ]; then
+          rm -f .env
+          echo "::error::${ENC} sets COMPOSE_PROJECT_NAME='${PROJECT}', expected 'oakly-${ENVIRONMENT}'. Wrong file for this environment?"
+          exit 1
+        fi
+        echo "Decrypted ${ENC} (${VARS} variables, project ${PROJECT})"
+
+    - name: Ship .env, the compose file and the deploy scripts
+      uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+      with:
+        host: ${{ inputs.vps_host }}
+        username: ${{ inputs.vps_username }}
+        key: ${{ inputs.vps_ssh_key }}
+        fingerprint: ${{ inputs.vps_fingerprint }}
+        passphrase: ${{ inputs.vps_ssh_passphrase }}
+        port: ${{ inputs.vps_port }}
+        # The image does NOT travel this way: the VPS pulls it from GHCR by digest. scp-action keeps the relative paths,
+        # so the scripts land in <deploy_path>/scripts/.
+        source: ".env,docker-compose.prod.yml,scripts/remote_deploy.sh,scripts/backup_cron.sh,scripts/restore_test.sh"
+        target: ${{ inputs.deploy_path }}
+        overwrite: true
+
+    - name: Deploy over SSH
+      uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1
+      env:
+        IMAGE_REF: ${{ inputs.image_ref }}
+        DEPLOY_PATH: ${{ inputs.deploy_path }}
+        GHCR_USER: ${{ inputs.ghcr_username }}
+        GHCR_TOKEN: ${{ inputs.ghcr_token }}
+        STACK_ENV: ${{ inputs.environment }}
+        HEALTH_PATH: ${{ inputs.health_path }}
+        DEFAULT_API_PORT: ${{ inputs.default_api_port }}
+      with:
+        host: ${{ inputs.vps_host }}
+        username: ${{ inputs.vps_username }}
+        key: ${{ inputs.vps_ssh_key }}
+        fingerprint: ${{ inputs.vps_fingerprint }}
+        passphrase: ${{ inputs.vps_ssh_passphrase }}
+        port: ${{ inputs.vps_port }}
+        # Passed as environment variables, not interpolated into the script, so
+        # the GHCR token never appears in the command text.
+        envs: IMAGE_REF,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN,STACK_ENV,HEALTH_PATH,DEFAULT_API_PORT
+        command_timeout: 20m
+        script: |
+          set -euo pipefail
+          bash "${DEPLOY_PATH}/scripts/remote_deploy.sh"
+
+    - name: Remove the decrypted .env from the runner
+      if: always()
+      shell: bash
+      run: rm -f .env

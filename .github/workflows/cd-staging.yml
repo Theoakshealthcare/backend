@@ -1,0 +1,272 @@
+name: CD (staging)
+
+# push to develop -> build ONCE -> deploy to staging -> live smoke test -> mark verified
+#
+#   build-and-push -> staging-deploy -> staging-e2e (the smoke test) -> mark-verified
+#
+# This is the ONLY workflow that builds and publishes an image. It is also the
+# only one that can mark an image "verified", and cd-production.yml refuses to
+# deploy an image that is not. Production never builds: it can only redeploy
+# the exact bytes built and tested here.
+#
+# Images are deployed by DIGEST (sha256:...), not by tag. A tag can be moved; a
+# digest names exact bytes, so staging and production run identical images.
+#
+# Manual run with `image_tag` redeploys an existing image to staging instead of
+# building (a staging rollback). See docs/deployment/ROLLBACK.md.
+#
+# SWITCHED OFF until the repository VARIABLE STAGING_DEPLOY_ENABLED is `true`
+# (Settings > Secrets and variables > Actions > Variables). Without it every job
+# below is skipped, so merging this file to develop is harmless before the VPS and
+# the secrets exist. Set it only after docs/deploy/staging.md sections 1-9.
+#
+# Staging and production are two stacks on the SAME VPS (/opt/oakly-staging and
+# /opt/oakly-production). The staging Environment's DEPLOY_PATH secret must be
+# /opt/oakly-staging; the deploy action refuses any other value.
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Redeploy an EXISTING image tag to staging instead of building (e.g. sha-a1b2c3d)"
+        required: false
+        type: string
+
+concurrency:
+  # Separate from production so a staging deploy never queues behind a
+  # production rollback. Never cancel a half-finished deploy.
+  group: oakly-cd-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    # A rollback (image_tag given) skips the build. The ref check stops an
+    # accidental manual run from another branch; it is not a security control
+    # (a branch can edit its own copy of this file). The real control is the
+    # `staging` Environment's "Deployment branches" rule: develop only.
+    if: vars.STAGING_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/develop' && github.event.inputs.image_tag == ''
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.ref.outputs.image_ref }}
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Work out the image name and tag
+        id: name
+        run: |
+          # A Docker repository path must be lowercase; github.repository keeps its casing.
+          IMAGE="${REGISTRY}/$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          SHORT="$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-${SHORT}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.name.outputs.image }}:${{ steps.name.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Plain single-manifest image, so the digest and retags stay simple.
+          provenance: false
+          sbom: false
+
+      - name: Resolve the digest
+        id: ref
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          echo "image_ref=${IMAGE}@${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Built ${IMAGE}@${DIGEST}"
+
+  staging-deploy:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    # `always()` keeps the rollback path alive (build skipped); the checks stop a
+    # failed build from ever reaching the VPS.
+    if: >-
+      always() &&
+      vars.STAGING_DEPLOY_ENABLED == 'true' &&
+      github.ref == 'refs/heads/develop' &&
+      needs.build-and-push.result != 'failure' &&
+      needs.build-and-push.result != 'cancelled'
+    environment:
+      name: staging
+      url: ${{ vars.APP_URL }}
+    permissions:
+      contents: read
+      packages: read   # lets the VPS pull with this run's own short-lived token
+    outputs:
+      image_ref: ${{ steps.target.outputs.image_ref }}
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Choose the image to deploy
+        id: target
+        env:
+          BUILT_REF: ${{ needs.build-and-push.outputs.image_ref }}
+          MANUAL_TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${MANUAL_TAG}" ]; then
+            IMAGE="${REGISTRY}/$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+            REF="${IMAGE}:${MANUAL_TAG}"
+          else
+            REF="${BUILT_REF}"
+          fi
+          # The manual tag is operator-typed text that ends up in `docker pull`
+          # on the VPS: it must look like a real image reference.
+          if ! printf '%s' "${REF}" | grep -qE '^[a-z0-9./_-]+(:[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$'; then
+            echo "::error::Refusing to deploy malformed image reference: ${REF}"
+            exit 1
+          fi
+          echo "image_ref=${REF}" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/deploy-stack
+        with:
+          environment: staging
+          image_ref: ${{ steps.target.outputs.image_ref }}
+          vps_host: ${{ secrets.VPS_HOST }}
+          vps_username: ${{ secrets.VPS_USERNAME }}
+          vps_ssh_key: ${{ secrets.VPS_SSH_KEY }}
+          vps_fingerprint: ${{ secrets.VPS_SSH_FINGERPRINT }}
+          vps_ssh_passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          vps_port: ${{ vars.VPS_PORT || 22 }}
+          deploy_path: ${{ secrets.DEPLOY_PATH }}
+          env_encryption_key: ${{ secrets.ENV_ENCRYPTION_KEY }}
+          ghcr_username: ${{ github.actor }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+
+  staging-e2e:
+    name: Live smoke test against staging
+    runs-on: ubuntu-latest
+    needs: [staging-deploy]
+    if: needs.staging-deploy.result == 'success'
+    environment:
+      name: staging
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # scripts/staging_smoke.py uses only the standard library, so there is nothing to install.
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version-file: .python-version
+
+      # Without --email the script runs the checks that need no person and no mailbox:
+      #   1. /health through nginx and TLS, and the OpenAPI document
+      #   2. both webhooks are reachable from the internet and refuse an unsigned call (Paystack 400, Dojah 401)
+      #   3. pricing exists: POST /booking/preview is 200 (503 booking_settings_not_configured = the one-time
+      #      pricing row is missing: publish it once, docs/deploy/staging.md section 9.2, then re-run this workflow)
+      # The email, payment-link and push-token checks need a person: they stay in the manual pass
+      # (docs/deploy/staging.md section 10). A failure here blocks promotion: the image is not marked verified.
+      - name: Run the smoke test
+        env:
+          E2E_BASE_URL: ${{ vars.APP_URL }}
+        run: |
+          set -o pipefail
+          python3 -m scripts.staging_smoke "${E2E_BASE_URL}" 2>&1 | tee staging-smoke.log
+
+      - name: Upload the smoke log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staging-smoke-log
+          path: staging-smoke.log
+
+  mark-verified:
+    name: Mark image as staging-verified
+    runs-on: ubuntu-latest
+    needs: [build-and-push, staging-deploy, staging-e2e]
+    # Real builds only (a rollback must not stamp HEAD's name on an old image),
+    # and only when build, deploy AND E2E all succeeded.
+    if: >-
+      github.event_name == 'push' &&
+      needs.build-and-push.result == 'success' &&
+      needs.staging-deploy.result == 'success' &&
+      needs.staging-e2e.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add the verified tags to the tested image
+        env:
+          TESTED_REF: ${{ needs.staging-deploy.outputs.image_ref }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO_LC="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="${REGISTRY}/${REPO_LC}"
+
+          DIGEST="${TESTED_REF##*@}"
+          printf '%s' "${DIGEST}" | grep -qE '^sha256:[a-f0-9]{64}$' || {
+            echo "::error::No digest to verify (got '${TESTED_REF}')"; exit 1; }
+
+          # Two tags on the same image:
+          #   staging-verified-<full sha>   "was this COMMIT verified?"  (used by the push-to-main path)
+          #   verified-sha256-<hex>         "were these BYTES verified?" (used by manual rollbacks)
+          TAG_BY_COMMIT="staging-verified-${GITHUB_SHA}"
+          TAG_BY_DIGEST="verified-${DIGEST/:/-}"
+
+          # Adds tags to the existing manifest. Nothing is rebuilt or re-pushed.
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${TAG_BY_COMMIT}" \
+            --tag "${IMAGE}:${TAG_BY_DIGEST}" \
+            "${TESTED_REF}"
+
+          # Prove both tags point at the bytes staging tested.
+          for t in "${TAG_BY_COMMIT}" "${TAG_BY_DIGEST}"; do
+            GOT="$(./scripts/ghcr_digest.sh "${REPO_LC}" "${t}")"
+            [ "${GOT}" = "${DIGEST}" ] || {
+              echo "::error::${t} resolves to ${GOT}, not ${DIGEST}"; exit 1; }
+            echo "verified: ${t} -> ${GOT}"
+          done
+
+          {
+            echo "### Staging verified"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| commit | \`${GITHUB_SHA}\` |"
+            echo "| image | \`${DIGEST}\` |"
+            echo ""
+            echo "To release: fast-forward \`main\` to this commit (see docs/deployment/BRANCHING.md)."
+          } >> "$GITHUB_STEP_SUMMARY"
