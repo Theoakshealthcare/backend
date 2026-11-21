@@ -21,6 +21,9 @@ inputs:
   vps_ssh_key:
     description: "Private SSH key for that user."
     required: true
+  vps_fingerprint:
+    description: "SHA256 fingerprint of the VPS's SSH host key (SHA256:...). Pins the server: without it the SSH and scp actions would accept any host."
+    required: true
   vps_ssh_passphrase:
     description: "Passphrase for the key, if it has one."
     required: false
@@ -61,6 +64,7 @@ runs:
         VPS_HOST: ${{ inputs.vps_host }}
         VPS_USERNAME: ${{ inputs.vps_username }}
         VPS_SSH_KEY: ${{ inputs.vps_ssh_key }}
+        VPS_FINGERPRINT: ${{ inputs.vps_fingerprint }}
         DEPLOY_PATH: ${{ inputs.deploy_path }}
         ENV_ENCRYPTION_KEY: ${{ inputs.env_encryption_key }}
         GHCR_USERNAME: ${{ inputs.ghcr_username }}
@@ -69,7 +73,7 @@ runs:
       run: |
         set -euo pipefail
         MISSING=""
-        for v in VPS_HOST VPS_USERNAME VPS_SSH_KEY DEPLOY_PATH \
+        for v in VPS_HOST VPS_USERNAME VPS_SSH_KEY VPS_FINGERPRINT DEPLOY_PATH \
                  ENV_ENCRYPTION_KEY GHCR_USERNAME GHCR_TOKEN IMAGE_REF; do
           [ -n "${!v:-}" ] || MISSING="${MISSING} ${v}"
         done
@@ -77,6 +81,10 @@ runs:
           echo "::error::Empty deploy input(s):${MISSING}. A secret of that name is unset for this environment. Nothing was shipped. See docs/deployment/GITHUB_ACTIONS_SETUP.md."
           exit 1
         fi
+        case "${VPS_FINGERPRINT}" in
+          SHA256:*) ;;
+          *) echo "::error::VPS_SSH_FINGERPRINT must look like SHA256:... (see docs/deployment/GITHUB_ACTIONS_SETUP.md step 1)."; exit 1 ;;
+        esac
         # Two stacks share the VPS: DEPLOY_PATH is what keeps them apart, so refuse a path that is not this environment's.
         case "${DEPLOY_PATH}" in
           /opt/oakly-staging|/opt/oakly-production) ;;
@@ -126,6 +134,7 @@ runs:
         host: ${{ inputs.vps_host }}
         username: ${{ inputs.vps_username }}
         key: ${{ inputs.vps_ssh_key }}
+        fingerprint: ${{ inputs.vps_fingerprint }}
         passphrase: ${{ inputs.vps_ssh_passphrase }}
         port: ${{ inputs.vps_port }}
         # The image does NOT travel this way: the VPS pulls it from GHCR by digest. scp-action keeps the relative paths,
@@ -148,6 +157,7 @@ runs:
         host: ${{ inputs.vps_host }}
         username: ${{ inputs.vps_username }}
         key: ${{ inputs.vps_ssh_key }}
+        fingerprint: ${{ inputs.vps_fingerprint }}
         passphrase: ${{ inputs.vps_ssh_passphrase }}
         port: ${{ inputs.vps_port }}
         # Passed as environment variables, not interpolated into the script, so

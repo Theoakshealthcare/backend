@@ -32,6 +32,16 @@ ssh -i ~/.ssh/oakly_deploy deploy@<vps-ip> 'echo ok'
 
 The last command must print `ok`. A key with no passphrase is simplest; if you set one, add the secret `VPS_SSH_PASSPHRASE` too.
 
+Then take the server's **host key fingerprint**, so GitHub Actions talks only to your server and never to an impostor. Run it from a network you trust (your own laptop at home, not a café):
+
+```bash
+ssh-keyscan -t ed25519 <vps-ip> 2>/dev/null | ssh-keygen -lf - | awk '{print $2}'
+```
+
+It prints one line starting `SHA256:`. That is the secret `VPS_SSH_FINGERPRINT` in step 4. To double-check, run `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the server itself: the two must match.
+
+Use a **separate keypair for each Environment** if you can (repeat the three commands with `oakly_deploy_staging` and `oakly_deploy_production`, both public keys in the `deploy` user's `authorized_keys`): a leaked staging secret then does not hand over production's key.
+
 ## Step 2. The two stack directories on the VPS
 
 Staging and production are two stacks on the one server, kept apart by directory, port, network and project name. On the VPS, as `deploy`:
@@ -65,7 +75,8 @@ Open each Environment and add (**Add environment secret** / **Add environment va
 |---|---|---|
 | `VPS_HOST` | the VPS IP or hostname | the same |
 | `VPS_USERNAME` | `deploy` | `deploy` |
-| `VPS_SSH_KEY` | the whole contents of `~/.ssh/oakly_deploy` (the PRIVATE key, including the BEGIN and END lines) | the same |
+| `VPS_SSH_KEY` | the whole contents of the staging private key (including the BEGIN and END lines) | the production key (or the same one) |
+| `VPS_SSH_FINGERPRINT` | the `SHA256:...` line from step 1 | the same (one server) |
 | `VPS_SSH_PASSPHRASE` | only if the key has one | same |
 | `DEPLOY_PATH` | exactly `/opt/oakly-staging` | exactly `/opt/oakly-production` |
 | `ENV_ENCRYPTION_KEY` | key for `.env.staging.enc` | a DIFFERENT key for `.env.production.enc` |
@@ -124,6 +135,7 @@ Automatic on a failed deploy; manual by redeploying an earlier verified tag. See
 | `DEPLOY_PATH must be /opt/oakly-staging or /opt/oakly-production` | The secret holds another value. |
 | `sets COMPOSE_PROJECT_NAME='...', expected 'oakly-staging'` | The wrong env file was encrypted for that environment. |
 | `Permission denied (publickey)` | The key is not on the VPS: rerun `ssh-copy-id` (step 1). |
+| `VPS_SSH_FINGERPRINT must look like SHA256:...` or a host-key mismatch | The secret is missing or wrong, or the server was rebuilt (a new server has a new host key): take the fingerprint again (step 1). A mismatch you did not cause is a reason to stop and check the server. |
 | scp or `mkdir` permission error on `/opt/...` | Step 2 skipped: the `deploy` user must own both directories. |
 | `denied` / `unauthorized` pulling the image | The job needs `permissions: packages: read` (the workflows set it). If the package belongs to another repo, link it under the package's settings. |
 | All CD jobs show as skipped | The variable `STAGING_DEPLOY_ENABLED` (or `PRODUCTION_DEPLOY_ENABLED`) is not `true`: that is the off-switch working. |
@@ -138,7 +150,7 @@ Automatic on a failed deploy; manual by redeploying an earlier verified tag. See
 
 | Secret / variable | Used in |
 |---|---|
-| `VPS_*`, `DEPLOY_PATH`, `ENV_ENCRYPTION_KEY` | `actions/deploy-stack` (called by both CD workflows) |
+| `VPS_*` (including `VPS_SSH_FINGERPRINT`), `DEPLOY_PATH`, `ENV_ENCRYPTION_KEY` | `actions/deploy-stack` (called by both CD workflows) |
 | `APP_URL` | `cd-staging.yml` smoke-test target; shown as the Environment URL |
 | `STAGING_DEPLOY_ENABLED`, `PRODUCTION_DEPLOY_ENABLED` (repository variables) | the off-switches in `cd-staging.yml` and `cd-production.yml` |
 | `GITHUB_TOKEN` (automatic) | GHCR push in `cd-staging.yml`; GHCR pull on the VPS |

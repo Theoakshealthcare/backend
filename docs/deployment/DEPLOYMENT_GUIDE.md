@@ -33,6 +33,12 @@ What the deploy puts in a stack directory: `.env` (decrypted from `.env.<env>.en
 
 Measure with `docker stats --no-stream` after the first week and adjust. **Staging and production share one machine, so they share its failure modes**: a full disk, an out-of-memory kill or a lost server takes both down. Staging load tests can slow production. That is the accepted trade for one server (decision DEP-4); move production to its own server when real users depend on it.
 
+## Security notes (accepted risks)
+
+- **One server, one SSH user.** Both stacks are reached by the same `deploy` user, and that user is in the `docker` group, which is root-equivalent on the machine. Anyone holding a deploy secret for staging can in principle reach production's containers. The two Environments still hold separate secrets, branch rules and (for production) a required reviewer, and each can have its own SSH key; the shared server is the accepted price of DEP-4 (one VPS). Give production its own server when real users depend on it.
+- **The server is pinned.** The deploy checks the VPS's host key against `VPS_SSH_FINGERPRINT` and refuses an unknown host.
+- **"Verified" is a registry tag**, not a signature (`CICD_PIPELINE.md`, "Trust boundary"): people who can run workflows with the staging Environment's rights could mint one. Fine for a small team; signed attestations are the upgrade (SOP follow-up).
+
 ## Releasing
 
 PRs go to `develop`; staging deploys on each merge; a release is a fast-forward of `main` (`BRANCHING.md`). The pipeline (`CICD_PIPELINE.md`) builds the image once and production runs the same bytes. Everything is off until the repository variables in `GITHUB_ACTIONS_SETUP.md` are set.

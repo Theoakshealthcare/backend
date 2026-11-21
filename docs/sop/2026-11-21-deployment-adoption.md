@@ -72,4 +72,5 @@ Everything that could be run without GitHub or a server was run. **Nothing here 
 6. **Off-server backups** and a failure alert (the backups share the database's disk).
 7. **Feed three fixes back to the template repo:** the container-name assumption in its backup scripts, previous-image detection via `compose ps`, and the single worker/API health gate.
 8. A secrets scan (gitleaks) in CI is not in the template; consider it now that the repo holds encrypted env files.
-9. Production-only: set `GUNICORN_WORKERS` and `REDIS_MAXMEMORY` from measurements after the first week.
+9. **Security review notes (2026-11-21):** the SSH host key is now pinned (`VPS_SSH_FINGERPRINT`, fixed after an automated review); the shared `deploy` user and the forgeable `staging-verified-*` registry tag are accepted for now (DEP-4, `CICD_PIPELINE.md` trust boundary). Upgrade path: sign verified images with cosign keyless signing bound to the `cd-staging` workflow on `develop`, verify in `cd-production`; per-environment SSH keys; production on its own server.
+10. Production-only: set `GUNICORN_WORKERS` and `REDIS_MAXMEMORY` from measurements after the first week.
