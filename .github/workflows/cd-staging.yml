@@ -247,7 +247,10 @@ jobs:
           TAG_BY_DIGEST="verified-${DIGEST/:/-}"
 
           # Adds tags to the existing manifest. Nothing is rebuilt or re-pushed.
-          docker buildx imagetools create \
+          # --prefer-index=false makes it a byte-for-byte copy of the tested manifest. Without it, buildx wraps a
+          # single image in a NEW manifest list, so the tags would carry a different digest than the one staging
+          # tested and the check below (and production's lookup) would reject them.
+          docker buildx imagetools create --prefer-index=false \
             --tag "${IMAGE}:${TAG_BY_COMMIT}" \
             --tag "${IMAGE}:${TAG_BY_DIGEST}" \
             "${TESTED_REF}"
