@@ -1662,6 +1662,21 @@ pygments = ">=2.7.2"
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
 
 [[package]]
+name = "pytest-split"
+version = "0.11.0"
+description = "Pytest plugin which splits the test suite to equally sized sub suites based on test execution time."
+optional = false
+python-versions = "<4.0,>=3.10"
+groups = ["dev"]
+files = [
+    {file = "pytest_split-0.11.0-py3-none-any.whl", hash = "sha256:899d7c0f5730da91e2daf283860eb73b503259cb416851a65599368849c7f382"},
+    {file = "pytest_split-0.11.0.tar.gz", hash = "sha256:8ebdb29cc72cc962e8eb1ec07db1eeb98ab25e215ed8e3216f6b9fc7ce0ec2b5"},
+]
+
+[package.dependencies]
+pytest = ">=5,<10"
+
+[[package]]
 name = "python-dotenv"
 version = "1.2.3"
 description = "Read key-value pairs from a .env file and set them as environment variables"
@@ -2501,4 +2516,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<3.15"
-content-hash = "37e13d3a71684f620fd0ec38c29d1900cc88db874f6ec157d7c2240f7c1edd9c"
+content-hash = "6e19b1673c7fdf8f4091e906ce23723f20505f0bb48070182d19b5450b7d6627"

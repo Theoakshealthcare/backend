@@ -35,7 +35,7 @@ Removing them from new commits does **not** make them safe. They stay in history
 | Encryption key | `VITALS_ENCRYPTION_KEY` is a comma-separated list read through settings into a `MultiFernet`. The first key encrypts; every key decrypts. | Single key: rotating it would make old data unreadable |
 | Re-encryption | `scripts/reencrypt_health_data.py`: batched, idempotent, `--dry-run`. A value shaped like a Fernet token that no key can decrypt counts as **unreadable** and is left untouched, never re-encrypted as plaintext. Legacy plaintext vitals are encrypted. | Re-encrypting inside a migration (too slow and too risky for one transaction) |
 | Local DB | Compose runs a `db` service (postgres:16). A **development-only** `scripts/init_local_db.py` builds an empty DB from the models and stamps Alembic at head, because the Alembic history can't build an empty DB yet (fixed properly in WP-E1). Production still runs `alembic upgrade head`. | Pointing local dev at the production DB, as the old compose file did |
-| Production | `docker-compose.prod.yml` reads its env file from the server (`/etc/oakly/backend.env` by default). Port bound to 127.0.0.1 behind the reverse proxy, `restart: unless-stopped`, private-uploads volume. | (Render retired) |
+| Production | `docker-compose.prod.yml` reads the `.env` the deploy decrypts from `.env.production.enc` into `/opt/oakly-production` (since 2026-11-21; it was `/etc/oakly/backend.env`). Port bound to 127.0.0.1 behind the reverse proxy, `restart: unless-stopped`, private-uploads volume. | (Render retired) |
 
 ## What's involved
 | File | Change |
@@ -65,7 +65,7 @@ Removing them from new commits does **not** make them safe. They stay in history
 
 ## Runbook: rotating the leaked secrets (owner)
 
-Do this **after this PR is merged and the new container deploy is live**, ideally in one maintenance window. Put every new value **only** in the server env file (`/etc/oakly/backend.env`, `chmod 600`) or your secret store. Never put them in git.
+Do this **after this PR is merged and the new container deploy is live**, ideally in one maintenance window. Put every new value **only** in your secret store and the environment's env file, which is committed **encrypted** (`.env.<env>.enc`, `docs/deployment/ENV_ENCRYPTION.md`): never the plaintext, and **never encrypt and commit an env file until these rotations are done** (ciphertext in git history is permanent).
 
 | # | Secret | Where to rotate | Notes |
 |---|---|---|---|

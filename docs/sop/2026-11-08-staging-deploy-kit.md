@@ -1,5 +1,7 @@
 # SOP: staging deploy kit (everything ready for the first deploy)
 
+> **Partly superseded 2026-11-21** by the deployment-pipeline adoption ([SOP](2026-11-21-deployment-adoption.md)). Kept as the record of what shipped then. What changed: `docker-compose.staging.yml`, `deploy/deploy.sh`, `deploy/compose.sh` and the draft `deploy-staging.yml` are gone (one `docker-compose.prod.yml` now serves both environments); `deploy/staging.env.example` became `deploy/env.example` and its values travel as encrypted files in git instead of living in `/etc/oakly`; the backup and restore-test scripts moved to `scripts/`; staging and production now share one VPS. The runbook `docs/deploy/staging.md` describes the current flow.
+
 | | |
 |---|---|
 | **What shipped** | A complete first-deploy kit for one Ubuntu VPS, **prepared but not run on any server**: a runbook, a standalone staging compose file, the nginx server blocks, the env file template naming every backend setting, deploy / backup / restore-test scripts, a smoke script, a one-time pricing helper, and a **disabled** CI deploy workflow draft. |

@@ -80,7 +80,7 @@ else
     exec gunicorn \
         --worker-class uvicorn.workers.UvicornWorker \
         --bind $RUN_HOST:$RUN_PORT \
-        --workers 4 \
+        --workers "${GUNICORN_WORKERS:-4}" \
         --timeout 120 \
         --keep-alive 2 \
         --max-requests 1000 \

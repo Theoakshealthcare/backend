@@ -1,7 +1,8 @@
-"""deploy/staging.env.example must stay in step with Settings, and with docker-compose.staging.yml.
+"""deploy/env.example must stay in step with Settings, and with docker-compose.prod.yml.
 
-The staging file is what an owner copies onto a server. A setting missing from it is a setting nobody knows
-exists; a key Settings does not declare stops the app booting (extra="forbid" when it loads a .env file).
+The example is what an owner copies into .env.staging / .env.production (then encrypts). A setting missing from it is a
+setting nobody knows exists; a key Settings does not declare stops the app booting (extra="forbid" when it loads a .env
+file).
 """
 
 import ipaddress
@@ -13,12 +14,20 @@ from cryptography.fernet import Fernet
 from app.core.config import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
-EXAMPLE = ROOT / "deploy" / "staging.env.example"
-COMPOSE = ROOT / "docker-compose.staging.yml"
+EXAMPLE = ROOT / "deploy" / "env.example"
+COMPOSE = ROOT / "docker-compose.prod.yml"
 
-# Read by docker compose only (the database service and DATABASE_URL), not by the app.
-COMPOSE_ONLY = {"POSTGRES_PASSWORD"}
-# Set by docker-compose.staging.yml `environment`, so the example only names them (commented out).
+# Read by docker compose only (the stack's name, port, subnet, the database service and DATABASE_URL), or by the container's
+# boot script (GUNICORN_WORKERS): none of them is a Settings field. REDIS_MAXMEMORY is also compose-only.
+COMPOSE_ONLY = {
+    "POSTGRES_PASSWORD",
+    "COMPOSE_PROJECT_NAME",
+    "API_PORT",
+    "DOCKER_SUBNET",
+    "REDIS_MAXMEMORY",
+    "GUNICORN_WORKERS",
+}
+# Set by docker-compose.prod.yml `environment`, so the example only names them (commented out).
 SET_BY_COMPOSE = {"DATABASE_URL", "REDIS_URL"}
 
 KEY_LINE = re.compile(r"^(#\s)?([A-Z][A-Z0-9_]*)=(.*)$")
@@ -37,12 +46,12 @@ def _lines():
 def test_every_setting_is_named_in_the_example():
     named = {key for _, key, _ in _lines()}
     missing = sorted(set(Settings.model_fields) - named)
-    assert not missing, f"settings missing from deploy/staging.env.example: {missing}"
+    assert not missing, f"settings missing from deploy/env.example: {missing}"
 
 
 def test_example_names_nothing_settings_does_not_declare():
     unknown = sorted({key for _, key, _ in _lines()} - set(Settings.model_fields) - COMPOSE_ONLY)
-    assert not unknown, f"keys in deploy/staging.env.example that Settings would refuse: {unknown}"
+    assert not unknown, f"keys in deploy/env.example that Settings would refuse: {unknown}"
 
 
 def test_no_key_is_listed_twice():
@@ -71,9 +80,26 @@ def test_example_loads_as_an_env_file(monkeypatch, tmp_path):
 
 
 def test_trusted_proxies_covers_the_compose_subnet():
-    subnet = re.search(r"subnet:\s*(\S+)", COMPOSE.read_text()).group(1)
-    trusted = dict((key, value) for is_active, key, value in _lines() if is_active)["TRUSTED_PROXIES"]
-    assert ipaddress.ip_network(subnet) == ipaddress.ip_network(trusted)
+    values = {key: value for is_active, key, value in _lines() if is_active}
+    # The compose file takes the subnet from DOCKER_SUBNET (so two stacks can share a host) with the same default.
+    assert "subnet: ${DOCKER_SUBNET:-" + values["DOCKER_SUBNET"] + "}" in COMPOSE.read_text()
+    assert ipaddress.ip_network(values["DOCKER_SUBNET"]) == ipaddress.ip_network(values["TRUSTED_PROXIES"])
+
+
+def test_the_example_names_the_staging_stack():
+    """The deploy refuses an env file whose COMPOSE_PROJECT_NAME is not oakly-<environment>."""
+    values = {key: value for is_active, key, value in _lines() if is_active}
+    assert values["COMPOSE_PROJECT_NAME"] == "oakly-staging"
+    assert values["API_PORT"] == "8000"
+
+
+def test_the_compose_file_has_no_environment_specific_values():
+    """One file serves both stacks: the project name, port and subnet come from .env, never from a literal."""
+    text = COMPOSE.read_text()
+    assert "name: ${COMPOSE_PROJECT_NAME:-oakly}" in text
+    assert '"127.0.0.1:${API_PORT:-8000}:8000"' in text
+    assert "image: ${API_IMAGE:?" in text
+    assert "build:" not in text, "production never builds on the server: the image comes from GHCR by digest"
 
 
 def test_the_documented_fernet_command_makes_a_valid_key():

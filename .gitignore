@@ -2,6 +2,9 @@
 .env
 .env.*
 !.env.example
+# The ENCRYPTED env files are committed (docs/deployment/ENV_ENCRYPTION.md); the plaintext ones and the keys never are.
+!.env.staging.enc
+!.env.production.enc
 
 # Python
 __pycache__/

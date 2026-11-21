@@ -1,0 +1,183 @@
+name: CD (production)
+
+# push to main -> find the image staging already verified -> deploy it
+#
+#   resolve-image -> production-deploy
+#
+# THIS WORKFLOW NEVER BUILDS. Production runs only bytes that cd-staging.yml
+# built and that passed the live E2E against a deployed staging stack.
+#
+# How the gate is enforced: cd-staging.yml adds the tag
+# `staging-verified-<full sha>` to an image only after E2E passes. This workflow
+# looks that tag up in the registry and refuses to continue if it is missing,
+# then deploys the image's DIGEST.
+#
+# REQUIRES `develop -> main` TO BE A FAST-FORWARD. A squash or merge commit makes
+# a NEW commit SHA that no image was built for, so the lookup fails and nothing
+# deploys. Turn on "Require linear history" for main (docs/deployment/BRANCHING.md).
+#
+# Manual run with `image_tag` is the rollback path (docs/deployment/ROLLBACK.md).
+#
+# SWITCHED OFF until the repository VARIABLE PRODUCTION_DEPLOY_ENABLED is `true`.
+# Without it both jobs are skipped, so a push to main (or a manual run) can never
+# reach production before the owner has signed it off (decision DEP-5: the first
+# release waits for the clinician sign-off and the Meta, Paystack and Dojah live
+# passes). Production is the second stack on the staging VPS: DEPLOY_PATH in the
+# production Environment must be /opt/oakly-production.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Roll back: redeploy an EXISTING image tag (e.g. sha-a1b2c3d). It must have been staging-verified."
+        required: false
+        type: string
+
+concurrency:
+  group: oakly-cd-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  resolve-image:
+    name: Find the staging-verified image
+    runs-on: ubuntu-latest
+    # Stops an accidental manual run from another branch. Not a security control
+    # (a branch can edit its own copy of this file): the real control is the
+    # `production` Environment's "Deployment branches" rule, main only.
+    if: vars.PRODUCTION_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image_ref: ${{ steps.resolve.outputs.image_ref }}
+      proof: ${{ steps.resolve.outputs.proof }}
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Resolve and verify
+        id: resolve
+        env:
+          MANUAL_TAG: ${{ github.event.inputs.image_tag }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO_LC="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+
+          # ghcr_digest.sh exits 0 (found), 2 (does not exist) or 1 (anything
+          # else, e.g. auth), so an outage is never reported as a missing image.
+          resolve() {
+            set +e
+            RESOLVE_OUT="$(./scripts/ghcr_digest.sh "${REPO_LC}" "$1")"
+            RESOLVE_RC=$?
+            set -e
+          }
+
+          if [ -n "${MANUAL_TAG}" ]; then
+            # ---- Rollback: an operator named a tag ----
+            printf '%s' "${MANUAL_TAG}" | grep -qE '^[A-Za-z0-9._-]+$' || {
+              echo "::error::Malformed image tag '${MANUAL_TAG}' (letters, digits, dot, underscore, dash only)"; exit 1; }
+            resolve "${MANUAL_TAG}"
+            [ "${RESOLVE_RC}" -eq 0 ] || {
+              echo "::error::Could not find image '${MANUAL_TAG}' in ${REGISTRY}/${REPO_LC} (exit ${RESOLVE_RC}). Check the repository's Packages page."; exit 1; }
+            DIGEST="${RESOLVE_OUT}"
+            # Ask about the BYTES: were these exact bytes ever verified on staging?
+            PROOF_TAG="verified-${DIGEST/:/-}"
+            resolve "${PROOF_TAG}"
+            [ "${RESOLVE_RC}" -eq 0 ] || {
+              echo "::error::${MANUAL_TAG} (${DIGEST}) was never staging-verified (no tag ${PROOF_TAG}). Production only runs verified images."; exit 1; }
+            PROOF="by digest: ${PROOF_TAG}"
+          else
+            # ---- Push to main ----
+            SHORT="$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
+            BUILD_TAG="sha-${SHORT}"
+
+            resolve "${BUILD_TAG}"
+            if [ "${RESOLVE_RC}" -eq 2 ]; then
+              echo "::error title=No image for this commit::Nothing was built for commit ${GITHUB_SHA}."
+              echo "::error::Production never builds. The usual cause is that develop -> main was not a fast-forward: a squash or merge commit has a new SHA that no image was built for. Fast-forward main instead (docs/deployment/BRANCHING.md). Hotfixes go through develop too."
+              exit 1
+            elif [ "${RESOLVE_RC}" -ne 0 ]; then
+              echo "::error::Could not reach the registry to look up ${BUILD_TAG} (not a missing image)."; exit 1
+            fi
+            BUILD_DIGEST="${RESOLVE_OUT}"
+
+            PROOF_TAG="staging-verified-${GITHUB_SHA}"
+            resolve "${PROOF_TAG}"
+            if [ "${RESOLVE_RC}" -eq 2 ]; then
+              echo "::error title=Not verified on staging::An image exists for ${GITHUB_SHA} but ${PROOF_TAG} does not. That tag is added only after the live E2E passes on staging. Check the 'CD (staging)' run for this commit; if it is still running, wait and re-run this workflow."
+              exit 1
+            elif [ "${RESOLVE_RC}" -ne 0 ]; then
+              echo "::error::Could not reach the registry to look up ${PROOF_TAG} (not a missing proof)."; exit 1
+            fi
+
+            [ "${BUILD_DIGEST}" = "${RESOLVE_OUT}" ] || {
+              echo "::error::${BUILD_TAG} (${BUILD_DIGEST}) and ${PROOF_TAG} (${RESOLVE_OUT}) name different images; refusing to deploy."; exit 1; }
+            DIGEST="${RESOLVE_OUT}"
+            PROOF="by commit: ${PROOF_TAG}"
+          fi
+
+          IMAGE_REF="${REGISTRY}/${REPO_LC}@${DIGEST}"
+          printf '%s' "${IMAGE_REF}" | grep -qE '^[a-z0-9./_-]+@sha256:[a-f0-9]{64}$' || {
+            echo "::error::Malformed image reference: ${IMAGE_REF}"; exit 1; }
+          echo "image_ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
+          echo "proof=${PROOF}" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${IMAGE_REF} (${PROOF})"
+
+  production-deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: [resolve-image]
+    if: needs.resolve-image.result == 'success'
+    # The production Environment holds its own secrets and, if you set it, a
+    # required-reviewer approval (Settings -> Environments -> production).
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: ./.github/actions/deploy-stack
+        with:
+          environment: production
+          image_ref: ${{ needs.resolve-image.outputs.image_ref }}
+          vps_host: ${{ secrets.VPS_HOST }}
+          vps_username: ${{ secrets.VPS_USERNAME }}
+          vps_ssh_key: ${{ secrets.VPS_SSH_KEY }}
+          vps_ssh_passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          vps_port: ${{ vars.VPS_PORT || 22 }}
+          deploy_path: ${{ secrets.DEPLOY_PATH }}
+          env_encryption_key: ${{ secrets.ENV_ENCRYPTION_KEY }}
+          ghcr_username: ${{ github.actor }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: always()
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          PROOF: ${{ needs.resolve-image.outputs.proof }}
+          RESULT: ${{ job.status }}
+        run: |
+          {
+            echo "### Production deploy: ${RESULT}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| image | \`${IMAGE_REF}\` |"
+            echo "| commit | \`${GITHUB_SHA}\` |"
+            echo "| actor | ${GITHUB_ACTOR} |"
+            echo "| verified | ${PROOF} |"
+          } >> "$GITHUB_STEP_SUMMARY"
