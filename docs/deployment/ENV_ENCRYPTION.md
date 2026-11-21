@@ -61,7 +61,7 @@ echo '<paste-the-production-key>' > .env.key.production
 cp deploy/env.example .env.staging
 cp deploy/env.example .env.production
 # ... fill every CHANGE_ME; production differs in ENVIRONMENT, COMPOSE_PROJECT_NAME, API_PORT, DOCKER_SUBNET,
-#     TRUSTED_PROXIES, the domain and the live provider keys (see the header of deploy/env.example)
+#     TRUSTED_PROXIES, the domain and the live provider keys (table in DEPLOYMENT_GUIDE.md)
 
 # 4. Encrypt both
 ./scripts/env.sh encrypt staging

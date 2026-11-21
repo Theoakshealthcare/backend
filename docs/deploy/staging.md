@@ -136,11 +136,11 @@ echo '<the key>' > .env.key.staging                           # gitignored
 ./scripts/env.sh encrypt staging && git add .env.staging.enc  # commit ONLY the .enc file
 ```
 
-For production repeat with `.env.production` and its **own** key; production differs in `ENVIRONMENT=production`, `COMPOSE_PROJECT_NAME=oakly-production`, `API_PORT=8001`, `DOCKER_SUBNET` and `TRUSTED_PROXIES` both `172.29.1.0/24`, its domain, and the live provider keys (the header of `deploy/env.example` lists them). Never reuse a secret between the two files.
+For production repeat with `.env.production` and its **own** key; production differs in `ENVIRONMENT=production`, `COMPOSE_PROJECT_NAME=oakly-production`, `API_PORT=8001`, `DOCKER_SUBNET` and `TRUSTED_PROXIES` both `172.29.1.0/24`, its domain, and the live provider keys (the table in `docs/deployment/DEPLOYMENT_GUIDE.md`). Never reuse a secret between the two files.
 
 - **`VITALS_ENCRYPTION_KEY` is the one you cannot lose**: it encrypts health data and voice-note transcripts, and a restored backup needs it. Copy it into the team password manager at once.
-- `deploy/env.example` names **every** setting the backend declares (an unknown key stops the app booting), grouped, with what each needs. `ENVIRONMENT=staging` boots without Dojah; production refuses to boot without the live provider keys.
-- **`GEMINI_MODEL` is not a setting on `main`** (the model is fixed in code; voice notes use `VOICE_NOTE_MODEL`). Setting it breaks boot.
+- `deploy/env.example` names **every** setting the backend declares (an unknown key stops the app booting), grouped by family, with no comments (the commands that generate each secret are in this section). `ENVIRONMENT=staging` boots without Dojah; production refuses to boot without the live provider keys.
+- `GEMINI_MODEL` (FallGuard advice) and `VOICE_NOTE_MODEL` (voice notes) are both settings; the example carries the code defaults.
 - `DATABASE_URL` and `REDIS_URL` are built by the compose file from the two passwords; do not add them. `API_IMAGE` is written by the deploy; do not add it either.
 - Printing is the risk: use `./scripts/env.sh diff` (names only) to compare the two files, and never `cat` a decrypted file into a shared terminal or chat.
 
