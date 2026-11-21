@@ -115,7 +115,7 @@ def upgrade() -> None:
         sa.CheckConstraint("destination IS NULL OR destination IN ('original_method','wallet')", name='ck_refunds_destination'),
     )
     op.create_index('uq_refunds_one_open_per_booking', 'refunds', ['booking_id'], unique=True,
-                    postgresql_where=sa.text(f"status IN ({OPEN})"))
+                    postgresql_where=sa.text(f"status IN ({OPEN})"))  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text  (OPEN is a module constant, not user input)
     op.create_index('ix_refunds_status', 'refunds', ['status', 'created_at'])
     op.create_index('ix_refunds_booking', 'refunds', ['booking_id'])
 
