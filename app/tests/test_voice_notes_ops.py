@@ -254,7 +254,7 @@ def test_37_the_new_settings_have_defaults_and_are_in_env_example():
     example = (Path(__file__).resolve().parents[2] / ".env.example").read_text()
     for name in names:
         assert f"{name}=" in example, name
-    assert Settings.model_config.get("extra") == "forbid"
+    assert Settings.model_config.get("extra") == "ignore"
 
 
 # --- fixes from the privacy review -----------------------------------------------------------------------------------

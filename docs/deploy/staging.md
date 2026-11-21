@@ -115,7 +115,7 @@ sudo install -d -o deploy -g deploy /opt/oakly-staging /opt/oakly-production
 
 The SSH key GitHub Actions uses to reach the server is created in `docs/deployment/GITHUB_ACTIONS_SETUP.md` step 1.
 
-**5.2 The env files (on YOUR laptop, never on the server, never in chat).** The secrets travel as **encrypted files in git** (`.env.staging.enc`, `.env.production.enc`, decision DEP-2), each with its own key. **Do not create or commit either file until the leaked keys are rotated** (Paystack, Zoho, Gemini, Cloudinary and the pasted Prembly key: `docs/sop/2026-10-05-secrets-and-rotation.md`): ciphertext in git history stays for good.
+**5.2 The env files (on YOUR laptop, never on the server, never in chat).** The secrets travel as **encrypted files in git** (`.env.staging.enc`, `.env.production.enc`, decision DEP-2), encrypted with one shared key (the same value is the `ENV_ENCRYPTION_KEY` secret of both GitHub Environments). **Do not create or commit either file until the leaked keys are rotated** (Paystack, Zoho, Gemini, Cloudinary and the pasted Prembly key: `docs/sop/2026-10-05-secrets-and-rotation.md`): ciphertext in git history stays for good.
 
 ```bash
 cd <your backend checkout>
@@ -131,16 +131,16 @@ sed -i.bak 's/staging\.example\.com/staging.<yourdomain>/g' .env.staging   # bec
 rm -f .env.staging.bak
 nano .env.staging    # fill every remaining CHANGE_ME: SMTP_*, PAYSTACK_*, DOJAH_*, GEMINI_API_KEY, CLOUDINARY_*; set FRONTEND_URL
 grep -E '^[A-Z_]+=.*CHANGE_ME' .env.staging | cut -d= -f1    # names only: must print nothing when you are done
-./scripts/env.sh generate-key staging                         # prints the key ONCE: password manager + the GitHub staging Environment secret
-echo '<the key>' > .env.key.staging                           # gitignored
+./scripts/env.sh generate-key                                 # once, for both environments: prints the key ONCE: password manager + the GitHub secret of both Environments
+echo '<the key>' > .env.key                                   # gitignored
 ./scripts/env.sh encrypt staging && git add .env.staging.enc  # commit ONLY the .enc file
 ```
 
-For production repeat with `.env.production` and its **own** key; production differs in `ENVIRONMENT=production`, `COMPOSE_PROJECT_NAME=oakly-production`, `API_PORT=8001`, `DOCKER_SUBNET` and `TRUSTED_PROXIES` both `172.29.1.0/24`, its domain, and the live provider keys (the header of `deploy/env.example` lists them). Never reuse a secret between the two files.
+For production repeat with `.env.production` (same key); production differs in `ENVIRONMENT=production`, `COMPOSE_PROJECT_NAME=oakly-production`, `API_PORT=8001`, `DOCKER_SUBNET` and `TRUSTED_PROXIES` both `172.29.1.0/24`, its domain, and the live provider keys (the table in `docs/deployment/DEPLOYMENT_GUIDE.md`). Never reuse a secret between the two files.
 
 - **`VITALS_ENCRYPTION_KEY` is the one you cannot lose**: it encrypts health data and voice-note transcripts, and a restored backup needs it. Copy it into the team password manager at once.
-- `deploy/env.example` names **every** setting the backend declares (an unknown key stops the app booting), grouped, with what each needs. `ENVIRONMENT=staging` boots without Dojah; production refuses to boot without the live provider keys.
-- **`GEMINI_MODEL` is not a setting on `main`** (the model is fixed in code; voice notes use `VOICE_NOTE_MODEL`). Setting it breaks boot.
+- `deploy/env.example` names **every** setting the backend declares (an unknown key stops the app booting), grouped by family, with no comments (the commands that generate each secret are in this section). `ENVIRONMENT=staging` boots without Dojah; production refuses to boot without the live provider keys.
+- `GEMINI_MODEL` (FallGuard advice) and `VOICE_NOTE_MODEL` (voice notes) are both settings; the example carries the code defaults.
 - `DATABASE_URL` and `REDIS_URL` are built by the compose file from the two passwords; do not add them. `API_IMAGE` is written by the deploy; do not add it either.
 - Printing is the risk: use `./scripts/env.sh diff` (names only) to compare the two files, and never `cat` a decrypted file into a shared terminal or chat.
 
@@ -249,7 +249,7 @@ On the **first** sign-in it prints the authenticator setup key once: add it in y
 
 `https://api.staging.<yourdomain>/api/v1/payment/paystack/webhook`
 
-and Save. (Paystack signs webhooks with your secret key; there is no separate secret to enter, and `PAYSTACK_WEBHOOK_SECRET` in the env file is unused.) The same page shows the `sk_test_`/`pk_test_` keys for the env file. A booking, a wallet deposit, a refund and a payout transfer all arrive on this one URL.
+and Save. (Paystack signs webhooks with your secret key; there is no separate secret to enter.) The same page shows the `sk_test_`/`pk_test_` keys for the env file. A booking, a wallet deposit, a refund and a payout transfer all arrive on this one URL.
 
 **Dojah** (sandbox): dashboard > your app > Webhooks (wording may vary): URL `https://api.staging.<yourdomain>/api/v1/kyc/dojah/webhook`, and as **Secret** the exact `DOJAH_WEBHOOK_SECRET` value from the env file (not the API secret key).
 
@@ -362,7 +362,7 @@ Updated 2026-11-21 for the pipeline adoption (`docs/sop/2026-11-21-deployment-ad
 | `scripts/backup_cron.sh`, `scripts/restore_test.sh` | **Verified live on the scratch stack:** a dump and an uploads archive were written, the dump listed, and the restore test loaded it into a scratch database (70 tables, revision 0027) and dropped it. **Not verified:** the restore-over-live sequence in `docs/deployment/BACKUPS_GUIDE.md` was not re-run after the move; the same commands were exercised on 2026-11-10 against a throwaway Postgres with a fake schema. |
 | `deploy/nginx/*.conf` | **`nginx -t` passes** on current stable nginx with both sites rendered and throwaway certificates (two harmless `http2` warnings). **Not run:** with real certificates, a real domain, real traffic; `TRUSTED_PROXIES` matching the real bridge address is unproven until section 10's last note |
 | `deploy/env.example` | **Verified by test:** names every one of the backend's settings plus the compose-only keys, nothing Settings would refuse, loads as a Settings env file, `TRUSTED_PROXIES` equals `DOCKER_SUBNET`, and the compose file is free of environment-specific values |
-| `scripts/env.sh` | **Verified on throwaway data:** encrypt, verify, decrypt, per-environment keys, a wrong key refused, `diff` printing names only |
+| `scripts/env.sh` | **Verified on throwaway data:** encrypt, verify, decrypt, a wrong key refused, `diff` printing names only |
 | `scripts/staging_smoke.py` | **Verified against the scratch stack:** 5 checks pass (health, OpenAPI, both webhooks, pricing) with a fake pricing row, and the pricing check fails with 503 on an empty database as designed; the email, payment and push steps still need a person. **Not run against a real server over TLS.** |
 | Workflows | `actionlint` clean; every pinned action SHA exists upstream. **Never run on GitHub**: the first run is the adoption pull request's CI (tests in 4 shards, Semgrep, Trivy on the image), whose result is the authority for those three. The CD workflows are switched off until the repository variables are set. |
 | `arq --check` worker healthcheck | **Verified live** earlier against a throwaway Redis, and again as part of the scratch stack's `--wait` (the worker became healthy) |
@@ -377,6 +377,6 @@ Updated 2026-11-21 for the pipeline adoption (`docs/sop/2026-11-21-deployment-ad
 4. ~~Image scan and Semgrep before deploy~~: now in CI (`ci.yml`: Semgrep job, Trivy on PRs). Their first results come with the adoption PR.
 5. `/docs` and `/api/v1/openapi.json` are public on staging; put basic auth in front in nginx if that matters.
 6. **Prescription note files** go to `/app/uploaded_notes` (a volume now). The legacy `/app/uploads/profile_images` mount is not persisted (profile photos use Cloudinary).
-7. `FCM_SERVER_KEY`, `APNS_*` and `PAYSTACK_WEBHOOK_SECRET` are declared in `Settings` but read by nothing; removing them is a separate cleanup.
+7. ~~Unused settings~~ removed 2026-11-21 (`FCM_SERVER_KEY`, `APNS_*`, `PAYSTACK_WEBHOOK_SECRET`, `SMTP_TLS`, `OTP_LENGTH`, `KYC_LIVENESS_FLOOR`, `PAYMENT_CURRENCY`, the deposit and withdrawal limits); `Settings` now ignores unknown keys.
 8. Pin `requires-python` below 3.14 (or fix the worker start) so a fresh environment can never pick the interpreter `arq` breaks on.
 9. Paystack: run the live test-mode **transfer** and **refund** (the owner disables OTP for API transfers first); Dojah live K8 pass; real push; voice-notes Gemini smoke (handoff 1.1 item 8).

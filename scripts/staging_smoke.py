@@ -140,7 +140,7 @@ class Smoke:
         return self.record(FAIL, "Login (POST /auth/login/mobile)", f"HTTP {status}: {str(body)[:100]}")
 
     def check_paystack_link(self, wait_seconds: int) -> None:
-        amount = 100  # naira: MIN_DEPOSIT_AMOUNT
+        amount = 100  # naira
         status, body = self.call("POST", "/api/v1/patient/wallet/deposit", body={"amount": amount}, auth=True)
         url = body.get("authorization_url") if isinstance(body, dict) else None
         if status != 200 or not isinstance(url, str) or not url.startswith("https://checkout.paystack.com/"):

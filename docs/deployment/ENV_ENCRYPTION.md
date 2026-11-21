@@ -7,7 +7,7 @@ How we ship environment files to the VPS without leaking secrets to git.
 1. Keep `.env.staging` and `.env.production` in `.gitignore` (plaintext — **never committed**).
 2. Encrypt them to `.env.staging.enc` and `.env.production.enc` with AES-256-CBC + PBKDF2 (100k iterations) using `./scripts/env.sh`.
 3. Commit the `.enc` files.
-4. Store the AES key as the GitHub environment secret `ENV_ENCRYPTION_KEY`. **Each environment has its own key** (decision DEP-2): a leaked staging key must not open production.
+4. Store the AES key as the GitHub environment secret `ENV_ENCRYPTION_KEY`. Both environments use the same key, as the template does.
 5. CD decrypts on the runner, `scp`s the resulting `.env` to the VPS, then the file is deleted from the runner when the job ends.
 
 This gives you:
@@ -30,7 +30,7 @@ Commands:
   verify  <staging|production>    Verify encrypted file can be decrypted
   rotate  <staging|production>    Re-encrypt with a new key
   diff                            Show variable NAMES that differ between envs (never values)
-  generate-key <staging|production>  Generate a random encryption key for one environment
+  generate-key                    Generate a random encryption key
 ```
 
 ### Key discovery
@@ -38,30 +38,28 @@ Commands:
 `env.sh` looks for the encryption key in three places, in order:
 
 1. `$ENV_ENCRYPTION_KEY` env variable.
-2. `.env.key.<environment>` file in the repo root (`.env.key.staging`, `.env.key.production`; gitignored).
+2. `.env.key` file in the repo root (gitignored).
 3. Interactive prompt (fallback).
 
-Most day-to-day use: put each key in its `.env.key.<environment>` file once, and every command Just Works.
+Most day-to-day use: put the key in `.env.key` once, and every command Just Works.
 
 ## First-time setup
 
 ```bash
 # 0. ONLY after the leaked keys are rotated (docs/sop/2026-10-05-secrets-and-rotation.md): ciphertext in git history is permanent.
 
-# 1. Generate a fresh 32-byte hex key PER ENVIRONMENT
-./scripts/env.sh generate-key staging
-./scripts/env.sh generate-key production
-# → each prints a key once; copy it into the password manager and the matching GitHub Environment secret
+# 1. Generate one 32-byte hex key (both environments use it)
+./scripts/env.sh generate-key
+# → prints the key once; copy it into the password manager and the ENV_ENCRYPTION_KEY secret of both GitHub Environments
 
-# 2. Save locally (gitignored), one file per environment
-echo '<paste-the-staging-key>' > .env.key.staging
-echo '<paste-the-production-key>' > .env.key.production
+# 2. Save locally (gitignored)
+echo '<paste-the-key>' > .env.key
 
 # 3. Create the plaintext env file for each environment from the template that names every setting
 cp deploy/env.example .env.staging
 cp deploy/env.example .env.production
 # ... fill every CHANGE_ME; production differs in ENVIRONMENT, COMPOSE_PROJECT_NAME, API_PORT, DOCKER_SUBNET,
-#     TRUSTED_PROXIES, the domain and the live provider keys (see the header of deploy/env.example)
+#     TRUSTED_PROXIES, the domain and the live provider keys (table in DEPLOYMENT_GUIDE.md)
 
 # 4. Encrypt both
 ./scripts/env.sh encrypt staging
@@ -72,7 +70,7 @@ git add .env.staging.enc .env.production.enc
 git commit -m "chore: add encrypted env files"
 ```
 
-Also add each key to **GitHub → Settings → Environments → staging / production → secret `ENV_ENCRYPTION_KEY`** (its own key in each). CD uses it to decrypt on the runner. The deploy also refuses an env file whose `COMPOSE_PROJECT_NAME` is not `oakly-<environment>`, which catches a file encrypted for the wrong environment.
+Also add the key to **GitHub → Settings → Environments → staging and production → secret `ENV_ENCRYPTION_KEY`** (the same value in both). CD uses it to decrypt on the runner. The deploy also refuses an env file whose `COMPOSE_PROJECT_NAME` is not `oakly-<environment>`, which catches a file encrypted for the wrong environment.
 
 ## Day-to-day ops
 
@@ -111,7 +109,7 @@ Does NOT write plaintext to disk:
 # → prints the new key + where to store it
 ```
 
-Update that environment's GitHub secret and your password manager, then commit the re-encrypted file. The other environment keeps its own key and needs nothing.
+Follow the printed instructions: update the GitHub secret of both Environments and your password manager, and re-encrypt the other environment with the new key.
 
 ## Manual decrypt (for debugging only)
 
@@ -141,11 +139,11 @@ The template's `.gitignore` already has these, but confirm:
 
 Generate a strong key: `openssl rand -hex 32` (or just `./scripts/env.sh generate-key`).
 
-Store each key in **exactly three** places:
+Store the key in **exactly three** places:
 
 1. Your password manager (for recovery).
-2. GitHub → Settings → Environments → `staging` / `production` → secret `ENV_ENCRYPTION_KEY` (that environment's own key).
-3. Your local `.env.key.<environment>` (gitignored).
+2. GitHub → Settings → Environments → `staging` / `production` → secret `ENV_ENCRYPTION_KEY` (the same value in both).
+3. Your local `.env.key` (gitignored).
 
 **Not in Slack, not in email, not in a plaintext `passphrase.txt` file.**
 

@@ -1,74 +1,110 @@
-"""deploy/env.example must stay in step with Settings, and with docker-compose.prod.yml.
+"""The two env example files must stay in step with Settings, and the deploy one with docker-compose.prod.yml.
 
-The example is what an owner copies into .env.staging / .env.production (then encrypts). A setting missing from it is a
-setting nobody knows exists; a key Settings does not declare stops the app booting (extra="forbid" when it loads a .env
-file).
+.env.example is the development template (copy to .env). deploy/env.example is the template for .env.staging and
+.env.production (then encrypted). A setting missing from either is a setting nobody knows exists; a key Settings does not
+declare is ignored by the app, so a misspelled key would silently do nothing: the files may name only real settings (plus
+the keys docker compose reads). The only comments allowed are the decorative group headers.
 """
 
 import ipaddress
 import re
 from pathlib import Path
 
+import pytest
 from cryptography.fernet import Fernet
 
 from app.core.config import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
-EXAMPLE = ROOT / "deploy" / "env.example"
+DEV_EXAMPLE = ROOT / ".env.example"
+DEPLOY_EXAMPLE = ROOT / "deploy" / "env.example"
 COMPOSE = ROOT / "docker-compose.prod.yml"
+BOTH = [pytest.param(DEV_EXAMPLE, id=".env.example"), pytest.param(DEPLOY_EXAMPLE, id="deploy/env.example")]
 
-# Read by docker compose only (the stack's name, port, subnet, the database service and DATABASE_URL), or by the container's
-# boot script (GUNICORN_WORKERS): none of them is a Settings field. REDIS_MAXMEMORY is also compose-only.
+# Read by docker compose only (the stack's name, port, subnet, the database and Redis passwords), or by the container's boot
+# script (GUNICORN_WORKERS): none of them is a Settings field. The development compose file reads REDIS_PASSWORD too.
 COMPOSE_ONLY = {
     "POSTGRES_PASSWORD",
+    "REDIS_PASSWORD",
     "COMPOSE_PROJECT_NAME",
     "API_PORT",
     "DOCKER_SUBNET",
     "REDIS_MAXMEMORY",
     "GUNICORN_WORKERS",
 }
-# Set by docker-compose.prod.yml `environment`, so the example only names them (commented out).
+# docker-compose.prod.yml builds these in `environment`, so the deploy example leaves them out.
 SET_BY_COMPOSE = {"DATABASE_URL", "REDIS_URL"}
 
-KEY_LINE = re.compile(r"^(#\s)?([A-Z][A-Z0-9_]*)=(.*)$")
+KEY_LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 
 
-def _lines():
-    """(is_active, key, value) for every `KEY=value` or `# KEY=value` line."""
+def _lines(path):
+    """(key, value) for every `KEY=value` line."""
     found = []
-    for line in EXAMPLE.read_text().splitlines():
+    for line in path.read_text().splitlines():
         match = KEY_LINE.match(line)
         if match:
-            found.append((match.group(1) is None, match.group(2), match.group(3)))
+            found.append((match.group(1), match.group(2)))
     return found
 
 
-def test_every_setting_is_named_in_the_example():
-    named = {key for _, key, _ in _lines()}
-    missing = sorted(set(Settings.model_fields) - named)
-    assert not missing, f"settings missing from deploy/env.example: {missing}"
+def _values(path):
+    return dict(_lines(path))
 
 
-def test_example_names_nothing_settings_does_not_declare():
-    unknown = sorted({key for _, key, _ in _lines()} - set(Settings.model_fields) - COMPOSE_ONLY)
-    assert not unknown, f"keys in deploy/env.example that Settings would refuse: {unknown}"
+HEADER = re.compile(r"^# -{10} .+ -{10}$")
 
 
-def test_no_key_is_listed_twice():
-    keys = [key for _, key, _ in _lines()]
+@pytest.mark.parametrize("path", BOTH)
+def test_the_only_comments_are_group_headers(path):
+    comments = [line for line in path.read_text().splitlines() if line.lstrip().startswith("#")]
+    stray = [line for line in comments if not HEADER.match(line)]
+    assert comments, f"{path.name} lost its group headers"
+    assert not stray, f"{path.name} must not carry explanatory comments: {stray[:3]}"
+
+
+@pytest.mark.parametrize("path", BOTH)
+def test_every_setting_is_named(path):
+    named = {key for key, _ in _lines(path)}
+    expected = set(Settings.model_fields) - (SET_BY_COMPOSE if path == DEPLOY_EXAMPLE else set())
+    missing = sorted(expected - named)
+    assert not missing, f"settings missing from {path.name}: {missing}"
+
+
+@pytest.mark.parametrize("path", BOTH)
+def test_names_nothing_settings_does_not_declare(path):
+    allowed = set(Settings.model_fields) | (COMPOSE_ONLY if path == DEPLOY_EXAMPLE else {"REDIS_PASSWORD"})
+    unknown = sorted({key for key, _ in _lines(path)} - allowed)
+    assert not unknown, f"keys in {path.name} that Settings would refuse: {unknown}"
+
+
+@pytest.mark.parametrize("path", BOTH)
+def test_no_key_is_listed_twice(path):
+    keys = [key for key, _ in _lines(path)]
     assert len(keys) == len(set(keys))
 
 
-def test_compose_built_urls_are_not_active_in_the_example():
-    active = {key for is_active, key, _ in _lines() if is_active}
-    assert not (active & SET_BY_COMPOSE), "DATABASE_URL / REDIS_URL are built by compose: keep them commented out"
-
-
-def test_example_loads_as_an_env_file(monkeypatch, tmp_path):
-    """With the compose-only key removed and the two compose-built URLs added, the file is a valid Settings env file."""
+@pytest.mark.parametrize("path", BOTH)
+def test_the_file_loads_as_an_env_file(path, monkeypatch, tmp_path):
+    """Every line, as written, must be a valid Settings value (compose-only keys removed, compose-built URLs added)."""
     for name in Settings.model_fields:
         monkeypatch.delenv(name, raising=False)
-    body = [f"{key}={value}" for is_active, key, value in _lines() if is_active and key not in COMPOSE_ONLY]
+    body = [f"{key}={value}" for key, value in _lines(path) if key not in COMPOSE_ONLY]
+    if path == DEPLOY_EXAMPLE:
+        body += ["DATABASE_URL=postgresql://oakly:x@db:5432/oakly", "REDIS_URL=redis://:x@redis:6379/0"]
+    env = tmp_path / "loaded.env"
+    env.write_text("\n".join(body) + "\n")
+    Settings(_env_file=env)
+
+
+def test_compose_built_urls_are_not_in_the_deploy_example():
+    assert not ({key for key, _ in _lines(DEPLOY_EXAMPLE)} & SET_BY_COMPOSE), "compose builds DATABASE_URL / REDIS_URL"
+
+
+def test_the_deploy_example_is_the_staging_template(monkeypatch, tmp_path):
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name, raising=False)
+    body = [f"{key}={value}" for key, value in _lines(DEPLOY_EXAMPLE) if key not in COMPOSE_ONLY]
     body += ["DATABASE_URL=postgresql://oakly:x@db:5432/oakly", "REDIS_URL=redis://:x@redis:6379/0"]
     env = tmp_path / "staging.env"
     env.write_text("\n".join(body) + "\n")
@@ -80,7 +116,7 @@ def test_example_loads_as_an_env_file(monkeypatch, tmp_path):
 
 
 def test_trusted_proxies_covers_the_compose_subnet():
-    values = {key: value for is_active, key, value in _lines() if is_active}
+    values = _values(DEPLOY_EXAMPLE)
     # The compose file takes the subnet from DOCKER_SUBNET (so two stacks can share a host) with the same default.
     assert "subnet: ${DOCKER_SUBNET:-" + values["DOCKER_SUBNET"] + "}" in COMPOSE.read_text()
     assert ipaddress.ip_network(values["DOCKER_SUBNET"]) == ipaddress.ip_network(values["TRUSTED_PROXIES"])
@@ -88,7 +124,7 @@ def test_trusted_proxies_covers_the_compose_subnet():
 
 def test_the_example_names_the_staging_stack():
     """The deploy refuses an env file whose COMPOSE_PROJECT_NAME is not oakly-<environment>."""
-    values = {key: value for is_active, key, value in _lines() if is_active}
+    values = _values(DEPLOY_EXAMPLE)
     assert values["COMPOSE_PROJECT_NAME"] == "oakly-staging"
     assert values["API_PORT"] == "8000"
 
@@ -103,7 +139,7 @@ def test_the_compose_file_has_no_environment_specific_values():
 
 
 def test_the_documented_fernet_command_makes_a_valid_key():
-    """The example tells the owner to run `openssl rand -base64 32 | tr '+/' '-_'`: that is a urlsafe base64 of 32 bytes."""
+    """The runbook tells the owner to run `openssl rand -base64 32 | tr '+/' '-_'`: that is a urlsafe base64 of 32 bytes."""
     import base64
     import os
 

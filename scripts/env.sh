@@ -14,21 +14,21 @@
 #   ./scripts/env.sh verify staging         # check .env.staging.enc is valid
 #   ./scripts/env.sh rotate staging         # re-encrypt with a new key
 #   ./scripts/env.sh diff                   # show which variable NAMES differ between envs (never values)
-#   ./scripts/env.sh generate-key staging   # generate a new encryption key for one environment
+#   ./scripts/env.sh generate-key           # generate a new encryption key
 #
-# Each environment has its OWN key (decision DEP-2): a leaked staging key must not open production. The key is read
-# from (in order):
+# The encryption key is read from (in order):
 #   1. ENV_ENCRYPTION_KEY environment variable
-#   2. .env.key.<environment> file (gitignored: .env.key.staging, .env.key.production)
+#   2. .env.key file (gitignored)
 #   3. Interactive prompt
-# The same value is the ENV_ENCRYPTION_KEY secret of that GitHub Environment.
+#
+# Both environments use the SAME key.
 # ============================================================
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-key_file() { echo "$PROJECT_ROOT/.env.key.$1"; }
+KEY_FILE="$PROJECT_ROOT/.env.key"
 
 # Colors
 RED='\033[0;31m'
@@ -52,8 +52,6 @@ env_file() { echo "$PROJECT_ROOT/.env.$1"; }
 enc_file() { echo "$PROJECT_ROOT/.env.$1.enc"; }
 
 get_key() {
-    local KEY_FILE
-    KEY_FILE=$(key_file "$1")
     if [ -n "${ENV_ENCRYPTION_KEY:-}" ]; then
         echo "$ENV_ENCRYPTION_KEY"
         return
@@ -62,7 +60,7 @@ get_key() {
         cat "$KEY_FILE"
         return
     fi
-    echo -e "${YELLOW}No ENV_ENCRYPTION_KEY found in the environment or in $(basename "$KEY_FILE").${NC}" >&2
+    echo -e "${YELLOW}No ENV_ENCRYPTION_KEY found in environment or .env.key file.${NC}" >&2
     read -rsp "Enter encryption key: " key
     echo >&2
     echo "$key"
@@ -83,7 +81,7 @@ cmd_encrypt() {
     fi
 
     local key
-    key=$(get_key "$env")
+    key=$(get_key)
     [ -z "$key" ] && { echo -e "${RED}Error: No encryption key provided.${NC}"; exit 1; }
 
     openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 \
@@ -118,7 +116,7 @@ cmd_decrypt() {
     fi
 
     local key
-    key=$(get_key "$env")
+    key=$(get_key)
     [ -z "$key" ] && { echo -e "${RED}Error: No encryption key provided.${NC}"; exit 1; }
 
     if ! openssl enc -aes-256-cbc -d -pbkdf2 -iter 100000 \
@@ -141,7 +139,7 @@ cmd_verify() {
     [ ! -f "$enc" ] && { echo -e "${RED}Error: $enc not found.${NC}"; exit 1; }
 
     local key
-    key=$(get_key "$env")
+    key=$(get_key)
 
     if openssl enc -aes-256-cbc -d -pbkdf2 -iter 100000 \
         -in "$enc" -pass "pass:$key" 2>/dev/null | head -1 | grep -q '='; then
@@ -163,7 +161,7 @@ cmd_rotate() {
     echo -e "${YELLOW}Rotating key for $env...${NC}"
 
     local old_key
-    old_key=$(get_key "$env")
+    old_key=$(get_key)
 
     local tmp="$PROJECT_ROOT/.env.$env.tmp"
     if ! openssl enc -aes-256-cbc -d -pbkdf2 -iter 100000 \
@@ -183,11 +181,15 @@ cmd_rotate() {
     echo -e "${GREEN}New key:${NC} $new_key"
     echo ""
     echo -e "${YELLOW}IMPORTANT - Update ALL locations with the new key:${NC}"
-    echo "  1. GitHub Actions secret ENV_ENCRYPTION_KEY of the '$env' Environment only (the other one keeps its own key)"
+    echo "  1. GitHub Actions secret: ENV_ENCRYPTION_KEY (in both staging and production environments)"
     echo "  2. Your password manager"
-    echo "  3. .env.key.$env on this machine, if you keep one"
+    echo "  3. .env.key on this machine, if you keep one"
     echo ""
-    echo "  Then commit .env.$env.enc."
+    echo "  Then re-encrypt the OTHER environment too:"
+    local other
+    [ "$env" = "staging" ] && other="production" || other="staging"
+    echo "  ./scripts/env.sh decrypt $other"
+    echo "  ENV_ENCRYPTION_KEY='$new_key' ./scripts/env.sh encrypt $other"
 }
 
 cmd_diff() {
@@ -231,18 +233,16 @@ cmd_diff() {
 }
 
 cmd_generate_key() {
-    local env="$1"
-    validate_env "$env"
     local key
     key=$(openssl rand -hex 32)
-    echo -e "${GREEN}Generated key for $env:${NC} $key"
+    echo -e "${GREEN}Generated key:${NC} $key"
     echo ""
     echo "Save this key to:"
-    echo "  1. GitHub Actions secret ENV_ENCRYPTION_KEY of the '$env' Environment (not the other one)"
+    echo "  1. GitHub Actions secret -> ENV_ENCRYPTION_KEY (in staging and production environments)"
     echo "  2. Your password manager"
     echo ""
     echo "To save locally (gitignored):"
-    echo "  echo '$key' > .env.key.$env"
+    echo "  echo '$key' > .env.key"
 }
 
 # ---- Main ----
@@ -261,9 +261,7 @@ case "${1:-help}" in
         [ -z "${2:-}" ] && { echo -e "${RED}Usage: ./scripts/env.sh rotate <staging|production>${NC}"; exit 1; }
         cmd_rotate "$2" ;;
     diff) cmd_diff ;;
-    generate-key)
-        [ -z "${2:-}" ] && { echo -e "${RED}Usage: ./scripts/env.sh generate-key <staging|production>${NC}"; exit 1; }
-        cmd_generate_key "$2" ;;
+    generate-key) cmd_generate_key ;;
     help|*)
         echo "Usage: ./scripts/env.sh <command> [environment]"
         echo ""
@@ -273,18 +271,18 @@ case "${1:-help}" in
         echo "  verify  <staging|production>    Verify encrypted file can be decrypted"
         echo "  rotate  <staging|production>    Re-encrypt with a new key"
         echo "  diff                            Show variable names that differ between envs"
-        echo "  generate-key <staging|production>  Generate a random encryption key for one environment"
+        echo "  generate-key                    Generate a random encryption key"
         echo ""
         echo "Files:"
         echo "  .env.staging.enc      Encrypted staging secrets (safe in git)"
         echo "  .env.production.enc   Encrypted production secrets (safe in git)"
         echo "  .env.staging          Decrypted staging (gitignored)"
         echo "  .env.production       Decrypted production (gitignored)"
-        echo "  .env.key.<env>        Local encryption key per environment (gitignored)"
+        echo "  .env.key              Local encryption key (gitignored)"
         echo ""
         echo "The encryption key is read from (in order):"
         echo "  1. ENV_ENCRYPTION_KEY environment variable"
-        echo "  2. .env.key.<env> file"
+        echo "  2. .env.key file"
         echo "  3. Interactive prompt"
         ;;
 esac

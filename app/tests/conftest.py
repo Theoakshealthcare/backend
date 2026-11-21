@@ -24,7 +24,6 @@ os.environ["OAKLY_ENV_FILE"] = ""
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("VITALS_ENCRYPTION_KEY", Fernet.generate_key().decode())
 os.environ.setdefault("PAYSTACK_SECRET_KEY", "sk_test_placeholder")
-os.environ.setdefault("PAYSTACK_WEBHOOK_SECRET", "whsec_test_placeholder")
 os.environ.setdefault("ENVIRONMENT", "test")
 
 _container = None

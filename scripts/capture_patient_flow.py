@@ -8,7 +8,7 @@ docs/fe-captures/patient/*.json. docs/fe-integration-guide-patient-bookings.md i
     OAKLY_ENV_FILE=/path/to/scratch.env poetry run uvicorn app.main:app --port 8000
     poetry run python -m scripts.capture_patient_flow --env-file /path/to/scratch.env --db-url postgresql://oakly:oakly@127.0.0.1:55432/oakly
 
-The scratch env needs DATABASE_URL, SECRET_KEY, VITALS_ENCRYPTION_KEY, PAYSTACK_SECRET_KEY, PAYSTACK_WEBHOOK_SECRET (placeholders)
+The scratch env needs DATABASE_URL, SECRET_KEY, VITALS_ENCRYPTION_KEY, PAYSTACK_SECRET_KEY (placeholder)
 and PAYSTACK_BASE_URL=http://127.0.0.1:<--paystack-port> so the API's Paystack calls reach the local fake.
 
 What is real and what is not
