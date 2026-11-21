@@ -1,7 +1,7 @@
 """Merge the per-shard duration files from a CI run into the committed .test_durations.
 
     gh run download <run id> -R Theoakshealthcare/backend -p 'test-durations-*' -D /tmp/durations
-    python3 scripts/merge_test_durations.py /tmp/durations/*/.test_durations
+    python3 scripts/merge_test_durations.py /tmp/durations/*/durations-*.json
 
 Each shard only measured the tests it ran, so the files are disjoint: the union is the whole suite.
 """

@@ -171,10 +171,14 @@ jobs:
       # (scripts/merge_test_durations.py) so the next run balances the shards by time.
       - name: Keep the measured test durations
         if: always()
+        run: cp .test_durations durations-${{ matrix.group }}.json || true
+
+      - name: Upload the measured test durations
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-durations-${{ matrix.group }}
-          path: .test_durations
+          path: durations-${{ matrix.group }}.json
           if-no-files-found: ignore
           retention-days: 14
 
