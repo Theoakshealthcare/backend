@@ -129,6 +129,28 @@ def test_the_allow_list_is_card_and_bank_transfer_only():
     assert ALLOWED_CHECKOUT_CHANNELS == ("card", "bank_transfer")
 
 
+# --- one test across endpoint -> BookingService -> PaystackService -> the bytes sent -----------------------------------------
+def test_create_endpoint_through_the_real_services_sends_channels_only_when_asked_for(db, client, patient, pricing, wire):
+    """No fake Paystack: the real BookingService and the real PaystackService build the request; only ``requests.post`` is stubbed."""
+    default = create(client, patient)
+    chosen = create(client, patient, channels=["bank_transfer"])
+    assert default.status_code == chosen.status_code == 200, (default.text, chosen.text)
+    assert len(wire) == 2
+    plain, asked = wire
+    bookings = {b.paystack_reference: b for b in db.query(Booking).all()}
+    for call in (plain, asked):
+        assert call["url"].endswith("/transaction/initialize")
+        booking = bookings[call["json"]["reference"]]
+        assert call["json"]["amount"] == booking.total_amount_kobo and call["json"]["currency"] == "NGN"
+        assert call["json"]["metadata"]["booking_id"] == str(booking.id)
+    assert list(plain["json"]) == PRE_CHANNELS_KEYS and "channels" not in plain["wire"]       # the unchanged default
+    assert list(asked["json"]) == PRE_CHANNELS_KEYS + ["channels"]
+    assert asked["json"]["channels"] == ["bank_transfer"] and '"channels": ["bank_transfer"]' in asked["wire"]
+    for key in ("email", "amount", "currency"):                                            # nothing else differs by the choice
+        assert asked["json"][key] == plain["json"][key]
+    assert all(c["json"]["callback_url"].endswith("/payment-complete") for c in (plain, asked))
+
+
 # --- POST /booking/create ------------------------------------------------------------------------------------------------
 def test_create_without_channels_sends_paystack_no_channels_key(db, client, patient, pricing, real_like):
     r = create(client, patient)

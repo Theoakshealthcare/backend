@@ -1916,7 +1916,8 @@ A 422 means nothing happened: no booking row, no Paystack call.
 1. Send `channels` only when the person actually picked a method on the Payment Details screen; otherwise leave it out.
 2. Treat the choice as **fixed once the booking is created**. "Pay now" after a restart returns the same link with the same methods. Changing method means a new booking (the old one is cancelled or expires with its 30-minute window); do not offer a "change method" button on an existing unpaid booking.
 3. Do not build the screen's **Oakly Wallet** option (the wallet is not built).
-4. The checkout page is Paystack's. If a method is not enabled on Oakly's Paystack account, Paystack will not show it; that is checked by the team in Paystack test mode, not by this API.
+4. **Until the check below is done, send both channels (`["card", "bank_transfer"]`) or none; do not send a single channel.** If the app sends only `["bank_transfer"]` (or only `["card"]`) and that channel is not enabled on Oakly's Paystack merchant account, Paystack may **not** reject the initialise: the booking is created and a link is returned, but the checkout page can then offer no usable method. Because the first link wins ("Pay now" keeps returning the same link), the patient would be stuck on that page until the 30-minute payment window ends. This API cannot detect it.
+   **Unverified operational check, not done:** one Paystack **test-mode** run of **each** single channel (open a `["card"]` link and a `["bank_transfer"]` link and confirm each page offers a usable method). Who: **the owner, in the Paystack dashboard in test mode** (check the channels enabled for the integration, then open both links). Do not enable single-channel choices in the app before this is done.
 
 ### 14.3 Verification
 
@@ -1925,5 +1926,5 @@ A 422 means nothing happened: no booking row, no Paystack call.
 | `channels` forwarded to Paystack only when given; without it the initialise payload is unchanged | **Test only** (the real `PaystackService` against a stubbed `requests.post`; the fake Paystack for the booking flow) | `app/tests/test_booking_payment_channels.py` |
 | The 422 bodies above | **In-process test run**, not the live harness | printed from `TestClient` responses |
 | First link wins when `/payment-link` names other channels | **Test only** | same file |
-| What Paystack's real checkout shows for `["card"]` / `["bank_transfer"]`; that `bank_transfer` is enabled on the integration | **No** | needs a Paystack test-mode run |
+| What Paystack's real checkout shows for `["card"]` / `["bank_transfer"]`; that `bank_transfer` is enabled on the integration; that a single channel never leaves the page with no usable method | **No** (unverified operational check, owner, Paystack test mode) | needs a Paystack test-mode run of each single channel |
 
