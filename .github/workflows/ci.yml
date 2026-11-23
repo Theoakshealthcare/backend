@@ -165,7 +165,22 @@ jobs:
       # pytest-split divides the collected tests into 4 groups. With no .test_durations file it balances by test
       # count; a committed durations file (see docs/deployment/CICD_PIPELINE.md) balances by time.
       - name: Tests (throwaway Postgres via testcontainers)
-        run: poetry run pytest -q -p no:warnings --splits 4 --group ${{ matrix.group }} --durations=25
+        run: poetry run pytest -q -p no:warnings --splits 4 --group ${{ matrix.group }} --durations=25 --store-durations
+
+      # How long each test took on this runner. The four files are merged into the committed .test_durations
+      # (scripts/merge_test_durations.py) so the next run balances the shards by time.
+      - name: Keep the measured test durations
+        if: always()
+        run: cp .test_durations durations-${{ matrix.group }}.json || true
+
+      - name: Upload the measured test durations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-durations-${{ matrix.group }}
+          path: durations-${{ matrix.group }}.json
+          if-no-files-found: ignore
+          retention-days: 14
 
   security:
     name: Security (Semgrep)
