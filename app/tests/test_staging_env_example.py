@@ -111,7 +111,7 @@ def test_the_deploy_example_is_the_staging_template(monkeypatch, tmp_path):
     env.write_text("\n".join(body) + "\n")
     s = Settings(_env_file=env)
     assert s.ENVIRONMENT == "staging"
-    assert s.VOICE_NOTES_ENABLED is False
+    assert s.VOICE_NOTES_ENABLED is True
     assert s.RESEND_KEY  # the deploy template carries a placeholder for the email key
     assert s.TRUSTED_PROXIES == ["172.29.0.0/24"]
 
