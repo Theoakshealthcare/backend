@@ -27,7 +27,7 @@ The template was installed into a scratch copy and into the worktree **without `
 | **Tests in 4 shards** via `pytest-split` (a dev-only dependency, `poetry.lock` +17 lines) | Wall time. **Billed minutes do not fall** (repeated setup): on a private repo a code PR costs about an hour of Actions minutes. | Hand-rolled file splitting; no sharding |
 | **Staging "E2E" is `scripts/staging_smoke.py`** run without `--email`: health, OpenAPI, both webhooks refuse unsigned calls, pricing preview | These need no person or mailbox. Email, payment link and push token need a person and stay manual. A fresh staging **fails the pricing check by design** until the owner publishes the one-time price row (no prices are ever auto-seeded). | Skipping E2E; inventing a seed price |
 | **No seed hook, no rate-limit key flush** (both in the template) | We never auto-seed; the flush used another app's key pattern (`http_*`). | |
-| **GUNICORN_WORKERS** read by `boot/docker-run.sh` (default 4) | Lets staging run 2 workers so two stacks fit on 8 GB. | Editing the Dockerfile CMD |
+| **GUNICORN_WORKERS** read by `boot/docker-run.sh` (default 4) | Lets staging run fewer workers so two stacks fit on 8 GB (3 since 2026-11-23, see `2026-11-23-staging-api-workers.md`). | Editing the Dockerfile CMD |
 | **PRs go to `develop`; `develop` should be the default branch**; `git push oakly oakly/develop:main` is the release | CI triggers on PRs to `develop` only; a PR against `main` gets no checks. The remote is `oakly`; `origin` is the old `innocent98` repo. | |
 
 ## What's involved

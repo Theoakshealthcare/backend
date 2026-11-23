@@ -27,7 +27,7 @@ What the deploy puts in a stack directory: `.env` (decrypted from `.env.<env>.en
 | Piece | Memory |
 |---|---|
 | production: api (4 workers), worker, Postgres, Redis | about 2.5-3 GB |
-| staging: api (`GUNICORN_WORKERS=2`), worker, Postgres, Redis | about 1.8-2.2 GB |
+| staging: api (`GUNICORN_WORKERS=3`), worker, Postgres, Redis | about 1.9-2.4 GB |
 | nginx, Docker, OS | about 0.7 GB |
 | **Total** | **about 5-6 GB** of 8 GB |
 

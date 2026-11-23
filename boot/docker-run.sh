@@ -83,7 +83,7 @@ else
         --workers "${GUNICORN_WORKERS:-4}" \
         --timeout 120 \
         --keep-alive 2 \
-        --max-requests 1000 \
+        --max-requests "${GUNICORN_MAX_REQUESTS:-1000}" \
         --max-requests-jitter 100 \
         app.main:app
 fi

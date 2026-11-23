@@ -22,7 +22,7 @@ COMPOSE = ROOT / "docker-compose.prod.yml"
 BOTH = [pytest.param(DEV_EXAMPLE, id=".env.example"), pytest.param(DEPLOY_EXAMPLE, id="deploy/env.example")]
 
 # Read by docker compose only (the stack's name, port, subnet, the database and Redis passwords), or by the container's boot
-# script (GUNICORN_WORKERS): none of them is a Settings field. The development compose file reads REDIS_PASSWORD too.
+# script (GUNICORN_WORKERS, GUNICORN_MAX_REQUESTS): none of them is a Settings field. The development compose file reads REDIS_PASSWORD too.
 COMPOSE_ONLY = {
     "POSTGRES_PASSWORD",
     "REDIS_PASSWORD",
@@ -31,6 +31,7 @@ COMPOSE_ONLY = {
     "DOCKER_SUBNET",
     "REDIS_MAXMEMORY",
     "GUNICORN_WORKERS",
+    "GUNICORN_MAX_REQUESTS",
 }
 # docker-compose.prod.yml builds these in `environment`, so the deploy example leaves them out.
 SET_BY_COMPOSE = {"DATABASE_URL", "REDIS_URL"}
