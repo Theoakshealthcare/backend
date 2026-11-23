@@ -1,16 +1,19 @@
 import logging
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+import httpx
 from jinja2 import Environment, FileSystemLoader
-import certifi
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+RESEND_URL = "https://api.resend.com/emails"
+RESEND_TIMEOUT_SECONDS = 15
+
+# Test hook only. None in production, where httpx uses its real transport.
+_transport: Optional[httpx.BaseTransport] = None
 
 def render_template(template_name: str, context: Dict[str, Any]) -> str:
     """Render a Jinja2 template with the given context."""
@@ -19,33 +22,31 @@ def render_template(template_name: str, context: Dict[str, Any]) -> str:
     template = env.get_template(f"{template_name}.html")
     return template.render(**context)
 
-def send_email_smtp(
+def send_email(
     email_to: str,
     subject: str,
     html_content: str,
 ) -> bool:
-    """Send an email using Python's built-in smtplib. Returns False (and logs) instead of raising, so a mail problem
-    never turns the request that triggered it into a 500."""
-    if not (settings.SMTP_HOST and settings.SMTP_PORT):
-        logger.warning("SMTP is not configured; email %r was not sent", subject)
+    """Send an email through the Resend HTTP API. Returns False (and logs) instead of raising, so a mail problem never
+    turns the request that triggered it into a 500."""
+    if not (settings.RESEND_KEY and settings.EMAILS_FROM_EMAIL):
+        logger.warning("Email is not configured (RESEND_KEY / EMAILS_FROM_EMAIL); email %r was not sent", subject)
         return False
 
-    message = MIMEMultipart("alternative")
-    message["Subject"] = subject
-    message["From"] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
-    message["To"] = email_to
-    
-    # Attach HTML content
-    part = MIMEText(html_content, "html")
-    message.attach(part)
-    
-    # Create secure connection and send email
+    payload = {
+        "from": f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>",
+        "to": [email_to],
+        "subject": subject,
+        "html": html_content,
+    }
+    headers = {"Authorization": f"Bearer {settings.RESEND_KEY}", "User-Agent": "oakly-backend/1"}
     try:
-        # For SSL (port 465)
-        context = ssl.create_default_context(cafile=certifi.where())
-        with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, context=context) as server:
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.EMAILS_FROM_EMAIL, email_to, message.as_string())
+        with httpx.Client(transport=_transport, timeout=RESEND_TIMEOUT_SECONDS) as client:
+            response = client.post(RESEND_URL, json=payload, headers=headers)
+        if response.status_code >= 400:
+            # Resend's error body names the problem (an unverified domain, a bad key); it never echoes the key.
+            logger.warning("Failed to send email %r: Resend answered %s %s", subject, response.status_code, response.text[:300])
+            return False
         return True
     except Exception as e:
         logger.warning("Failed to send email %r: %s", subject, e)
@@ -82,7 +83,7 @@ def send_verification_email(email_to: str, code: str) -> None:
         },
     )
     
-    send_email_smtp(email_to, subject, html_content)
+    send_email(email_to, subject, html_content)
 
 
 def send_password_reset_email(email_to: str, code: str, legacy_token: str | None = None) -> None:
@@ -118,7 +119,7 @@ def send_password_reset_email(email_to: str, code: str, legacy_token: str | None
         },
     )
 
-    send_email_smtp(email_to, subject, html_content)
+    send_email(email_to, subject, html_content)
 
 
 _CAREGIVER_DECISIONS = {
@@ -164,4 +165,4 @@ def send_caregiver_decision_email(
             "note": note,
         },
     )
-    return send_email_smtp(email_to, f"{settings.PROJECT_NAME} - {heading}", html_content)
+    return send_email(email_to, f"{settings.PROJECT_NAME} - {heading}", html_content)

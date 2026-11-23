@@ -59,7 +59,7 @@ def deliver(db: Session, notice: Notice) -> None:
         body = email_service.render_template(
             "caregiver_decision", {"project_name": settings.PROJECT_NAME, "heading": heading, "message": message,
                                    "full_name": notice.full_name, "reason": None, "items": None, "note": None})
-        email_service.send_email_smtp(notice.email, f"{settings.PROJECT_NAME} - {heading}", body)
+        email_service.send_email(notice.email, f"{settings.PROJECT_NAME} - {heading}", body)
     except Exception:  # noqa: BLE001
         logger.warning("kyc email failed kind=%s", notice.kind, exc_info=True)
 
@@ -73,6 +73,6 @@ def alert_ops(kind: str) -> None:
         return
     try:
         body = f"<p>{html.escape(message)}</p><p>Check the Dojah dashboard and the server's DOJAH_* settings.</p>"
-        email_service.send_email_smtp(settings.KYC_ALERT_EMAIL, f"{settings.PROJECT_NAME} - KYC provider needs attention", body)
+        email_service.send_email(settings.KYC_ALERT_EMAIL, f"{settings.PROJECT_NAME} - KYC provider needs attention", body)
     except Exception:  # noqa: BLE001
         logger.warning("kyc ops alert email failed kind=%s", kind, exc_info=True)

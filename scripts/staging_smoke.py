@@ -7,7 +7,7 @@ What it checks, in order (each line is PASS / FAIL / SKIP; the exit code is 1 if
   2. both webhooks are reachable from the internet and refuse an unsigned call (Paystack 400, Dojah 401)
   3. pricing exists: POST /booking/preview is 200 (503 booking_settings_not_configured = the one-time pricing row is missing)
   4. sign-up: registers a throwaway patient with --email, then waits for YOU to read the 5-digit code from that mailbox
-     (type it at the prompt, or pass --code). This proves SMTP: without it the code is only written to the API log
+     (type it at the prompt, or pass --code). This proves email delivery: without it the code is only written to the API log
   5. login, then a Paystack link: POST /patient/wallet/deposit returns a checkout.paystack.com URL; pay it with a
      Paystack TEST card, add --wait-payment 180 and the script waits for the webhook to credit the wallet
   6. push token round trip: register a (fake) Expo token, delete it. With --expo-token ExponentPushToken[...] from a
@@ -125,7 +125,7 @@ class Smoke:
         if code is None and sys.stdin.isatty():
             code = input(f"   Check the inbox of {email} (and spam). Enter the 5-digit code, or press Enter to give up: ").strip() or None
         if code is None:
-            self.record(FAIL, "Sign-up code arrived by email", "no code entered: SMTP is not delivering (see `logs api | grep -i smtp`)")
+            self.record(FAIL, "Sign-up code arrived by email", "no code entered: email is not delivering (see `logs api | grep -i 'send email'`)")
             return password
         status, body = self.call("POST", "/api/v1/auth/verify-email", body={"email": email, "code": code})
         self.record(PASS if status == 200 else FAIL, "Sign-up code arrived by email and verifies",

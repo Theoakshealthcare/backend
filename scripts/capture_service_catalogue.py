@@ -14,7 +14,7 @@ pricing version). Light local stack, never ``backend/.env``:
         --base-url http://127.0.0.1:8001 --db-url postgresql://oakly:oakly@127.0.0.1:5433/oakly --env-file /path/scratch.env
 
 Every API call is a real HTTP call; people are registered through the endpoints (the OTP is read from the database because no
-SMTP is configured) and the admins are seeded. No Paystack call is made. Everything uses placeholder data.
+email is configured) and the admins are seeded. No Paystack call is made. Everything uses placeholder data.
 """
 
 import argparse
