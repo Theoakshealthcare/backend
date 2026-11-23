@@ -472,7 +472,7 @@ Runbook [`docs/deploy/staging.md`](../deploy/staging.md), [SOP](../sop/2026-11-0
 - [x] `scripts/staging_smoke.py` (health, webhooks, pricing, email code, login, Paystack link, push token, optional Expo receipt) and `scripts/staging_set_pricing.py` (one-time pricing row, never auto-seeded): tested against fake servers only
 - [x] ~~`.github/workflows/deploy-staging.yml` (draft)~~ replaced 2026-11-21 by `cd-staging.yml` / `cd-production.yml` (section 18)
 - [x] Proposed `EXPO_PUBLIC_API_URL` diff for both `eas.json` files, written in the runbook (NOT applied to the monorepo)
-- [ ] Owner provides: domain, VPS (**decided: 8 GB RAM / 4 vCPU, one server for both environments**, EU region for now), SMTP provider with port 465, Paystack test keys, Dojah sandbox values, Gemini key, Cloudinary, first price list, Super Admin email
+- [ ] Owner provides: domain, VPS (**decided: 8 GB RAM / 4 vCPU, one server for both environments**, EU region for now), email provider (Resend, replaced SMTP/Zoho 2026-11-23), Paystack test keys, Dojah sandbox values, Gemini key, Cloudinary, first price list, Super Admin email
 - [ ] **First real deploy** following the runbook; then fix what it finds and update the runbook's section 16
 - [ ] Restore test passes on the real schema; nightly backup cron running
 - [ ] Smoke script all PASS against the real server (sign-up code arrives by email, Paystack test payment credits the wallet via the webhook)
@@ -503,6 +503,8 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [x] WP3 one compose file for both environments; `scripts/remote_deploy.sh` with the pre-migration backup, `--wait` health gate and rollback of api and worker; nginx for two sites. **Verified on a scratch stack** (first deploy, redeploy, backup, restore test, rollback of a broken image). Merged 2026-11-21 as #58 (`91b9cbf`), CI green: 4 test shards ran in 10-17 minutes wall, Semgrep and Trivy pass (Trivy first found 12 fixable CVEs: lockfile bumps and pip removed from the image).
 - [x] WP4 backend tests in 4 shards (`pytest-split`). **Wall time is measured by the PR's first CI run**; billed minutes do not fall. Merged 2026-11-21 as #58 (`91b9cbf`), CI green: 4 test shards ran in 10-17 minutes wall, Semgrep and Trivy pass (Trivy first found 12 fixable CVEs: lockfile bumps and pip removed from the image).
 - [x] WP5 staging smoke test from `scripts/staging_smoke.py` as the `staging-e2e` job. **Verified against the scratch stack.** Merged 2026-11-21 as #58 (`91b9cbf`), CI green: 4 test shards ran in 10-17 minutes wall, Semgrep and Trivy pass (Trivy first found 12 fixable CVEs: lockfile bumps and pip removed from the image).
+- [x] Staging deployed and reachable at `https://staging-api.oaklycare.com` (2026-11-22, after fixes in #61-#65; mark-verified fix in #66). Not yet: pricing row, first admin, a verified image.
+- [x] Email moved from SMTP (Zoho refused the login) to Resend (2026-11-23, [SOP](../sop/2026-11-23-email-resend.md)); real delivery on staging not yet seen
 - [ ] WP6 GitHub Environments, secrets (including `VPS_SSH_FINGERPRINT`), branch rules, off-switch variables (default branch already switched to `develop` by the owner, 2026-11-21) (owner clicks: [`GITHUB_ACTIONS_SETUP.md`](../deployment/GITHUB_ACTIONS_SETUP.md))
 - [ ] Rotate the leaked Paystack, Zoho, Gemini, Cloudinary and Prembly keys, then create and commit `.env.staging.enc` (owner)
 - [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once; then production only after DEP-5 sign-off

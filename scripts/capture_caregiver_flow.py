@@ -320,7 +320,7 @@ def register_verify_login(ctx: Ctx, label: str, email: str, name: str, user_type
                  json_body={"email": email, "code": "00000"})
     (code,), = ctx.db.run("SELECT verification_code FROM users WHERE email = %s", (email,))
     rec.call(f"{label}-auth-verify-email", "POST", "/api/v1/auth/verify-email", json_body={"email": email, "code": code},
-             note="The OTP is emailed in production. In this stack SMTP is not configured, so the script read it "
+             note="The OTP is emailed in production. In this stack email is not configured, so the script read it "
                   "from users.verification_code.")
     if capture_extras:
         rec.call(f"{label}-auth-login-wrong-password", "POST", "/api/v1/auth/login/mobile", expect=401,

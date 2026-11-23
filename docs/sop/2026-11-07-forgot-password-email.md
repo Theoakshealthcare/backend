@@ -1,5 +1,7 @@
 # SOP: Forgot-password email no longer 500s (`POST /api/v1/auth/password-recovery`)
 
+> **Superseded 2026-11-23:** mail now goes through Resend (`send_email`, see [`2026-11-23-email-resend.md`](2026-11-23-email-resend.md)); `send_email_smtp` and the SMTP settings no longer exist. Kept as the record of the original fix.
+
 | | |
 |---|---|
 | **What shipped** | `POST /auth/password-recovery` returns `200 {"message": "Password recovery email sent"}` instead of a 500, sends the reset email through the real SMTP sender, answers identically for unknown emails (no account enumeration), and never turns a mail problem into a 500. A regression suite covers the whole forgot -> email -> reset -> sign-in flow. Fixes device-pass-1 blocker **DP1-01**. |

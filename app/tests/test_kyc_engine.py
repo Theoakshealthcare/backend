@@ -499,7 +499,7 @@ def test_notifications_are_coarse_and_never_raise(db, monkeypatch):
             raise RuntimeError("expo down")
 
     monkeypatch.setattr(kyc_notify.push_service, "get_push_service", lambda: Push())
-    monkeypatch.setattr(kyc_notify.email_service, "send_email_smtp", lambda to, subject, html: mails.append((to, subject, html)) or True)
+    monkeypatch.setattr(kyc_notify.email_service, "send_email", lambda to, subject, html: mails.append((to, subject, html)) or True)
     uid = uuid.uuid4()
     for kind in ("verified", "try_again", "under_review"):
         kyc_notify.deliver(db, kyc_notify.Notice(kind=kind, user_id=uid, email="placeholder@example.com", full_name="Test <b>Person</b>"))
@@ -515,7 +515,7 @@ def test_the_ops_alert_logs_and_emails_when_an_address_is_set(monkeypatch, caplo
     from app.core.config import settings
 
     mails = []
-    monkeypatch.setattr(kyc_notify.email_service, "send_email_smtp", lambda to, subject, html: mails.append((to, html)) or True)
+    monkeypatch.setattr(kyc_notify.email_service, "send_email", lambda to, subject, html: mails.append((to, html)) or True)
     kyc_notify.alert_ops("wallet_empty")
     assert mails == []  # no address configured: the ERROR log line is the alert
     monkeypatch.setattr(settings, "KYC_ALERT_EMAIL", "ops@example.com")
@@ -523,7 +523,7 @@ def test_the_ops_alert_logs_and_emails_when_an_address_is_set(monkeypatch, caplo
         kyc_notify.alert_ops("wallet_empty")
     assert mails and mails[0][0] == "ops@example.com" and "wallet" in mails[0][1].lower()
     assert any("kyc ops alert: wallet_empty" in r.getMessage() for r in caplog.records)
-    monkeypatch.setattr(kyc_notify.email_service, "send_email_smtp", lambda *a: (_ for _ in ()).throw(OSError("smtp down")))
+    monkeypatch.setattr(kyc_notify.email_service, "send_email", lambda *a: (_ for _ in ()).throw(OSError("smtp down")))
     kyc_notify.alert_ops("unauthorised")  # never raises
 
 

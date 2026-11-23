@@ -12,7 +12,7 @@ The stack: **api** (FastAPI behind gunicorn), **worker** (ARQ: dispatch, payouts
 |---|---|---|---|
 | 1 | **Domain** (and who controls its DNS) | A subdomain you already own, e.g. `staging-api.<yourdomain>` for the API. Tell me the domain; I replace `staging.example.com` everywhere. | before section 2 |
 | 2 | **VPS provider and plan** | **DECIDED (2026-11-21): one server for both environments, 8 GB RAM / 4 vCPU / 80+ GB SSD, Ubuntu 24.04 LTS** (DEP-4: staging and production share it and so share its failure modes; see `docs/deployment/DEPLOYMENT_GUIDE.md`). Pick the cheapest reputable EU region (London or Frankfurt) for now; decide a production region later with the latency measurement: from Lagos run `curl -o /dev/null -s -w '%{time_connect} %{time_total}\n' https://staging-api.<domain>/health` against staging and against a trial server in Johannesburg/Cape Town. Practical blocker in Nigeria: most providers want an international (dollar) card or PayPal; a virtual dollar card works. | before section 3 |
-| 3 | **SMTP provider** (sign-up codes, password-reset codes) | **Zoho Mail SMTP** (`smtp.zoho.com`, port **465**) for staging if the Oakly domain is already on Zoho: no new account. SES is the better production choice (cheap, high volume, but needs a verified domain and a request to leave the sandbox). Resend is the quickest to set up. **Hard requirement from the code: the provider must accept implicit TLS on port 465** (`app/services/email.py` uses `SMTP_SSL`; STARTTLS on 587 does not work). | before section 7 |
+| 3 | **Email provider** (sign-up codes, password-reset codes) | **DECIDED (2026-11-23): Resend** (HTTP API, no mail ports). Zoho SMTP was tried first and refused the login (535). Needs: a verified sending domain (done for `oaklycare.com`), an API key set as `RESEND_KEY` in the env file, and `EMAILS_FROM_EMAIL=no-reply@oaklycare.com`. The old `SMTP_*` settings no longer exist. | before section 7 |
 | 4 | **Sender address** | `noreply@<yourdomain>`, with SPF and DKIM set up at the provider or the codes land in spam. | with item 3 |
 | 5 | **Support email** | one address, used as the Let's Encrypt contact and as `KYC_ALERT_EMAIL` | section 6 |
 | 6 | **Paystack TEST keys** | Paystack dashboard, switch to **Test mode**, Settings > API Keys & Webhooks: `sk_test_...` and `pk_test_...` | section 7 |
@@ -85,7 +85,7 @@ sudo timedatectl set-timezone UTC
 # sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-Outbound mail: some providers block ports 25/465/587 on new accounts. If the smoke test's mail step fails and `docker logs` show a connection timeout, ask the provider to unblock **465**.
+Outbound mail goes over HTTPS (port 443) to `api.resend.com`, so no mail ports need to be open. If sign-up codes do not arrive, look for `Failed to send email` in the API log: it prints Resend's status and message (an unverified domain, a revoked key) and never the key.
 
 ## 4. Docker
 
@@ -129,7 +129,7 @@ set_key KYC_FINGERPRINT_KEY    "$(openssl rand -hex 32)"
 set_key DOJAH_WEBHOOK_SECRET   "$(openssl rand -hex 32)"   # also paste this one into the Dojah dashboard (section 9.3)
 sed -i.bak 's/staging\.example\.com/staging.<yourdomain>/g' .env.staging   # becomes staging-api.<yourdomain>, admin.staging..., noreply@staging...
 rm -f .env.staging.bak
-nano .env.staging    # fill every remaining CHANGE_ME: SMTP_*, PAYSTACK_*, DOJAH_*, GEMINI_API_KEY, CLOUDINARY_*; set FRONTEND_URL
+nano .env.staging    # fill every remaining CHANGE_ME: RESEND_KEY, PAYSTACK_*, DOJAH_*, GEMINI_API_KEY, CLOUDINARY_*; set FRONTEND_URL
 grep -E '^[A-Z_]+=.*CHANGE_ME' .env.staging | cut -d= -f1    # names only: must print nothing when you are done
 ./scripts/env.sh generate-key                                 # once, for both environments: prints the key ONCE: password manager + the GitHub secret of both Environments
 echo '<the key>' > .env.key                                   # gitignored
@@ -269,7 +269,7 @@ Each line prints PASS / FAIL / SKIP; any FAIL gives exit code 1 and says what to
 | 1 | `GET /health` over HTTPS, plus the OpenAPI document | `200 {"status":"healthy"}`; a valid certificate (the script verifies TLS) | DNS (section 2), firewall, nginx (`sudo nginx -t`), `compose ps` |
 | 2 | Both webhooks reachable and signed-only | Paystack path answers `400 Invalid webhook signature`, Dojah path `401 Invalid signature` to an unsigned call | the URL is exactly what is registered in 9.3; nginx proxies `/api/` |
 | 3 | Pricing row exists | `POST /booking/preview` is `200` | `503 booking_settings_not_configured`: do 9.2 |
-| 4 | **Sign-up code arrives by email** | the script registers a throwaway patient with your address, then you read the 5-digit code in that mailbox and type it; `verify-email` answers 200 | no mail: `$C logs api \| grep -i smtp`; SMTP host/port **465**, credentials, SPF/DKIM, provider port blocking |
+| 4 | **Sign-up code arrives by email** | the script registers a throwaway patient with your address, then you read the 5-digit code in that mailbox and type it; `verify-email` answers 200 | no mail: `$C logs api \| grep -i 'send email'` shows Resend's answer; check `RESEND_KEY`, that the domain is verified in the Resend dashboard, and the spam folder |
 | 5 | Login | `200` with a token pair | |
 | 6 | **Paystack payment link** | `POST /patient/wallet/deposit` returns a `https://checkout.paystack.com/...` URL; open it, pay with a Paystack **test** card; within 180 s the wallet balance becomes 100 | link fails: `PAYSTACK_SECRET_KEY` (test key?); link works but balance stays 0: the webhook URL (9.3), or the key in the env file is not the one of the dashboard in Test mode |
 | 7 | **Push token round trip** | `POST /devices/push-token` 200, `DELETE` 204 | auth or DB error in the logs |

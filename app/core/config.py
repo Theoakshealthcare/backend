@@ -49,10 +49,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Oaklycare"
     
     # Email
-    SMTP_PORT: Optional[int] = None
-    SMTP_HOST: Optional[str] = None
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
+    RESEND_KEY: str = ""
     EMAILS_FROM_EMAIL: Optional[EmailStr] = None
     EMAILS_FROM_NAME: Optional[str] = None
 

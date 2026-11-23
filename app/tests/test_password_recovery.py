@@ -2,16 +2,16 @@
 
 These cover the email transport and the deprecated long-token form; the emailed code is in test_password_reset_code.py.
 
-The real ``send_password_reset_email`` and ``send_email_smtp`` run in these tests; only the SMTP transport
-(``smtplib.SMTP_SSL``) is faked. A signature mismatch between them (the original ``subject_template`` bug, which made
+The real ``send_password_reset_email`` and ``send_email`` run in these tests; only the Resend HTTP transport (an
+``httpx.MockTransport``) is faked. A signature mismatch between them (the original ``subject_template`` bug, which made
 every recovery request a 500) therefore fails here, which the ``sent_emails`` fixture (it replaces the whole sender) cannot catch.
 """
 
-import email as email_lib
+import json
 import logging
 import re
-import smtplib
 
+import httpx
 import pytest
 
 from app.core.config import settings
@@ -25,57 +25,44 @@ NEW_PASSWORD = "Brand-New-Pass-42"
 RECOVERY_REPLY = {"message": "Password recovery email sent"}
 
 
-class FakeSMTP:
-    """Stands in for smtplib.SMTP_SSL. Records connections and messages; ``fail`` makes the login step raise."""
+class FakeResend:
+    """Stands in for the Resend API. Records every request; ``status`` makes it answer with an error."""
 
-    instances: list = []
-    fail: Exception | None = None
+    requests: list = []
+    status: int = 200
 
-    def __init__(self, host, port, context=None):
-        self.host, self.port = host, port
-        self.sent: list[tuple[str, str, str]] = []
-        FakeSMTP.instances.append(self)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def login(self, user, password):
-        if FakeSMTP.fail:
-            raise FakeSMTP.fail
-
-    def sendmail(self, sender, recipient, raw):
-        self.sent.append((sender, recipient, raw))
+    @classmethod
+    def handler(cls, request: httpx.Request) -> httpx.Response:
+        cls.requests.append(request)
+        if cls.status >= 400:
+            return httpx.Response(cls.status, json={"name": "validation_error", "message": "The domain is not verified"})
+        return httpx.Response(200, json={"id": "email-id-placeholder"})
 
 
 @pytest.fixture
 def smtp(monkeypatch):
-    """SMTP configured, transport faked. Returns the list of messages handed to the transport as (to, subject, html)."""
-    FakeSMTP.instances, FakeSMTP.fail = [], None
-    monkeypatch.setattr(smtplib, "SMTP_SSL", FakeSMTP)
-    monkeypatch.setattr(settings, "SMTP_HOST", "smtp.example.test")
-    monkeypatch.setattr(settings, "SMTP_PORT", 465)
-    monkeypatch.setattr(settings, "SMTP_USER", "mailer@example.test")
-    monkeypatch.setattr(settings, "SMTP_PASSWORD", "placeholder-not-a-secret")
+    """Resend configured, transport faked. Returns the outbox: ``collect()`` gives (to, subject, html) per email sent."""
+    FakeResend.requests, FakeResend.status = [], 200
+    monkeypatch.setattr(email_service, "_transport", httpx.MockTransport(FakeResend.handler))
+    monkeypatch.setattr(settings, "RESEND_KEY", "re_placeholder_not_a_secret")
     monkeypatch.setattr(settings, "EMAILS_FROM_EMAIL", "noreply@example.test")
     monkeypatch.setattr(settings, "EMAILS_FROM_NAME", "Oakly")
 
     class Outbox(list):
         @property
         def connections(self):
-            return len(FakeSMTP.instances)
+            return len(FakeResend.requests)
 
     outbox = Outbox()
 
     def collect():
         outbox.clear()
-        for server in FakeSMTP.instances:
-            for _sender, recipient, raw in server.sent:
-                msg = email_lib.message_from_string(raw)
-                html = msg.get_payload(0).get_payload(decode=True).decode()
-                outbox.append((recipient, str(email_lib.header.make_header(email_lib.header.decode_header(msg["Subject"]))), html))
+        for request in FakeResend.requests:
+            body = json.loads(request.content)
+            assert request.headers["authorization"] == "Bearer re_placeholder_not_a_secret"
+            assert body["from"] == "Oakly <noreply@example.test>"
+            [recipient] = body["to"]
+            outbox.append((recipient, body["subject"], body["html"]))
         return outbox
 
     outbox.collect = collect
@@ -164,37 +151,51 @@ def test_an_unknown_email_gets_the_same_reply_and_no_email(client, smtp):
     assert smtp.connections == 0
 
 
-def test_with_smtp_unset_the_endpoint_still_succeeds_and_logs(db, client, monkeypatch, caplog):
+def test_with_the_resend_key_unset_the_endpoint_still_succeeds_and_logs(db, client, smtp, monkeypatch, caplog):
     user = make_caregiver(db).user
-    monkeypatch.setattr(settings, "SMTP_HOST", None)
-    FakeSMTP.instances = []
-    monkeypatch.setattr(smtplib, "SMTP_SSL", FakeSMTP)
+    monkeypatch.setattr(settings, "RESEND_KEY", "")
 
     with caplog.at_level(logging.WARNING, logger=email_service.logger.name):
         r = client.post(RECOVER, json={"email": user.email})
 
     assert r.status_code == 200, r.text
     assert r.json() == RECOVERY_REPLY
-    assert FakeSMTP.instances == []  # nothing is dialled when SMTP is not configured
+    assert smtp.connections == 0  # nothing is dialled when email is not configured
     logged = " ".join(rec.getMessage() for rec in caplog.records)
-    assert "SMTP is not configured" in logged
+    assert "Email is not configured" in logged
     assert user.email not in logged  # the address is not written to the log
 
 
-def test_a_failing_mail_server_does_not_turn_recovery_into_a_500(db, client, smtp, caplog):
+def test_a_failing_mail_service_does_not_turn_recovery_into_a_500(db, client, smtp, caplog):
     user = make_caregiver(db).user
-    FakeSMTP.fail = smtplib.SMTPAuthenticationError(535, b"bad credentials")
+    FakeResend.status = 403
 
     with caplog.at_level(logging.WARNING, logger=email_service.logger.name):
         r = client.post(RECOVER, json={"email": user.email})
 
     assert r.status_code == 200, r.text
     assert r.json() == RECOVERY_REPLY
+    logged = " ".join(rec.getMessage() for rec in caplog.records)
+    assert "Failed to send email" in logged and "403" in logged
+    assert "re_placeholder_not_a_secret" not in logged  # the key is never written to the log
+
+
+def test_a_network_error_is_logged_not_raised(db, client, smtp, monkeypatch, caplog):
+    user = make_caregiver(db).user
+
+    def boom(request):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(email_service, "_transport", httpx.MockTransport(boom))
+    with caplog.at_level(logging.WARNING, logger=email_service.logger.name):
+        r = client.post(RECOVER, json={"email": user.email})
+
+    assert r.status_code == 200, r.text
     assert any("Failed to send email" in rec.getMessage() for rec in caplog.records)
 
 
 def test_the_other_senders_match_the_transport_signature_too(db, smtp):
-    """Every function in services/email.py that sends goes through send_email_smtp with the right arguments."""
+    """Every function in services/email.py that sends goes through send_email with the right arguments."""
     email_service.send_verification_email("someone@example.test", "123456")
     email_service.send_password_reset_email("someone@example.test", "12345", "a-token")
     assert email_service.send_caregiver_decision_email(
