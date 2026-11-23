@@ -558,11 +558,15 @@ class FakePaystack:
             **({"fees": self.fee_kobo} if self.fee_kobo is not None else {})}}
 
     # direct stand-ins for PaystackService methods (the tests never touch HTTP)
-    def initialize_transaction(self, _service, email, amount_kobo, reference, callback_url=None, metadata=None):
+    def initialize_transaction(self, _service, email, amount_kobo, reference, callback_url=None, metadata=None,
+                               channels=None):
         if self.fail_init:
             return {"status": False, "message": self.fail_init}
-        reply = self._initialize({"email": email, "amount": amount_kobo, "reference": reference,
-                                  "callback_url": callback_url, "metadata": metadata or {}})
+        payload = {"email": email, "amount": amount_kobo, "reference": reference,
+                   "callback_url": callback_url, "metadata": metadata or {}}
+        if channels:  # like the real service: the key is there only when channels were asked for
+            payload["channels"] = list(channels)
+        reply = self._initialize(payload)
         if not reply.get("status"):
             return {"status": False, "message": reply["message"]}
         data = reply["data"]

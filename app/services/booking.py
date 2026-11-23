@@ -4,7 +4,7 @@ import math
 import secrets
 import string
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Sequence
 from uuid import UUID
 from cryptography.fernet import InvalidToken
 from sqlalchemy.orm import Session
@@ -199,7 +199,8 @@ class BookingService:
         """Create a new booking with payment initiation"""
         booking = self.insert_booking(patient_id, booking_data, commit=True)
         return self.start_payment(
-            booking, callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete"
+            booking, callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete",
+            channels=booking_data.channels,
         )
 
     def insert_booking(
@@ -284,14 +285,19 @@ class BookingService:
             self.db.flush()
         return booking
 
-    def initialise_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
+    def initialise_payment(self, booking: Booking, *, callback_url: str,
+                           channels: Optional[Sequence[str]] = None) -> Dict[str, Any]:
         """Ask Paystack to initialise the transaction for the booking's own reference and total. No database writes.
+        ``channels`` (already validated by the request schema) limits the checkout page to those methods; it is passed on
+        only when given, so a call without it is exactly what it was before channels existed. The amount, currency and
+        metadata always come from the booking, never from the client.
         Returns Paystack's answer as ``PaystackService.initialize_transaction`` gives it (``status`` true with
         ``authorization_url`` and ``access_code``, or ``status`` false with ``message``)."""
         patient = self.db.query(Patient).filter(Patient.id == booking.patient_id).first()
         if not patient:
             raise Exception("Patient not found for payment processing.")
 
+        extra = {"channels": list(channels)} if channels else {}
         return self.paystack_service.initialize_transaction(
             email=paystack_email_for(patient),
             amount_kobo=booking.total_amount_kobo,
@@ -302,12 +308,14 @@ class BookingService:
                 "patient_id": str(booking.patient_id),
                 "service_type": booking.service_type,
                 "booking_code": booking.booking_code
-            }
+            },
+            **extra,
         )
 
-    def start_payment(self, booking: Booking, *, callback_url: str) -> Dict[str, Any]:
+    def start_payment(self, booking: Booking, *, callback_url: str,
+                      channels: Optional[Sequence[str]] = None) -> Dict[str, Any]:
         """Initialise the Paystack transaction for a booking that was just created."""
-        payment_response = self.initialise_payment(booking, callback_url=callback_url)
+        payment_response = self.initialise_payment(booking, callback_url=callback_url, channels=channels)
 
         if not payment_response.get("status"):
             # If payment initialization fails, mark booking as cancelled

@@ -3,7 +3,7 @@ from typing import Any, List, Optional, Union
 from uuid import UUID
 
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketDisconnected
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ from app.schemas.booking import (
     BookingNoteCreate, BookingNoteResponse,
     BookingNotificationResponse,
     LiveTrackingResponse,
-    CancelBookingRequest, CancelBookingResponse, CancelTermsResponse, PaymentLinkResponse,
+    CancelBookingRequest, CancelBookingResponse, CancelTermsResponse, PaymentLinkRequest, PaymentLinkResponse,
 )
 from app.services.booking import (
     BookingActionForbidden, BookingArrivalTooEarly, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
@@ -346,6 +346,9 @@ async def create_booking(
     **Optional Fields:**
     - **condition**: Medical condition or specific needs
     - **special_instructions**: Additional instructions for the caregiver
+    - **channels**: Which payment methods Paystack's checkout page offers (`["card"]`, `["bank_transfer"]` or both);
+      left out, Paystack shows its own default channels. Anything else is a 422. The amount, currency and reference are
+      always the server's; no amount or card data is accepted.
     
     **Process:**
     1. Validates patient profile exists
@@ -579,6 +582,8 @@ _PAYMENT_LINK_ERRORS = {
 )
 def get_payment_link(
     booking_id: UUID,
+    body: Optional[PaymentLinkRequest] = Body(
+        None, description="Optional. Send nothing, or {\"channels\": [...]}; see the note on channels below."),
     current_user: User = Depends(get_current_patient),
     db: Session = Depends(get_db),
 ) -> Any:
@@ -590,9 +595,15 @@ def get_payment_link(
     one, can never charge twice. Paystack is asked first whether the booking was already paid (a late webhook): if so it
     is settled and the answer is 409 ``booking_already_paid``. Nothing is written when a link is handed out. Only for a
     pending booking whose payment window is still open; the window is not extended.
+
+    **channels** (optional, ``["card"]``, ``["bank_transfer"]`` or both) limits Paystack's checkout page. It only applies
+    when the server has to make a new link (a booking with no stored link). A booking that already has its link, which is
+    every booking made through ``/create``, gets that same link back whatever this request names: the first link wins.
+    The person's method is chosen on ``/create``. The body can be left out entirely; no amount or other field is accepted.
     """
     try:
-        result = booking_payment_link.issue(db, current_user, booking_id)
+        result = booking_payment_link.issue(db, current_user, booking_id,
+                                            channels=body.channels if body else None)
     except patient_booking_cancel.PatientCancelError as exc:
         raise _cancel_http_error(exc)
     enriched = enrich_booking_with_details(result["booking"], db)

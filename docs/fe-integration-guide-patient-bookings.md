@@ -1866,3 +1866,64 @@ The detail and the list carry both fields too:
 | Create in minutes and in hours; detail and list carry both; stored minutes and end time | **Yes** (fake Paystack) | 314, 316 to 319 |
 | The caregiver's home and booking list carry both fields; the short-visit rule in minutes; the rounding rule and its properties | Test only | `test_booking_minutes.py`, `test_caregiver_home.py` |
 | WhatsApp: still whole hours, the Flow's choices follow the catalogue | Test only | `test_booking_minutes.py`, `test_whatsapp_flow_endpoint.py` |
+
+## 14. Choosing Card or Bank Transfer on Paystack's page (optional `channels`, 2026-11-24)
+
+> **Not captured live.** Unlike sections 3 to 13, nothing here comes from `scripts/capture_patient_flow.py` against a running API. The bodies below were printed by an **in-process test run** (FastAPI `TestClient`, the shared fake Paystack, a scratch Postgres) of `app/tests/test_booking_payment_channels.py`: the 422 bodies are the app's own responses, but no live-harness capture and no real Paystack call stands behind them. Re-record them with the capture script before relying on exact `msg` wording.
+
+**What it is.** The "Payment Details" screen offers **Card** or **Bank Transfer**. The choice is sent as an optional `channels` list when the booking is created, and the server asks Paystack to open its checkout page with only those methods. Leave it out and nothing changes: Paystack shows every method it has enabled.
+
+**Where to send it: `POST /booking/create`.** Add one optional field to the existing body:
+
+```json
+{ "channels": ["bank_transfer"] }
+```
+
+(next to all the usual booking fields). Allowed values are exactly `"card"` and `"bank_transfer"` (lower case). One or two values, no repeats; `["card", "bank_transfer"]` offers both. `null` or leaving the field out means "Paystack's own channels". The amount, currency, reference and metadata are always the server's: the app cannot send an amount or any card data (extra fields on `/create` are ignored, as before).
+
+**`POST /booking/{id}/payment-link` also accepts `{"channels": [...]}`, but it will almost never use it.** The link a booking was created with is stored and handed back, and Paystack cannot change the methods of a transaction it already opened (it also refuses to open the same reference twice). So **the first link wins**: if the booking already has its link, which is every booking made through `/create`, the endpoint returns that same link whatever `channels` the request names. The request is still validated (a bad value is a 422). The body can be left out entirely, as today; on this endpoint **any field other than `channels` is a 422** (`extra_forbidden`).
+
+### 14.1 Errors (all `422`, FastAPI's list shape, not the `detail.code` object)
+
+Unknown value (also wrong case such as `"Card"`, or `"bank"`, `"ussd"`):
+
+```json
+{"detail": [{"type": "literal_error", "loc": ["body", "channels", 0], "msg": "Input should be 'card' or 'bank_transfer'", "input": "ussd", "ctx": {"expected": "'card' or 'bank_transfer'"}}]}
+```
+
+Duplicate (`["card", "card"]`):
+
+```json
+{"detail": [{"type": "value_error", "loc": ["body", "channels"], "msg": "Value error, channels must not repeat a value", "input": ["card", "card"], "ctx": {"error": {}}}]}
+```
+
+Empty list (`[]`):
+
+```json
+{"detail": [{"type": "too_short", "loc": ["body", "channels"], "msg": "List should have at least 1 item after validation, not 0", "input": [], "ctx": {"field_type": "List", "min_length": 1, "actual_length": 0}}]}
+```
+
+More than two values, or not a list (`"card"`): `too_long` / `list_type` on `["body", "channels"]`, same shape. Extra field on `/payment-link` (`{"amount": 100}`):
+
+```json
+{"detail": [{"type": "extra_forbidden", "loc": ["body", "amount"], "msg": "Extra inputs are not permitted", "input": 100}]}
+```
+
+A 422 means nothing happened: no booking row, no Paystack call.
+
+### 14.2 What the app must do
+
+1. Send `channels` only when the person actually picked a method on the Payment Details screen; otherwise leave it out.
+2. Treat the choice as **fixed once the booking is created**. "Pay now" after a restart returns the same link with the same methods. Changing method means a new booking (the old one is cancelled or expires with its 30-minute window); do not offer a "change method" button on an existing unpaid booking.
+3. Do not build the screen's **Oakly Wallet** option (the wallet is not built).
+4. The checkout page is Paystack's. If a method is not enabled on Oakly's Paystack account, Paystack will not show it; that is checked by the team in Paystack test mode, not by this API.
+
+### 14.3 Verification
+
+| Behaviour | Verified live? | Evidence |
+|---|---|---|
+| `channels` forwarded to Paystack only when given; without it the initialise payload is unchanged | **Test only** (the real `PaystackService` against a stubbed `requests.post`; the fake Paystack for the booking flow) | `app/tests/test_booking_payment_channels.py` |
+| The 422 bodies above | **In-process test run**, not the live harness | printed from `TestClient` responses |
+| First link wins when `/payment-link` names other channels | **Test only** | same file |
+| What Paystack's real checkout shows for `["card"]` / `["bank_transfer"]`; that `bank_transfer` is enabled on the integration | **No** | needs a Paystack test-mode run |
+
