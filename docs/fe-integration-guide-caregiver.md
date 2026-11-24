@@ -2710,6 +2710,199 @@ Errors:
 }
 ```
 
+### Chats list: `GET /caregiver/chats`
+
+The list behind the app's **Chats** tab: one row for every booking whose chat the caregiver may open. Read-only. **Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `250` to `256` come from `app/tests/test_capture_caregiver_chats.py`. The data is placeholder.
+
+**What is listed:** the bookings assigned to the signed-in caregiver, in any status (`accepted`, `en_route`, `in_progress`, `completed`, `cancelled`): that is exactly who may call the chat routes (`GET /booking/chat/{booking_id}/messages` and `POST /booking/chat/{booking_id}/send` check the assignment and nothing else). A booking the caregiver was only offered, one they dropped, and every other caregiver's booking are **not** listed. For the same reason the patient is always shown by **full name**: the offer view hides patient identity, and the full name appears once the booking is yours. There is no first-name-and-initial form in this response.
+
+Query: `limit` (1 to 50, default 20), and `before` + `before_id` (the previous page's `next_before` and `next_before_id`, passed back together).
+
+Response `200` (`Cache-Control: no-store`):
+
+<!-- capture: 251-a-chats-list.json response.body -->
+```json
+{
+  "items": [
+    {
+      "booking_id": "a281bfb0-9193-4271-bc7d-5cab8d4bbbb5",
+      "patient_name": "Placeholder Cara",
+      "service_type": "nurse",
+      "status": "accepted",
+      "scheduled_date": "2026-11-25T14:02:39.995603",
+      "last_message": null
+    },
+    {
+      "booking_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3",
+      "patient_name": "Placeholder Ben Okoro",
+      "service_type": "companion",
+      "status": "accepted",
+      "scheduled_date": "2026-11-25T14:02:39.990316",
+      "last_message": {
+        "text": "Placeholder: a very long message a very long message a very long message a very long message a very long message a very long message a very…",
+        "sent_at": "2026-11-24T13:50:40.023820",
+        "from_me": false
+      }
+    },
+    {
+      "booking_id": "94fa0fee-29e7-4ae3-8cf3-4f07899dc8b5",
+      "patient_name": "Placeholder Ada",
+      "service_type": "nurse",
+      "status": "in_progress",
+      "scheduled_date": "2026-11-25T14:02:39.978584",
+      "last_message": {
+        "text": "Placeholder: yes, five minutes away.",
+        "sent_at": "2026-11-24T13:37:40.017349",
+        "from_me": true
+      }
+    },
+    {
+      "booking_id": "3bb49d39-39fe-4e93-808f-35b835790670",
+      "patient_name": "Placeholder Dan",
+      "service_type": "nurse",
+      "status": "completed",
+      "scheduled_date": "2026-11-25T14:02:39.999670",
+      "last_message": {
+        "text": "Placeholder: all done, take care.",
+        "sent_at": "2026-11-24T04:02:40.029124",
+        "from_me": true
+      }
+    }
+  ],
+  "next_before": null,
+  "next_before_id": null
+}
+```
+_capture `251-a-chats-list.json`_
+
+- **Order:** newest activity first. Activity is the time of the last message, or, for a conversation nobody has written in, the time the booking was created. So a newly assigned booking with no message yet sits near the top, above older conversations.
+- `last_message` is `null` until someone writes. Otherwise `text` is at most **140 characters**: a longer message is cut and ends with `…` (the `…` counts in the 140). It is a preview: open the chat route for the whole message. `from_me` is `true` when the signed-in caregiver sent it.
+- `scheduled_date` is when the visit starts (UTC, no `Z`, like every other timestamp in this API). `status` is the booking status (section 7).
+- **There is no `unread_count`.** The chat does not record who has read what (the `is_read` column exists but nothing ever sets it), so any unread badge would be wrong. Do not draw one until the backend adds read tracking.
+- There is no address, phone number or other patient detail here, and no avatar URL: build the avatar from the initials of `patient_name`.
+
+Paging (`limit=2`, then the cursor passed back):
+
+<!-- capture: 252-a-chats-page-1.json response.body -->
+```json
+{
+  "items": [
+    {
+      "booking_id": "a281bfb0-9193-4271-bc7d-5cab8d4bbbb5",
+      "patient_name": "Placeholder Cara",
+      "service_type": "nurse",
+      "status": "accepted",
+      "scheduled_date": "2026-11-25T14:02:39.995603",
+      "last_message": null
+    },
+    {
+      "booking_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3",
+      "patient_name": "Placeholder Ben Okoro",
+      "service_type": "companion",
+      "status": "accepted",
+      "scheduled_date": "2026-11-25T14:02:39.990316",
+      "last_message": {
+        "text": "Placeholder: a very long message a very long message a very long message a very long message a very long message a very long message a very…",
+        "sent_at": "2026-11-24T13:50:40.023820",
+        "from_me": false
+      }
+    }
+  ],
+  "next_before": "2026-11-24T13:50:40.023820",
+  "next_before_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3"
+}
+```
+_capture `252-a-chats-page-1.json`_
+
+<!-- capture: 253-a-chats-page-2.json response.body -->
+```json
+{
+  "items": [
+    {
+      "booking_id": "94fa0fee-29e7-4ae3-8cf3-4f07899dc8b5",
+      "patient_name": "Placeholder Ada",
+      "service_type": "nurse",
+      "status": "in_progress",
+      "scheduled_date": "2026-11-25T14:02:39.978584",
+      "last_message": {
+        "text": "Placeholder: yes, five minutes away.",
+        "sent_at": "2026-11-24T13:37:40.017349",
+        "from_me": true
+      }
+    },
+    {
+      "booking_id": "3bb49d39-39fe-4e93-808f-35b835790670",
+      "patient_name": "Placeholder Dan",
+      "service_type": "nurse",
+      "status": "completed",
+      "scheduled_date": "2026-11-25T14:02:39.999670",
+      "last_message": {
+        "text": "Placeholder: all done, take care.",
+        "sent_at": "2026-11-24T04:02:40.029124",
+        "from_me": true
+      }
+    }
+  ],
+  "next_before": null,
+  "next_before_id": null
+}
+```
+_capture `253-a-chats-page-2.json`_
+
+`next_before` and `next_before_id` are `null` on the last page. Pass them back **together**: `before` alone pages on time only and skips a conversation that has exactly the same activity time as `before`.
+
+Empty list (a caregiver with no assigned booking yet) _(capture `250-a-chats-empty.json`)_:
+
+<!-- capture: 250-a-chats-empty.json response.body -->
+```json
+{
+  "items": [],
+  "next_before": null,
+  "next_before_id": null
+}
+```
+
+Errors:
+- `422` for a `limit` outside 1 to 50 _(capture `254-a-chats-limit-too-big.json`)_.
+- `403` `{"detail": "Access denied. Caregiver account required."}` for a patient token _(capture `255-p-chats-patient-token.json`)_.
+- `401` `{"detail": "Not authenticated"}` with no token _(capture `256-none-chats-no-token.json`)_.
+
+<!-- capture: 254-a-chats-limit-too-big.json response.body keys=detail -->
+```json
+{
+  "detail": [
+    {
+      "type": "less_than_equal",
+      "loc": [
+        "query",
+        "limit"
+      ],
+      "msg": "Input should be less than or equal to 50",
+      "input": "51",
+      "ctx": {
+        "le": 50
+      }
+    }
+  ]
+}
+```
+
+<!-- capture: 255-p-chats-patient-token.json response.body -->
+```json
+{
+  "detail": "Access denied. Caregiver account required."
+}
+```
+
+<!-- capture: 256-none-chats-no-token.json response.body -->
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+**Polling:** the list has no push of its own. Refetch it when the Chats tab gains focus, on pull-to-refresh, and every **15 to 30 seconds** while the tab is open (the same cadence as section 13). A new message in a conversation moves it to the top on the next refetch.
+
 ## 8. The visit code (start requires it)
 
 What it is, for the app: a 4-digit code made when the caregiver accepts. The **patient** sees it in their app (and, later, over WhatsApp) and reads it out when the caregiver arrives. The caregiver types it to start the visit. The caregiver never sees the code.
@@ -3696,6 +3889,8 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Cancel refused en route and in progress; allowed more than the lead out (booking reopens as `pending`); lead taken from the policy | **[not live]** | `app/tests/test_caregiver_cancel_window.py` |
 | Client profile: 200 for in progress, accepted (vitals `null`) and booked-for-someone-else; the same 404 for another caregiver and a completed visit; 403 for a patient token | Yes (test harness: real app and Postgres, not the compose stack) | `190`-`195` |
 | Client profile for a suspended caregiver, an erased patient, a patient grant, `Myself` capitalised | **[not live]** | `app/tests/test_caregiver_client_profile.py` |
+| Chats list: 200 empty; 200 with last message from me, from the patient, cut at 140, none yet and a finished visit; an offered booking and another caregiver's booking not listed; cursor paging; 422 on `limit`; 403 for a patient token; 401 without a token | Yes (test harness: real app and Postgres, not the compose stack) | `250`-`256` |
+| Chats list: ordering ties, the no-extra-queries guarantee, no address or phone in the body | **[not live]** | `app/tests/test_caregiver_chats.py` |
 | Care plans (B1): templates, visit summary, create, read, lists, edit, goals, errors | Yes (test harness: real app and Postgres, not the compose stack) | Section 16.12, captures `200`-`222` |
 | Care plans (B2): task edits, day view, ticks, notes, progress, errors | Yes (test harness; some rows **[db-simulated]** or **[not live]**) | Section 16.20, captures `230`-`238` |
 | Care plans (B3): medications add, edit, stop, on the plan, errors | Yes (test harness; some rows **[not live]**) | Section 16.25, captures `240`-`244` |

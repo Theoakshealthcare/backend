@@ -20,6 +20,7 @@ from app.schemas.caregiver import (
     CaregiverConsentData
 )
 from app.core.config import settings
+from app.services import admin_notify
 
 
 NIGERIAN_STATES = [
@@ -131,6 +132,7 @@ class CaregiverService:
         self.db.add(document)
         self.db.commit()
         self.db.refresh(document)
+        admin_notify.on_document_uploaded(caregiver.id, document.id)  # best effort, after the commit, never raises
         return document
 
     def update_consent(self, user_id: UUID, consent_data: CaregiverConsentData) -> Caregiver:
@@ -138,6 +140,7 @@ class CaregiverService:
         if not caregiver:
             raise ValueError("Caregiver not found")
 
+        status_before = caregiver.profile_status
         caregiver.terms_accepted = consent_data.terms_accepted
         caregiver.privacy_policy_accepted = consent_data.privacy_policy_accepted
         caregiver.background_check_consent = consent_data.background_check_consent
@@ -155,6 +158,7 @@ class CaregiverService:
 
         self.db.commit()
         self.db.refresh(caregiver)
+        admin_notify.on_profile_status_change(caregiver.id, status_before, caregiver.profile_status)  # best effort, after the commit
         return caregiver
 
     def get_verification_status(self, user_id: UUID) -> Dict[str, Any]:

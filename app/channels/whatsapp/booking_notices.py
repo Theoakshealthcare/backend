@@ -76,6 +76,7 @@ REFUND_NOTICES = {"refund_flagged": "being processed", "refund_processed": "comp
                   "refund_needs_bank_details": "waiting for your bank details. Our team will contact you"}
 # A refund notice keyed ``<refund id>:<status>`` is dropped once the refund has moved on to a state that makes it untrue.
 _STALE_FOR = {"refund_flagged": ("succeeded", "failed", "rejected", "closed", "needs_review"),
+              "refund_processed": ("needs_review", "failed", "closed", "rejected"),  # no longer "sent"
               "refund_needs_bank_details": ("processing", "succeeded", "failed", "rejected", "closed", "needs_review")}
 
 

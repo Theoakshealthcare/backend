@@ -16,7 +16,6 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.security import encrypt
 from app.db.models.booking import BookingStatus, PaymentStatus
-from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.push_token import PushToken
 from app.db.session import engine as suite_engine
@@ -74,8 +73,11 @@ def _seed(eng, status):
                 {"i": uid, "e": f"{kind}{tag}@example.com", "n": kind.upper(),
                  "t": "patient" if kind == "p" else "caregiver"})
         patient = Patient(user_id=pu_id, email=f"p{tag}@example.com", full_name="P", city="Lagos", state="Lagos")
-        cg = Caregiver(user_id=cu_id, email=f"c{tag}@example.com", full_name="C")
-        s.add_all([patient, cg])
+        # Raw SQL for the caregiver too: the model has gained columns since 0002 (e.g. applying_as, 0028).
+        cg_id = uuid.uuid4()
+        s.execute(text("INSERT INTO caregivers (id, user_id, email, full_name) VALUES (:i, :u, :e, 'C')"),
+                  {"i": cg_id, "u": cu_id, "e": f"c{tag}@example.com"})
+        s.add(patient)
         s.flush()
         start = datetime.utcnow() + timedelta(days=1)
         # Raw SQL, not the ORM model: this test runs at the 0002 schema and the model has since gained columns
@@ -88,7 +90,7 @@ def _seed(eng, status):
             "platform_fee_kobo, booking_for, status, payment_status, visit_code_enc) VALUES "
             "(:id, :code, :patient, :caregiver, 'nurse', 'x', 1, :start, :start, 'a', 1.0, 1.0, 'Lagos', 'Lagos', "
             "100, 90, 10, 'myself', :status, :payment, :code4821)"),
-            {"id": booking_id, "code": tag.upper(), "patient": patient.id, "caregiver": cg.id, "start": start,
+            {"id": booking_id, "code": tag.upper(), "patient": patient.id, "caregiver": cg_id, "start": start,
              "status": status.name, "payment": PaymentStatus.PAID.name, "code4821": encrypt("4821")})
         s.add(PushToken(user_id=pu_id, token=f"ExponentPushToken[placeholder-{tag}]", platform="ios"))
         s.commit()

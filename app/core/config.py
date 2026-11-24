@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     ADMIN_IDLE_TIMEOUT_MINUTES: int = 30  # a refresh token not used within this window dies
     ADMIN_SESSION_MAX_HOURS: int = 12  # absolute cap on one login session, however active
     ADMIN_INVITE_HOURS: int = 48
+    # Admin e-mails about caregiver onboarding (app/services/admin_notify.py). They go to every active admin who may approve
+    # caregivers; ADMIN_NOTIFY_EMAIL is one extra address (empty = none). ADMIN_CONSOLE_URL is the console origin the links use.
+    ADMIN_NOTIFY_EMAIL: str = ""
+    ADMIN_CONSOLE_URL: str = "https://admin.oaklycare.com"
     ADMIN_MAX_FAILED_LOGINS: int = 10  # wrong TOTP codes (password already proven) before the account locks
     # Lock length per consecutive lock; the last entry repeats. Resets on a successful MFA.
     ADMIN_LOCKOUT_TIERS_MINUTES: Annotated[List[int], NoDecode] = [15, 60, 1440]

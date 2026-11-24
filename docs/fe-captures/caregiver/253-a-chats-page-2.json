@@ -1,0 +1,51 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/chats",
+    "query": {
+      "limit": 2,
+      "before": "2026-11-24T13:50:40.023820",
+      "before_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3"
+    },
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "booking_id": "94fa0fee-29e7-4ae3-8cf3-4f07899dc8b5",
+          "patient_name": "Placeholder Ada",
+          "service_type": "nurse",
+          "status": "in_progress",
+          "scheduled_date": "2026-11-25T14:02:39.978584",
+          "last_message": {
+            "text": "Placeholder: yes, five minutes away.",
+            "sent_at": "2026-11-24T13:37:40.017349",
+            "from_me": true
+          }
+        },
+        {
+          "booking_id": "3bb49d39-39fe-4e93-808f-35b835790670",
+          "patient_name": "Placeholder Dan",
+          "service_type": "nurse",
+          "status": "completed",
+          "scheduled_date": "2026-11-25T14:02:39.999670",
+          "last_message": {
+            "text": "Placeholder: all done, take care.",
+            "sent_at": "2026-11-24T04:02:40.029124",
+            "from_me": true
+          }
+        }
+      ],
+      "next_before": null,
+      "next_before_id": null
+    }
+  },
+  "note": "The previous page's cursor passed back: the last page has next_before and next_before_id null."
+}
