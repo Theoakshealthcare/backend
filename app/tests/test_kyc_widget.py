@@ -255,6 +255,15 @@ def test_the_page_loads_the_widget_and_reports_nowhere(db, client):
     assert "Done. You can return to the app" in html
 
 
+def test_the_page_never_reloads_the_widget_script_in_a_loop(db, client):
+    """If the script loads but defines no window.Connect, the page may retry once and then say so; it must never reload forever
+    (a loop of this kind injected the script 600,000 times and left the page on 'Loading...' with no message)."""
+    html = open_page(client, attempt(db)).text
+    assert "tries+=1" in html and "if(tries<2){load();return}" in html
+    assert "Could not start the check. Check your connection and tap Start verification to try again." in html
+    assert html.count("document.createElement('script')") == 1  # one loader, bounded by the counter above
+
+
 def test_every_script_has_the_per_response_nonce_and_only_that(db, client):
     row = attempt(db)
     first, second = open_page(client, row), open_page(client, row)
@@ -285,7 +294,11 @@ def test_the_csp_allows_the_page_dojah_and_nothing_else(db, client):
     assert policy["default-src"] == ["'none'"]
     assert policy["frame-ancestors"] == ["'none'"] and policy["base-uri"] == ["'none'"]
     assert policy["form-action"] == ["'none'"] and policy["object-src"] == ["'none'"]
-    assert "'unsafe-inline'" not in policy["script-src"] and "'unsafe-eval'" not in policy["script-src"]
+    assert "'unsafe-inline'" not in policy["script-src"]
+    # Dojah's widget.js evaluates strings: without 'unsafe-eval' it throws before it defines window.Connect and the page hangs on
+    # "Loading the verification widget..." (seen in a real browser, 2026-11-24). Allowed for scripts only, nowhere else.
+    assert "'unsafe-eval'" in policy["script-src"]
+    assert all("'unsafe-eval'" not in sources for name, sources in policy.items() if name != "script-src")
     assert "*" not in {s for sources in policy.values() for s in sources}
     for directive in ("script-src", "connect-src", "frame-src"):
         assert "https://*.dojah.io" in policy[directive]
