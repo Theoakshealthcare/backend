@@ -453,6 +453,7 @@ Design and slice plan: [docs/plans/2026-10-27-caregiver-kyc-design.md](../plans/
 - [ ] **K8** Live sandbox pass on a device, one live-key check by the owner, FE guide rows marked verified live, SOP, reconcile this section; settle every UNCONFIRMED item D1-D14 in `kyc_seam.py` and the KD1 SOP
 - [ ] Owner: a Data Processing Agreement and processing location from Dojah; counsel check of the NDPA lawful basis and the consent wording; retention after erasure (proposed 12 months of status + timestamp + reference); keep or drop the NIN/BVN fingerprint
 - [ ] Owner: a person and channel for the "Dojah wallet low or empty" alert (an empty wallet fails every verification at once)
+- [x] **Admin e-mails for caregiver onboarding** (2026-11-24, branch `feat/admin-notify-emails`, no migration, [SOP](../sop/2026-11-24-admin-notify-emails.md)): active admins holding `caregivers.approve` (plus optional `ADMIN_NOTIFY_EMAIL`) are mailed when a profile is submitted/resubmitted, an identity check ends as `needs_review`, or a document is added while `under_review`/`changes_requested` (one per caregiver per 30 minutes); best effort, after the commit, name and console link only. Real Resend delivery not yet seen on staging.
 
 ## 15. AI voice notes (caregiver note transcription) — 🟡 built, not merged; real Gemini unverified
 - [x] Plan, API contract, data model and test plan (2026-11-07, merged #47)

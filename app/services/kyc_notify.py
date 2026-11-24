@@ -16,6 +16,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.services import admin_notify
 from app.services import email as email_service
 from app.services import push as push_service
 
@@ -47,6 +48,8 @@ class Notice:
 
 def deliver(db: Session, notice: Notice) -> None:
     """Push and e-mail the caregiver. Never raises."""
+    if notice.kind == UNDER_REVIEW:
+        admin_notify.notify("identity_review", user_id=notice.user_id)  # an admin must look; best effort, never raises
     heading, message = COPY[notice.kind]
     try:
         push_service.get_push_service().send_to_users(
