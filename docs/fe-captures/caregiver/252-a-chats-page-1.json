@@ -1,0 +1,45 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/chats",
+    "query": {
+      "limit": 2
+    },
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "booking_id": "a281bfb0-9193-4271-bc7d-5cab8d4bbbb5",
+          "patient_name": "Placeholder Cara",
+          "service_type": "nurse",
+          "status": "accepted",
+          "scheduled_date": "2026-11-25T14:02:39.995603",
+          "last_message": null
+        },
+        {
+          "booking_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3",
+          "patient_name": "Placeholder Ben Okoro",
+          "service_type": "companion",
+          "status": "accepted",
+          "scheduled_date": "2026-11-25T14:02:39.990316",
+          "last_message": {
+            "text": "Placeholder: a very long message a very long message a very long message a very long message a very long message a very long message a very…",
+            "sent_at": "2026-11-24T13:50:40.023820",
+            "from_me": false
+          }
+        }
+      ],
+      "next_before": "2026-11-24T13:50:40.023820",
+      "next_before_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3"
+    }
+  },
+  "note": "limit=2: next_before and next_before_id say there is more."
+}
