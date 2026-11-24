@@ -6,7 +6,9 @@ transaction as the change. The worker then calls ``deliver`` for each such event
 
 1. checks the event is still true of the booking as it is now (a caregiver who was since replaced is not announced);
 2. writes the feed row and commits it. ``notifications.event_id`` is unique, so a retry never writes a second row;
-3. pushes the same words to the patient's devices. A push never raises and never undoes the feed row.
+3. pushes the same words to the patient's devices. A push never raises and never undoes the feed row;
+4. e-mails the booker for the events worth an inbox (``app.services.patient_email``), only on the pass that wrote the
+   feed row, so a replayed event never sends a second mail. Best effort: it never raises and never undoes the row.
 
 Because this runs in the worker, outside the booking's transaction, nothing here can fail or roll back the booking
 action that caused it.
@@ -20,7 +22,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -31,7 +33,7 @@ from app.db.models.notification import Notification
 from app.db.models.patient import Patient
 from app.db.models.user import User
 from app.db.models.whatsapp_booking import BookingEvent
-from app.services import push as push_service
+from app.services import patient_email, push as push_service
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +118,9 @@ def compose(db: Session, event: BookingEvent, booking: Booking) -> Optional[Cont
 
 
 def _write_feed_row(db: Session, user_id: uuid.UUID, booking: Booking, event: BookingEvent,
-                    content: Content) -> uuid.UUID:
-    """Insert the feed row (once per outbox event) and commit it. Returns its id."""
+                    content: Content) -> Tuple[uuid.UUID, bool]:
+    """Insert the feed row (once per outbox event) and commit it. Returns its id and whether this call inserted it
+    (False on a replay: the row was already there)."""
     inserted = db.execute(
         insert(Notification)
         .values(id=uuid.uuid4(), user_id=user_id, type=content.type, title=content.title, body=content.body,
@@ -128,9 +131,9 @@ def _write_feed_row(db: Session, user_id: uuid.UUID, booking: Booking, event: Bo
     if inserted is None:  # a retry after a crash between this commit and the push: the row is already there
         existing = db.query(Notification.id).filter(Notification.event_id == event.id).scalar()
         db.commit()
-        return existing
+        return existing, False
     db.commit()
-    return inserted[0]
+    return inserted[0], True
 
 
 def deliver(db: Session, event: BookingEvent, booking: Booking) -> str:
@@ -146,7 +149,7 @@ def deliver(db: Session, event: BookingEvent, booking: Booking) -> str:
         if content is None:
             return "stale"
         try:
-            notification_id = _write_feed_row(db, user_id, booking, event, content)
+            notification_id, created = _write_feed_row(db, user_id, booking, event, content)
         except Exception:
             db.rollback()
             logger.exception("app notice %s for booking %s: feed row not written", name, code)
@@ -155,6 +158,8 @@ def deliver(db: Session, event: BookingEvent, booking: Booking) -> str:
                                 "notification_id": str(notification_id)}
         accepted = push_service.get_push_service().send_to_users(
             db, [user_id], title=content.title, body=content.body, data=data)
+        if created:  # once per event: a replay found the row already written and sends no second e-mail
+            patient_email.send_for_event(db, user_id, event, booking, name, code)  # best effort, never raises
         return "sent" if accepted else "no_device"
     except Exception:
         db.rollback()
