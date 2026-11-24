@@ -49,29 +49,45 @@ def test_step2_never_grants_a_skill(db, client):
     assert db.query(CaregiverSkill).filter_by(caregiver_id=cg.id).count() == 0
 
 
-def test_a_first_submission_without_applying_as_is_a_422_and_saves_nothing(db, client):
+def test_a_first_submission_without_applying_as_still_succeeds_and_stays_null(db, client):
+    """An older app build sends no applying_as: step 2 saves exactly as before, and the admin sees 'none'."""
     cg = new_caregiver(db)
     r = client.put(STEP2, json=BODY, headers=auth_headers(cg.user))
-    assert r.status_code == 422
-    assert r.json()["detail"][0]["loc"] == ["body", "applying_as"] and r.json()["detail"][0]["type"] == "missing"
+    assert r.status_code == 200, r.text
+    assert r.json()["applying_as"] is None
     db.refresh(cg)
-    assert cg.profile_completion_step == 1 and cg.applying_as is None and cg.specialization is None
+    assert cg.applying_as is None and cg.profile_completion_step == 2 and cg.specialization == "Elderly Care"
+
+
+def test_a_null_applying_as_is_the_same_as_leaving_it_out(db, client):
+    cg = new_caregiver(db)
+    r = client.put(STEP2, json={**BODY, "applying_as": None}, headers=auth_headers(cg.user))
+    assert r.status_code == 200 and r.json()["applying_as"] is None
+    db.refresh(cg)
+    assert cg.applying_as is None and cg.profile_completion_step == 2
+
+
+def test_a_null_applying_as_never_clears_stored_roles(db, client):
+    cg = make_caregiver(db, approved=False, profile_completion_step=2, applying_as=["nurse"])
+    r = client.put(STEP2, json={**BODY, "applying_as": None}, headers=auth_headers(cg.user))
+    assert r.status_code == 200 and r.json()["applying_as"] == ["nurse"]
+    db.refresh(cg)
+    assert cg.applying_as == ["nurse"]
 
 
 @pytest.mark.parametrize("bad", [
     ["surgeon"],
     ["nurse", "nurse"],
     [],
-    None,
     "nurse",
     ["nurse", "doctor", "physiotherapist", "caregiver", "nutritionist", "nurse"],
-], ids=["unknown", "duplicate", "empty", "null", "not-a-list", "six"])
-def test_bad_applying_as_values_are_422(db, client, bad):
+], ids=["unknown", "duplicate", "empty", "not-a-list", "six"])
+def test_bad_applying_as_values_are_422_and_save_nothing(db, client, bad):
     cg = new_caregiver(db)
     r = client.put(STEP2, json={**BODY, "applying_as": bad}, headers=auth_headers(cg.user))
     assert r.status_code == 422
     db.refresh(cg)
-    assert cg.applying_as is None and cg.profile_completion_step == 1
+    assert cg.applying_as is None and cg.profile_completion_step == 1 and cg.specialization is None
 
 
 def test_all_five_roles_are_accepted(db, client):
@@ -81,7 +97,7 @@ def test_all_five_roles_are_accepted(db, client):
     assert r.status_code == 200 and r.json()["applying_as"] == roles
 
 
-def test_a_legacy_row_may_resave_step2_without_it_and_stays_null(db, client):
+def test_a_legacy_row_resaving_step2_without_it_stays_null(db, client):
     legacy = make_caregiver(db, approved=False, profile_completion_step=3)  # passed step 2 before the field existed
     assert legacy.applying_as is None
     r = client.put(STEP2, json=BODY, headers=auth_headers(legacy.user))
@@ -99,11 +115,6 @@ def test_a_resave_without_applying_as_keeps_the_stored_roles_and_a_resave_with_i
     assert client.put(STEP2, json={**BODY, "applying_as": ["physiotherapist"]}, headers=h).status_code == 200
     db.refresh(cg)
     assert cg.applying_as == ["physiotherapist"]
-
-
-def test_a_row_without_roles_that_is_still_before_step_2_must_send_them_even_if_it_has_other_fields(db, client):
-    cg = new_caregiver(db, applying_as=None)
-    assert client.put(STEP2, json=BODY, headers=auth_headers(cg.user)).status_code == 422
 
 
 def test_the_database_rejects_a_role_outside_the_five(db):

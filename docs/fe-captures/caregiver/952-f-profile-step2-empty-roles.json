@@ -37,5 +37,6 @@
         }
       ]
     }
-  }
+  },
+  "note": "A 422 saves nothing: the caregiver is still at step 1."
 }

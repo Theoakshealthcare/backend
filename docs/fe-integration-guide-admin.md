@@ -7029,7 +7029,7 @@ Both actions write `admin_audit_log` rows (`caregiver.identity_decision`, `careg
 
 ## 12.15 What the caregiver asked for: `requested_skills` (new 2026-11-24, migration `0028`)
 
-In setup step 2 the caregiver app now asks "I apply as" and lets them pick one or more of the five roles (`nurse`, `doctor`, `physiotherapist`, `caregiver`, `nutritionist`). The backend stores it as a **request**. Skills are unchanged and stay yours to confirm: **`PUT /admin/caregivers/{id}/skills` is still the only thing that grants a skill, nothing grants one automatically, and approval still needs at least one confirmed skill** (`NO_SKILLS` otherwise). The caregiver's side is in the [caregiver guide](fe-integration-guide-caregiver.md) (section 4, "I apply as").
+In setup step 2 the caregiver app now asks "I apply as" and lets them pick one or more of the five roles (`nurse`, `doctor`, `physiotherapist`, `caregiver`, `nutritionist`). The backend stores it as a **request**. The server does not require it (the app does), so a caregiver who signed up with an older app build has no request: `requested_skills` is `[]` for them, and you decide their skills as before. Skills are unchanged and stay yours to confirm: **`PUT /admin/caregivers/{id}/skills` is still the only thing that grants a skill, nothing grants one automatically, and approval still needs at least one confirmed skill** (`NO_SKILLS` otherwise). The caregiver's side is in the [caregiver guide](fe-integration-guide-caregiver.md) (section 4, "I apply as").
 
 What changes for the console:
 

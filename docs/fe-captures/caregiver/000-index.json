@@ -913,38 +913,38 @@
       "status": 403
     },
     {
-      "file": "950-f-profile-step2-missing-applying-as.json",
-      "label": "f-profile-step2-missing-applying-as",
-      "status": 422
-    },
-    {
-      "file": "951-f-profile-step2-unknown-role.json",
+      "file": "950-f-profile-step2-unknown-role.json",
       "label": "f-profile-step2-unknown-role",
       "status": 422
     },
     {
-      "file": "952-f-profile-step2-duplicate-role.json",
+      "file": "951-f-profile-step2-duplicate-role.json",
       "label": "f-profile-step2-duplicate-role",
       "status": 422
     },
     {
-      "file": "953-f-profile-step2-empty-roles.json",
+      "file": "952-f-profile-step2-empty-roles.json",
       "label": "f-profile-step2-empty-roles",
       "status": 422
     },
     {
-      "file": "954-f-profile-step2-null-roles.json",
-      "label": "f-profile-step2-null-roles",
-      "status": 422
+      "file": "953-f-profile-step2-omitted-applying-as.json",
+      "label": "f-profile-step2-omitted-applying-as",
+      "status": 200
     },
     {
-      "file": "955-f-profile-step2-with-applying-as.json",
+      "file": "954-f-profile-step2-with-applying-as.json",
       "label": "f-profile-step2-with-applying-as",
       "status": 200
     },
     {
-      "file": "956-f-profile-step2-resave-without-applying-as.json",
+      "file": "955-f-profile-step2-resave-without-applying-as.json",
       "label": "f-profile-step2-resave-without-applying-as",
+      "status": 200
+    },
+    {
+      "file": "956-f-profile-step2-null-applying-as.json",
+      "label": "f-profile-step2-null-applying-as",
       "status": 200
     },
     {

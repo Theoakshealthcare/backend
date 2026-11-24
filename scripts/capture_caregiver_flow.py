@@ -932,23 +932,26 @@ def run(args) -> None:
     rec.quiet = False
     step2 = {"specialization": "Elderly Care", "years_of_experience": 5, "preferred_work_hours": "weekdays",
              "service_areas": ["Personal Care", "Medication Reminders"]}
-    rec.call("f-profile-step2-missing-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
-             json_body=step2, note="A first submission of step 2 without applying_as is refused (the same 'missing' error as any "
-                                   "other required field) and nothing is saved.")
     rec.call("f-profile-step2-unknown-role", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
              json_body={**step2, "applying_as": ["surgeon"]})
     rec.call("f-profile-step2-duplicate-role", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
              json_body={**step2, "applying_as": ["nurse", "nurse"]})
     rec.call("f-profile-step2-empty-roles", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
-             json_body={**step2, "applying_as": []})
-    rec.call("f-profile-step2-null-roles", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
-             json_body={**step2, "applying_as": None})
+             json_body={**step2, "applying_as": []},
+             note="A 422 saves nothing: the caregiver is still at step 1.")
+    rec.call("f-profile-step2-omitted-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf,
+             json_body=step2, note="The server does NOT require applying_as: an app build that does not send it saves step 2 "
+                                   "exactly as before and applying_as stays null (the console then shows no request). The "
+                                   "caregiver app requires it in its own UI.")
     rec.call("f-profile-step2-with-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf,
              json_body={**step2, "applying_as": ["doctor", "nurse"]},
              note="Saved as sent, in the order sent. It is a REQUEST: no skill is created.")
     rec.call("f-profile-step2-resave-without-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf,
              json_body={**step2, "years_of_experience": 6},
-             note="Once step 2 has been passed, a re-save may leave applying_as out: the stored value is kept.")
+             note="A re-save may leave applying_as out: the stored value is kept.")
+    rec.call("f-profile-step2-null-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf,
+             json_body={**step2, "applying_as": None},
+             note="null counts as omitted: it never clears the stored value.")
     f_profile = rec.call("f-profile-resume", "GET", "/api/v1/caregiver/profile", token=tf,
                          note="Resume/edit: the profile returns the saved applying_as.").json()
     rec.call("admin-approve-requested-but-no-skills", "POST", f"/api/v1/admin/caregivers/{f_profile['id']}/approve",

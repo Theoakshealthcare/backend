@@ -31,10 +31,6 @@ NIGERIAN_STATES = [
 ]
 
 
-class ApplyingAsRequired(Exception):
-    """A first submission of step 2 without ``applying_as`` (the endpoint answers 422, like any missing field)."""
-
-
 class CaregiverService:
     DOCUMENT_EXTENSIONS = {
         "application/pdf": "pdf",
@@ -83,13 +79,12 @@ class CaregiverService:
         if not caregiver:
             raise ValueError("Caregiver not found")
 
-        # "I apply as" is required the first time step 2 is submitted. A row that already passed step 2 (or already
-        # holds a value) may re-save without it: nothing it has stored is touched.
-        if profile_data.applying_as is None and not caregiver.applying_as and (caregiver.profile_completion_step or 0) < 2:
-            raise ApplyingAsRequired("applying_as is required: pick at least one role you apply as")
-
-        # Update fields
-        for field, value in profile_data.dict(exclude_unset=True).items():
+        # Update fields. ``applying_as`` is a request the caregiver may leave out (an older app build does): omitted or
+        # null never clears what is stored.
+        changes = profile_data.dict(exclude_unset=True)
+        if changes.get("applying_as") is None:
+            changes.pop("applying_as", None)
+        for field, value in changes.items():
             setattr(caregiver, field, value)
         
         caregiver.profile_completion_step = max(caregiver.profile_completion_step, 2)

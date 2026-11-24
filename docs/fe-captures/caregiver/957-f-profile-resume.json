@@ -11,18 +11,18 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "8de2b15a-96b8-4dc0-a722-402a4ff90615",
-      "user_id": "1850b348-410f-4d54-b46b-a0563f775ad6",
-      "email": "caregiver-f-cfda99@example.com",
+      "id": "810c3425-31d8-465c-b480-54e133240e77",
+      "user_id": "8bf35e12-b4b5-43e4-bfde-f546bd3e48d1",
+      "email": "caregiver-f-ad3c47@example.com",
       "full_name": "Placeholder Caregiver F",
-      "phone_number": "+2340000913007",
+      "phone_number": "+2340000159007",
       "date_of_birth": "1990-01-01",
       "gender": "male",
       "state": "Lagos",
       "address": "1 Placeholder Street, Lekki",
       "emergency_contact_phone": "+2340000000998",
       "specialization": "Elderly Care",
-      "years_of_experience": 6,
+      "years_of_experience": 5,
       "preferred_work_hours": "weekdays",
       "service_areas": [
         "Personal Care",
@@ -39,8 +39,8 @@
       "terms_accepted": false,
       "privacy_policy_accepted": false,
       "background_check_consent": false,
-      "created_at": "2026-11-24T13:55:08.774943",
-      "updated_at": "2026-11-24T13:55:09.791595"
+      "created_at": "2026-11-24T14:10:55.562957",
+      "updated_at": "2026-11-24T14:10:56.496903"
     }
   },
   "note": "Resume/edit: the profile returns the saved applying_as."

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/8de2b15a-96b8-4dc0-a722-402a4ff90615/approve",
+    "path": "/api/v1/admin/caregivers/810c3425-31d8-465c-b480-54e133240e77/approve",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

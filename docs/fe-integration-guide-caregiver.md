@@ -396,6 +396,8 @@ _capture `017-a-profile-step2.json`_
 
 Step 2 now also asks which role(s) the caregiver applies as. **It is a request, not a qualification:** an admin confirms the caregiver's skills (nurse, doctor, ...) on the console, and only those drive which bookings the caregiver is offered and who may write care plans. Nothing the app sends here grants anything, so keep the wording neutral ("I apply as", never "You are a nurse").
 
+**The server does not require it; the app does.** A build that does not send `applying_as` saves step 2 exactly as before and the field stays `null` (the admin console then shows no request for that caregiver). The caregiver app's own screen must still make the field required before Save & Continue.
+
 The choices come from `GET /caregiver/form-options` as `roles` (value + label; send the `value`):
 
 <!-- capture: 013-a-form-options.json response.body keys=roles -->
@@ -430,34 +432,15 @@ The choices come from `GET /caregiver/form-options` as `roles` (value + label; s
 |---|---|
 | Allowed values | `nurse`, `doctor`, `physiotherapist`, `caregiver`, `nutritionist` (the five `roles[].value`) |
 | Count | 1 to 5, no duplicates; the order sent is the order stored and returned |
-| **First submission of step 2** | `applying_as` is **required**: leaving it out is `422` (below) and nothing is saved, including the other step-2 fields |
-| Re-saving step 2 after it was passed (resume/edit, or a caregiver from before the field existed) | May omit it: the stored value is kept (`null` for an older caregiver who never chose). Sending it replaces the stored list |
-| `null`, `[]`, an unknown value, a duplicate | `422` |
+| Omitted, or `null` | Allowed, on a first save too: nothing changes (`null` for a first save; a stored value is kept). `null` never clears a stored value |
+| Sent again later | Replaces the stored list |
+| `[]`, an unknown value, a duplicate, more than five, not a list | `422`, and nothing is saved (including the other step-2 fields) |
 
 Where it comes back: `applying_as` is on every caregiver profile response (`PUT .../step2`, `GET /caregiver/profile`; `null` until chosen). Show the saved value when the caregiver resumes or edits step 2.
 
-Missing (first submission), response `422`:
-
-<!-- capture: 950-f-profile-step2-missing-applying-as.json response.body -->
-```json
-{
-  "detail": [
-    {
-      "type": "missing",
-      "loc": [
-        "body",
-        "applying_as"
-      ],
-      "msg": "Field required",
-      "input": null
-    }
-  ]
-}
-```
-
 Unknown role, response `422`:
 
-<!-- capture: 951-f-profile-step2-unknown-role.json response.body -->
+<!-- capture: 950-f-profile-step2-unknown-role.json response.body -->
 ```json
 {
   "detail": [
@@ -480,7 +463,7 @@ Unknown role, response `422`:
 
 Duplicate, response `422`:
 
-<!-- capture: 952-f-profile-step2-duplicate-role.json response.body -->
+<!-- capture: 951-f-profile-step2-duplicate-role.json response.body -->
 ```json
 {
   "detail": [
@@ -505,7 +488,7 @@ Duplicate, response `422`:
 
 Empty list, response `422`:
 
-<!-- capture: 953-f-profile-step2-empty-roles.json response.body -->
+<!-- capture: 952-f-profile-step2-empty-roles.json response.body -->
 ```json
 {
   "detail": [
@@ -527,31 +510,19 @@ Empty list, response `422`:
 }
 ```
 
-`null`, response `422`:
+Omitted (an older build): response `200`, `applying_as` stays `null`:
 
-<!-- capture: 954-f-profile-step2-null-roles.json response.body -->
+<!-- capture: 953-f-profile-step2-omitted-applying-as.json response.body keys=applying_as,profile_completion_step -->
 ```json
 {
-  "detail": [
-    {
-      "type": "value_error",
-      "loc": [
-        "body",
-        "applying_as"
-      ],
-      "msg": "Value error, applying_as cannot be null; omit it to leave it unchanged",
-      "input": null,
-      "ctx": {
-        "error": {}
-      }
-    }
-  ]
+  "applying_as": null,
+  "profile_completion_step": 2
 }
 ```
 
 Accepted (`applying_as` is `["doctor", "nurse"]`; no skill is created), response `200`:
 
-<!-- capture: 955-f-profile-step2-with-applying-as.json response.body keys=applying_as,profile_completion_step -->
+<!-- capture: 954-f-profile-step2-with-applying-as.json response.body keys=applying_as,profile_completion_step -->
 ```json
 {
   "applying_as": [
@@ -564,7 +535,7 @@ Accepted (`applying_as` is `["doctor", "nurse"]`; no skill is created), response
 
 Re-save without it, keeping the stored value, response `200`:
 
-<!-- capture: 956-f-profile-step2-resave-without-applying-as.json response.body keys=applying_as,years_of_experience -->
+<!-- capture: 955-f-profile-step2-resave-without-applying-as.json response.body keys=applying_as,years_of_experience -->
 ```json
 {
   "applying_as": [
@@ -572,6 +543,18 @@ Re-save without it, keeping the stored value, response `200`:
     "nurse"
   ],
   "years_of_experience": 6
+}
+```
+
+`null` counts as omitted, response `200`:
+
+<!-- capture: 956-f-profile-step2-null-applying-as.json response.body keys=applying_as -->
+```json
+{
+  "applying_as": [
+    "doctor",
+    "nurse"
+  ]
 }
 ```
 
@@ -3684,7 +3667,7 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 11. **Deleting the account is permanent.** Warn before sending `DELETE /auth/profile`: the profile, bank details and verification data are erased and cannot be restored, and the same login cannot be used again unless they register from scratch. On `409`, show the `detail` text and send them to the booking or wallet screen it names. On `200`, sign out and clear everything stored on the device.
 12. **Identity verification is decided by our partner, not the app.** Do not show "Verified" because the widget said success; wait for `status: "verified"`. Show no reason for a review (`needs_review`), and never speculate about one. If verification is down, offer "Continue without for now": the caregiver can reach consent but cannot be approved until verified (section 4).
 13. **Changing the password signs out every other device**, and replaces this device's tokens too. Store the returned pair before anything else and say so in the success message (section 17).
-14. **"I apply as" is a request, not a qualification.** Setup step 2 must have at least one role ticked before Save & Continue (the backend answers `422` otherwise), but never show the chosen role as the caregiver's job title, badge or skill: an admin confirms skills later, and until then the caregiver is offered nothing different. Keep the label neutral ("I apply as") and show the saved choice when they resume or edit (section 4).
+14. **"I apply as" is a request, not a qualification.** Setup step 2 must have at least one role ticked before Save & Continue (the app enforces this; the backend accepts a save without it, so an older build still works), but never show the chosen role as the caregiver's job title, badge or skill: an admin confirms skills later, and until then the caregiver is offered nothing different. Keep the label neutral ("I apply as") and show the saved choice when they resume or edit (section 4).
 
 ## 15. Verification table
 
@@ -3695,8 +3678,8 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Access/refresh token lifetimes | No | Configured defaults, not measured |
 | Onboarding steps, upload, consent, status states `incomplete`, `under_review`, `changes_requested`, `rejected`, `approved` | Yes | 014-023, 034-040 |
 | `suspended` status | No | Not driven in the capture; same endpoint and field |
-| `applying_as` on step 2: accepted and returned, the five 422 cases, re-save without it, the profile echo, approval still `409 NO_SKILLS` | Yes | `950`-`958` (caregiver F), `013` (`roles`), `017` |
-| A caregiver from before the field (step 2 re-saved without `applying_as`, stays `null`) | **[not live]** | `app/tests/test_caregiver_applying_as.py` (the capture stack starts empty, so no such row exists) |
+| `applying_as` on step 2: accepted and returned, the three 422 cases, omitted and `null` (older build) stay `null`, re-save keeps it, the profile echo, approval still `409 NO_SKILLS` | Yes | `950`-`958` (caregiver F), `013` (`roles`), `017` |
+| A caregiver from before the field re-saving step 2 without it | **[not live]** | `app/tests/test_caregiver_applying_as.py` (the capture stack starts empty, so no such row exists; a first save without it is live, `953`) |
 | Admin decisions used to seed approval | Yes (API) | 027-033, `b-admin-request-changes`, `b-admin-reject`. **Admin account (`admin_users` row) created directly in the DB, then signed in through the real admin login and MFA** |
 | Availability on/off and every error | Yes | `a-availability-*`, `b-availability-rejected` (043-046) |
 | "Offers need a fresh location" (15 min) | No | Automated tests only |

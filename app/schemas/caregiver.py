@@ -24,17 +24,15 @@ class CaregiverProfileStep2(BaseModel):
     preferred_work_hours: str
     service_areas: List[str]
     # "I apply as": the role(s) the caregiver requests. A request only: it grants no skill (an admin confirms skills).
-    # 1-5 values from the skills' five-value list, no duplicates; null is rejected (omit the key instead). Required on a
-    # caregiver's first submission of step 2 (enforced in the service, which knows whether the row is new or legacy);
-    # optional on a re-save of a row that already passed step 2, where an omitted key leaves the stored value as it is.
+    # OPTIONAL, so a build that does not send it still saves step 2 exactly as before (the caregiver app requires it in its
+    # UI; the server does not). Omitted or null leaves the stored value as it is (null for a first save). When given: 1-5
+    # values from the skills' five-value list, no duplicates; an empty list, an unknown value or a duplicate is a 422.
     applying_as: Optional[List[ApplyingAsRole]] = Field(default=None, min_length=1, max_length=5)
 
     @field_validator("applying_as")
     @classmethod
-    def _applying_as_not_null_or_duplicated(cls, v):
-        if v is None:
-            raise ValueError("applying_as cannot be null; omit it to leave it unchanged")
-        if len(set(v)) != len(v):
+    def _applying_as_not_duplicated(cls, v):
+        if v is not None and len(set(v)) != len(v):
             raise ValueError("applying_as must not contain duplicates")
         return v
 
