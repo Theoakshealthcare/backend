@@ -507,6 +507,7 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [x] Staging deployed and reachable at `https://staging-api.oaklycare.com` (2026-11-22, after fixes in #61-#65; mark-verified fix in #66). Not yet: pricing row, first admin, a verified image.
 - [x] Email moved from SMTP (Zoho refused the login) to Resend (2026-11-23, [SOP](../sop/2026-11-23-email-resend.md)); real delivery on staging not yet seen
 - [ ] Staging API stalls (owner's phone test, 2026-11-23): 1 gunicorn worker restarting about every 80 s; raised to 3 workers, recycle limit 5000 ([SOP](../sop/2026-11-23-staging-api-workers.md)). Not proven on staging yet; the source of about 13 requests/s and the 120 s waits still to find
+- [x] KYC hosted page hung on "Loading the verification widget..." (CSP blocked Dojah's eval; the loader looped): fixed 2026-11-24, [SOP](../sop/2026-11-24-kyc-widget-csp-eval.md); real-credential run on a phone still to do
 - [ ] WP6 GitHub Environments, secrets (including `VPS_SSH_FINGERPRINT`), branch rules, off-switch variables (default branch already switched to `develop` by the owner, 2026-11-21) (owner clicks: [`GITHUB_ACTIONS_SETUP.md`](../deployment/GITHUB_ACTIONS_SETUP.md))
 - [ ] Rotate the leaked Paystack, Zoho, Gemini, Cloudinary and Prembly keys, then create and commit `.env.staging.enc` (owner)
 - [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once; then production only after DEP-5 sign-off

@@ -32,8 +32,11 @@ _MESSAGE_PURPOSE = b"oakly.kyc.widget.link.v1|"
 _TOKEN = re.compile(r"([1-9][0-9]{0,11})\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([0-9a-f]{64})")
 
 WIDGET_SCRIPT = "https://widget.dojah.io/widget.js"
-# [UNVERIFIED] The CSP was NOT checked against a live widget run (the sandbox pass used a page with no CSP). It therefore allows the
-# whole of dojah.io for what the widget may fetch, frame or inject, rather than guessing narrower; narrow it after a live run.
+# The CSP allows the whole of dojah.io for what the widget may fetch, frame or inject (not narrowed). Checked in a real browser on
+# 2026-11-24 against https://widget.dojah.io/widget.js: that script evaluates strings (`eval`), so `script-src` MUST carry
+# 'unsafe-eval'; without it the script throws before it defines `window.Connect` and the page hung on "Loading the verification
+# widget..." (the old page then reloaded the script in an endless loop). Everything else in the policy was exercised by that run with
+# no further violation, but only with placeholder credentials (Dojah answered 400): a full run with real ones is still to do.
 _DOJAH = "https://*.dojah.io"
 
 
@@ -108,7 +111,7 @@ def security_headers(nonce: str) -> dict:
     required or Dojah's frame cannot use it, Weysure SOP 2026-10-09)."""
     csp = "; ".join([
         "default-src 'none'",
-        f"script-src 'nonce-{nonce}' {_DOJAH}",
+        f"script-src 'nonce-{nonce}' 'unsafe-eval' {_DOJAH}",
         f"connect-src {_DOJAH} wss://*.dojah.io",
         f"frame-src {_DOJAH}",
         f"img-src data: blob: {_DOJAH}",
@@ -151,7 +154,7 @@ _PROGRAM = """
 (function(){
 var cfg=JSON.parse(document.getElementById('oakly-config').textContent);
 var statusEl=document.getElementById('status'),go=document.getElementById('go'),done=document.getElementById('done');
-var opened=false,finished=false;
+var opened=false,finished=false,tries=0;
 function say(t){statusEl.textContent=t}
 function finish(){
  if(finished)return;finished=true;go.hidden=true;done.hidden=false;say('Done. You can return to the app.');
@@ -159,7 +162,10 @@ function finish(){
 }
 function openWidget(){
  if(opened||finished)return;
- if(!window.Connect){load();return}
+ if(!window.Connect){
+  if(tries<2){load();return}
+  say('Could not start the check. Check your connection and tap Start verification to try again.');go.disabled=false;return;
+ }
  try{
   var w=new window.Connect({app_id:cfg.app_id,p_key:cfg.public_key,type:'custom',config:{widget_id:cfg.widget_id},
    reference_id:cfg.reference_id,onSuccess:finish,onClose:finish,onError:finish});
@@ -167,13 +173,13 @@ function openWidget(){
  }catch(e){say('Could not start the check. Tap Start verification to try again.');go.disabled=false}
 }
 function load(){
- say('Loading the verification widget...');go.disabled=true;
+ tries+=1;say('Loading the verification widget...');go.disabled=true;
  var s=document.createElement('script');s.src='__WIDGET_SCRIPT__';s.async=true;
  s.onload=function(){go.disabled=false;openWidget()};
  s.onerror=function(){say('Could not load the widget. Check your connection and tap Start verification.');go.disabled=false};
  document.head.appendChild(s);
 }
-go.onclick=openWidget;
+go.onclick=function(){tries=0;openWidget()};
 load();
 })();
 """
