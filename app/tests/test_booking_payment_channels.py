@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from app.core.config import settings
 from app.db.models.booking import Booking, BookingStatus, PaymentStatus
 from app.db.models.booking_settings import BookingSettings
 from app.schemas.booking import BookingCreate
@@ -148,7 +149,7 @@ def test_create_endpoint_through_the_real_services_sends_channels_only_when_aske
     assert asked["json"]["channels"] == ["bank_transfer"] and '"channels": ["bank_transfer"]' in asked["wire"]
     for key in ("email", "amount", "currency"):                                            # nothing else differs by the choice
         assert asked["json"][key] == plain["json"][key]
-    assert all(c["json"]["callback_url"].endswith("/payment-complete") for c in (plain, asked))
+    assert all(c["json"]["callback_url"] == settings.PAYMENT_CALLBACK_URL for c in (plain, asked))
 
 
 # --- POST /booking/create ------------------------------------------------------------------------------------------------

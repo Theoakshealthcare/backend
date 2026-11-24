@@ -18,6 +18,8 @@ class CaregiverChatOut(BaseModel):
     """One conversation: the booking's chat with its patient. `booking_id` is what the chat routes take."""
     booking_id: UUID
     patient_name: str
+    patient_photo_url: Optional[str] = Field(None, description="Absolute URL of the patient's profile photo; null when they "
+                                                               "have not uploaded one.")
     service_type: str
     status: BookingStatus
     scheduled_date: datetime = Field(description="When the visit starts.")

@@ -1,0 +1,9 @@
+{
+  "observed": {
+    "bare_status": 200,
+    "hostile_query_status": 200,
+    "hostile_query_page_identical_to_bare_page": true,
+    "hostile_value_appears_in_page": false
+  },
+  "note": "Computed by the capture run from two real responses."
+}

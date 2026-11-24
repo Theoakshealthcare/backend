@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -10,7 +11,7 @@ from app.db.models.booking import PAID_STATES, Booking, BookingStatus, PaymentSt
 from app.db.models.prescription import Prescription
 from app.db.session import SessionLocal
 from app.services.booking_payment import settle_booking_payment
-from app.services import payouts, refunds
+from app.services import payment_return_page, payouts, refunds
 from app.services.patient_wallet import PatientWalletService
 from app.services.paystack import PaystackService
 
@@ -140,6 +141,16 @@ def _process_event(payload: Dict[str, Any], event_data: Dict[str, Any], paystack
             logger.info(f"Payout transfer {outcome}: {reference} -> {result}")
     finally:
         db.close()
+
+
+@router.get("/callback", response_class=HTMLResponse)
+def payment_callback() -> HTMLResponse:
+    """Where Paystack sends the in-app browser after a payment (``PAYMENT_CALLBACK_URL``). A static page: the payment is being
+    confirmed, close this page and return to the app (button: ``oaklypatient://payment-complete``).
+
+    Public, 200 for any query string. It does not mark anything paid (the signed webhook does that) and ignores the
+    ``reference`` / ``trxref`` Paystack appends: nothing from the request is read or printed."""
+    return HTMLResponse(payment_return_page.HTML, headers=payment_return_page.HEADERS)
 
 
 @router.post("/paystack/webhook")

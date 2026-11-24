@@ -28,7 +28,7 @@ def list_chats(
 ) -> Any:
     """Your conversations, newest activity first: one per booking whose chat you may open (the bookings assigned to you).
 
-    Each row carries the booking id for `GET /booking/chat/{booking_id}/messages`, the patient's name, the service, the
+    Each row carries the booking id for `GET /booking/chat/{booking_id}/messages`, the patient's name and photo URL (null when none), the service, the
     booking status, the visit start and the last message cut to 140 characters (null when nobody has written yet). There is
     no unread count: the chat does not record who has read what."""
     caregiver = db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()

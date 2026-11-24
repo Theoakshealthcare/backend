@@ -178,7 +178,7 @@ def test_create_booking_passes_the_frontend_callback_url_to_paystack(db, monkeyp
         service_type="nurse", assistance_type="x", duration_hours=2, scheduled_date="2030-01-01T10:00:00",
         patient_address="1 Test Close", patient_latitude=6.4, patient_longitude=3.4,
         patient_city="Lagos", patient_state="Lagos", booking_for="myself"))
-    assert seen["callback_url"] == f"{settings.FRONTEND_URL}/bookings/{result['booking'].id}/payment-complete"
+    assert seen["callback_url"] == settings.PAYMENT_CALLBACK_URL
 
 
 def test_create_booking_sets_payment_expiry(db, monkeypatch):

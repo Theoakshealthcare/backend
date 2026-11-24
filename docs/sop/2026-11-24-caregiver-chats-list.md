@@ -21,7 +21,7 @@ The caregiver app's Figma has a **Chats** tab (a list of conversations with the 
 | **Order: last message time, else booking creation time.** | A conversation nobody has written in sorts by when the booking was created, not by the visit date (a visit next week would otherwise sit above live conversations). Side effect: a newly assigned booking with no message sits near the top. |
 | **Paging like the neighbours.** | `limit` (1-50, default 20) plus the `before` / `before_id` keyset used by `GET /caregiver/care-plans/{id}/observations`, here over (activity time, booking id) so ties on the same time never skip or repeat a row. A row-value comparison in SQL. |
 | **Only the columns the row needs.** | The query selects five booking columns and the patient's name, never the booking object: no address, phone, condition or money can reach the response by accident. `Cache-Control: no-store`. |
-| **No avatar / photo field.** | The list draws initials; a photo URL is more patient data to expose for a list row. The chat header already shows the photo from the booking details. |
+| **No avatar / photo field.** *(superseded 2026-11-25: `patient_photo_url` was added, see [the chat push SOP](2026-11-25-chat-push-payment-return.md))* | Originally left out as more patient data on a list row. The caregiver already receives the same photo in the booking payload, so the list now carries it too. |
 
 ## What's involved
 | Path | Change |

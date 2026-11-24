@@ -1,0 +1,73 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/booking/af6cf0ed-8ac4-49d9-ae68-64dcddf97550",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "af6cf0ed-8ac4-49d9-ae68-64dcddf97550",
+      "booking_code": "B9EE226F",
+      "channel": "app",
+      "patient_id": "3e1ea7af-6a7b-4f41-934a-8af84f1e8dc0",
+      "patient_details": {
+        "patient_id": "3e1ea7af-6a7b-4f41-934a-8af84f1e8dc0",
+        "full_name": "Placeholder Ada Okafor",
+        "phone_number": "+2348422133213",
+        "profile_image_url": "https://res.cloudinary.com/placeholder/image/upload/v1/patients/placeholder-ada.jpg",
+        "emergency_contact_name": null,
+        "emergency_contact_phone": null
+      },
+      "caregiver_id": "265ff1dc-7fc9-4db8-a9b1-2da16f66ce42",
+      "caregiver_details": {
+        "caregiver_id": "265ff1dc-7fc9-4db8-a9b1-2da16f66ce42",
+        "full_name": "Placeholder Chidi Nwosu",
+        "specialization": "nurse",
+        "profile_image_url": "https://res.cloudinary.com/placeholder/image/upload/v1/caregivers/placeholder-chidi.jpg",
+        "current_latitude": null,
+        "current_longitude": null,
+        "distance_from_patient": null,
+        "estimated_arrival_time": null,
+        "last_location_update": null,
+        "is_online": false
+      },
+      "service_type": "nurse",
+      "assistance_type": "home_visit",
+      "condition": null,
+      "duration_minutes": 240,
+      "duration_hours": 4,
+      "scheduled_date": "2026-11-25T23:26:12.085159",
+      "scheduled_end_date": "2026-11-26T03:26:12.085159",
+      "patient_address": "1 Test Close, Lekki",
+      "patient_latitude": 6.4474,
+      "patient_longitude": 3.4723,
+      "patient_city": "Lagos",
+      "patient_state": "Lagos",
+      "status": "accepted",
+      "payment_status": "paid",
+      "total_amount": 44000.0,
+      "service_fee": 40000.0,
+      "platform_fee": 4000.0,
+      "special_instructions": null,
+      "booking_for": "myself",
+      "created_at": "2026-11-24T23:26:12.097697",
+      "updated_at": "2026-11-24T23:26:12.097703",
+      "dispatch_state": null,
+      "arrived_at": null,
+      "caregiver_earning": null,
+      "visit_code": null,
+      "cancel_fee_tier": null,
+      "cancel_fee": null,
+      "refund": null,
+      "payment_url": null,
+      "payment_access_code": null,
+      "payment_error": null
+    }
+  }
+}

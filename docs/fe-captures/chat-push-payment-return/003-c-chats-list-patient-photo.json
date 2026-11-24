@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/chats",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "booking_id": "af6cf0ed-8ac4-49d9-ae68-64dcddf97550",
+          "patient_name": "Placeholder Ada Okafor",
+          "patient_photo_url": "https://res.cloudinary.com/placeholder/image/upload/v1/patients/placeholder-ada.jpg",
+          "service_type": "nurse",
+          "status": "accepted",
+          "scheduled_date": "2026-11-25T23:26:12.085159",
+          "last_message": {
+            "text": "Placeholder: please bring the blue folder from the hall table and ring the second bell please bring the blue folder from the hall table and…",
+            "sent_at": "2026-11-24T23:26:12.822390",
+            "from_me": false
+          }
+        }
+      ],
+      "next_before": null,
+      "next_before_id": null
+    }
+  }
+}

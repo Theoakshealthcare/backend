@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/chat/af6cf0ed-8ac4-49d9-ae68-64dcddf97550/send",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "message": "Placeholder: I'm on my way, about ten minutes."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "342d3e64-80f4-4664-8f5a-1b072bd9a49e",
+      "booking_id": "af6cf0ed-8ac4-49d9-ae68-64dcddf97550",
+      "sender_id": "3ef8b570-bc80-44f8-9abd-8fd8d3f09a63",
+      "message": "Placeholder: I'm on my way, about ten minutes.",
+      "message_type": "text",
+      "attachment_url": null,
+      "is_read": false,
+      "created_at": "2026-11-24T23:26:12.588275"
+    }
+  },
+  "push_sent_to_expo": [
+    {
+      "to": "ExponentPushToken[placeholder-patient-device]",
+      "title": "Placeholder",
+      "body": "Placeholder: I'm on my way, about ten minutes.",
+      "data": {
+        "type": "chat_message",
+        "booking_id": "af6cf0ed-8ac4-49d9-ae68-64dcddf97550"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "The caregiver sends; the patient's device is the only one pushed (push_sent_to_expo is the request body the app made to Expo, recorded by the fake Expo)."
+}

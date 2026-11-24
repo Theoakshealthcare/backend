@@ -51,6 +51,8 @@ def test_capture(db, client):
 
     ada = make_patient(db, full_name="Placeholder Ada")
     ben = make_patient(db, full_name="Placeholder Ben Okoro")
+    ada.user.profile_image_url = "https://res.cloudinary.com/placeholder/image/upload/v1/patients/placeholder-ada.jpg"
+    db.commit()
     cara = make_patient(db, full_name="Placeholder Cara")
     dan = make_patient(db, full_name="Placeholder Dan")
     b_ada = make_booking(db, ada, caregiver, status=BookingStatus.IN_PROGRESS, service_type="nurse")
@@ -70,7 +72,8 @@ def test_capture(db, client):
     db.commit()
 
     _save("251-a-chats-list.json", client.get(URL, headers=headers),
-          note="Four conversations, newest activity first: one the caregiver spoke last in (from_me true), one with a long "
+          note="Four conversations, newest activity first: one the caregiver spoke last in (from_me true; this patient has a "
+               "photo, so patient_photo_url is a URL, and it is null for the others), one with a long "
                "last message (cut to 140 characters), one with no message yet (last_message null), one finished visit. The "
                "booking the caregiver was only offered and another caregiver's booking are not listed.")
 

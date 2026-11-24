@@ -1,0 +1,41 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/chat/af6cf0ed-8ac4-49d9-ae68-64dcddf97550/send",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "message": "Placeholder: please bring the blue folder from the hall table and ring the second bell please bring the blue folder from the hall table and ring the second bell please bring the blue folder from the hall table and ring the second bell "
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "75d0a04a-48ae-41de-879b-6feecfd744c1",
+      "booking_id": "af6cf0ed-8ac4-49d9-ae68-64dcddf97550",
+      "sender_id": "82972f9d-9b20-41e9-8691-bb989c496e85",
+      "message": "Placeholder: please bring the blue folder from the hall table and ring the second bell please bring the blue folder from the hall table and ring the second bell please bring the blue folder from the hall table and ring the second bell ",
+      "message_type": "text",
+      "attachment_url": null,
+      "is_read": false,
+      "created_at": "2026-11-24T23:26:12.822390"
+    }
+  },
+  "push_sent_to_expo": [
+    {
+      "to": "ExponentPushToken[placeholder-caregiver-device]",
+      "title": "Placeholder O.",
+      "body": "Placeholder: please bring the blue folder from the hall table and ring the second bell please bring…",
+      "data": {
+        "type": "chat_message",
+        "booking_id": "af6cf0ed-8ac4-49d9-ae68-64dcddf97550"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "The patient sends a long message: the push body is cut to 100 characters, the title is first name and last initial, and only the caregiver's device is pushed."
+}

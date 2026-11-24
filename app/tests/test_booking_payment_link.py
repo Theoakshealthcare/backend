@@ -81,7 +81,7 @@ def test_an_unpaid_booking_gets_the_same_response_as_create(db, client, patient,
     assert body["total_amount"] == 44000.0 and body["payment_error"] is None
     sent = fake_paystack.initialised[0]
     assert (sent["reference"], sent["amount"]) == (b.paystack_reference, TOTAL)
-    assert sent["callback_url"] == f"{settings.FRONTEND_URL}/bookings/{b.id}/payment-complete"
+    assert sent["callback_url"] == settings.PAYMENT_CALLBACK_URL
     assert sent["metadata"]["booking_id"] == str(b.id) and sent["metadata"]["booking_code"] == b.booking_code
 
 

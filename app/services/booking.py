@@ -199,7 +199,7 @@ class BookingService:
         """Create a new booking with payment initiation"""
         booking = self.insert_booking(patient_id, booking_data, commit=True)
         return self.start_payment(
-            booking, callback_url=f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete",
+            booking, callback_url=app_settings.PAYMENT_CALLBACK_URL,
             channels=booking_data.channels,
         )
 
