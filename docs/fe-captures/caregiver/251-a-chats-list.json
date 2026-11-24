@@ -1,0 +1,67 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/chats",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "items": [
+        {
+          "booking_id": "a281bfb0-9193-4271-bc7d-5cab8d4bbbb5",
+          "patient_name": "Placeholder Cara",
+          "service_type": "nurse",
+          "status": "accepted",
+          "scheduled_date": "2026-11-25T14:02:39.995603",
+          "last_message": null
+        },
+        {
+          "booking_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3",
+          "patient_name": "Placeholder Ben Okoro",
+          "service_type": "companion",
+          "status": "accepted",
+          "scheduled_date": "2026-11-25T14:02:39.990316",
+          "last_message": {
+            "text": "Placeholder: a very long message a very long message a very long message a very long message a very long message a very long message a very…",
+            "sent_at": "2026-11-24T13:50:40.023820",
+            "from_me": false
+          }
+        },
+        {
+          "booking_id": "94fa0fee-29e7-4ae3-8cf3-4f07899dc8b5",
+          "patient_name": "Placeholder Ada",
+          "service_type": "nurse",
+          "status": "in_progress",
+          "scheduled_date": "2026-11-25T14:02:39.978584",
+          "last_message": {
+            "text": "Placeholder: yes, five minutes away.",
+            "sent_at": "2026-11-24T13:37:40.017349",
+            "from_me": true
+          }
+        },
+        {
+          "booking_id": "3bb49d39-39fe-4e93-808f-35b835790670",
+          "patient_name": "Placeholder Dan",
+          "service_type": "nurse",
+          "status": "completed",
+          "scheduled_date": "2026-11-25T14:02:39.999670",
+          "last_message": {
+            "text": "Placeholder: all done, take care.",
+            "sent_at": "2026-11-24T04:02:40.029124",
+            "from_me": true
+          }
+        }
+      ],
+      "next_before": null,
+      "next_before_id": null
+    }
+  },
+  "note": "Four conversations, newest activity first: one the caregiver spoke last in (from_me true), one with a long last message (cut to 140 characters), one with no message yet (last_message null), one finished visit. The booking the caregiver was only offered and another caregiver's booking are not listed."
+}
