@@ -2,7 +2,7 @@ import requests
 import hashlib
 import hmac
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Literal, Optional, Sequence, Tuple, get_args
 from datetime import datetime
 
 from app.core.config import settings
@@ -12,6 +12,13 @@ REQUEST_TIMEOUT_SECONDS = 15  # Assume you have Paystack keys in settings
 
 
 PAYSTACK_PLACEHOLDER_DOMAIN = "pay.oaklycare.com"
+
+# The Paystack checkout channels a booking payment may be limited to (Paystack's ``channels`` parameter on
+# ``transaction/initialize``). Deliberately a short allow-list: the app offers "Card" and "Bank Transfer" only. Without a
+# ``channels`` value Paystack shows every channel the merchant enabled, exactly as before.
+CheckoutChannel = Literal["card", "bank_transfer"]
+ALLOWED_CHECKOUT_CHANNELS = get_args(CheckoutChannel)
+MAX_CHECKOUT_CHANNELS = len(ALLOWED_CHECKOUT_CHANNELS)
 
 
 def paystack_email_for(user: Any) -> str:
@@ -27,6 +34,14 @@ def paystack_email_for(user: Any) -> str:
     if digits.startswith("0"):
         digits = "234" + digits[1:]  # a national-format Nigerian number
     return f"wa-{contact_ref(digits)}@{PAYSTACK_PLACEHOLDER_DOMAIN}"
+
+
+def _check_channels(channels: Sequence[str]) -> None:
+    """A second line of defence behind the request schema: nothing outside the allow-list ever reaches Paystack."""
+    values = list(channels)
+    if (not values or len(values) > MAX_CHECKOUT_CHANNELS or len(set(values)) != len(values)
+            or any(c not in ALLOWED_CHECKOUT_CHANNELS for c in values)):
+        raise ValueError(f"channels must be one or two different values from {list(ALLOWED_CHECKOUT_CHANNELS)}")
 
 
 class PaystackService:
@@ -45,7 +60,8 @@ class PaystackService:
         amount_kobo: int, 
         reference: str,
         callback_url: Optional[str] = None,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
+        channels: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
         """
         Initialize a Paystack transaction
@@ -56,10 +72,15 @@ class PaystackService:
             reference: Unique transaction reference
             callback_url: URL to redirect to after payment
             metadata: Additional data to store with transaction
+            channels: Optional checkout channels to offer (a non-empty, duplicate-free subset of
+                ``ALLOWED_CHECKOUT_CHANNELS``). Left out of the request when not given, so the payload is then
+                exactly what it was before this parameter existed.
         
         Returns:
             Dict containing authorization_url, access_code, and reference
         """
+        if channels is not None:
+            _check_channels(channels)
         url = f"{self.base_url}/transaction/initialize"
         
         payload = {
@@ -74,6 +95,9 @@ class PaystackService:
             
         if metadata:
             payload["metadata"] = metadata
+
+        if channels:
+            payload["channels"] = list(channels)
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)

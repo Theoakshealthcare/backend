@@ -30,7 +30,7 @@ may still hold a working link, so the booking is left exactly as it was and the 
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -85,19 +85,25 @@ def _refuse_unpayable(booking: Booking) -> None:
         raise _error(409, "booking_not_payable", "This booking cannot be paid in the app.")
 
 
-def issue(db: Session, user: User, booking_id: uuid.UUID, now: Optional[datetime] = None) -> Dict[str, Any]:
+def issue(db: Session, user: User, booking_id: uuid.UUID, now: Optional[datetime] = None,
+          channels: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     """Returns ``{"booking", "payment_url", "access_code"}`` or raises ``PatientCancelError`` (the endpoint's error type).
-    Always ends its transaction, which releases the advisory lock."""
+    Always ends its transaction, which releases the advisory lock.
+
+    ``channels`` (Card / Bank Transfer) only matters when this call has to make a NEW Paystack link, i.e. for a booking
+    with no stored link. A booking that already has one keeps it, whatever channels this request names: the first link
+    wins (one reference per booking, and Paystack cannot change the channels of a transaction it already initialised)."""
     now = now or datetime.utcnow()
     try:
-        result = _issue(db, user, booking_id, now)
+        result = _issue(db, user, booking_id, now, channels)
     finally:
         db.rollback()  # no-op after a commit; releases the advisory lock on every other path
     db.refresh(result["booking"])  # the rollback expired it
     return result
 
 
-def _issue(db: Session, user: User, booking_id: uuid.UUID, now: datetime) -> Dict[str, Any]:
+def _issue(db: Session, user: User, booking_id: uuid.UUID, now: datetime,
+           channels: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().first()
     if booking is None:
         raise _error(404, "booking_not_found", "We could not find that booking.")
@@ -133,7 +139,7 @@ def _issue(db: Session, user: User, booking_id: uuid.UUID, now: datetime) -> Dic
 
     # No stored link (a booking from before migration 0023): try to initialise the reference, and keep the answer.
     service = BookingService(db)
-    payment = service.initialise_payment(booking, callback_url=_callback_url(booking))
+    payment = service.initialise_payment(booking, callback_url=_callback_url(booking), channels=channels)
     if not payment.get("status") or not payment.get("authorization_url"):
         logger.warning("Booking %s: Paystack would not initialise a payment link: %s", booking_id, payment.get("message"))
         raise _error(503, "payment_link_unavailable",

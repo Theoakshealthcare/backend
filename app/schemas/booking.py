@@ -1,10 +1,11 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Optional, List, Literal, Union, Dict
-from pydantic import BaseModel, validator, Field, field_validator, model_validator
+from typing import Annotated, Optional, List, Literal, Union, Dict
+from pydantic import AfterValidator, BaseModel, ConfigDict, validator, Field, field_validator, model_validator
 import uuid
 
 from app.db.models.booking import BookingStatus, PaymentStatus
+from app.services.paystack import CheckoutChannel, MAX_CHECKOUT_CHANNELS
 
 
 # A length in hours: ``4`` stays an int, ``1.5`` is a float (a JSON number either way).
@@ -40,6 +41,26 @@ def _refuse_boolean(value):
     if isinstance(value, bool):
         raise ValueError("must be a number, not true or false")
     return value
+
+
+def _no_duplicate_channels(channels: List[str]) -> List[str]:
+    if len(set(channels)) != len(channels):
+        raise ValueError("channels must not repeat a value")
+    return channels
+
+
+# What a client may ask for on the Paystack checkout page. Strict on purpose: 1 or 2 values, each ``card`` or
+# ``bank_transfer`` (exact, lower case), no repeats; anything else is a 422. Absent or null means "Paystack's own channels".
+PaymentChannels = Annotated[
+    List[CheckoutChannel],
+    Field(min_length=1, max_length=MAX_CHECKOUT_CHANNELS),
+    AfterValidator(_no_duplicate_channels),
+]
+
+_CHANNELS_DESCRIPTION = (
+    "Optional. Which payment methods Paystack's checkout page offers: [\"card\"], [\"bank_transfer\"] or both. Left out, "
+    "Paystack shows its own default channels. Only applied when the payment link is first made: the same booking "
+    "always keeps the link it was created with.")
 
 
 def _hours(minutes: int) -> Hours:
@@ -102,6 +123,7 @@ class BookingCreate(BaseModel):
         description="Who the booking is for",
         example="Myself"
     )
+    channels: Optional[PaymentChannels] = Field(None, description=_CHANNELS_DESCRIPTION, example=["bank_transfer"])
 
     _no_booleans = field_validator("duration_minutes", "duration_hours", mode="before")(_refuse_boolean)
 
@@ -349,6 +371,14 @@ class BookingResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaymentLinkRequest(BaseModel):
+    """Optional body of ``POST /booking/{id}/payment-link``. The whole body may be left out. Nothing about the money
+    can be sent: an amount, card details or any other field is a 422, not silently ignored."""
+    model_config = ConfigDict(extra="forbid")
+
+    channels: Optional[PaymentChannels] = Field(None, description=_CHANNELS_DESCRIPTION, example=["card"])
 
 
 class PaymentLinkResponse(BookingResponse):
