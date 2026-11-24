@@ -38,11 +38,18 @@ Every mail has a first-name greeting, the booking code ("quote it if you contact
 | `app/services/patient_notifications.py` | `_write_feed_row` returns `(id, created)`; `deliver` calls the mailer |
 | `app/tests/test_patient_booking_emails.py` | 26 tests |
 
-**Where money is read (for review):** `patient_email.py:96` (`total_amount_kobo`, receipt), `:98-99` (`paystack_reference`), `:76-79` (`refund_amount_kobo` via `booking_notices.refund_amount_kobo`, cancel refund line), `:131-136` (refund row `amount_kobo`, falling back to the booking's refund amount). All formatted by `booking_rules.naira`. Nothing is computed.
+**Where money is read (for review):** `patient_email.py` `compose_mail` (`total_amount_kobo` and `paystack_reference` for the receipt; the refund row's `amount_kobo`, falling back to the booking's refund amount, for `refund_processed`) and `_refund_sentence` (`booking.refund_amount_kobo`, cancel refund line). All formatted by `booking_rules.naira`. Nothing is computed.
 
 ## Verification
 - `app/tests/test_patient_booking_emails.py`: each event sends exactly one mail to the booker with the right subject and facts and none of the forbidden strings (condition, notes, address, phone, visit code, caregiver surname, booker surname); unpaid cancel, WhatsApp booking, user without e-mail, erased account send none; en-route, arrived, started, refund-started, bank-details send none; failing (HTTP 500) and raising transports and a template error leave the feed row, the event and the booking intact; a replayed event and a retried feed failure send once; the mail leaves only after the feed row is committed (checked from a second connection).
 - Pinning files run unchanged and green: `test_patient_notifications.py`, `test_caregiver_arrived_earning.py`, `test_whatsapp_admin_notifications.py`, `test_patient_notifications_migration.py` (119 tests across the five files). `ruff check --select E9,F63,F7,F82 .` clean; `scripts.ci_smoke` OK (217 operations, one Alembic head). CI runs the full suite.
+
+## Review fixes (2026-11-24, independent review of PR #75)
+- Verified address only (above), tested both ways.
+- `booking_notices._STALE_FOR` gained `refund_processed` (`needs_review`, `failed`, `closed`, `rejected`): a refund that left `succeeded` before delivery is no longer announced as sent, in the e-mail, the feed row or the WhatsApp text.
+- Cancel refund line no longer guesses: no decided amount means the "our team will contact you" wording.
+- `email.send_email` now logs only the HTTP status and Resend's error `name` for a failed send, not the response text (which can echo an address).
+- The template keeps explicit `|e` on every value (autoescape stays off app-wide); a test renders hostile values and asserts they are escaped, and a comment at the top of `patient_booking.html` says to keep `|e`.
 
 ## Operate / roll back
 Needs `RESEND_KEY` and `EMAILS_FROM_EMAIL` (already set on staging); without them each send is a logged no-op. To switch off without a deploy, unset `RESEND_KEY`. To revert, revert the PR: nothing was migrated. Worst case latency: `send_email` waits up to 15 s per mail inside the worker pass.
