@@ -22,6 +22,14 @@ def render_template(template_name: str, context: Dict[str, Any]) -> str:
     template = env.get_template(f"{template_name}.html")
     return template.render(**context)
 
+def _error_name(response: httpx.Response) -> str:
+    """Resend's machine-readable error name (``validation_error``), or "" when the body has none."""
+    try:
+        name = response.json().get("name")
+    except Exception:
+        return ""
+    return name if isinstance(name, str) and name.replace("_", "").isalnum() else ""
+
 def send_email(
     email_to: str,
     subject: str,
@@ -44,8 +52,9 @@ def send_email(
         with httpx.Client(transport=_transport, timeout=RESEND_TIMEOUT_SECONDS) as client:
             response = client.post(RESEND_URL, json=payload, headers=headers)
         if response.status_code >= 400:
-            # Resend's error body names the problem (an unverified domain, a bad key); it never echoes the key.
-            logger.warning("Failed to send email %r: Resend answered %s %s", subject, response.status_code, response.text[:300])
+            # The status and Resend's error name only: an error message can echo the recipient's address.
+            logger.warning("Failed to send email %r: Resend answered %s %s", subject, response.status_code,
+                           _error_name(response))
             return False
         return True
     except Exception as e:

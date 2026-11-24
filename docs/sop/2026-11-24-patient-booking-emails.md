@@ -7,7 +7,7 @@
 | **Not verified** | The e-mail text has never been seen in a real inbox. Tests fake the Resend transport and read the HTML it was given. Rendering in Gmail/Apple Mail, spam placement and the sender domain on production are unchecked. |
 
 ## Who gets which e-mail
-Only the booker of a `channel == 'app'` booking, only if their account is active and has an e-mail address. WhatsApp bookings get none (`app/channels/whatsapp/notifications.py` serves them).
+Only the booker of a `channel == 'app'` booking, only if their account is active and has a **verified** e-mail address (`User.is_verified`; login does not require verification, so an unverified address may be mistyped or a stranger's and must never get a receipt). WhatsApp bookings get none (`app/channels/whatsapp/notifications.py` serves them).
 
 | Outbox event | Subject (after `Oaklycare - `) | Body facts |
 |---|---|---|
@@ -15,7 +15,7 @@ Only the booker of a `channel == 'app'` booking, only if their account is active
 | `caregiver_assigned` | Your caregiver has been assigned | Caregiver first name, visit date and time |
 | `caregiver_reassigned` | Your caregiver has changed | New caregiver first name, visit date and time |
 | `visit_completed` | Your visit is complete | The feed's "Your visit is complete." plus a thank-you; service and date |
-| `booking_cancelled_by_caregiver`, `booking_cancelled_by_admin` | Your booking was cancelled | What happened; one refund line only when `refund_required` |
+| `booking_cancelled_by_caregiver`, `booking_cancelled_by_admin` | Your booking was cancelled | What happened; one refund line only when `refund_required`: the amount only when `booking.refund_amount_kobo` is set, otherwise "Our team will contact you about your refund." (the total is never quoted as the refund) |
 | `no_caregiver_found` | We're still looking for a caregiver | The feed text; a refund line only when `refund_required` |
 | `refund_processed` | Your refund has been sent | Refund amount and where it goes (original card/bank, or Oakly wallet) |
 
@@ -36,7 +36,7 @@ Every mail has a first-name greeting, the booking code ("quote it if you contact
 | `app/services/patient_email.py` | new: content, gating, send |
 | `app/templates/emails/patient_booking.html` | new template |
 | `app/services/patient_notifications.py` | `_write_feed_row` returns `(id, created)`; `deliver` calls the mailer |
-| `app/tests/test_patient_booking_emails.py` | 21 tests |
+| `app/tests/test_patient_booking_emails.py` | 26 tests |
 
 **Where money is read (for review):** `patient_email.py:96` (`total_amount_kobo`, receipt), `:98-99` (`paystack_reference`), `:76-79` (`refund_amount_kobo` via `booking_notices.refund_amount_kobo`, cancel refund line), `:131-136` (refund row `amount_kobo`, falling back to the booking's refund amount). All formatted by `booking_rules.naira`. Nothing is computed.
 

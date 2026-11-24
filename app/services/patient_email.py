@@ -11,7 +11,8 @@ Rules this module keeps:
   and never rolls back anything it did not do itself; a mail that fails is logged by event kind and dropped.
 - **Once.** The caller only asks for a mail on the pass that inserted the feed row (``notifications.event_id`` is unique),
   so a replayed outbox event sends nothing. The cost: a crash between the commit and the send loses that one mail.
-- **Only for the booker, only for an app booking, only when they have an e-mail address.**
+- **Only for the booker, only for an app booking, only when they have a verified e-mail address** (login does not require
+  verification, so an unverified address may be mistyped or a stranger's).
 - **Nothing sensitive.** The only inputs are the booker's and the caregiver's first names, the service, the visit time,
   the booking code, and money and the payment reference as stored. Never the address, phone numbers, ID data, the
   condition, special instructions, the visit code or anything from the care plan or the visit notes.
@@ -29,7 +30,7 @@ from sqlalchemy.orm import Session
 from app.channels.whatsapp import booking_rules as rules
 from app.channels.whatsapp.booking_notices import _caregiver_for, _first_name, _refund_for, refund_amount_kobo
 from app.core.config import settings
-from app.db.models.booking import Booking, PaymentStatus
+from app.db.models.booking import Booking
 from app.db.models.refund import REFUND_DEST_WALLET
 from app.db.models.user import User
 from app.db.models.whatsapp_booking import BookingEvent
@@ -73,10 +74,10 @@ def _refund_sentence(booking: Booking) -> Optional[str]:
     """One line about a refund after a cancellation, or None when none follows."""
     if not booking.refund_required:
         return None
-    if (booking.payment_status == PaymentStatus.PAID and booking.refund_amount_kobo is None
-            and booking.actual_start_time is not None):
-        return "The visit had started, so our team will contact you about any refund."  # no automatic amount
-    return (f"We've started a refund of {rules.naira(refund_amount_kobo(booking))}. "
+    if booking.refund_amount_kobo is None:
+        # No amount has been decided: never quote the total as the refund (a guess). A person follows up.
+        return "Our team will contact you about your refund."
+    return (f"We've started a refund of {rules.naira(booking.refund_amount_kobo)}. "
             "We'll e-mail you again when it has been sent.")
 
 
@@ -145,7 +146,9 @@ def send_for_event(db: Session, user_id, event: BookingEvent, booking: Booking, 
     try:
         if booking.channel != "app":
             return False  # a WhatsApp booker is served on WhatsApp
-        user = db.query(User.email, User.full_name).filter(User.id == user_id).first()
+        # Only a verified address: login does not require verification, so an unverified one may be mistyped or someone else's.
+        user = (db.query(User.email, User.full_name)
+                .filter(User.id == user_id, User.is_verified.is_(True)).first())
         if user is None or not (user.email or "").strip():
             return False
         mail = compose_mail(db, event, booking)

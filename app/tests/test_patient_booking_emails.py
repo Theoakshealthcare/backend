@@ -171,7 +171,8 @@ def test_oakly_cancelling_says_so_and_a_refund_line_only_when_one_follows(db, wo
     assert len(outbox.mails) == 2
     first = next(m for m in outbox.mails if with_refund.booking_code in m["text"])
     second = next(m for m in outbox.mails if without.booking_code in m["text"])
-    assert "Oakly has cancelled this visit." in first["text"] and "₦44,000" in first["text"]
+    assert "Oakly has cancelled this visit." in first["text"] and "₦44,000" not in first["text"]  # no amount decided yet
+    assert "Our team will contact you about your refund." in first["text"]
     assert "Oakly has cancelled this visit." in second["text"] and "refund" not in second["text"].lower()
 
 
@@ -383,3 +384,75 @@ def test_the_email_goes_out_after_the_feed_row_is_committed(db, world, outbox, m
     monkeypatch.setattr(patient_email, "send_for_event", spy)
     run(db)
     assert seen == {"rows": 1} and len(outbox.requests) == 1
+
+
+def test_an_unverified_address_is_never_mailed_and_a_verified_one_is(db, world, outbox):
+    world["user"].is_verified = False
+    db.commit()
+    booking = booking_for(db, world, caregiver=True, status=BookingStatus.COMPLETED)
+    NotificationService(db).visit_completed(booking)
+    db.commit()
+    run(db)
+    assert outbox.requests == []  # a mistyped or stranger's address would get a receipt
+    assert db.query(Notification).filter(Notification.user_id == world["user"].id).count() == 1  # feed still written
+
+    world["user"].is_verified = True
+    other = booking_for(db, world, caregiver=True, status=BookingStatus.COMPLETED)
+    NotificationService(db).visit_completed(other)
+    db.commit()
+    run(db)
+    [mail] = outbox.mails
+    assert mail["to"] == [world["user"].email] and other.booking_code in mail["text"]
+
+
+def test_a_cancel_with_no_decided_refund_amount_never_quotes_the_total(db, world, outbox):
+    booking = booking_for(db, world, caregiver=True, status=BookingStatus.CANCELLED, refund_required=True,
+                          total_amount_kobo=7_700_000)
+    NotificationService(db).cancelled_by_caregiver(booking)
+    db.commit()
+    run(db)
+    [mail] = outbox.mails
+    assert "Our team will contact you about your refund." in mail["text"]
+    assert "₦77,000" not in mail["text"] and "We've started a refund" not in mail["text"]
+
+
+def test_a_refund_that_is_no_longer_succeeded_is_not_announced_as_sent(db, world, outbox):
+    booking = booking_for(db, world, status=BookingStatus.CANCELLED, payment_status=PaymentStatus.REFUNDED)
+    refund = Refund(booking_id=booking.id, patient_id=booking.patient_id, reason_code="other", origin="system",
+                    suggested_amount_kobo=3_000_000, amount_kobo=3_000_000, destination="original_method",
+                    status="needs_review", approved_at=datetime.utcnow())
+    db.add(refund)
+    db.commit()
+    booking_events.emit(db, booking, "refund_processed", f"{refund.id}:complete")
+    db.commit()
+    run(db)
+    assert outbox.requests == []
+    assert db.query(Notification).filter(Notification.user_id == world["user"].id).count() == 0  # the feed row too
+
+
+def test_the_template_escapes_every_value(db):
+    html = email_service.render_template("patient_booking", {
+        "project_name": "<b>Brand</b>", "heading": "<script>x</script>", "first_name": '<a href="x">Eve</a>',
+        "paragraphs": ("<img src=x onerror=alert(1)>",), "facts": (("<i>L</i>", "<u>V</u>"),),
+        "booking_code": "<code>"})
+    for raw in ('<a href="x">', "<script>", "<img src=x", "<i>L</i>", "<u>V</u>", "<code>", "<b>Brand</b>"):
+        assert raw not in html
+    assert "&lt;a href=&#34;x&#34;&gt;Eve&lt;/a&gt;" in html
+
+
+def test_a_failed_send_logs_the_status_and_error_name_but_never_the_address(db, world, monkeypatch, caplog):
+    address = world["user"].email
+
+    def handler(request):
+        return httpx.Response(422, json={"name": "validation_error", "message": f"Invalid `to` field: {address}"})
+
+    monkeypatch.setattr(email_service, "_transport", httpx.MockTransport(handler))
+    monkeypatch.setattr(settings, "RESEND_KEY", "re_placeholder_not_a_secret")
+    monkeypatch.setattr(settings, "EMAILS_FROM_EMAIL", "noreply@example.test")
+    booking = booking_for(db, world, caregiver=True, status=BookingStatus.COMPLETED)
+    NotificationService(db).visit_completed(booking)
+    db.commit()
+    with caplog.at_level(logging.INFO):
+        run(db)
+    assert "422" in caplog.text and "validation_error" in caplog.text
+    assert address not in caplog.text
