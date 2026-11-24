@@ -7,7 +7,13 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
 
-from app.db.models.caregiver import Caregiver, CaregiverDocument, CaregiverCertification
+from app.db.models.caregiver import (
+    SERVICE_TYPE_LABELS,
+    SERVICE_TYPES,
+    Caregiver,
+    CaregiverCertification,
+    CaregiverDocument,
+)
 from app.schemas.caregiver import (
     CaregiverProfileStep1, 
     CaregiverProfileStep2, 
@@ -23,6 +29,10 @@ NIGERIAN_STATES = [
     "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe",
     "Zamfara", "Federal Capital Territory",
 ]
+
+
+class ApplyingAsRequired(Exception):
+    """A first submission of step 2 without ``applying_as`` (the endpoint answers 422, like any missing field)."""
 
 
 class CaregiverService:
@@ -72,6 +82,11 @@ class CaregiverService:
         caregiver = self.get_caregiver_by_user_id(user_id)
         if not caregiver:
             raise ValueError("Caregiver not found")
+
+        # "I apply as" is required the first time step 2 is submitted. A row that already passed step 2 (or already
+        # holds a value) may re-save without it: nothing it has stored is touched.
+        if profile_data.applying_as is None and not caregiver.applying_as and (caregiver.profile_completion_step or 0) < 2:
+            raise ApplyingAsRequired("applying_as is required: pick at least one role you apply as")
 
         # Update fields
         for field, value in profile_data.dict(exclude_unset=True).items():
@@ -164,8 +179,9 @@ class CaregiverService:
         return status
 
     @staticmethod
-    def get_form_options() -> Dict[str, List[str]]:
+    def get_form_options() -> Dict[str, Any]:
         return {
+            "roles": [{"value": t, "label": SERVICE_TYPE_LABELS[t]} for t in SERVICE_TYPES],
             "specializations": [
                 "Elderly Care",
                 "Disability Support",

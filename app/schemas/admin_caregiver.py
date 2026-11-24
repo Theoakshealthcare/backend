@@ -200,4 +200,6 @@ class ApplicationDetail(BaseModel):
     background_check: BackgroundCheckOut
     decision: DecisionOut
     skills: List[SkillOut]
+    # The roles the caregiver asked for in setup ("I apply as"), [] if none. A request only: nothing here is a skill.
+    requested_skills: List[ServiceType] = []
     audit_history: List[AuditEntry]

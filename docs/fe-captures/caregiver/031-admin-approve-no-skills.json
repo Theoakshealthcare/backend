@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/caregivers/c75fce86-2eac-489f-b0f9-70b2286cf0de/approve",
+    "path": "/api/v1/admin/caregivers/e4475348-5fc7-4ad9-b5c4-0d495b75ff7e/approve",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },
@@ -16,7 +16,7 @@
         "unmet": [
           {
             "code": "NO_SKILLS",
-            "message": "At least one service skill must be set"
+            "message": "At least one service skill must be set (the caregiver requested: Nurse, Caregiver)"
           }
         ]
       }

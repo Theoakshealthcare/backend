@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/a7349793-cd19-40ba-9745-144da0ef1b68",
+    "path": "/api/v1/booking/caregiver/action/4ac2a200-9f8b-4436-bb0c-e6f03889f38d",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "cancel",

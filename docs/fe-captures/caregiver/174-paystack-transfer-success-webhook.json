@@ -9,9 +9,9 @@
         "amount": 6500000,
         "currency": "NGN",
         "reason": "Oakly caregiver payout",
-        "reference": "po-ab3ede3072be46bc8b0947523d7e6fbf-1",
+        "reference": "po-2b500c0f88404fb8b7ce1a94465085aa-1",
         "status": "success",
-        "transfer_code": "TRF_cbc1a3993fd4",
+        "transfer_code": "TRF_334d1131aec2",
         "recipient": {
           "recipient_code": "RCP_d27c071bb208"
         }

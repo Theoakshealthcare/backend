@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/capture_caregiver_flow.py",
-  "run_tag": "d0c81e",
+  "run_tag": "cfda99",
   "captures": [
     {
       "file": "001-a-auth-register.json",
@@ -901,6 +901,61 @@
       "file": "180-a-bank-account-after-change.json",
       "label": "a-bank-account-after-change",
       "status": 200
+    },
+    {
+      "file": "181-a-notifications-after-decline.json",
+      "label": "a-notifications-after-decline",
+      "status": 200
+    },
+    {
+      "file": "182-a-accept-b3-after-decline.json",
+      "label": "a-accept-b3-after-decline",
+      "status": 403
+    },
+    {
+      "file": "950-f-profile-step2-missing-applying-as.json",
+      "label": "f-profile-step2-missing-applying-as",
+      "status": 422
+    },
+    {
+      "file": "951-f-profile-step2-unknown-role.json",
+      "label": "f-profile-step2-unknown-role",
+      "status": 422
+    },
+    {
+      "file": "952-f-profile-step2-duplicate-role.json",
+      "label": "f-profile-step2-duplicate-role",
+      "status": 422
+    },
+    {
+      "file": "953-f-profile-step2-empty-roles.json",
+      "label": "f-profile-step2-empty-roles",
+      "status": 422
+    },
+    {
+      "file": "954-f-profile-step2-null-roles.json",
+      "label": "f-profile-step2-null-roles",
+      "status": 422
+    },
+    {
+      "file": "955-f-profile-step2-with-applying-as.json",
+      "label": "f-profile-step2-with-applying-as",
+      "status": 200
+    },
+    {
+      "file": "956-f-profile-step2-resave-without-applying-as.json",
+      "label": "f-profile-step2-resave-without-applying-as",
+      "status": 200
+    },
+    {
+      "file": "957-f-profile-resume.json",
+      "label": "f-profile-resume",
+      "status": 200
+    },
+    {
+      "file": "958-admin-approve-requested-but-no-skills.json",
+      "label": "admin-approve-requested-but-no-skills",
+      "status": 409
     }
   ]
 }

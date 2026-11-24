@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/caregivers/8de2b15a-96b8-4dc0-a722-402a4ff90615/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "message": "Cannot approve: preconditions not met",
+        "unmet": [
+          {
+            "code": "INVALID_STATE",
+            "message": "Application is 'incomplete', not 'under_review'"
+          },
+          {
+            "code": "LICENSE_NOT_VERIFIED",
+            "message": "At least one licence document must be verified"
+          },
+          {
+            "code": "IDENTITY_NOT_VERIFIED",
+            "message": "Identity must be verified"
+          },
+          {
+            "code": "BACKGROUND_CHECK_NOT_CLEARED",
+            "message": "The background check must be cleared"
+          },
+          {
+            "code": "NO_SKILLS",
+            "message": "At least one service skill must be set (the caregiver requested: Doctor, Nurse)"
+          },
+          {
+            "code": "CONSENTS_NOT_ACCEPTED",
+            "message": "Terms, privacy policy and background-check consent must all be accepted"
+          }
+        ]
+      }
+    }
+  },
+  "note": "A request is not a skill: NO_SKILLS is still unmet (its message now says what was requested; the code and rule are unchanged). The other unmet items are there because this caregiver was never reviewed. The admin side of the request (requested_skills on the detail) is in the admin guide."
+}

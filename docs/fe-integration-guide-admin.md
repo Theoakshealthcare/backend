@@ -6256,7 +6256,7 @@ The rows are the same as before. The row's `identity_verification_status` is the
 
 ### The identity block on the detail
 
-`GET /admin/caregivers/{id}` keeps its shape except for `identity`, which is now:
+`GET /admin/caregivers/{id}` keeps its shape except for `identity`, which is now the block below (and the later, additive `requested_skills`, section 12.15):
 
 <!-- capture: 601-a-detail-duplicate.json response.body path=identity -->
 ```json
@@ -7026,6 +7026,97 @@ Both actions write `admin_audit_log` rows (`caregiver.identity_decision`, `careg
 | A late provider result cannot move a caregiver an admin decided; two resets at once have one winner | Test only | `test_kyc_admin_api.py` |
 | Real provider data: the fields the identity block shows (scores, name and date-of-birth match, ID type, `provider_reference`, reason codes) | **[not live]** | Nothing has met the real provider; the fake follows the documented shapes (design section 15). The first live pass (K8) will show whether they are filled |
 | A browser, the compose stack, a real authenticator-signed sign-in | **[not live]** | Not run; the calls above used the test client with a valid admin token |
+
+## 12.15 What the caregiver asked for: `requested_skills` (new 2026-11-24, migration `0028`)
+
+In setup step 2 the caregiver app now asks "I apply as" and lets them pick one or more of the five roles (`nurse`, `doctor`, `physiotherapist`, `caregiver`, `nutritionist`). The backend stores it as a **request**. Skills are unchanged and stay yours to confirm: **`PUT /admin/caregivers/{id}/skills` is still the only thing that grants a skill, nothing grants one automatically, and approval still needs at least one confirmed skill** (`NO_SKILLS` otherwise). The caregiver's side is in the [caregiver guide](fe-integration-guide-caregiver.md) (section 4, "I apply as").
+
+What changes for the console:
+
+| Where | Change |
+|---|---|
+| `GET /admin/caregivers/{id}` | New top-level `requested_skills`: a list of role values, `[]` when the caregiver asked for nothing (always present, never absent). `profile.applying_as` carries the same list, or `null` for a caregiver from before the field |
+| `PUT /admin/caregivers/{id}/skills` | Unchanged |
+| `POST /admin/caregivers/{id}/approve`, `409` | `NO_SKILLS` keeps its code; its `message` now ends with "(the caregiver requested: Nurse, Caregiver)" when roles were requested. Do not match on the message text |
+
+Field-nesting trap: the two lists are different things. `skills` is `[{service_type, sub_specialty}]` (objects, confirmed by an admin); `requested_skills` is a list of **plain strings** (a request). Do not merge them or show a requested role as a confirmed skill.
+
+**What the console must do.** On the caregiver's page show "Requested by the caregiver: Nurse, Caregiver" (hide the line when `requested_skills` is empty), using the role's label (capitalised value). In the "Add skills" dialog, tick the requested roles first and tag them "requested", so confirming is one click; **confirming is the admin's explicit click** (the dialog sends the `PUT` only on Save), and the admin may untick, or add others, before saving. Never send the `PUT` on the caregiver's behalf when the page opens.
+
+The detail of a caregiver who asked for Nurse and Caregiver (capture `951`; `skills` is empty until confirmed):
+
+<!-- capture: 951-caregiver-detail-requested-skills.json response.body keys=requested_skills,skills -->
+```json
+{
+  "requested_skills": [
+    "nurse",
+    "caregiver"
+  ],
+  "skills": []
+}
+```
+
+`profile.applying_as` on the same response:
+
+<!-- capture: 951-caregiver-detail-requested-skills.json response.body path=profile keys=applying_as -->
+```json
+{
+  "applying_as": [
+    "nurse",
+    "caregiver"
+  ]
+}
+```
+
+A caregiver with no request (capture `952`):
+
+<!-- capture: 952-caregiver-detail-no-request.json response.body keys=requested_skills,skills -->
+```json
+{
+  "requested_skills": [],
+  "skills": []
+}
+```
+
+The admin confirms, request `PUT` (capture `953`; the body is what the dialog sends):
+
+<!-- capture: 953-caregiver-skills-confirm-requested.json request.body -->
+```json
+{
+  "skills": [
+    {
+      "service_type": "nurse"
+    },
+    {
+      "service_type": "caregiver"
+    }
+  ]
+}
+```
+
+After confirming, `skills` holds the confirmed roles and `requested_skills` is unchanged (capture `954`):
+
+<!-- capture: 954-caregiver-detail-after-confirm.json response.body keys=requested_skills,skills -->
+```json
+{
+  "requested_skills": [
+    "nurse",
+    "caregiver"
+  ],
+  "skills": [
+    {
+      "service_type": "caregiver",
+      "sub_specialty": null
+    },
+    {
+      "service_type": "nurse",
+      "sub_specialty": null
+    }
+  ]
+}
+```
+
+**[seeded]** The two applicants in these captures were inserted straight into the database (`950-db-seeded-applicants-roles.json`): the first carries what the caregiver app's step 2 stores (that call is captured live in the caregiver guide, `950`-`958` there), the second is a row from before the field. The `409` with the changed `NO_SKILLS` message is captured live in the caregiver guide (`958`). Re-run with `poetry run python -m scripts.capture_admin_flow --env-file <env> --section caregiver-roles` (it replaces only its own block, `950`-`969`).
 
 ## 13. Pricing settings: `/api/v1/booking-settings`
 
@@ -7845,4 +7936,7 @@ not `display_name`.
 | `GET /admin/me` for a Super Admin lists `refunds.approve_above_limit` | Test only | captures 010 and 039 were taken before the permission existed; `test_admin_rbac.py` |
 | Service catalogue: list (nurse only priced; before any pricing; doctor priced but disabled), enable with a price, a retried PUT (same body, one audit row), `service_has_no_price` (no multiplier, and no pricing at all), validation `422`s (video mode, step 45, min 100, max 1500, blank name), unknown service `404`, Operations `403` on write and `200` on read, no token `401` | Verified live | 900 to 916 |
 | Booking length: the admin booking detail carries `duration_minutes` and `duration_hours` | Verified live | 920 |
+| Caregiver detail: `requested_skills` (with roles, and `[]` without), `profile.applying_as`, the skills call confirming them and `requested_skills` staying as it was | Verified live | 951 to 954 (applicants **[seeded]**, 950) |
+| `409 NO_SKILLS` still returned when roles are requested but no skill is confirmed, with the extended message | Verified live | caregiver guide `958` |
+| The console's "Requested by the caregiver" line and the pre-ticked "Add skills" dialog | **[not live]** | built in the console PR; the backend contract above is what it reads |
 | Service catalogue: the audit row's `before` / `after` contents, an enabled service whose multiplier is later removed (`priced: false`), a `reason`-less PUT, concurrent PUTs | Test only | `test_service_catalogue.py` |

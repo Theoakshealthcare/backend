@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form, Query
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, StreamingResponse
 import csv
 from io import StringIO
@@ -35,7 +36,7 @@ from app.schemas.caregiver import (
     CaregiverBankAccountOut,
     CaregiverBankAccountUpdate,
 )
-from app.services.caregiver import CaregiverService
+from app.services.caregiver import ApplyingAsRequired, CaregiverService
 from app.services.kyc_availability import ProviderAvailability, get_provider_availability
 from app.services.kyc_caregiver import CaregiverIdentityService, KycError
 from app.services import bank_accounts, booking_policy, payouts
@@ -113,6 +114,11 @@ def update_profile_step2(
     try:
         caregiver = caregiver_service.update_profile_step2(current_user.id, profile_data)
         return caregiver
+    except ApplyingAsRequired:
+        # Same shape FastAPI gives any missing body field.
+        raise RequestValidationError(
+            [{"type": "missing", "loc": ("body", "applying_as"), "msg": "Field required", "input": None}]
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -1,0 +1,39 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/profile/step2",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "specialization": "Elderly Care",
+      "years_of_experience": 5,
+      "preferred_work_hours": "weekdays",
+      "service_areas": [
+        "Personal Care",
+        "Medication Reminders"
+      ],
+      "applying_as": null
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "value_error",
+          "loc": [
+            "body",
+            "applying_as"
+          ],
+          "msg": "Value error, applying_as cannot be null; omit it to leave it unchanged",
+          "input": null,
+          "ctx": {
+            "error": {}
+          }
+        }
+      ]
+    }
+  }
+}

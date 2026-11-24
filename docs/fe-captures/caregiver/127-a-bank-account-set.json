@@ -19,9 +19,9 @@
       "account_number": "0000000000",
       "account_name": "PLACEHOLDER CAREGIVER A",
       "verified": true,
-      "payouts_blocked_until": "2026-10-13T13:35:26.985349",
-      "created_at": "2026-10-12T13:35:26.985349",
-      "updated_at": "2026-10-12T13:35:26.985349"
+      "payouts_blocked_until": "2026-11-25T13:54:57.137017",
+      "created_at": "2026-11-24T13:54:57.137017",
+      "updated_at": "2026-11-24T13:54:57.137017"
     }
   },
   "note": "FAKE PAYSTACK: the account name was resolved and the transfer recipient created by the local fake. This caregiver already has money in the wallet (25,000.00 seeded above), so saving the FIRST account also starts the 24 hour cool-down: payouts_blocked_until is set. With an empty wallet it stays null."

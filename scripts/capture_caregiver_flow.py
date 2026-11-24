@@ -64,6 +64,7 @@ PNG_1X1 = bytes.fromhex(
 )
 PLACEHOLDER_PASSWORD = "Placeholder-Pass-1!"
 JWT_RE = re.compile(r"eyJ[\w-]+\.[\w-]+\.[\w-]+")
+CAREGIVER_ROLES_FIRST = 950  # the "I apply as" captures' own block of numbers (950-969)
 LAT, LON = 6.4474, 3.4723  # the seeded bookings' location (Lekki, Lagos)
 
 
@@ -353,7 +354,7 @@ def onboard_caregiver(ctx: Ctx, label: str, email: str, name: str, capture: bool
                  expect=422, json_body={"gender": "female"})
     rec.call(f"{label}-profile-step2", "PUT", "/api/v1/caregiver/profile/step2", token=t, json_body={
         "specialization": "Elderly Care", "years_of_experience": 5, "preferred_work_hours": "weekdays",
-        "service_areas": ["Personal Care", "Medication Reminders"]})
+        "service_areas": ["Personal Care", "Medication Reminders"], "applying_as": ["nurse", "caregiver"]})
     if capture:
         rec.call(f"{label}-documents-upload-bad-type", "POST", "/api/v1/caregiver/documents/upload", token=t,
                  expect=400, data={"document_type": "license"}, files={"file": ("notes.txt", b"hello", "text/plain")})
@@ -918,6 +919,43 @@ def run(args) -> None:
     rec.call("a-accept-b3-after-decline", "POST", f"/api/v1/booking/caregiver/action/{b3['id']}", token=ta, expect=403,
              json_body={"action": "accept"},
              note="A decline is final: accepting the offer the caregiver declined is refused, and nothing changes.")
+
+    # --- "I apply as": the requested roles. Own block of numbers (950-969): the 190-244, 700+ and 800+ blocks belong to other
+    # capture scripts, and this script wipes the whole folder, so git restores theirs after a run (see the SOP). ---------------
+    rec.n = CAREGIVER_ROLES_FIRST - 1
+    rec.quiet = True
+    f_tokens = register_verify_login(ctx, "f", mail("caregiver-f"), "Placeholder Caregiver F", "caregiver")
+    tf = f_tokens["access_token"]
+    rec.call("f-profile-step1", "PUT", "/api/v1/caregiver/profile/step1", token=tf, json_body={
+        "date_of_birth": "1990-01-01", "gender": "male", "state": "Lagos",
+        "address": "1 Placeholder Street, Lekki", "emergency_contact_phone": "+2340000000998"})
+    rec.quiet = False
+    step2 = {"specialization": "Elderly Care", "years_of_experience": 5, "preferred_work_hours": "weekdays",
+             "service_areas": ["Personal Care", "Medication Reminders"]}
+    rec.call("f-profile-step2-missing-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
+             json_body=step2, note="A first submission of step 2 without applying_as is refused (the same 'missing' error as any "
+                                   "other required field) and nothing is saved.")
+    rec.call("f-profile-step2-unknown-role", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
+             json_body={**step2, "applying_as": ["surgeon"]})
+    rec.call("f-profile-step2-duplicate-role", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
+             json_body={**step2, "applying_as": ["nurse", "nurse"]})
+    rec.call("f-profile-step2-empty-roles", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
+             json_body={**step2, "applying_as": []})
+    rec.call("f-profile-step2-null-roles", "PUT", "/api/v1/caregiver/profile/step2", token=tf, expect=422,
+             json_body={**step2, "applying_as": None})
+    rec.call("f-profile-step2-with-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf,
+             json_body={**step2, "applying_as": ["doctor", "nurse"]},
+             note="Saved as sent, in the order sent. It is a REQUEST: no skill is created.")
+    rec.call("f-profile-step2-resave-without-applying-as", "PUT", "/api/v1/caregiver/profile/step2", token=tf,
+             json_body={**step2, "years_of_experience": 6},
+             note="Once step 2 has been passed, a re-save may leave applying_as out: the stored value is kept.")
+    f_profile = rec.call("f-profile-resume", "GET", "/api/v1/caregiver/profile", token=tf,
+                         note="Resume/edit: the profile returns the saved applying_as.").json()
+    rec.call("admin-approve-requested-but-no-skills", "POST", f"/api/v1/admin/caregivers/{f_profile['id']}/approve",
+             token=admin, expect=409,
+             note="A request is not a skill: NO_SKILLS is still unmet (its message now says what was requested; the code and "
+                  "rule are unchanged). The other unmet items are there because this caregiver was never reviewed. The admin "
+                  "side of the request (requested_skills on the detail) is in the admin guide.")
 
     (out / "000-index.json").write_text(json.dumps({
         "generated_by": "scripts/capture_caregiver_flow.py", "run_tag": tag, "captures": rec.index}, indent=2) + "\n")

@@ -83,6 +83,28 @@
         "Yobe",
         "Zamfara",
         "Federal Capital Territory"
+      ],
+      "roles": [
+        {
+          "value": "nurse",
+          "label": "Nurse"
+        },
+        {
+          "value": "doctor",
+          "label": "Doctor"
+        },
+        {
+          "value": "physiotherapist",
+          "label": "Physiotherapist"
+        },
+        {
+          "value": "caregiver",
+          "label": "Caregiver"
+        },
+        {
+          "value": "nutritionist",
+          "label": "Nutritionist"
+        }
       ]
     }
   }

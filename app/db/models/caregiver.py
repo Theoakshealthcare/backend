@@ -17,6 +17,10 @@ class Caregiver(Base):
             "identity_verification_status IN ('pending','in_progress','needs_review','verified','failed')",
             name="ck_caregivers_identity_verification_status",
         ),
+        CheckConstraint(
+            "applying_as <@ ARRAY['nurse','doctor','physiotherapist','caregiver','nutritionist']::varchar[]",
+            name="ck_caregivers_applying_as",
+        ),
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -39,7 +43,11 @@ class Caregiver(Base):
     years_of_experience = Column(Integer, nullable=True)
     preferred_work_hours = Column(String, nullable=True)  # JSON string
     service_areas = Column(ARRAY(String), nullable=True)
-    
+    # The roles the caregiver says they apply as (SERVICE_TYPES values, 1-5, no duplicates). A REQUEST only: it grants
+    # nothing and never feeds matching or approval. Skills (``caregiver_skills``) stay admin-confirmed; this just
+    # pre-fills what the admin is asked to confirm. NULL on rows created before the field existed.
+    applying_as = Column(ARRAY(String), nullable=True)
+
     # Verification Status
     profile_completion_step = Column(Integer, default=0)  # 0-3 for tracking progress
     identity_verification_status = Column(String, default='pending')  # pending, in_progress, needs_review, verified, failed (see identity_verification.py)
@@ -109,6 +117,14 @@ class CaregiverDocument(Base):
 
 
 SERVICE_TYPES = ("nurse", "doctor", "physiotherapist", "caregiver", "nutritionist")
+# Display labels for the five roles (the caregiver app's "I apply as" list and the admin console's "requested" line).
+SERVICE_TYPE_LABELS = {
+    "nurse": "Nurse",
+    "doctor": "Doctor",
+    "physiotherapist": "Physiotherapist",
+    "caregiver": "Caregiver",
+    "nutritionist": "Nutritionist",
+}
 
 
 class CaregiverSkill(Base):

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/earnings/0cf4df46-be5d-454b-948b-175f8d5912e3/hold",
+    "path": "/api/v1/admin/earnings/aaf67b0a-f1da-44ca-af5a-1cc2d929ed88/hold",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Placeholder: too late"

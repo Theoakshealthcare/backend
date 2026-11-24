@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/c8d9264e-34b5-4a84-b7fd-5803e0f7a4b1",
+    "path": "/api/v1/booking/caregiver/action/0c6c78f5-f860-491d-97ef-ccd3456b1f63",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "teleport"
@@ -20,10 +20,10 @@
             "body",
             "action"
           ],
-          "msg": "Input should be 'accept', 'decline', 'on_my_way', 'start', 'complete' or 'cancel'",
+          "msg": "Input should be 'accept', 'decline', 'on_my_way', 'arrived', 'start', 'complete' or 'cancel'",
           "input": "teleport",
           "ctx": {
-            "expected": "'accept', 'decline', 'on_my_way', 'start', 'complete' or 'cancel'"
+            "expected": "'accept', 'decline', 'on_my_way', 'arrived', 'start', 'complete' or 'cancel'"
           }
         }
       ]

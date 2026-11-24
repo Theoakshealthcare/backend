@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/caregiver/action/1dd47efc-d1fc-4aca-bd48-8b2d21484c47",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "action": "accept"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "You declined this offer"
+    }
+  },
+  "note": "A decline is final: accepting the offer the caregiver declined is refused, and nothing changes."
+}

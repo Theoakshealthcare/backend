@@ -1,0 +1,59 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/profile/step2",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "specialization": "Elderly Care",
+      "years_of_experience": 5,
+      "preferred_work_hours": "weekdays",
+      "service_areas": [
+        "Personal Care",
+        "Medication Reminders"
+      ],
+      "applying_as": [
+        "doctor",
+        "nurse"
+      ]
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "8de2b15a-96b8-4dc0-a722-402a4ff90615",
+      "user_id": "1850b348-410f-4d54-b46b-a0563f775ad6",
+      "email": "caregiver-f-cfda99@example.com",
+      "full_name": "Placeholder Caregiver F",
+      "phone_number": "+2340000913007",
+      "date_of_birth": "1990-01-01",
+      "gender": "male",
+      "state": "Lagos",
+      "address": "1 Placeholder Street, Lekki",
+      "emergency_contact_phone": "+2340000000998",
+      "specialization": "Elderly Care",
+      "years_of_experience": 5,
+      "preferred_work_hours": "weekdays",
+      "service_areas": [
+        "Personal Care",
+        "Medication Reminders"
+      ],
+      "applying_as": [
+        "doctor",
+        "nurse"
+      ],
+      "profile_completion_step": 2,
+      "identity_verification_status": "pending",
+      "background_check_status": "pending",
+      "profile_status": "incomplete",
+      "terms_accepted": false,
+      "privacy_policy_accepted": false,
+      "background_check_consent": false,
+      "created_at": "2026-11-24T13:55:08.774943",
+      "updated_at": "2026-11-24T13:55:09.785412"
+    }
+  },
+  "note": "Saved as sent, in the order sent. It is a REQUEST: no skill is created."
+}
