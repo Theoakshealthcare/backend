@@ -13,12 +13,12 @@
     "body": {
       "items": [
         {
-          "id": "c75fce86-2eac-489f-b0f9-70b2286cf0de",
+          "id": "e4475348-5fc7-4ad9-b5c4-0d495b75ff7e",
           "full_name": "Placeholder Caregiver A",
           "state": "Lagos",
           "specialization": "Elderly Care",
           "years_of_experience": 5,
-          "submitted_at": "2026-10-12T13:35:19.619561",
+          "submitted_at": "2026-11-24T13:54:48.068695",
           "age_in_days": 0,
           "document_count": 1,
           "identity_verification_status": "pending",
@@ -28,7 +28,9 @@
       ],
       "total": 1,
       "limit": 25,
-      "offset": 0
+      "offset": 0,
+      "needs_review_count": 0,
+      "stuck_count": 0
     }
   }
 }

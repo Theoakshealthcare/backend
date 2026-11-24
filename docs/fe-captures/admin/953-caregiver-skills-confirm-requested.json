@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/admin/caregivers/eea88f8d-9337-4d62-bca5-530f88503ee7/skills",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "skills": [
+        {
+          "service_type": "nurse"
+        },
+        {
+          "service_type": "caregiver"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "skills": [
+        {
+          "service_type": "nurse",
+          "sub_specialty": null
+        },
+        {
+          "service_type": "caregiver",
+          "sub_specialty": null
+        }
+      ]
+    }
+  },
+  "note": "The console's 'Add skills' dialog opens with the requested roles ticked; this is the admin's explicit confirmation and the only call that grants a skill."
+}

@@ -22,9 +22,9 @@
       "next_available_at": null,
       "payout_cadence": "weekly",
       "payout_min_kobo": 500000,
-      "next_payout_on": "2026-10-19",
+      "next_payout_on": "2026-11-30",
       "payout_in_progress_kobo": 0,
-      "payouts_blocked_until": "2026-10-13T13:35:26.985349"
+      "payouts_blocked_until": "2026-11-25T13:54:57.137017"
     }
   }
 }

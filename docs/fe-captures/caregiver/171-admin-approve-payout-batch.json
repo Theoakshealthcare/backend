@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/payouts/batches/7641f081-00a9-491c-8d53-e48c0b486acd/approve",
+    "path": "/api/v1/admin/payouts/batches/2f83746b-446b-401a-b254-b323d655ec9d/approve",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Placeholder: totals checked against the ledger"
@@ -13,15 +13,15 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "7641f081-00a9-491c-8d53-e48c0b486acd",
-      "period_key": "2026-10-12",
+      "id": "2f83746b-446b-401a-b254-b323d655ec9d",
+      "period_key": "2026-11-24",
       "cadence": "weekly",
       "min_payout_kobo": 500000,
       "status": "approved",
-      "approved_by": "8f493a15-ee82-4a9d-a248-260dbda2cf9a",
-      "approved_at": "2026-10-12T13:35:34.307764",
+      "approved_by": "cb078a12-e367-4174-82c0-ddd5659c7391",
+      "approved_at": "2026-11-24T13:55:06.367408",
       "approval_reason": "Placeholder: totals checked against the ledger",
-      "created_at": "2026-10-12T13:35:34.083912",
+      "created_at": "2026-11-24T13:55:06.118962",
       "payout_count": 1,
       "total_kobo": 6500000,
       "counts": {
@@ -29,38 +29,42 @@
       },
       "payouts": [
         {
-          "id": "ab3ede30-72be-46bc-8b09-47523d7e6fbf",
-          "batch_id": "7641f081-00a9-491c-8d53-e48c0b486acd",
-          "batch_period": "2026-10-12",
-          "caregiver_id": "c75fce86-2eac-489f-b0f9-70b2286cf0de",
+          "id": "2b500c0f-8840-4fb8-b7ce-1a94465085aa",
+          "batch_id": "2f83746b-446b-401a-b254-b323d655ec9d",
+          "batch_period": "2026-11-24",
+          "caregiver_id": "e4475348-5fc7-4ad9-b5c4-0d495b75ff7e",
           "caregiver_name": "Placeholder Caregiver A",
           "amount_kobo": 6500000,
           "status": "processing",
           "bank_name": "Placeholder Bank",
           "account_number": "******0000",
           "account_name": "PLACEHOLDER CAREGIVER A",
-          "reference": "po-ab3ede3072be46bc8b0947523d7e6fbf-1",
+          "reference": "po-2b500c0f88404fb8b7ce1a94465085aa-1",
           "transfer_code": null,
           "attempts": 1,
           "attempt_history": [
             {
               "attempt": 1,
-              "reference": "po-ab3ede3072be46bc8b0947523d7e6fbf-1",
+              "reference": "po-2b500c0f88404fb8b7ce1a94465085aa-1",
               "status": "pending",
               "failure_reason": null,
-              "created_at": "2026-10-12T13:35:34.096959"
+              "created_at": "2026-11-24T13:55:06.133966"
             }
           ],
           "shortfall_kobo": 0,
+          "returned_kobo": 0,
+          "netted_kobo": 0,
+          "caregiver_payouts_frozen_at": null,
+          "caregiver_payouts_frozen_reason": null,
           "failure_reason": null,
           "initiated_at": null,
           "completed_at": null,
-          "approved_by": "8f493a15-ee82-4a9d-a248-260dbda2cf9a",
-          "approved_at": "2026-10-12T13:35:34.307764",
+          "approved_by": "cb078a12-e367-4174-82c0-ddd5659c7391",
+          "approved_at": "2026-11-24T13:55:06.367408",
           "cancelled_by": null,
           "cancelled_at": null,
           "cancel_reason": null,
-          "created_at": "2026-10-12T13:35:34.094561"
+          "created_at": "2026-11-24T13:55:06.131700"
         }
       ]
     }

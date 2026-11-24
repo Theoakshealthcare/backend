@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/profile/step2",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "specialization": "Elderly Care",
+      "years_of_experience": 5,
+      "preferred_work_hours": "weekdays",
+      "service_areas": [
+        "Personal Care",
+        "Medication Reminders"
+      ],
+      "applying_as": [
+        "surgeon"
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "body",
+            "applying_as",
+            0
+          ],
+          "msg": "Input should be 'nurse', 'doctor', 'physiotherapist', 'caregiver' or 'nutritionist'",
+          "input": "surgeon",
+          "ctx": {
+            "expected": "'nurse', 'doctor', 'physiotherapist', 'caregiver' or 'nutritionist'"
+          }
+        }
+      ]
+    }
+  }
+}

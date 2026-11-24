@@ -1,0 +1,82 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/caregivers/eea88f8d-9337-4d62-bca5-530f88503ee7",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "profile": {
+        "id": "eea88f8d-9337-4d62-bca5-530f88503ee7",
+        "user_id": "21488ac4-9092-4bee-b22e-834909e93b77",
+        "email": "caregiver-21488ac4-f19400@example.com",
+        "full_name": "Placeholder Applicant With Roles",
+        "phone_number": "+2340000064701",
+        "date_of_birth": null,
+        "gender": null,
+        "state": "Lagos",
+        "address": null,
+        "emergency_contact_phone": null,
+        "specialization": "Elderly Care",
+        "years_of_experience": 5,
+        "preferred_work_hours": null,
+        "service_areas": null,
+        "applying_as": [
+          "nurse",
+          "caregiver"
+        ],
+        "profile_completion_step": 3,
+        "identity_verification_status": "pending",
+        "background_check_status": "in_progress",
+        "profile_status": "under_review",
+        "terms_accepted": true,
+        "privacy_policy_accepted": true,
+        "background_check_consent": true,
+        "created_at": "2026-11-24T13:56:02.320828",
+        "updated_at": "2026-11-24T13:56:02.320828"
+      },
+      "consents": {
+        "terms_accepted": true,
+        "privacy_policy_accepted": true,
+        "background_check_consent": true,
+        "consent_date": null
+      },
+      "documents": [],
+      "identity": {
+        "status": "pending",
+        "review_reason": null,
+        "attempts_used": 0,
+        "attempts_max": 3,
+        "can_reset": false,
+        "attempts": [],
+        "duplicate_of_caregiver_id": null
+      },
+      "background_check": {
+        "status": "in_progress",
+        "evidence": null,
+        "decided_by": null,
+        "decided_at": null
+      },
+      "decision": {
+        "approved_by": null,
+        "approved_at": null,
+        "suspended_at": null,
+        "suspension_reason": null,
+        "rejection_reason": null,
+        "changes_requested": null
+      },
+      "skills": [],
+      "requested_skills": [
+        "nurse",
+        "caregiver"
+      ],
+      "audit_history": []
+    }
+  },
+  "note": "requested_skills: what the caregiver asked for (the five role values, [] when nothing). skills: what an admin has confirmed (empty). The console shows 'Requested by the caregiver: Nurse, Caregiver' from requested_skills. profile.applying_as carries the same list, null on a row from before the field."
+}

@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/profile/step2",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "specialization": "Elderly Care",
+      "years_of_experience": 5,
+      "preferred_work_hours": "weekdays",
+      "service_areas": [
+        "Personal Care",
+        "Medication Reminders"
+      ],
+      "applying_as": []
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": [
+        {
+          "type": "too_short",
+          "loc": [
+            "body",
+            "applying_as"
+          ],
+          "msg": "List should have at least 1 item after validation, not 0",
+          "input": [],
+          "ctx": {
+            "field_type": "List",
+            "min_length": 1,
+            "actual_length": 0
+          }
+        }
+      ]
+    }
+  },
+  "note": "A 422 saves nothing: the caregiver is still at step 1."
+}

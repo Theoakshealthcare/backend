@@ -20,6 +20,9 @@ What is real and what is not
   placeholder key), are shaped after Paystack's documented ones; no live Paystack account was used. The batch, send and reconcile
   steps are the real functions run inside the worker container (in production the ARQ cron runs them).
 
+- The caregiver-roles section (`--section caregiver-roles`, its own block 950-969) shows the caregiver's "I apply as" request on the
+  caregiver detail; its two applicants are seeded and labelled, and it needs no Paystack or worker.
+
 - The refunds section (`--section refunds`, captures 303 onward) uses the same LOCAL FAKE Paystack (refund endpoints included) and the
   same placeholder key for signing the refund webhooks. The worker service must NOT be running: the send and reconcile steps are the real
   functions run in one-off worker containers (`docker compose run --rm --no-deps -T worker python -c ...`, so COMPOSE_PROJECT_NAME,
@@ -49,7 +52,7 @@ import types
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import pyotp
 from cryptography.fernet import Fernet
@@ -73,6 +76,7 @@ from scripts.capture_caregiver_flow import (
 
 API = "/api/v1"
 ADMIN = f"{API}/admin"
+CAREGIVER_ROLES_FIRST = 950  # the caregiver-roles section's own block of capture numbers (950-969)
 STRONG_PASSWORD = "Placeholder-Admin-Pass-9!"
 WINDOW_SECONDS = 60  # ADMIN_AUTH_IP_WINDOW_SECONDS default
 SECRET_PARAM = re.compile(r"secret=[A-Z2-7]+")
@@ -1506,6 +1510,52 @@ def refunds_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str, paystack_p
     server.shutdown()
 
 
+def caregiver_roles_ops(rec: Recorder, db: DB, env: Dict[str, str], tag: str) -> None:
+    """The caregiver's "I apply as" request as the console shows it: requested_skills on the detail, and the skills call that stays
+    the only thing that grants a skill. (The caregiver app's own step 2 is captured in the caregiver guide, captures `f-*`.)"""
+    admins = Admins(db, env, tag + "cr")
+    seed = OpsSeed(db, env, tag, first=700)
+    wait_for_new_rate_window()
+    rec.quiet = True
+    boss = login_and_verify(rec, admins, "boss", admins.seed("boss", "super_admin", "Placeholder super_admin"))["access_token"]
+    rec.quiet = False
+
+    def applicant(name: str, applying_as: Optional[List[str]]) -> str:
+        uid, cid = seed._user("caregiver", name), str(uuid.uuid4())
+        (phone, email), = db.run("SELECT phone_number, email FROM users WHERE id = %s", (uid,))
+        db.run("INSERT INTO caregivers (id, user_id, email, full_name, phone_number, state, specialization, years_of_experience,"
+               " profile_completion_step, applying_as, identity_verification_status, background_check_status, profile_status,"
+               " terms_accepted, privacy_policy_accepted, background_check_consent, created_at, updated_at)"
+               " VALUES (%s,%s,%s,%s,%s,'Lagos','Elderly Care',5,3,%s,'pending','in_progress','under_review',true,true,true,now(),now())",
+               (cid, uid, email, name, phone, applying_as))
+        return cid
+
+    asked = applicant("Placeholder Applicant With Roles", ["nurse", "caregiver"])
+    legacy = applicant("Placeholder Applicant Before The Field", None)
+    rec.save("db-seeded-applicants-roles", {
+        "request": {"method": "SQL", "path": "INSERT INTO caregivers ... (2 placeholder applicants under review)",
+                    "auth": None, "body": None},
+        "response": {"status_code": None, "headers": {}, "body": {"applicants": {
+            "Placeholder Applicant With Roles": {"applying_as": ["nurse", "caregiver"]},
+            "Placeholder Applicant Before The Field": {"applying_as": None}}}},
+        "note": "SEEDED: the applicants are inserted directly. The first one's applying_as is what the caregiver app's setup step 2 "
+                "stores (captured live in the caregiver guide); the second is a row from before the field existed."})
+
+    C = f"{ADMIN}/caregivers"
+    rec.call("caregiver-detail-requested-skills", "GET", f"{C}/{asked}", token=boss,
+             note="requested_skills: what the caregiver asked for (the five role values, [] when nothing). skills: what an admin has "
+                  "confirmed (empty). The console shows 'Requested by the caregiver: Nurse, Caregiver' from requested_skills. "
+                  "profile.applying_as carries the same list, null on a row from before the field.")
+    rec.call("caregiver-detail-no-request", "GET", f"{C}/{legacy}", token=boss,
+             note="A row without a request: requested_skills is [] (always present, never absent) and profile.applying_as is null.")
+    rec.call("caregiver-skills-confirm-requested", "PUT", f"{C}/{asked}/skills", token=boss,
+             json_body={"skills": [{"service_type": "nurse"}, {"service_type": "caregiver"}]},
+             note="The console's 'Add skills' dialog opens with the requested roles ticked; this is the admin's explicit confirmation "
+                  "and the only call that grants a skill.")
+    rec.call("caregiver-detail-after-confirm", "GET", f"{C}/{asked}", token=boss,
+             note="skills now holds the confirmed roles; requested_skills is unchanged.")
+
+
 def run(args) -> None:
     out = Path(args.out)
     env = read_env(args.env_file)
@@ -1611,6 +1661,20 @@ def run(args) -> None:
         refunds_ops(rec, db, env, tag, args.paystack_port)
         index["captures"] = rec.index
         (out / "000-index.json").write_text(json.dumps(index, indent=2) + "\n")
+        print(f"wrote {len(rec.index)} captures to {out}")
+        return
+    if args.section == "caregiver-roles":
+        # Its own block (950-969), like the service-catalogue and booking-minutes blocks: re-running replaces only these files and
+        # leaves every other capture, whichever script wrote it, as it is. A full run (--section all) wipes the folder, so run this
+        # section again after one.
+        for stale in out.glob("*.json"):
+            if re.match(r"\d{3}-", stale.name) and CAREGIVER_ROLES_FIRST <= int(stale.name[:3]) < CAREGIVER_ROLES_FIRST + 20:
+                stale.unlink()
+        rec.index, rec.n = [], CAREGIVER_ROLES_FIRST - 1
+        caregiver_roles_ops(rec, db, env, tag)
+        (out / f"{CAREGIVER_ROLES_FIRST + 19}-caregiver-roles-index.json").write_text(json.dumps({
+            "generated_by": "scripts/capture_admin_flow.py --section caregiver-roles", "run_tag": tag,
+            "captures": rec.index}, indent=2) + "\n")
         print(f"wrote {len(rec.index)} captures to {out}")
         return
     if out.exists():
@@ -1883,7 +1947,7 @@ def main() -> None:
     p.add_argument("--env-file", required=True, help="the env file the stack was started with (for the Fernet key)")
     p.add_argument("--out", default="docs/fe-captures/admin")
     p.add_argument("--paystack-port", type=int, default=9912, help="where the local fake Paystack listens (payouts section)")
-    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing", "earnings", "payouts", "refunds"], default="all",
+    p.add_argument("--section", choices=["all", "bookings", "policy", "pricing", "earnings", "payouts", "refunds", "caregiver-roles"], default="all",
                    help="'bookings' re-captures only the A2 section (and drops the policy captures after it), 'policy' only "
                         "the booking-policy section, 'pricing' only the pricing section (the last one); all append to the existing captures")
     run(p.parse_args())

@@ -7,7 +7,13 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
 
-from app.db.models.caregiver import Caregiver, CaregiverDocument, CaregiverCertification
+from app.db.models.caregiver import (
+    SERVICE_TYPE_LABELS,
+    SERVICE_TYPES,
+    Caregiver,
+    CaregiverCertification,
+    CaregiverDocument,
+)
 from app.schemas.caregiver import (
     CaregiverProfileStep1, 
     CaregiverProfileStep2, 
@@ -74,8 +80,12 @@ class CaregiverService:
         if not caregiver:
             raise ValueError("Caregiver not found")
 
-        # Update fields
-        for field, value in profile_data.dict(exclude_unset=True).items():
+        # Update fields. ``applying_as`` is a request the caregiver may leave out (an older app build does): omitted or
+        # null never clears what is stored.
+        changes = profile_data.dict(exclude_unset=True)
+        if changes.get("applying_as") is None:
+            changes.pop("applying_as", None)
+        for field, value in changes.items():
             setattr(caregiver, field, value)
         
         caregiver.profile_completion_step = max(caregiver.profile_completion_step, 2)
@@ -168,8 +178,9 @@ class CaregiverService:
         return status
 
     @staticmethod
-    def get_form_options() -> Dict[str, List[str]]:
+    def get_form_options() -> Dict[str, Any]:
         return {
+            "roles": [{"value": t, "label": SERVICE_TYPE_LABELS[t]} for t in SERVICE_TYPES],
             "specializations": [
                 "Elderly Care",
                 "Disability Support",

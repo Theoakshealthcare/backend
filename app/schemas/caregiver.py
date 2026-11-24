@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from typing import Optional, List, Literal
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, validator
 import uuid
 from uuid import UUID
 
@@ -15,11 +15,26 @@ class CaregiverProfileStep1(BaseModel):
     emergency_contact_phone: str
 
 
+ApplyingAsRole = Literal["nurse", "doctor", "physiotherapist", "caregiver", "nutritionist"]
+
+
 class CaregiverProfileStep2(BaseModel):
     specialization: str
     years_of_experience: int
     preferred_work_hours: str
     service_areas: List[str]
+    # "I apply as": the role(s) the caregiver requests. A request only: it grants no skill (an admin confirms skills).
+    # OPTIONAL, so a build that does not send it still saves step 2 exactly as before (the caregiver app requires it in its
+    # UI; the server does not). Omitted or null leaves the stored value as it is (null for a first save). When given: 1-5
+    # values from the skills' five-value list, no duplicates; an empty list, an unknown value or a duplicate is a 422.
+    applying_as: Optional[List[ApplyingAsRole]] = Field(default=None, min_length=1, max_length=5)
+
+    @field_validator("applying_as")
+    @classmethod
+    def _applying_as_not_duplicated(cls, v):
+        if v is not None and len(set(v)) != len(v):
+            raise ValueError("applying_as must not contain duplicates")
+        return v
 
 
 class CaregiverConsentData(BaseModel):
@@ -72,6 +87,7 @@ class CaregiverProfile(BaseModel):
     years_of_experience: Optional[int] = None
     preferred_work_hours: Optional[str] = None
     service_areas: Optional[List[str]] = None
+    applying_as: Optional[List[str]] = None  # the roles the caregiver requested; null on rows from before the field
     profile_completion_step: int
     identity_verification_status: str
     background_check_status: str
@@ -96,11 +112,17 @@ class VerificationStatusOut(BaseModel):
     changes_requested: Optional[dict] = None
 
 
+class RoleOption(BaseModel):
+    value: ApplyingAsRole
+    label: str
+
+
 class FormOptionsOut(BaseModel):
     specializations: List[str]
     service_areas: List[str]
     work_hours: List[str]
     states: List[str]
+    roles: List[RoleOption]  # the five "I apply as" roles with display labels
 
 
 # Specialization and Service Area Options

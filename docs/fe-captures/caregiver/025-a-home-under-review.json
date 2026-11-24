@@ -18,6 +18,7 @@
       "upcoming_visits": [],
       "open_offers": [],
       "wallet_balance_naira": 0.0,
+      "can_author_care_plans": false,
       "currency": "NGN"
     }
   }

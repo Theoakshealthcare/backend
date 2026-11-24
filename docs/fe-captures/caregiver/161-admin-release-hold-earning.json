@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/earnings/0cf4df46-be5d-454b-948b-175f8d5912e3/release-hold",
+    "path": "/api/v1/admin/earnings/aaf67b0a-f1da-44ca-af5a-1cc2d929ed88/release-hold",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Placeholder: dispute resolved in the caregiver's favour"
@@ -13,22 +13,22 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "0cf4df46-be5d-454b-948b-175f8d5912e3",
+      "id": "aaf67b0a-f1da-44ca-af5a-1cc2d929ed88",
       "type": "earning",
       "status": "pending_clearance",
       "amount_kobo": 4000000,
       "base_amount_kobo": 5000000,
       "share_percent": 80,
-      "caregiver_id": "c75fce86-2eac-489f-b0f9-70b2286cf0de",
+      "caregiver_id": "e4475348-5fc7-4ad9-b5c4-0d495b75ff7e",
       "caregiver_name": "Placeholder Caregiver A",
-      "booking_id": "c8d9264e-34b5-4a84-b7fd-5803e0f7a4b1",
-      "booking_code": "81E27126",
-      "available_at": "2026-10-12T13:34:28.754730",
+      "booking_id": "0c6c78f5-f860-491d-97ef-ccd3456b1f63",
+      "booking_code": "442C5C0E",
+      "available_at": "2026-11-24T13:54:00.232449",
       "released_at": null,
       "status_reason": "Placeholder: dispute resolved in the caregiver's favour",
-      "status_changed_by": "8f493a15-ee82-4a9d-a248-260dbda2cf9a",
-      "status_changed_at": "2026-10-12T13:35:30.700984",
-      "created_at": "2026-10-12T13:35:25.712004"
+      "status_changed_by": "cb078a12-e367-4174-82c0-ddd5659c7391",
+      "status_changed_at": "2026-11-24T13:55:02.342900",
+      "created_at": "2026-11-24T13:54:55.953219"
     }
   }
 }

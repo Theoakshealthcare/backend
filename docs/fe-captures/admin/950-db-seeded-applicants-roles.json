@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "SQL",
+    "path": "INSERT INTO caregivers ... (2 placeholder applicants under review)",
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": null,
+    "headers": {},
+    "body": {
+      "applicants": {
+        "Placeholder Applicant With Roles": {
+          "applying_as": [
+            "nurse",
+            "caregiver"
+          ]
+        },
+        "Placeholder Applicant Before The Field": {
+          "applying_as": null
+        }
+      }
+    }
+  },
+  "note": "SEEDED: the applicants are inserted directly. The first one's applying_as is what the caregiver app's setup step 2 stores (captured live in the caregiver guide); the second is a row from before the field existed."
+}

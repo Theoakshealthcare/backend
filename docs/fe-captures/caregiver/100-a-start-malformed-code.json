@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/caregiver/action/c8d9264e-34b5-4a84-b7fd-5803e0f7a4b1",
+    "path": "/api/v1/booking/caregiver/action/0c6c78f5-f860-491d-97ef-ccd3456b1f63",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "action": "start",
@@ -21,11 +21,7 @@
             "body",
             "visit_code"
           ],
-          "msg": "String should match pattern '^[0-9]{4}$'",
-          "input": "12ab",
-          "ctx": {
-            "pattern": "^[0-9]{4}$"
-          }
+          "msg": "String should match pattern '^[0-9]{4}$'"
         }
       ]
     }

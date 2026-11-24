@@ -1,0 +1,31 @@
+{
+  "generated_by": "scripts/capture_admin_flow.py --section caregiver-roles",
+  "run_tag": "f19400",
+  "captures": [
+    {
+      "file": "950-db-seeded-applicants-roles.json",
+      "label": "db-seeded-applicants-roles",
+      "status": null
+    },
+    {
+      "file": "951-caregiver-detail-requested-skills.json",
+      "label": "caregiver-detail-requested-skills",
+      "status": 200
+    },
+    {
+      "file": "952-caregiver-detail-no-request.json",
+      "label": "caregiver-detail-no-request",
+      "status": 200
+    },
+    {
+      "file": "953-caregiver-skills-confirm-requested.json",
+      "label": "caregiver-skills-confirm-requested",
+      "status": 200
+    },
+    {
+      "file": "954-caregiver-detail-after-confirm.json",
+      "label": "caregiver-detail-after-confirm",
+      "status": 200
+    }
+  ]
+}

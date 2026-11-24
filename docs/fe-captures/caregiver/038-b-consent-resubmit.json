@@ -15,11 +15,11 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "d9c9e88b-e7c5-4144-b04c-28e3c7ec6965",
-      "user_id": "a9ef2bb0-2a5b-4721-9247-258e5cccef58",
-      "email": "caregiver-b-d0c81e@example.com",
+      "id": "8ebd47d3-fe30-4e24-b9a5-6dc46b467c4c",
+      "user_id": "58faeecf-80d0-4c25-8494-ce8394ce87cf",
+      "email": "caregiver-b-cfda99@example.com",
       "full_name": "Placeholder Caregiver B",
-      "phone_number": "+2340000718002",
+      "phone_number": "+2340000913002",
       "date_of_birth": "1990-01-01",
       "gender": "female",
       "state": "Lagos",
@@ -32,6 +32,10 @@
         "Personal Care",
         "Medication Reminders"
       ],
+      "applying_as": [
+        "nurse",
+        "caregiver"
+      ],
       "profile_completion_step": 2,
       "identity_verification_status": "pending",
       "background_check_status": "in_progress",
@@ -39,8 +43,8 @@
       "terms_accepted": true,
       "privacy_policy_accepted": true,
       "background_check_consent": true,
-      "created_at": "2026-10-12T13:35:19.990021",
-      "updated_at": "2026-10-12T13:35:20.320314"
+      "created_at": "2026-11-24T13:54:48.517506",
+      "updated_at": "2026-11-24T13:54:49.380706"
     }
   },
   "note": "Resubmitting consent moves changes_requested back to under_review."

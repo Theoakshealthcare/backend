@@ -12,20 +12,20 @@
     },
     "body": [
       {
-        "id": "0cf4df46-be5d-454b-948b-175f8d5912e3",
+        "id": "aaf67b0a-f1da-44ca-af5a-1cc2d929ed88",
         "type": "earning",
         "amount": 4000000,
         "status": "pending_clearance",
-        "booking_id": "c8d9264e-34b5-4a84-b7fd-5803e0f7a4b1",
-        "available_at": "2026-10-13T13:35:25.708848",
+        "booking_id": "0c6c78f5-f860-491d-97ef-ccd3456b1f63",
+        "available_at": "2026-11-25T13:54:55.949061",
         "released_at": null,
         "bank_name": null,
         "account_number": null,
         "account_name": null,
-        "reference": "81E27126",
-        "narration": "Visit 81E27126",
-        "created_at": "2026-10-12T13:35:25.712004",
-        "updated_at": "2026-10-12T13:35:25.712005"
+        "reference": "442C5C0E",
+        "narration": "Visit 442C5C0E",
+        "created_at": "2026-11-24T13:54:55.953219",
+        "updated_at": "2026-11-24T13:54:55.953221"
       }
     ]
   }

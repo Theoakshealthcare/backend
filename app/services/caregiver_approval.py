@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.db.models.audit import AdminAuditLog
 from app.db.models.booking import Booking, BookingStatus
 from app.db.models.user import User
-from app.db.models.caregiver import Caregiver, CaregiverDocument, CaregiverSkill
+from app.db.models.caregiver import SERVICE_TYPE_LABELS, Caregiver, CaregiverDocument, CaregiverSkill
 from app.services import kyc_admin
 from app.services.audit import AuditService
 
@@ -180,6 +180,8 @@ class CaregiverApprovalService:
                 "changes_requested": cg.changes_requested,
             },
             "skills": [{"service_type": s.service_type, "sub_specialty": s.sub_specialty} for s in skills],
+            # What the caregiver asked for ("I apply as"); display only, grants nothing (see set_skills).
+            "requested_skills": list(cg.applying_as or []),
             "audit_history": [
                 {
                     "id": h.id, "action": h.action, "admin_user_id": h.admin_user_id,
@@ -375,7 +377,12 @@ class CaregiverApprovalService:
             unmet.append(_unmet("BACKGROUND_CHECK_NOT_CLEARED", "The background check must be cleared"))
         has_skill = self.db.query(CaregiverSkill.id).filter(CaregiverSkill.caregiver_id == cg.id).first()
         if not has_skill:
-            unmet.append(_unmet("NO_SKILLS", "At least one service skill must be set"))
+            message = "At least one service skill must be set"
+            if cg.applying_as:
+                # Text only: the rule is unchanged (a request is not a skill; an admin must still confirm one).
+                labels = ", ".join(SERVICE_TYPE_LABELS.get(t, t) for t in cg.applying_as)
+                message += f" (the caregiver requested: {labels})"
+            unmet.append(_unmet("NO_SKILLS", message))
         if not (cg.terms_accepted and cg.privacy_policy_accepted and cg.background_check_consent):
             unmet.append(_unmet(
                 "CONSENTS_NOT_ACCEPTED",
