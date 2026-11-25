@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/41e9d554-ad67-4b03-8c6d-4ce7050c56a7/reschedule",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "new_scheduled_date": "2026-12-24T18:55:11.919579Z"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "body": {
+      "detail": {
+        "code": "new_time_too_far",
+        "message": "The new time can be at most 28 days from now. Please contact support to book further ahead."
+      }
+    }
+  }
+}

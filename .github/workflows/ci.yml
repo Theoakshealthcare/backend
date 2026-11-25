@@ -133,6 +133,7 @@ jobs:
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-chat-push-payment-return.md docs/fe-captures/chat-push-payment-return --check
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-post-visit-windows-location.md docs/fe-captures/post-visit-windows-location --check
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-care-alerts.md docs/fe-captures/care-alerts --check
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-care-templates-docs-space.md docs/fe-captures/care-templates-docs-space --check
 
   test:
     name: Tests (shard ${{ matrix.group }}/4)

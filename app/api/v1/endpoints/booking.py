@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Union
 from uuid import UUID
 
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, status, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketDisconnected
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -27,11 +27,12 @@ from app.schemas.booking import (
     BookingNotificationResponse,
     LiveTrackingResponse,
     CancelBookingRequest, CancelBookingResponse, CancelTermsResponse, PaymentLinkRequest, PaymentLinkResponse,
+    RescheduleRequest, RescheduleResponse, RescheduleTermsResponse,
 )
 from app.services.booking import (
     BookingActionForbidden, BookingArrivalTooEarly, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
-from app.services import booking_payment_link, earnings, patient_booking_cancel, visit_windows
+from app.services import booking_payment_link, booking_policy, booking_reschedule, earnings, patient_booking_cancel, visit_windows
 from app.services import service_catalog
 from app.services.chat_push import push_new_message
 from app.services.voice_notes.errors import not_found as voice_not_found
@@ -145,6 +146,9 @@ def enrich_booking_with_details(
     booking_dict["cancel_fee_tier"] = None
     booking_dict["cancel_fee"] = None
     booking_dict["refund"] = None
+    booking_dict["reschedule_count"] = None  # the booker's own views add the three reschedule fields (booking_reschedule.attach_reschedule_info)
+    booking_dict["can_reschedule"] = None
+    booking_dict["reschedules_left"] = None
     chat = visit_windows.chat_window(booking, datetime.utcnow())
     booking_dict["chat_open"] = chat.open
     booking_dict["chat_closes_at"] = chat.closes_at
@@ -507,8 +511,10 @@ def get_patient_bookings(
     # Enrich bookings with both patient and caregiver details
     enriched_bookings = [enrich_booking_with_details(booking, booking_service.db) for booking in bookings]
     refunds = patient_booking_cancel.refund_summaries(booking_service.db, [b.id for b in bookings])
+    policy = booking_policy.current(booking_service.db)
     for booking, enriched in zip(bookings, enriched_bookings):
         patient_booking_cancel.attach_cancel_info(enriched, booking, refunds)
+        booking_reschedule.attach_reschedule_info(enriched, booking, policy)
 
     return enriched_bookings
 
@@ -577,6 +583,72 @@ def cancel_booking(
     try:
         result = patient_booking_cancel.cancel(
             db, current_user, booking_id, reason=body.reason, accepted_fee_kobo=body.accepted_fee_kobo)
+    except patient_booking_cancel.PatientCancelError as exc:
+        raise _cancel_http_error(exc)
+    return result.as_dict()
+
+
+_RESCHEDULE_ERRORS = {
+    **_CANCEL_ERRORS,
+    409: {"description": "detail.code is one of booking_already_cancelled, booking_not_reschedulable, booking_unpaid, "
+                         "reschedule_window_closed, reschedule_limit_reached, price_increase_needs_support, service_unavailable, "
+                         "request_id_reused or price_changed (detail.price holds the new quote)"},
+    422: {"description": "detail.code is one of same_time, new_time_too_soon, new_time_too_far or request_id_too_long"},
+    503: {"description": "detail.code booking_settings_not_configured: pricing is not set up; nothing changed"},
+}
+
+
+@router.get(
+    "/{booking_id}/reschedule-terms",
+    response_model=RescheduleTermsResponse,
+    summary="Can this booking be rescheduled, and at what price? (booker only)",
+    responses=_RESCHEDULE_ERRORS,
+    tags=["Patient Bookings"],
+)
+def get_reschedule_terms(
+    booking_id: UUID,
+    new_scheduled_date: Optional[datetime] = Query(
+        None, description="Optional: the time the person picked, to check it and to see the price before confirming"),
+    current_user: User = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> Any:
+    """What rescheduling allows right now: free only when the visit is more than ``free_hours`` away and fewer than
+    ``reschedules_allowed`` were used; the new time must be more than ``free_hours`` from now and at most 28 days ahead
+    (the numbers come from the admin settings, in this response). Always 200 for the booker: ``can_reschedule`` is false
+    with a ``reason`` when it cannot be done. ``price`` is what the visit costs at the live prices; the booking keeps the
+    price it was paid at (a lower price is refunded after the visit, a higher one needs support). A preview only: confirm
+    with POST ``/reschedule``."""
+    try:
+        return booking_reschedule.terms_view(db, current_user, booking_id, new_scheduled_date)
+    except patient_booking_cancel.PatientCancelError as exc:
+        raise _cancel_http_error(exc)
+
+
+@router.post(
+    "/{booking_id}/reschedule",
+    response_model=RescheduleResponse,
+    summary="Reschedule a paid booking (booker only)",
+    responses=_RESCHEDULE_ERRORS,
+    tags=["Patient Bookings"],
+)
+def reschedule_booking(
+    booking_id: UUID,
+    body: RescheduleRequest,
+    current_user: User = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Move a paid booking to a new time, free of charge (see ``reschedule-terms`` for the limits).
+
+    The assigned caregiver, if any, is released and told; the booking is offered to caregivers again for the new time and,
+    if nobody accepts, goes to Oakly operations for manual matching (``dispatch_state`` ``unmatched``). Never moves money.
+    Idempotent: send a ``request_id``; repeating it (or repeating the same target time) returns the first result with
+    ``already_rescheduled`` true and uses no second free reschedule. Send ``accepted_total_kobo`` (the price you showed)
+    so a price change since is caught (409 ``price_changed``).
+    """
+    try:
+        result = booking_reschedule.reschedule(
+            db, current_user, booking_id, body.new_scheduled_date, request_id=body.request_id,
+            accepted_total_kobo=body.accepted_total_kobo)
     except patient_booking_cancel.PatientCancelError as exc:
         raise _cancel_http_error(exc)
     return result.as_dict()
@@ -846,6 +918,7 @@ def get_booking_details(
     if isinstance(current_user, User) and current_user.user_type == "patient":  # ensure_booking_read_access: its own patient
         refunds = patient_booking_cancel.refund_summaries(booking_service.db, [booking.id])
         patient_booking_cancel.attach_cancel_info(enriched_booking, booking, refunds)
+        booking_reschedule.attach_reschedule_info(enriched_booking, booking, booking_policy.current(booking_service.db))
     return enriched_booking
 
 

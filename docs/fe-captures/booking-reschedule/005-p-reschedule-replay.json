@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/6930a4b9-2596-485b-bdb1-caeaa2340db0/reschedule",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "new_scheduled_date": "2026-11-28T18:55:11.919579Z",
+      "request_id": "11111111-1111-4111-8111-111111111111",
+      "accepted_total_kobo": 4400000
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
+      "booking_code": "1DC0524D",
+      "status": "pending",
+      "already_rescheduled": true,
+      "previous_scheduled_date": "2026-11-27T10:55:12.170540",
+      "scheduled_date": "2026-11-28T18:55:11.919579",
+      "scheduled_end_date": "2026-11-28T22:55:11.919579",
+      "reschedules_used": 1,
+      "reschedules_left": 1,
+      "caregiver_released": false,
+      "dispatch_state": "dispatching",
+      "price": {
+        "paid_amount": 44000.0,
+        "paid_amount_kobo": 4400000,
+        "new_amount": 44000.0,
+        "new_amount_kobo": 4400000,
+        "difference_amount": 0.0,
+        "difference_kobo": 0,
+        "handling": "none",
+        "credit_amount": 0.0,
+        "credit_kobo": 0
+      }
+    }
+  }
+}

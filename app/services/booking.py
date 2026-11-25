@@ -572,7 +572,8 @@ class BookingService:
             notification = self.db.query(BookingNotification).filter(
                 and_(
                     BookingNotification.booking_id == booking_id,
-                    BookingNotification.caregiver_id == caregiver_id
+                    BookingNotification.caregiver_id == caregiver_id,
+                    BookingNotification.notification_type == "new_booking",  # the offer, never an informational notice row
                 )
             ).first()
             is_assigned = booking.caregiver_id == caregiver_id
@@ -604,6 +605,11 @@ class BookingService:
                         BookingNotification.caregiver_id == caregiver_id,
                         BookingNotification.response == "declined").first() is not None:
                     raise BookingActionForbidden("You declined this offer")
+                # The patient moved the visit after this offer was made (booking_reschedule): the offer is for the old time.
+                # It is only valid again if the new wave re-offered it (which resets the response).
+                if notification.response == "rescheduled":
+                    raise BookingActionForbidden(
+                        "This visit was rescheduled. Open it again to see the new time, if it is offered to you.")
                 if booking.status != BookingStatus.PENDING or booking.caregiver_id is not None:
                     raise BookingStateConflict("Booking is no longer available")
                 if booking.payment_status != PaymentStatus.PAID:

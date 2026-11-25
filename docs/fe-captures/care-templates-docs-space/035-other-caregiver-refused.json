@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/efdbdf09-451b-4031-a19a-39ccc8a92f5f/documentation",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "body": {
+      "detail": {
+        "code": "not_found",
+        "message": "Visit not found."
+      }
+    }
+  },
+  "note": "Someone else's visit: 404."
+}

@@ -93,6 +93,7 @@ ADMIN_ONLY = {
     ("GET", f"{API}/admin/care-plans/{{plan_id}}"): "careplans.read",
     ("GET", f"{API}/admin/care-plans/{{plan_id}}/observations"): "careplans.read",
     ("GET", f"{API}/admin/care-plan-templates"): "careplans.read",
+    ("GET", f"{API}/admin/visit-documentation"): "careplans.read",
     ("GET", f"{API}/admin/bookings/{{booking_id}}/voice-notes"): "clinical.read",
     ("GET", f"{API}/admin/care-alerts"): "support.inbox",
     ("GET", f"{API}/admin/care-alerts/{{alert_id}}"): "support.inbox",

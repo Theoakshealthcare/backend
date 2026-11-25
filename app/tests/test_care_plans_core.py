@@ -45,7 +45,7 @@ def test_a_nurse_creates_a_plan_for_a_client_booked_for_themselves(db, client):
     assert plan["tasks"][0]["title"] == SECRET_TASK and plan["tasks"][0]["time_of_day"] == "08:00"
     assert plan["tasks"][0]["days_of_week"] == [1, 3, 5]
     assert plan["author"] == {"name": nurse.full_name, "kind": "caregiver"}
-    assert plan["template"] is None and plan["capabilities"] == {"can_edit_plan": True, "can_tick_tasks": True, "can_add_observation": True}
+    assert plan["template"] is None and plan["capabilities"] == {"can_edit_plan": True, "can_edit_medications": True, "can_tick_tasks": True, "can_add_observation": True}
     row = db.get(CarePlan, plan["id"])
     assert row.patient_id == patient.id and row.care_recipient_id is None
     assert row.created_by_caregiver_id == nurse.id and row.created_from_booking_id == booking.id
@@ -67,7 +67,8 @@ def test_an_app_booking_for_someone_else_has_no_identifiable_client(db, client):
     booking = make_booking(db, booker, nurse, status=BookingStatus.IN_PROGRESS, booking_for="mother")
     summary = client.get(f"{BASE}/bookings/{booking.id}/care-plan", headers=h(nurse))
     assert summary.status_code == 200
-    assert summary.json() == {"booking_id": str(booking.id), "subject_ready": False, "can_author": False, "plan": None}
+    assert summary.json() == {"booking_id": str(booking.id), "subject_ready": False, "can_author": False,
+                              "author_scope": "full", "plan": None}
     r = create_plan(client, nurse, booking)
     assert r.status_code == 409 and r.json()["detail"]["code"] == "client_not_identified"
 
@@ -81,7 +82,7 @@ def test_creating_from_a_template_copies_its_content_and_records_where_it_came_f
     assert r.status_code == 201, r.text
     plan = r.json()
     assert plan["risk_level"] == "high" and plan["duration_days"] == 30 and plan["review_every_days"] == 14
-    assert plan["template"] == {"id": str(template.id), "name": "Stroke Recovery", "version": 1}
+    assert plan["template"] == {"id": str(template.id), "name": "Stroke Recovery", "version": template.version}
     assert len(plan["goals"]) == len(template.body["goals"]) and len(plan["tasks"]) == len(template.body["tasks"])
     assert plan["special_instructions"] == template.body["special_instructions"]
     assert plan["start_date"] == local_today().isoformat()  # today in Africa/Lagos
@@ -97,11 +98,12 @@ def test_a_plan_is_a_copy_of_the_template_not_a_reference(db, client):
                        json={"template_id": str(template.id), "diagnosis": SECRET_DIAGNOSIS}).json()
     before = [g["title"] for g in plan["goals"]]
     template.body = {**template.body, "goals": [{"title": "Changed later", "target": None, "frequency": "daily"}]}
-    template.version = 2
+    original = template.version
+    template.version = original + 1
     db.commit()  # the harness restores the seeded templates after every test
     again = client.get(_plan_url(plan["id"]), headers=h(nurse)).json()
     assert [g["title"] for g in again["goals"]] == before
-    assert again["template"]["version"] == 1
+    assert again["template"]["version"] == original
 
 
 def test_what_the_body_sends_wins_over_the_template(db, client):
@@ -227,7 +229,8 @@ def test_a_response_is_a_closed_list_with_no_ciphertext_and_no_family_flag(db, c
     nurse, _, _, plan = _created(client, db)
     assert set(plan) == {"id", "version", "status", "booking_id", "client", "diagnosis", "risk_level", "start_date",
                          "duration_days", "review_every_days", "review_due_on", "template", "author", "allergies",
-                         "special_instructions", "goals", "medications", "tasks", "capabilities", "created_at", "updated_at"}
+                         "special_instructions", "goals", "medications", "tasks", "capabilities", "observations_close_at",
+                         "created_at", "updated_at"}
     assert set(plan["goals"][0]) == {"id", "title", "target", "frequency", "status"}
     assert set(plan["tasks"][0]) == {"id", "title", "time_slot", "time_of_day", "days_of_week"}
     assert "gAAAAA" not in json.dumps(plan) and "family_visible" not in json.dumps(plan)
@@ -240,7 +243,7 @@ def test_a_non_nurse_reads_the_plan_but_cannot_edit(db, client):
     other = make_caregiver(db)  # specialization says "nurse" but there is no skill row
     make_booking(db, patient, other, status=BookingStatus.ACCEPTED, booking_for="myself")
     r = client.get(_plan_url(plan["id"]), headers=h(other))
-    assert r.status_code == 200 and r.json()["capabilities"] == {"can_edit_plan": False, "can_tick_tasks": False, "can_add_observation": False}  # accepted, not started
+    assert r.status_code == 200 and r.json()["capabilities"] == {"can_edit_plan": False, "can_edit_medications": False, "can_tick_tasks": False, "can_add_observation": False}  # accepted, not started
     assert r.json()["diagnosis"] == SECRET_DIAGNOSIS
 
 
@@ -308,7 +311,7 @@ def test_completing_a_plan_makes_it_read_only_and_frees_the_client(db, client):
     nurse, patient, booking, plan = _created(client, db)
     done = client.patch(_plan_url(plan["id"]), headers=h(nurse), json={"expected_version": plan["version"], "status": "completed"})
     assert done.status_code == 200 and done.json()["status"] == "completed"
-    assert done.json()["capabilities"] == {"can_edit_plan": False, "can_tick_tasks": False, "can_add_observation": False}
+    assert done.json()["capabilities"] == {"can_edit_plan": False, "can_edit_medications": False, "can_tick_tasks": False, "can_add_observation": False}
     row = db.get(CarePlan, plan["id"])
     db.refresh(row)
     assert row.completed_at is not None
@@ -410,7 +413,7 @@ def test_a_nurse_lists_and_previews_the_five_seeded_templates(db, client):
                                                "elderly_daily_living_dementia", "post_surgery_recovery", "stroke_recovery"]
     assert all(i["clinical_review_status"] == "pending" for i in items)
     assert set(items[0]) == {"id", "key", "name", "summary", "duration_days", "review_every_days", "default_risk_level",
-                             "clinical_review_status", "version"}
+                             "clinical_review_status", "version", "caregiver_can_use"}
     detail = client.get(f"{BASE}/care-plan-templates/{items[0]['id']}", headers=h(nurse))
     assert detail.status_code == 200
     body = detail.json()
@@ -418,11 +421,16 @@ def test_a_nurse_lists_and_previews_the_five_seeded_templates(db, client):
     assert set(body["tasks"][0]) == {"title", "time_slot", "time_of_day", "days_of_week"}
 
 
-def test_templates_are_for_nurses_only(db, client):
+def test_templates_are_for_nurses_except_the_caregiver_usable_one(db, client):
     other = make_caregiver(db)  # self-declared "nurse" specialization is not the skill
     r = client.get(f"{BASE}/care-plan-templates", headers=h(other))
-    assert r.status_code == 403 and r.json()["detail"]["code"] == "not_a_nurse"
-    assert client.get(f"{BASE}/care-plan-templates/00000000-0000-4000-8000-000000000009", headers=h(other)).status_code == 403
+    assert r.status_code == 200 and [i["key"] for i in r.json()["items"]] == ["elderly_daily_living_dementia"]
+    nurse_only = db.query(CarePlanTemplate).filter_by(key="stroke_recovery").one()
+    refused = client.get(f"{BASE}/care-plan-templates/{nurse_only.id}", headers=h(other))
+    assert refused.status_code == 403 and refused.json()["detail"]["code"] == "not_a_nurse"
+    elderly = db.query(CarePlanTemplate).filter_by(key="elderly_daily_living_dementia").one()
+    assert client.get(f"{BASE}/care-plan-templates/{elderly.id}", headers=h(other)).status_code == 200
+    assert client.get(f"{BASE}/care-plan-templates/00000000-0000-4000-8000-000000000009", headers=h(other)).status_code == 404
     nurse = make_nurse(db)
     assert client.get(f"{BASE}/care-plan-templates/00000000-0000-4000-8000-000000000009", headers=h(nurse)).status_code == 404
 
@@ -473,7 +481,8 @@ def test_candidates_are_live_clients_without_an_active_plan(db, client):
     got = {i["booking_id"] for i in r.json()["items"]}
     assert got == {str(open_booking.id), str(relative_booking.id)}
     assert set(r.json()["items"][0]) == {"booking_id", "client", "booking_status", "scheduled_date"}
-    assert client.get(f"{BASE}/care-plans/candidates", headers=h(make_caregiver(db))).status_code == 403
+    # any caregiver may list clients (a non-nurse can start an Elderly-template plan); the list is the same shape
+    assert client.get(f"{BASE}/care-plans/candidates", headers=h(make_caregiver(db))).status_code == 200
 
 
 def test_the_visit_summary_says_whether_a_plan_exists(db, client):
@@ -482,7 +491,8 @@ def test_the_visit_summary_says_whether_a_plan_exists(db, client):
     url = f"{BASE}/bookings/{booking.id}/care-plan"
     empty = client.get(url, headers=h(nurse))
     assert empty.status_code == 200
-    assert empty.json() == {"booking_id": str(booking.id), "subject_ready": True, "can_author": True, "plan": None}
+    assert empty.json() == {"booking_id": str(booking.id), "subject_ready": True, "can_author": True,
+                              "author_scope": "full", "plan": None}
     plan = create_plan(client, nurse, booking).json()
     full = client.get(url, headers=h(nurse)).json()
     assert full["plan"] == {"id": plan["id"], "version": 1, "status": "active", "diagnosis": SECRET_DIAGNOSIS,

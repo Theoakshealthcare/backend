@@ -1,0 +1,49 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": 0
+        },
+        {
+          "question_id": "A4",
+          "answer": 0
+        },
+        {
+          "question_id": "A5",
+          "answer": 0
+        },
+        {
+          "question_id": "A6",
+          "answer": 0
+        },
+        {
+          "question_id": "C2",
+          "answer": "WEEKLY"
+        }
+      ],
+      "date_of_birth": "1960-06-15"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "INVALID_ANSWER",
+        "message": "That answer is not one of the choices for the question.",
+        "question_id": "C2",
+        "fields": {
+          "C2": "INVALID_ANSWER"
+        }
+      }
+    }
+  },
+  "note": "Part C answers are checked against the questionnaire's codes."
+}

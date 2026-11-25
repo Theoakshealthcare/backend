@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/fallguard/admin/question/c3c83f10-bbe3-4115-b42f-c98a782e5137",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 410,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "fallguard_questionnaire_is_versioned",
+        "message": "The FallGuard questionnaire is versioned and changes only with a release."
+      }
+    }
+  }
+}

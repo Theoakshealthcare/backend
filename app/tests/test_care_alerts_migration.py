@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.tests.test_dropout_migration import _run, scratch  # noqa: F401  (scratch is a fixture)
 
-BEFORE, THIS = "0030_bank_name_review", "0035_care_alerts"
+BEFORE, THIS = "0034_booking_reschedule", "0035_care_alerts"
 
 
 def test_the_revision_chains_and_there_is_one_head():

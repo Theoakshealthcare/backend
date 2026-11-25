@@ -1,3 +1,5 @@
+> **Superseded 2026-11-25** by [FallGuard v2.0 backend scoring](2026-11-25-fallguard-v2-backend.md): the 24-question screener, its seed script and the admin question editor are gone. This note is kept as the record of the v1 behaviour.
+
 # SOP: FallGuard scores on the server, bad submissions are a 422
 
 | | |

@@ -1,0 +1,1387 @@
+{
+  "questionnaire_version": "2.0.0",
+  "algorithm_version": "2.0.0",
+  "default_language": "en",
+  "score_config": {
+    "intermediate_from": 6,
+    "high_from": 12,
+    "max_unknown_before_incomplete": 3,
+    "min_age": 60
+  },
+  "unknown_codes": [
+    "UNKNOWN"
+  ],
+  "items": [
+    {
+      "id": "A1",
+      "part": "A",
+      "type": "single",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "fall",
+      "text": {
+        "en": "In the last 12 months, have you fallen (landed on the ground or a lower level by accident)?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes, once"
+          }
+        },
+        {
+          "code": 2,
+          "points": null,
+          "label": {
+            "en": "Yes, 2 or more times"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A2",
+      "part": "A",
+      "type": "single",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": {
+        "item": "A1",
+        "op": ">=",
+        "value": 1
+      },
+      "icon": "injury",
+      "text": {
+        "en": "Did any fall cause an injury that needed medical care?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A3",
+      "part": "A",
+      "type": "single",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": {
+        "item": "A1",
+        "op": ">=",
+        "value": 1
+      },
+      "icon": "floor",
+      "text": {
+        "en": "After any fall, were you unable to get up without help, or did you lie on the floor for a long time?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A4",
+      "part": "A",
+      "type": "single",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "faint",
+      "text": {
+        "en": "In the last 12 months, have you fainted or blacked out, or nearly done so?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A5",
+      "part": "A",
+      "type": "single",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "walk",
+      "text": {
+        "en": "Do you feel unsteady when standing or walking?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "Never"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Sometimes"
+          }
+        },
+        {
+          "code": 2,
+          "points": null,
+          "label": {
+            "en": "Often"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A6",
+      "part": "A",
+      "type": "single",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "worry",
+      "text": {
+        "en": "Do you worry about falling?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "Not at all"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Somewhat"
+          }
+        },
+        {
+          "code": 2,
+          "points": null,
+          "label": {
+            "en": "A lot"
+          }
+        }
+      ]
+    },
+    {
+      "id": "A7",
+      "part": "A",
+      "type": "single",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": {
+        "item": "A1",
+        "op": ">=",
+        "value": 1
+      },
+      "icon": "calendar",
+      "text": {
+        "en": "Was your most recent fall within the last 4 weeks?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "part": "B",
+      "type": "derived",
+      "required": true,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "age",
+      "text": {
+        "en": "Age band, calculated from date of birth"
+      },
+      "scoring": {
+        "method": "age_bands",
+        "bands": [
+          {
+            "min_age": 0,
+            "points": 0
+          },
+          {
+            "min_age": 60,
+            "points": 1
+          },
+          {
+            "min_age": 75,
+            "points": 2
+          },
+          {
+            "min_age": 85,
+            "points": 3
+          }
+        ]
+      },
+      "explain": {
+        "en": "Your age"
+      }
+    },
+    {
+      "id": "B2",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "cane",
+      "text": {
+        "en": "Do you use a walking stick, frame, crutches or wheelchair?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You use a walking aid"
+      }
+    },
+    {
+      "id": "B3",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "chair",
+      "text": {
+        "en": "Can you stand up from a chair without pushing with your hands?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "Yes, easily"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "With difficulty"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Not at all"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You find it hard to stand up from a chair without using your hands"
+      }
+    },
+    {
+      "id": "B4",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "dizzy",
+      "text": {
+        "en": "When you stand up or walk, do you feel dizzy or lightheaded?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "Never"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Sometimes"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Often"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You feel dizzy or lightheaded when standing or walking"
+      }
+    },
+    {
+      "id": "B5",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "joint",
+      "text": {
+        "en": "Do pain or stiffness in your knees, hips or back make walking harder?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "A little"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "A lot"
+          }
+        }
+      ],
+      "explain": {
+        "en": "Pain or stiffness makes walking harder"
+      }
+    },
+    {
+      "id": "B6",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "foot",
+      "text": {
+        "en": "Do you have foot pain, numbness, swelling or deformed toes?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "None"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Some"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Significant"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You have foot problems"
+      }
+    },
+    {
+      "id": "B7",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "shoe",
+      "text": {
+        "en": "What do you usually wear on your feet at home and outside?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "Closed, well-fitting shoes with grip"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "A mix"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Mostly slippers, flip-flops, backless or loose shoes, or barefoot"
+          }
+        }
+      ],
+      "explain": {
+        "en": "Your usual footwear gives little support or grip"
+      }
+    },
+    {
+      "id": "B8",
+      "part": "B",
+      "type": "multi",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "health",
+      "text": {
+        "en": "Do you have any of these? Tick all that apply."
+      },
+      "options": [
+        {
+          "code": "STROKE",
+          "label": {
+            "en": "Stroke"
+          }
+        },
+        {
+          "code": "PARKINSONS",
+          "label": {
+            "en": "Parkinson's disease"
+          }
+        },
+        {
+          "code": "DIABETES",
+          "label": {
+            "en": "Diabetes"
+          }
+        },
+        {
+          "code": "ARTHRITIS",
+          "label": {
+            "en": "Arthritis"
+          }
+        },
+        {
+          "code": "HEART",
+          "label": {
+            "en": "Heart problem (for example irregular heartbeat or heart failure)"
+          }
+        },
+        {
+          "code": "DEPRESSION",
+          "label": {
+            "en": "Depression"
+          }
+        },
+        {
+          "code": "KIDNEY",
+          "label": {
+            "en": "Kidney disease"
+          }
+        },
+        {
+          "code": "LUNG",
+          "label": {
+            "en": "Lung disease causing breathlessness"
+          }
+        },
+        {
+          "code": "NONE",
+          "label": {
+            "en": "None of these"
+          }
+        }
+      ],
+      "exclusive": [
+        "NONE"
+      ],
+      "scoring": {
+        "method": "count_bands",
+        "bands": [
+          {
+            "min_count": 0,
+            "points": 0
+          },
+          {
+            "min_count": 1,
+            "points": 1
+          },
+          {
+            "min_count": 3,
+            "points": 2
+          }
+        ]
+      },
+      "explain": {
+        "en": "You have health conditions that can affect balance"
+      }
+    },
+    {
+      "id": "B9",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "toilet",
+      "text": {
+        "en": "Do you often rush to the toilet, leak urine, or get up 2 or more times at night to pass urine?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Sometimes"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Often"
+          }
+        }
+      ],
+      "explain": {
+        "en": "Bladder urgency, leaks or night-time toilet trips"
+      }
+    },
+    {
+      "id": "B10",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "memory",
+      "text": {
+        "en": "Do memory or thinking problems affect your daily life?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Sometimes"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Often"
+          }
+        }
+      ],
+      "explain": {
+        "en": "Memory or thinking problems affect daily life"
+      }
+    },
+    {
+      "id": "B11",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "eye",
+      "text": {
+        "en": "Even with your glasses, how well can you see?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "Clearly"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Some difficulty"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Significant difficulty"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You have difficulty seeing, even with glasses"
+      }
+    },
+    {
+      "id": "B12",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "ear",
+      "text": {
+        "en": "Even with a hearing aid (if you use one), can you follow a conversation in a quiet room?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "Easily"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "With some difficulty"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "With great difficulty"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You have difficulty hearing"
+      }
+    },
+    {
+      "id": "B13",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "pills",
+      "text": {
+        "en": "How many medicines do you take regularly (prescribed or bought)?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "0 to 3"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "4 or more"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You take 4 or more medicines regularly"
+      }
+    },
+    {
+      "id": "B14",
+      "part": "B",
+      "type": "multi",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "pills",
+      "text": {
+        "en": "Do you take any of these? Tick all that apply."
+      },
+      "options": [
+        {
+          "code": "SEDATIVES",
+          "label": {
+            "en": "Sleeping or calming tablets"
+          }
+        },
+        {
+          "code": "PSYCH",
+          "label": {
+            "en": "Medicines for anxiety, depression or mental illness"
+          }
+        },
+        {
+          "code": "OPIOIDS",
+          "label": {
+            "en": "Strong painkillers (for example tramadol, codeine, morphine)"
+          }
+        },
+        {
+          "code": "EPILEPSY",
+          "label": {
+            "en": "Epilepsy medicines"
+          }
+        },
+        {
+          "code": "CARDIO_BP_DIURETIC",
+          "label": {
+            "en": "Water tablets, or medicines for blood pressure or the heart"
+          }
+        },
+        {
+          "code": "GLUCOSE_LOWERING",
+          "label": {
+            "en": "Insulin or diabetes tablets"
+          }
+        },
+        {
+          "code": "SEDATING_ALLERGY_COUGH",
+          "label": {
+            "en": "Allergy or cough medicines that cause sleepiness"
+          }
+        },
+        {
+          "code": "ANY_DROWSY_DIZZY",
+          "label": {
+            "en": "Any other medicine that makes me drowsy or dizzy"
+          }
+        },
+        {
+          "code": "NONE",
+          "label": {
+            "en": "None of these"
+          }
+        },
+        {
+          "code": "NOT_SURE",
+          "label": {
+            "en": "I am not sure"
+          }
+        }
+      ],
+      "exclusive": [
+        "NONE",
+        "NOT_SURE"
+      ],
+      "scoring": {
+        "method": "count_bands",
+        "bands": [
+          {
+            "min_count": 0,
+            "points": 0
+          },
+          {
+            "min_count": 1,
+            "points": 1
+          },
+          {
+            "min_count": 2,
+            "points": 2
+          }
+        ]
+      },
+      "explain": {
+        "en": "You take medicines that can raise the risk of falls"
+      }
+    },
+    {
+      "id": "B15",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "exercise",
+      "text": {
+        "en": "On how many days a week do you exercise or walk briskly for at least 20 minutes?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "5 to 7 days"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "2 to 4 days"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "0 to 1 days"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You are not very active in a usual week"
+      }
+    },
+    {
+      "id": "B16",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "drink",
+      "text": {
+        "en": "How often do you drink alcohol?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "Never or occasionally"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "1 to 2 days a week"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Most days"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You drink alcohol often"
+      }
+    },
+    {
+      "id": "B17",
+      "part": "B",
+      "type": "multi",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "home",
+      "text": {
+        "en": "Which of these are true in your home? Tick all that apply."
+      },
+      "options": [
+        {
+          "code": "LOOSE_RUGS",
+          "label": {
+            "en": "Loose rugs or mats"
+          }
+        },
+        {
+          "code": "UNEVEN_FLOORS",
+          "label": {
+            "en": "Uneven, cracked or slippery floors"
+          }
+        },
+        {
+          "code": "CLUTTER",
+          "label": {
+            "en": "Cluttered walkways or trailing cables"
+          }
+        },
+        {
+          "code": "NO_HANDRAIL",
+          "label": {
+            "en": "Stairs or steps with no handrail"
+          }
+        },
+        {
+          "code": "BATHROOM_NO_AID",
+          "label": {
+            "en": "Bathroom or toilet with no grab bar or non-slip floor"
+          }
+        },
+        {
+          "code": "POOR_LIGHT_NIGHT",
+          "label": {
+            "en": "Poor lighting in the hallway, stairs or toilet at night"
+          }
+        },
+        {
+          "code": "NO_BACKUP_LIGHT",
+          "label": {
+            "en": "No torch or backup light during power cuts"
+          }
+        },
+        {
+          "code": "NONE",
+          "label": {
+            "en": "None of these"
+          }
+        }
+      ],
+      "exclusive": [
+        "NONE"
+      ],
+      "scoring": {
+        "method": "count_bands",
+        "bands": [
+          {
+            "min_count": 0,
+            "points": 0
+          },
+          {
+            "min_count": 1,
+            "points": 1
+          },
+          {
+            "min_count": 3,
+            "points": 2
+          }
+        ]
+      },
+      "explain": {
+        "en": "Your home has features that can cause trips or slips"
+      }
+    },
+    {
+      "id": "B18",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "path",
+      "text": {
+        "en": "Outside near home, how often do you face uneven paths, open drains, steps or slippery ground?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "Rarely or never"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Sometimes"
+          }
+        },
+        {
+          "code": 2,
+          "points": 2,
+          "label": {
+            "en": "Often"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You often face outdoor hazards near home"
+      }
+    },
+    {
+      "id": "B19",
+      "part": "B",
+      "type": "single",
+      "required": false,
+      "allow_unknown": true,
+      "show_if": null,
+      "icon": "food",
+      "text": {
+        "en": "In the last 3 months, have you lost weight without trying, or eaten fewer than 2 meals on most days?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": 0,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": 1,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ],
+      "explain": {
+        "en": "You have lost weight or are eating less"
+      }
+    },
+    {
+      "id": "C1",
+      "part": "C",
+      "type": "single",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "alone",
+      "text": {
+        "en": "Do you live alone?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "part": "C",
+      "type": "single",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "check",
+      "text": {
+        "en": "Does someone check on you every day?"
+      },
+      "options": [
+        {
+          "code": "DAILY",
+          "points": null,
+          "label": {
+            "en": "Yes, every day"
+          }
+        },
+        {
+          "code": "SOMETIMES",
+          "points": null,
+          "label": {
+            "en": "Sometimes"
+          }
+        },
+        {
+          "code": "RARELY",
+          "points": null,
+          "label": {
+            "en": "Rarely or never"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "part": "C",
+      "type": "single",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": {
+        "item": "B2",
+        "op": "==",
+        "value": 1
+      },
+      "icon": "cane",
+      "text": {
+        "en": "Was your walking aid fitted for you, and were you shown how to use it?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "part": "C",
+      "type": "single",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "glasses",
+      "text": {
+        "en": "Do you wear multifocal (bifocal or varifocal) glasses when walking outside or on stairs?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No, or I do not wear glasses"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C5",
+      "part": "C",
+      "type": "single",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "blood",
+      "text": {
+        "en": "Do you take blood thinners (for example warfarin, rivaroxaban, apixaban)?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        },
+        {
+          "code": 9,
+          "points": null,
+          "label": {
+            "en": "I am not sure"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C6",
+      "part": "C",
+      "type": "single",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "bone",
+      "text": {
+        "en": "Have you been told you have osteoporosis, or broken a bone from a minor fall or knock?"
+      },
+      "options": [
+        {
+          "code": 0,
+          "points": null,
+          "label": {
+            "en": "No"
+          }
+        },
+        {
+          "code": 1,
+          "points": null,
+          "label": {
+            "en": "Yes"
+          }
+        },
+        {
+          "code": 9,
+          "points": null,
+          "label": {
+            "en": "I am not sure"
+          }
+        }
+      ]
+    },
+    {
+      "id": "C7",
+      "part": "C",
+      "type": "text_list",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": "herbal",
+      "text": {
+        "en": "Do you take herbal or traditional remedies regularly? Please list them."
+      }
+    },
+    {
+      "id": "C8",
+      "part": "C",
+      "type": "demographics",
+      "required": false,
+      "allow_unknown": false,
+      "show_if": null,
+      "icon": null,
+      "text": {
+        "en": "Optional: sex and highest level of education (used only to check the tool works fairly for everyone)"
+      },
+      "fields": {
+        "sex": [
+          "F",
+          "M",
+          "OTHER",
+          "NO_ANSWER"
+        ],
+        "education": [
+          "NONE",
+          "PRIMARY",
+          "SECONDARY",
+          "TERTIARY",
+          "NO_ANSWER"
+        ]
+      }
+    }
+  ],
+  "red_flags": [
+    {
+      "id": "R1",
+      "text": {
+        "en": "Did you hit your head?"
+      },
+      "rule": "URGENT unless C5 == 0 (then prompt attention)"
+    },
+    {
+      "id": "R2",
+      "text": {
+        "en": "Since the fall, do you have a worsening headache, repeated vomiting, or unusual sleepiness or confusion?"
+      },
+      "rule": "URGENT"
+    },
+    {
+      "id": "R3",
+      "text": {
+        "en": "Do you have severe pain, cannot put weight on a leg, or see a deformed arm or leg?"
+      },
+      "rule": "URGENT"
+    },
+    {
+      "id": "R4",
+      "text": {
+        "en": "Do you have new weakness or numbness on one side, a drooping face, or trouble speaking?"
+      },
+      "rule": "URGENT"
+    },
+    {
+      "id": "R5",
+      "text": {
+        "en": "Do you have chest pain, a racing or irregular heartbeat, or severe breathlessness?"
+      },
+      "rule": "URGENT"
+    },
+    {
+      "id": "R6",
+      "text": {
+        "en": "Did you faint or black out?"
+      },
+      "rule": "URGENT"
+    },
+    {
+      "id": "R7",
+      "text": {
+        "en": "Are you unable to get up, and is nobody with you?"
+      },
+      "rule": "URGENT"
+    }
+  ]
+}

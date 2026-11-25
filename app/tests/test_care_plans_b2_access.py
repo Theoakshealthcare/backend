@@ -6,6 +6,7 @@ design says so (a nurse edits the task list; any assigned caregiver ticks and wr
 """
 
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -58,7 +59,9 @@ def _assert_no_access(client, caregiver, scene):
 @pytest.mark.parametrize("status", NOT_LIVE)
 def test_a_booking_that_is_not_live_gives_no_access(db, client, scene, status):
     other = make_nurse(db)
-    make_booking(db, scene["patient"], other, status=status, booking_for="myself")
+    # A visit completed long ago: the nurse's 2 h post-visit note grace (test_care_templates_docs_space.py) is over.
+    ended = datetime.utcnow() - timedelta(hours=3) if status == BookingStatus.COMPLETED else None
+    make_booking(db, scene["patient"], other, status=status, booking_for="myself", actual_end_time=ended)
     _assert_no_access(client, other, scene)
 
 
@@ -88,6 +91,7 @@ def test_a_caregiver_who_dropped_out_loses_access(db, client, scene):
 
 def test_access_ends_when_the_visit_completes_even_for_a_note_or_a_tick(db, client, scene):
     scene["booking"].status = BookingStatus.COMPLETED
+    scene["booking"].actual_end_time = datetime.utcnow() - timedelta(hours=3)  # past the nurse's 2 h note grace
     db.commit()
     _assert_no_access(client, scene["owner"], scene)
 

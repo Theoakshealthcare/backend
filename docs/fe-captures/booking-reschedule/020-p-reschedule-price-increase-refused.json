@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/3368a64e-b533-4812-9aa5-c08e10d09b74/reschedule",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "new_scheduled_date": "2026-11-28T18:55:11.919579Z"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "body": {
+      "detail": {
+        "code": "price_increase_needs_support",
+        "message": "The price for this visit is now higher than what you paid, so we cannot move it in the app without charging you. Please contact support and we will arrange it with you.",
+        "price": {
+          "paid_amount": 33000.0,
+          "paid_amount_kobo": 3300000,
+          "new_amount": 44000.0,
+          "new_amount_kobo": 4400000,
+          "difference_amount": 11000.0,
+          "difference_kobo": 1100000,
+          "handling": "none",
+          "credit_amount": 0.0,
+          "credit_kobo": 0
+        }
+      }
+    }
+  }
+}

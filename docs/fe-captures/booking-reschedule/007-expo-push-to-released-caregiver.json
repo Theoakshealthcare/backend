@@ -1,0 +1,16 @@
+{
+  "note": "The request the app made to Expo for the released caregiver (the job-offer push for the new wave is the other message).",
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-caregiver]",
+      "title": "Visit rescheduled",
+      "body": "Booking 3EDF7E79 was rescheduled and is no longer assigned to you.",
+      "data": {
+        "type": "booking_rescheduled",
+        "booking_id": "7fe94933-7b94-4be2-9b4f-b6277fea3374"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ]
+}

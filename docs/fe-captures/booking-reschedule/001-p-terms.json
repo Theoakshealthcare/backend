@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/6930a4b9-2596-485b-bdb1-caeaa2340db0/reschedule-terms",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
+      "booking_code": "1DC0524D",
+      "can_reschedule": true,
+      "reason": null,
+      "message": null,
+      "current_scheduled_date": "2026-11-27T10:55:12.170540",
+      "free_hours": 12,
+      "reschedules_used": 0,
+      "reschedules_allowed": 2,
+      "reschedules_left": 2,
+      "earliest_new_time": "2026-11-26T06:55:12.237034",
+      "latest_new_time": "2026-12-23T18:55:12.237034",
+      "caregiver_assigned": false,
+      "price": {
+        "paid_amount": 44000.0,
+        "paid_amount_kobo": 4400000,
+        "new_amount": 44000.0,
+        "new_amount_kobo": 4400000,
+        "difference_amount": 0.0,
+        "difference_kobo": 0,
+        "handling": "none",
+        "credit_amount": 0.0,
+        "credit_kobo": 0
+      },
+      "new_time_ok": null,
+      "new_time_reason": null,
+      "new_time_message": null,
+      "as_of": "2026-11-25T18:55:12.237034"
+    }
+  }
+}
