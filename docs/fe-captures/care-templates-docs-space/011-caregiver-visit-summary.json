@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/330cd2e4-726b-4f39-89f1-4119d7fe521b/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "330cd2e4-726b-4f39-89f1-4119d7fe521b",
+      "subject_ready": true,
+      "can_author": false,
+      "author_scope": "caregiver_templates",
+      "plan": null
+    }
+  },
+  "note": "`author_scope: caregiver_templates` and `can_author: false` for a caregiver without the nurse skill."
+}

@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plan-templates/9a7ee442-10c3-4c20-8339-8929f6365e9f",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 403,
+    "body": {
+      "detail": {
+        "code": "not_a_nurse",
+        "message": "Only nurses can create or change a care plan."
+      }
+    }
+  },
+  "note": "A nurse-only template, asked for by a caregiver without the nurse skill."
+}

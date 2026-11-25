@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plan-templates",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "5f437e3b-d9c0-4150-9fc2-afc2f3b7ed24",
+          "key": "elderly_daily_living_dementia",
+          "name": "Elderly Daily Living and Dementia Support",
+          "summary": "A calm daily routine with meals, fluids, safety and engagement for an older client or a client with dementia.",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "default_risk_level": "medium",
+          "clinical_review_status": "pending",
+          "version": 1,
+          "caregiver_can_use": true
+        }
+      ]
+    }
+  },
+  "note": "A caregiver without the nurse skill sees only the template flagged `caregiver_can_use` (it was a 403 before)."
+}

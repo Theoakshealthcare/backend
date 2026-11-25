@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/9886e885-1dbb-41a0-b9e1-1c8845b7c8da/observations",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "body": "Placeholder: client rested well after the visit."
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "body": {
+      "detail": "Care plan not found"
+    }
+  },
+  "note": "125 minutes after completion: the same 404 as any lost access."
+}

@@ -4047,12 +4047,14 @@ A nurse records a care plan for a client; every caregiver on a live visit for th
 
 **Captured by the backend test harness (the real app and a real Postgres), not the compose stack**: captures `200` to `222` come from `app/tests/test_capture_care_plans.py` `230` to `238` from `app/tests/test_capture_care_plans_b2.py` and `240` to `244` from `app/tests/test_capture_care_plans_b3.py` (all skipped unless `CAPTURE_CARE_PLANS=1`). The data is placeholder; the nurse skill, bookings and clients were seeded in the database.
 
+> **Added 2026-11-25 (see [the care templates guide](fe-integration-guide-care-templates-docs-space.md)):** `capabilities` has a fourth field `can_edit_medications`; the plan has a top-level `observations_close_at`; the visit summary has `author_scope` (`full` or `caregiver_templates`); the assigned nurse can read the visit summary and plan and add a care-plan note for 2 hours after the visit is completed; and a caregiver's own private documentation has its own endpoints. The captures in this section predate those fields.
+
 ### 16.1 Who can do what
 
 | Caller | Read a plan | Create or edit | Notes |
 |---|---|---|---|
 | Caregiver **with the nurse skill** (assigned by an admin) | yes | yes | `can_author_care_plans` on Home is `true` |
-| Caregiver without it | yes | `403` `not_a_nurse` | the free-text "specialization" never counts |
+| Caregiver without it | yes | `403` `not_a_nurse`, **except** a plan made from a caregiver-usable template (Elderly), which any caregiver may start and edit (not its medicines) | the free-text "specialization" never counts. **Changed 2026-11-25, see [the care templates guide](fe-integration-guide-care-templates-docs-space.md) section 2** |
 | A caregiver with no live visit for the client | `404` | `404` | see below |
 | Patient token | `403` | `403` | `{"detail": "Access denied. Caregiver account required."}`; no token is `401` |
 
@@ -4086,9 +4088,11 @@ _capture `200-a-home-can-author.json` (other fields trimmed)_
 ```
 _capture `200-b-home-not-author.json` (other fields trimmed)_
 
-### 16.3 Templates (nurses only)
+### 16.3 Templates (all of them for nurses; the Elderly one for any caregiver)
 
-`GET /caregiver/care-plan-templates` lists the seeded templates; `GET /caregiver/care-plan-templates/{template_id}` previews one. Both are `403` `not_a_nurse` for anyone else. **Every seeded template is `clinical_review_status: "pending"`**: show "Not yet clinically reviewed" on the card and the preview until it is `approved`.
+> **Changed 2026-11-25 (care templates slice, [guide](fe-integration-guide-care-templates-docs-space.md)).** The list is now `200` for every caregiver: a nurse gets all five, anyone else only the templates with `caregiver_can_use: true` (Elderly). A nurse-only template previewed by a non-nurse is still `403` `not_a_nurse`. Four templates are now `version: 2` (clinician-approved text), and list items and previews carry `caregiver_can_use`. The captures below predate this; the new guide has current ones.
+
+`GET /caregiver/care-plan-templates` lists the seeded templates; `GET /caregiver/care-plan-templates/{template_id}` previews one. **Every seeded template is `clinical_review_status: "pending"`**: show "Not yet clinically reviewed" on the card and the preview until it is `approved`.
 
 <!-- capture: 201-a-templates-list.json response.body path=items first=1 -->
 ```json
@@ -4521,7 +4525,7 @@ _capture `209-b-get-plan-plain-caregiver.json` (trimmed)_
 ```
 _capture `217-a-assigned-list.json` (two clients: one booked for themselves, one booked by a relative)_
 
-`GET /caregiver/care-plans/candidates` (nurse) feeds the client picker: identifiable clients on live visits with **no active plan** (a client whose visit has no recipient is left out). Nearest visit first.
+`GET /caregiver/care-plans/candidates` (any caregiver since 2026-11-25; it was nurse only) feeds the client picker: identifiable clients on live visits with **no active plan** (a client whose visit has no recipient is left out). Nearest visit first.
 
 <!-- capture: 216-a-candidates.json response.body -->
 ```json

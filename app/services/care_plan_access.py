@@ -13,7 +13,7 @@ for a visit a booker made for somebody else, and nobody for an app booking for s
 """
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models.booking import Booking, BookingStatus
 from app.db.models.care import CareRecipient, CareRelationship
-from app.db.models.care_plan import CarePlan, CarePlanGoal, CarePlanObservation, CarePlanTask
+from app.core.config import settings
+from app.db.models.care_plan import CarePlan, CarePlanGoal, CarePlanObservation, CarePlanTask, CarePlanTemplate
 from app.db.models.caregiver import Caregiver, CaregiverSkill
 from app.db.models.consent import Consent
 from app.db.models.patient import Patient
@@ -82,9 +83,31 @@ def is_care_plan_author(db: Session, caregiver: Caregiver) -> bool:
     ).first() is not None
 
 
-def require_author(db: Session, caregiver: Caregiver) -> None:
-    if not is_care_plan_author(db, caregiver):
-        raise NotANurse()
+def may_use_template(db: Session, caregiver: Caregiver, template: CarePlanTemplate) -> bool:
+    """A nurse may start a plan from any template; any other caregiver only from one flagged ``caregiver_can_use`` (the Elderly
+    template, which the clinician wants handled by "either Nurse or Caregiver or both")."""
+    return bool(template.caregiver_can_use) or is_care_plan_author(db, caregiver)
+
+
+def may_author_plan(db: Session, caregiver: Caregiver, plan: CarePlan) -> bool:
+    """Who may change a plan's header, goals and tasks: a nurse, or any caregiver when the plan came from a caregiver-usable
+    template. Medications stay nurse-only (they do not go through here)."""
+    if is_care_plan_author(db, caregiver):
+        return True
+    template = db.get(CarePlanTemplate, plan.template_id) if plan.template_id else None
+    return template is not None and bool(template.caregiver_can_use)
+
+
+def require_author(db: Session, caregiver: Caregiver, *, plan: Optional[CarePlan] = None,
+                   template: Optional[CarePlanTemplate] = None) -> None:
+    """Nurse only, unless a ``plan`` or ``template`` that caregivers may use is given."""
+    if is_care_plan_author(db, caregiver):
+        return
+    if plan is not None and may_author_plan(db, caregiver, plan):
+        return
+    if template is not None and may_use_template(db, caregiver, template):
+        return
+    raise NotANurse()
 
 
 def _subject_of(booking: Booking, patient: Patient, recipients: Dict[UUID, CareRecipient]) -> Optional[Subject]:
@@ -143,6 +166,64 @@ def resolve_plan_access_for_plan(db: Session, caregiver: Caregiver, plan: CarePl
     if subject is None or subject.id != (plan.patient_id or plan.care_recipient_id):
         raise PlanNotAvailable()
     return PlanAccess(booking, patient, subject)
+
+
+def post_visit_note_grace() -> timedelta:
+    """How long after a visit the assigned nurse may still add a care-plan note: the same window typed and voice notes use
+    (``VOICE_NOTE_POST_VISIT_GRACE_MINUTES``, 120)."""
+    return timedelta(minutes=settings.VOICE_NOTE_POST_VISIT_GRACE_MINUTES)
+
+
+def _grace_query(db: Session, caregiver: Caregiver, now: datetime):
+    """The nurse's completed visits that ended within the grace (with the booking's patient), latest first."""
+    ended = func.coalesce(Booking.actual_end_time, Booking.scheduled_end_date, Booking.scheduled_date)
+    return (
+        db.query(Booking, Patient)
+        .join(Patient, Patient.id == Booking.patient_id)
+        .filter(Booking.caregiver_id == caregiver.id, Booking.status == BookingStatus.COMPLETED,
+                Patient.is_active.is_(True), ended >= now - post_visit_note_grace())
+        .order_by(ended.desc())
+    )
+
+
+def _grace_allowed(db: Session, caregiver: Caregiver) -> bool:
+    return caregiver.profile_status == "approved" and is_care_plan_author(db, caregiver)
+
+
+def resolve_grace_access_for_plan(db: Session, caregiver: Caregiver, plan: CarePlan,
+                                  now: Optional[datetime] = None) -> PlanAccess:
+    """The assigned nurse's access to a plan *after* the visit: one of their completed bookings for this plan's client ended
+    no more than the grace ago. Only for a nurse (``is_care_plan_author``) who is still approved. The live rules do not apply to
+    a finished booking, so this is a separate path and only the note routes use it. Raises ``PlanNotAvailable`` otherwise."""
+    if not _grace_allowed(db, caregiver):
+        raise PlanNotAvailable()
+    query = _grace_query(db, caregiver, now or datetime.utcnow())
+    myself = func.lower(func.trim(Booking.booking_for)) == "myself"
+    if plan.patient_id is not None:
+        query = query.filter(Booking.patient_id == plan.patient_id, myself)
+    else:
+        query = query.filter(Booking.care_recipient_id == plan.care_recipient_id, ~myself)
+    row = query.first()
+    if row is None:
+        raise PlanNotAvailable()
+    booking, patient = row
+    subject = _subject_of(booking, patient, _recipients_for(db, [booking]))
+    if subject is None or subject.id != (plan.patient_id or plan.care_recipient_id):
+        raise PlanNotAvailable()
+    return PlanAccess(booking, patient, subject)
+
+
+def resolve_grace_access_for_booking(db: Session, caregiver: Caregiver, booking_id: UUID,
+                                     now: Optional[datetime] = None) -> PlanAccess:
+    """Same grace, keyed by the booking (the visit summary, so the app can find the plan to add a note to). Raises
+    ``PlanNotAvailable`` unless it is the caller's completed booking, inside the grace, and the caller is an approved nurse."""
+    if not _grace_allowed(db, caregiver):
+        raise PlanNotAvailable()
+    row = _grace_query(db, caregiver, now or datetime.utcnow()).filter(Booking.id == booking_id).first()
+    if row is None:
+        raise PlanNotAvailable()
+    booking, patient = row
+    return PlanAccess(booking, patient, _subject_of(booking, patient, _recipients_for(db, [booking])))
 
 
 def accessible_subjects(db: Session, caregiver: Caregiver) -> Dict[Tuple[str, UUID], PlanAccess]:

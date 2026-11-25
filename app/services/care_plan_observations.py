@@ -17,9 +17,11 @@ from app.db.models.admin import AdminUser
 from app.db.models.care_plan import CarePlan, CarePlanObservation
 from app.db.models.caregiver import Caregiver
 from app.schemas.care_plan import ObservationIn
-from app.services.care_plan_access import PlanAccess
-from app.services.care_plan_tasks import lock_active_plan, require_live_visit
-from app.services.care_plans import AdminActor, actor_event, seal, unseal
+from app.db.models.booking import Booking, BookingStatus
+from app.services import visit_windows
+from app.services.care_plan_access import PlanAccess, is_care_plan_author, post_visit_note_grace
+from app.services.care_plan_tasks import lock_active_plan
+from app.services.care_plans import AdminActor, VisitNotInProgress, actor_event, seal, unseal
 
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 50
@@ -44,11 +46,28 @@ def _names(db: Session, rows: List[CarePlanObservation]) -> Dict[str, str]:
     return names
 
 
+def require_note_window(db: Session, caregiver: Caregiver, booking_id: UUID, now: Optional[datetime] = None) -> Booking:
+    """Re-read the booking under a share lock and refuse unless a note may be added now: the caller's visit is in progress, or
+    (the nurse's grace) it was completed no more than ``VOICE_NOTE_POST_VISIT_GRACE_MINUTES`` ago and the caller is an approved
+    nurse. A visit the caregiver clocked out of earlier than the grace, or anyone else's, is ``visit_not_in_progress``."""
+    now = now or datetime.utcnow()
+    booking = db.query(Booking).filter(Booking.id == booking_id).populate_existing().with_for_update(read=True).first()
+    if booking is None or booking.caregiver_id != caregiver.id:
+        raise VisitNotInProgress()
+    if booking.status == BookingStatus.IN_PROGRESS:
+        return booking
+    if (booking.status == BookingStatus.COMPLETED and caregiver.profile_status == "approved"
+            and is_care_plan_author(db, caregiver)
+            and now <= visit_windows.ended_at(booking) + post_visit_note_grace()):
+        return booking
+    raise VisitNotInProgress()
+
+
 def add_observation(db: Session, caregiver: Caregiver, access: PlanAccess, plan: CarePlan,
                     payload: ObservationIn) -> Dict[str, Any]:
     try:
         lock_active_plan(db, plan.id)
-        booking = require_live_visit(db, caregiver, access.booking.id)
+        booking = require_note_window(db, caregiver, access.booking.id)
         obs = CarePlanObservation(plan_id=plan.id, booking_id=booking.id, author_caregiver_id=caregiver.id,
                                   category=payload.category, body_encrypted=seal(payload.body))
         db.add(obs)

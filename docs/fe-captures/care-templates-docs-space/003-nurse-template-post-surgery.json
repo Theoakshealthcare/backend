@@ -1,0 +1,193 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plan-templates/0d0fdf9e-52e5-4a3b-965f-656587415f7d",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "id": "0d0fdf9e-52e5-4a3b-965f-656587415f7d",
+      "key": "post_surgery_recovery",
+      "name": "Post-Surgery Recovery",
+      "summary": "Wound care, comfort, gentle movement and nutrition while healing after an operation.",
+      "duration_days": 21,
+      "review_every_days": 7,
+      "default_risk_level": "medium",
+      "clinical_review_status": "pending",
+      "version": 2,
+      "caregiver_can_use": false,
+      "goals": [
+        {
+          "title": "Wound kept clean and dry as instructed",
+          "target": null,
+          "frequency": "daily"
+        },
+        {
+          "title": "Pain reported and recorded",
+          "target": null,
+          "frequency": "daily"
+        },
+        {
+          "title": "Gradual return to movement",
+          "target": null,
+          "frequency": "ongoing"
+        },
+        {
+          "title": "Adequate fluids and nutrition",
+          "target": null,
+          "frequency": "daily"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "Wound check and record appearance",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Wound check and record appearance",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Assisted short walk",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Assisted short walk",
+          "time_slot": "afternoon",
+          "time_of_day": "13:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Hygiene and clean clothing",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Fluids and meal support",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Fluids and meal support",
+          "time_slot": "afternoon",
+          "time_of_day": "13:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Fluids and meal support",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Ask about pain and record it",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "title": "Ask about pain and record it",
+          "time_slot": "evening",
+          "time_of_day": "18:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      ],
+      "special_instructions": [
+        "Wound care exactly as the surgical team instructed",
+        "Report fever, spreading redness or discharge at once",
+        "Contact the family and inform the family's doctor"
+      ]
+    }
+  },
+  "note": "Version 2: the pain task and the family-and-doctor line."
+}

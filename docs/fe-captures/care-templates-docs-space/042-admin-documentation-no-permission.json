@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/visit-documentation",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 403,
+    "body": {
+      "detail": "Access denied. Missing permission: careplans.read"
+    }
+  },
+  "note": "A Support admin lacks `careplans.read`."
+}
