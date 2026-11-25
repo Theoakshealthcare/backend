@@ -37,7 +37,8 @@ The owner's first real-phone test of the Android apps against staging found thre
 - Live captures on the test harness (real app, real Postgres, fake Expo). **Not exercised:** a real push to a phone, a real Paystack redirect, the deep link opening the app, the WebSocket chat path (it neither saves nor pushes).
 
 ## Operate / roll back
-- **Required after merge:** set `PAYMENT_CALLBACK_URL` in the staging and production env to `<API origin>/api/v1/payment/callback` (or empty to derive it). The `.env.*.enc` files and `deploy/env.example` are not changed here; until they are, the old website value keeps being sent to Paystack.
+- **Done in the env change (2026-11-25):** `PAYMENT_CALLBACK_URL` is now empty in `.env.staging.enc`, `.env.production.enc` and `deploy/env.example`, so it derives from `KYC_WIDGET_PUBLIC_BASE_URL` on each host. Only that name changed in each file.
+- **Was required after merge:** set `PAYMENT_CALLBACK_URL` in the staging and production env to `<API origin>/api/v1/payment/callback` (or empty to derive it). The `.env.*.enc` files and `deploy/env.example` are not changed here; until they are, the old website value keeps being sent to Paystack.
 - Roll back by reverting the PR; no data or schema to undo.
 
 ## Follow-ups
