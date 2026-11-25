@@ -4,6 +4,8 @@ This covers all three repos: `backend` (FastAPI), `patient` (Expo), and `caregiv
 
 **Remotes (2026-10-12):** `innocent98` GitHub Actions is billing-blocked, so backend PRs and CI now run on `Theoakshealthcare/backend` (remote `oakly`); `origin` is resynced after each work spree.
 
+**Update (2026-11-25, care templates, caregiver own-documentation space, nurse 2 h note window; branch `feature/care-templates-docs-space`, migration `0031`; [SOP](../sop/2026-11-25-care-templates-docs-space.md); [FE guide](../fe-integration-guide-care-templates-docs-space.md)):** four templates carry the clinician-approved text (version 2), the Elderly template is usable by any caregiver (medicines stay nurse-only), a private `visit_documentation` space exists with an audited admin read (console: Clinical > Caregiver documentation), and the assigned nurse can add care-plan notes for 2 h after the visit. Open PRs, not merged; templates stay `pending` clinical review until signed off in the admin API.
+
 **Update (2026-11-25, post-visit windows and location matching; branch `feature/post-visit-windows-location`, migration `0029`; [SOP](../sop/2026-11-25-post-visit-windows-location.md); [FE guide](../fe-integration-guide-post-visit-windows-location.md), live-captured on the test harness):** (1) matching uses an available caregiver's last known location for up to 6 h (`AVAILABLE_LOCATION_MAX_HOURS`; a fix older than 15 min ranks below a fresh one); (2) an ARQ cron (`location_nudge_job`, every 15 min) pushes `{type: "location_stale"}` "Update your location" to available, approved caregivers with a push token and a fix older than 6 h, at most once per 24 h, never 21:00-07:00 Lagos, not during an en-route or in-progress visit (`caregiver_locations.location_nudged_at`); (3) a booking chat is read-only 24 h after the visit completes and at once when cancelled: `409 chat_closed`, plus `chat_open` / `chat_closes_at` on `GET /caregiver/chats` items and every `BookingResponse`; (4) typed booking notes follow the voice-note windows (add in progress + 2 h, read 24 h) via `app/services/visit_windows.py`, with `notes_open` / `notes_closes_at` / `notes_readable_until` on the caregiver's own booking payloads. **Open:** there is no mounted chat WebSocket (`endpoints/websocket.py` is dead code), so only REST is enforced; care-plan observations stay "in progress only" (a 2 h grace needs a plan-access decision); the cron firing on schedule and a real push are not exercised; the mobile apps must adopt the new fields and the push.
 
 **Update (2026-11-25, chat push, chat-list photos, payment return page; branch `fix/chat-push-payment-return`, no migration; [SOP](../sop/2026-11-25-chat-push-payment-return.md); [FE guide](../fe-integration-guide-chat-push-payment-return.md), live-captured on the test harness):** a saved chat message now pushes the other person (title = sender's first name, a patient's first name and last initial; body cut to 100; `data` = `{type: "chat_message", booking_id}`; best effort, never the sender); `GET /caregiver/chats` items carry `patient_photo_url` (absolute URL or `null`; the patient side already has `caregiver_details.profile_image_url` on booking payloads); `GET /api/v1/payment/callback` is the page Paystack's redirect lands on (static, CSP, never echoes the reference, marks nothing paid) and `PAYMENT_CALLBACK_URL` now derives from the API's public origin when empty. **Open:** set `PAYMENT_CALLBACK_URL` on staging and production after merge; a real push to a phone and a real Paystack redirect are not exercised; the WebSocket chat path does not save or push.
@@ -227,7 +229,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **Pricing:** (APIs `/booking-settings` and `/admin/booking-policy` exist; console screens are A4) versioned price books with preview and publish; service areas; Nigerian form options (AD-FR-51–56)
 - [ ] **Support inbox:** WhatsApp handovers, 24-hour window enforcement, urgent alerts (AD-FR-59–63)
 - [ ] **Ratings list and low-rating review tasks** (AD-FR-65)
-- [ ] **FallGuard question editor with versioning;** remove the admin calls from the patient app (AD-FR-68–69)
+- [ ] **FallGuard question editor with versioning;** remove the admin calls from the patient app (AD-FR-68–69). *Superseded 2026-11-25: FallGuard v2.0 questions are versioned JSON released with the code (PDF SR-14), so there is no editor; the admin create, update and delete routes answer 410.*
 - [ ] **Break-glass clinical access, with every access audited** (AD-FR-73–74)
 - [ ] **WhatsApp ops:** templates, number health, opt-outs (AD-FR-75–77)
 - [ ] **CSV exports with masking** (AD-FR-88)
@@ -526,11 +528,13 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once; then production only after DEP-5 sign-off
 - [ ] Follow-ups: read the PR's first Semgrep and Trivy results; commit `.test_durations`; off-server backups and an alert; gitleaks in CI; feed three fixes back to the template repo (SOP follow-ups)
 
-## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 planned 2026-11-25, nothing built ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
+## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 in progress (FallGuard backend scoring built 2026-11-25, PR open) ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
 - [ ] Settle conflicts: wallet (owner refuses), drug reminders vs the medication notice, family details spec, who is alerted
-- [ ] Owner supplies `fallguard_scoring.py`, `test_fallguard_scoring.py`, `questionnaire_v2_0.json`
-- [ ] 1a care template text, caregiver documentation space, Elderly template for nurse or caregiver
-- [ ] 1b vitals flag engine and badges (thresholds supplied by the clinical lead)
+- [x] The three files the PDF ships (`fallguard_scoring.py`, `test_fallguard_scoring.py` TV1-TV17, `questionnaire_v2_0.json`) were supplied by the owner on 2026-11-25 and are vendored unmodified into backend #85; our earlier hand-made re-implementation was deleted ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), "What changed when the reference arrived")
+- [x] 1a care template text (version 2, clinician-approved), caregiver own-documentation space (private, audited admin read), Elderly template for nurse or caregiver, nurse 2 h grace for care-plan notes. Built 2026-11-25 (backend `feature/care-templates-docs-space`, migration `0031`; [SOP](../sop/2026-11-25-care-templates-docs-space.md); [FE guide](../fe-integration-guide-care-templates-docs-space.md)). PRs open, not merged; app screens need a simulator pass; templates still `pending` until an admin signs them off
+- [x] 1b vitals flag engine and badges: server flags on every vitals response (no migration), badges in the caregiver and patient apps; 2026-11-25, `feature/vitals-flags` + monorepo `feature/vitals-flags-badges`, [SOP](../sop/2026-11-25-vitals-flags.md), [FE guide](../fe-integration-guide-vitals-flags.md). Open: seven clinician questions in the SOP; visual pass on a device pending
+  - [x] Flags engine, glucose label (Random / Fasting / After meal), diabetes and kidney BP line, 112 message on critical; weight and sleep never flagged
+  - [x] Hook for 1c: `stored_reading_is_out_of_range`
 - [ ] 1c alerts for out-of-range readings and missed tasks
 - [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price): 🟡 backend built on `feature/booking-reschedule`, migration `0034` (placeholder number), PR open, **not merged, needs the Opus money review** ([design](../plans/2026-11-25-booking-reschedule.md), [SOP](../sop/2026-11-25-booking-reschedule.md), [FE guide](../fe-integration-guide-patient-booking-reschedule.md))
   - [x] Rules: strictly more than 12 h away, 2 free per booking (the 3rd is refused), new time more than 12 h and at most 28 days from now; the three numbers are admin settings (`/admin/booking-policy`)
@@ -544,8 +548,15 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
   - [ ] Automatic refund of the `credit_due` difference once the visit is completed or cancelled (needs a decision on the caregiver take-back)
   - [ ] Owner decisions: what a price increase should do (absorb, top-up payment, cancel and rebook); whether a booking under 12 h away with no caregiver may move
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
-- [ ] FallGuard v2.0: backend scoring and config, patient screens, caregiver module, admin console and go-live lock, hardening
-- [ ] Server enforcement of the caregiver name lock; 2 h grace for care-plan observations (owner to decide)
+- [ ] FallGuard v2.0 (replaces the 24-question screener):
+  - [x] Backend scoring and config, branch `feature/fallguard-v2-scoring`, PR open, not merged (2026-11-25): questionnaire JSON, pure scoring library, recommendation catalogue, immutable versioned results (`0033`), `/questions`, `/config`, `/submit`, `/history`, 10 per hour limit, 503 `SCORING_UNAVAILABLE`, old seed script and admin editor retired ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), [FE guide](../fe-integration-guide-patient-fallguard.md))
+  - [ ] Clinician: Appendix E sign-off, a sentence per gate-reason code, state emergency numbers, content version, AI service decision (SOP: 9 open questions; wording and R1-R7 came with the package, unsigned)
+  - [ ] Patient app screens (after the backend is reviewed)
+  - [ ] Red-flag events endpoint, consent, access grants, override, Part D clinical tests, care plans, recommendation flags
+  - [ ] Check-ins, reassessment reminders, PDF export
+  - [ ] Caregiver module, admin console (version registry, flags, kill switch, go-live lock), monitors, analytics, hardening
+- [ ] Server enforcement of the caregiver name lock
+- [x] 2 h grace for care-plan observations (owner said yes 2026-11-25; assigned nurse only; built in 1a)
 
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit

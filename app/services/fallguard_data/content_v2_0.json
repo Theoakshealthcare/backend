@@ -1,0 +1,54 @@
+{
+ "content_version": "2.0.0",
+ "source": "Oakly FallGuard v2.0 Developer Handover Package (handover v1.0, 10 November 2026): section 6 (Urgent text), section 7 (recommendation catalogue), section 10 (welcome text), Appendix C (default messages). Copied verbatim.",
+ "sign_off_status": "PENDING_CLINICAL_LEAD_SIGN_OFF",
+ "sign_off_note": "Appendix E of the PDF has a blank clinical-lead sign-off table. Any change to this wording needs the clinical lead (E3). Nothing here is AI-generated: every string is the PDF's own default English text.",
+ "emergency_number": {
+  "default": "112",
+  "note": "112 is the PDF's default. Operations must supply a verified per-state list before launch (E4); none is configured."
+ },
+ "assessment_minutes": 8,
+ "messages": {
+  "result.low": "Lower risk right now. Your answers suggest a lower risk of falling right now. Falls can still happen, so here is how to stay steady and protect yourself.",
+  "result.intermediate": "Some factors raise your risk. You have some factors that raise your risk of falling. The steps below can reduce it.",
+  "result.high": "Several factors raise your risk. You have several factors that raise your risk of falling. A clinical assessment is recommended.",
+  "provisional.label": "Provisional result: some answers were missing. A nurse can help you complete it.",
+  "overridden.label": "Reviewed by your clinician",
+  "prompt.message": "Please contact a nurse or doctor in the next few days.",
+  "urgent.message": "Please get medical help now. Call the emergency number or go to the nearest emergency department. Do not drive yourself. If someone is with you, ask them to stay with you.",
+  "error.safety": "We could not calculate your result. If you have fallen recently or feel unwell, get medical help now. Your answers are saved so you can try again.",
+  "referral.under60": "This screener is designed for people aged 60 and over. If you have fallen or feel unsteady, please speak to a nurse or doctor.",
+  "disclaimer": "This screener helps you understand your risk. It cannot examine you or replace advice from a doctor or nurse. If you feel unwell, get medical help.",
+  "carer.alert": "Please check on {name} now.",
+  "notify.checkin": "You have a FallGuard check-in.",
+  "notify.reassess": "It is time to repeat your FallGuard assessment."
+ },
+ "welcome": {
+  "welcome.1": "Falls are common, and often preventable. Every year about 684,000 people die from falls worldwide, and about 37.3 million falls need medical care. More than 8 in 10 of these deaths happen in low- and middle-income countries (WHO, 2021).",
+  "welcome.2": "Who is most at risk. People over 60 have the most serious falls. Balance, muscle strength, eyesight, medicines, health conditions and your home all play a part.",
+  "welcome.3": "What happens next. Answer a few short questions (about {minutes} minutes). You will see your result straight away, with steps you can take. If you ever feel unwell after a fall, get medical help first."
+ },
+ "recommendations": [
+  {"id": "REC-PROMPT", "priority": 1, "text": "Please contact a nurse or doctor in the next few days."},
+  {"id": "REC-CLINICAL", "priority": 2, "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."},
+  {"id": "REC-EXERCISE", "priority": 3, "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."},
+  {"id": "REC-LOW", "priority": 3, "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."},
+  {"id": "REC-BOOK-NURSE", "priority": 4, "text": "Book a nurse home visit to look at your risk in more detail."},
+  {"id": "REC-MEDS", "priority": 5, "text": "Some medicines can make falls more likely. Do not stop any medicine on your own. Ask a pharmacist or doctor to review all your medicines, including herbal ones."},
+  {"id": "REC-DIZZY", "priority": 6, "text": "Feeling dizzy when you stand up should be checked. Stand up slowly and tell a nurse or doctor."},
+  {"id": "REC-FALLPLAN", "priority": 7, "text": "Plan for what to do if you fall: keep a phone within reach, know how to get help, and ask a clinician about bone health."},
+  {"id": "REC-HOME", "priority": 8, "text": "Make your home safer. Fix or remove the hazards you ticked, add handrails and non-slip mats, and keep a rechargeable lamp or torch for power cuts."},
+  {"id": "REC-VISION", "priority": 9, "text": "Have your eyes checked every year. If you wear multifocal glasses, take extra care outside and on stairs."},
+  {"id": "REC-FOOT", "priority": 10, "text": "Wear well-fitting shoes with a firm sole and grip. See a nurse or foot specialist about foot pain or numbness."},
+  {"id": "REC-BLADDER", "priority": 11, "text": "Bladder urgency and night-time toilet trips can lead to falls. A nurse or doctor can help."},
+  {"id": "REC-PAIN", "priority": 12, "text": "Pain or stiffness that makes walking harder can often be treated. Speak to a nurse, physiotherapist or doctor."},
+  {"id": "REC-HEARING", "priority": 13, "text": "A hearing check is worthwhile. Hearing problems are linked to falls."},
+  {"id": "REC-AID", "priority": 14, "text": "Ask a physiotherapist or nurse to check that your walking aid fits you and to show you how to use it."},
+  {"id": "REC-FEAR", "priority": 15, "text": "Worry about falling is common. Staying active safely helps rebuild confidence."},
+  {"id": "REC-MEMORY", "priority": 16, "text": "Memory or thinking changes are worth discussing with a doctor. Ask a family member or carer to help with this assessment."},
+  {"id": "REC-OUTDOOR", "priority": 17, "text": "Take care on uneven paths, drains and steps. Choose well-lit routes and use support where you can."},
+  {"id": "REC-ACTIVE", "priority": 18, "text": "Build up gradually to 150 minutes of activity a week, including balance and strength exercises."},
+  {"id": "REC-NUTRITION", "priority": 19, "text": "Regular, balanced meals help keep muscles and bones strong. Tell a nurse or doctor if you are losing weight without trying."},
+  {"id": "REC-ALCOHOL", "priority": 20, "text": "Alcohol can affect balance and mix badly with some medicines. Consider cutting back."}
+ ]
+}

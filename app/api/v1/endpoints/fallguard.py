@@ -1,145 +1,109 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
-from uuid import UUID
-import json
+from typing import Any, Dict, List
 
-from app.api.deps import get_db, get_current_user, get_current_patient, require_permission
-from app.db.models.fallguard import FallGuardQuestion
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_patient, get_db, require_permission
 from app.db.models.patient import Patient
 from app.schemas.fallguard import (
-    FallGuardQuestionCreate, FallGuardQuestionUpdate, FallGuardQuestionResponse,
-    FallGuardAssessmentCreate, FallGuardAssessmentResponse
+    FallGuardAssessmentCreate,
+    FallGuardAssessmentResponse,
+    FallGuardQuestionResponse,
 )
-from app.services.fallguard import FallGuardService, FallGuardSubmissionError
+from app.services.fallguard import (
+    FallGuardService,
+    FallGuardSubmissionError,
+    assessment_view,
+    config_view,
+    questions_view,
+)
 
 router = APIRouter()
+
+# FallGuard v2.0: the questionnaire is versioned data released with the code (handover PDF SR-14: no hot edits), so the admin
+# question editor is retired. The routes stay (same permission) so an old admin client gets an explicit answer, not a 404.
+_RETIRED = {"code": "fallguard_questionnaire_is_versioned",
+            "message": "The FallGuard questionnaire is versioned and changes only with a release."}
+
 
 def get_fallguard_service(db: Session = Depends(get_db)) -> FallGuardService:
     return FallGuardService(db)
 
-# Patient: Get questions
-@router.get("/questions", response_model=List[FallGuardQuestionResponse])
-def get_questions(
-    current_user=Depends(get_current_patient),
-    service: FallGuardService = Depends(get_fallguard_service)
-):
-    questions = service.get_questions(active_only=True)
-    # Parse options JSON for response
-    for q in questions:
-        q.options = json.loads(q.options)
-    return questions
 
-# Patient: Submit assessment
-_SUBMIT_ERRORS = {422: {"description": "detail = {code, message[, question_id]}; code is one of fallguard_no_answers, "
-                                       "fallguard_duplicate_question, fallguard_unknown_question, fallguard_invalid_option"}}
+# Patient: the questionnaire (list form, the older shape plus additive fields)
+@router.get("/questions", response_model=List[FallGuardQuestionResponse])
+def get_questions(current_user=Depends(get_current_patient)):
+    return questions_view()
+
+
+# Patient: everything the app needs to render the flow (versions, items, red-flag items, fixed messages, emergency number)
+@router.get("/config")
+def get_config(lang: str = Query("en", description="Only English exists today; every string falls back to English."),
+               current_user=Depends(get_current_patient)) -> Dict[str, Any]:
+    return config_view()
+
+
+# Patient: submit assessment
+_SUBMIT_ERRORS = {
+    422: {"description": "detail = {code, message[, question_id][, fields]}; code is one of fallguard_no_answers, "
+                         "fallguard_duplicate_question, fallguard_unknown_question, fallguard_invalid_option, "
+                         "fallguard_missing_required, fallguard_date_of_birth_required, fallguard_invalid_date_of_birth, "
+                         "fallguard_invalid_assessment_date, fallguard_invalid_payload"},
+    429: {"description": "detail.code fallguard_rate_limited (10 submissions per hour per patient)"},
+    503: {"description": "detail.code SCORING_UNAVAILABLE: no tier was stored or returned; show the safety screen"},
+}
 
 
 @router.post("/submit", response_model=FallGuardAssessmentResponse, responses=_SUBMIT_ERRORS)
 async def submit_assessment(
     data: FallGuardAssessmentCreate,
     current_user=Depends(get_current_patient),
-    service: FallGuardService = Depends(get_fallguard_service)
+    service: FallGuardService = Depends(get_fallguard_service),
 ):
-    # Get patient
     db_patient = service.db.query(Patient).filter(Patient.user_id == current_user.id).first()
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    # The score is computed on the server from the stored option values; any ``score`` the client sends is ignored.
+    # The server scores; any ``score`` the client sends is ignored, and no tier is stored if scoring fails (SR-3, SR-5).
     try:
-        assessment = await service.submit_assessment(db_patient.id, data)
+        assessment = await service.submit_assessment(db_patient.id, data, db_patient.date_of_birth)
     except FallGuardSubmissionError as exc:
-        detail = {"code": exc.code, "message": exc.message}
+        detail: Dict[str, Any] = {"code": exc.code, "message": exc.message}
         if exc.question_id is not None:
             detail["question_id"] = str(exc.question_id)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
-    # Prepare answers for response
-    answers = []
-    for ans in assessment.answers:
-        answers.append({
-            "id": ans.id,
-            "question_id": ans.question_id,
-            "answer": ans.answer,
-            "score": ans.score
-        })
-    return FallGuardAssessmentResponse(
-        id=assessment.id,
-        patient_id=assessment.patient_id,
-        total_score=assessment.total_score,
-        ai_summary=assessment.ai_summary,
-        ai_recommendations=assessment.ai_recommendations,
-        created_at=assessment.created_at,
-        answers=answers
-    )
+        if exc.fields:
+            detail["fields"] = exc.fields
+        raise HTTPException(status_code=exc.http_status, detail=detail)
+    return assessment_view(assessment)
 
-# Patient: Get assessment history
+
+# Patient: assessment history, newest first
 @router.get("/history", response_model=List[FallGuardAssessmentResponse])
 def get_history(
     current_user=Depends(get_current_patient),
-    service: FallGuardService = Depends(get_fallguard_service)
+    service: FallGuardService = Depends(get_fallguard_service),
 ):
     db_patient = service.db.query(Patient).filter(Patient.user_id == current_user.id).first()
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    assessments = service.get_assessment_history(db_patient.id)
-    result = []
-    for assessment in assessments:
-        answers = []
-        for ans in assessment.answers:
-            answers.append({
-                "id": ans.id,
-                "question_id": ans.question_id,
-                "answer": ans.answer,
-                "score": ans.score
-            })
-        result.append(FallGuardAssessmentResponse(
-            id=assessment.id,
-            patient_id=assessment.patient_id,
-            total_score=assessment.total_score,
-            ai_summary=assessment.ai_summary,
-            ai_recommendations=assessment.ai_recommendations,
-            created_at=assessment.created_at,
-            answers=answers
-        ))
-    return result
+    return [assessment_view(a) for a in service.get_assessment_history(db_patient.id)]
 
-# Admin: CRUD for questions
-@router.post("/admin/question", response_model=FallGuardQuestionResponse)
-def admin_create_question(
-    data: FallGuardQuestionCreate,
-    current_user=Depends(require_permission("fallguard.write")),
-    service: FallGuardService = Depends(get_fallguard_service)
-):
-    question = service.create_question(data.dict())
-    question.options = json.loads(question.options)
-    return question
 
-@router.put("/admin/question/{question_id}", response_model=FallGuardQuestionResponse)
-def admin_update_question(
-    question_id: UUID,
-    data: FallGuardQuestionUpdate,
-    current_user=Depends(require_permission("fallguard.write")),
-    service: FallGuardService = Depends(get_fallguard_service)
-):
-    question = service.update_question(question_id, data.dict())
-    question.options = json.loads(question.options)
-    return question
-
-@router.delete("/admin/question/{question_id}")
-def admin_delete_question(
-    question_id: UUID,
-    current_user=Depends(require_permission("fallguard.write")),
-    service: FallGuardService = Depends(get_fallguard_service)
-):
-    service.delete_question(question_id)
-    return {"status": True}
-
+# Admin: the questionnaire is read-only (see _RETIRED)
 @router.get("/admin/questions", response_model=List[FallGuardQuestionResponse])
-def admin_get_questions(
-    current_user=Depends(require_permission("fallguard.write")),
-    service: FallGuardService = Depends(get_fallguard_service)
-):
-    questions = service.get_questions(active_only=False)
-    for q in questions:
-        q.options = json.loads(q.options)
-    return questions 
+def admin_get_questions(current_user=Depends(require_permission("fallguard.write"))):
+    return questions_view()
+
+
+@router.post("/admin/question", status_code=status.HTTP_410_GONE)
+def admin_create_question(current_user=Depends(require_permission("fallguard.write"))):
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=_RETIRED)
+
+
+@router.put("/admin/question/{question_id}", status_code=status.HTTP_410_GONE)
+def admin_update_question(question_id: str, current_user=Depends(require_permission("fallguard.write"))):
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=_RETIRED)
+
+
+@router.delete("/admin/question/{question_id}", status_code=status.HTTP_410_GONE)
+def admin_delete_question(question_id: str, current_user=Depends(require_permission("fallguard.write"))):
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=_RETIRED)

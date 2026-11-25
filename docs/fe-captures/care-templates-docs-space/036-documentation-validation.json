@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bookings/efdbdf09-451b-4031-a19a-39ccc8a92f5f/documentation",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "body": ""
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "body": {
+      "detail": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "body",
+            "body"
+          ],
+          "msg": "String should have at least 1 character",
+          "ctx": {
+            "min_length": 1
+          }
+        }
+      ]
+    }
+  },
+  "note": "An empty or whitespace entry, or one over 4000 characters, is the standard 422 (the rejected value is not echoed)."
+}

@@ -287,9 +287,13 @@ class MedicationWriteResult(BaseModel):
 
 
 class Capabilities(BaseModel):
-    can_edit_plan: bool = Field(description="A nurse, and the plan is active.")
+    can_edit_plan: bool = Field(description="A nurse (or any caregiver, for a plan made from a caregiver-usable template such as "
+                                            "Elderly), the plan is active, and the visit is live.")
+    can_edit_medications: bool = Field(description="A nurse, the plan is active, and the visit is live. A caregiver who is "
+                                                   "not a nurse can edit an Elderly-template plan but not its medicines.")
     can_tick_tasks: bool = Field(description="The plan is active and the caller has a visit for this client in progress.")
-    can_add_observation: bool = Field(description="Same rule as `can_tick_tasks`.")
+    can_add_observation: bool = Field(description="Same rule as `can_tick_tasks`, plus: the assigned nurse for the 2 hours "
+                                                  "after the visit (`observations_close_at` says when it closes).")
 
 
 class CarePlanOut(BaseModel):
@@ -312,6 +316,9 @@ class CarePlanOut(BaseModel):
     medications: List[MedicationOut] = Field(description="Active ones first, then stopped ones (history). " + MEDICATION_NOTICE)
     tasks: List[TaskOut]
     capabilities: Capabilities
+    observations_close_at: Optional[datetime] = Field(
+        None, description="Only on the nurse's post-visit access (the visit is completed): when notes stop being accepted. "
+                          "null during a live visit.")
     created_at: datetime
     updated_at: datetime
 
@@ -335,6 +342,9 @@ class VisitCarePlan(BaseModel):
     subject_ready: bool = Field(description="false: an app booking for someone else, so there is no identifiable client "
                                             "and no care plan is possible.")
     can_author: bool = Field(description="A nurse, and a client who can have a plan.")
+    author_scope: Literal["full", "caregiver_templates"] = Field(
+        "full", description="`full`: a nurse (any template, or a blank plan). `caregiver_templates`: any other caregiver, who "
+                            "may start and edit a plan only from a template with `caregiver_can_use` (Elderly).")
     plan: Optional[CarePlanSummary] = Field(None, description="The client's active plan; null if there is none yet.")
 
 
@@ -457,6 +467,7 @@ class TemplateListItem(BaseModel):
     clinical_review_status: Literal["pending", "approved"] = Field(
         description="While pending, show 'Not yet clinically reviewed'.")
     version: int
+    caregiver_can_use: bool = Field(False, description="true: a caregiver who is not a nurse may use this template (Elderly).")
 
 
 class TemplateGoal(BaseModel):

@@ -1,0 +1,89 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/b8ee5c85-f7ac-4577-9181-71bc0ec3b795/client",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "b8ee5c85-f7ac-4577-9181-71bc0ec3b795",
+      "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+      "full_name": "Placeholder Patient",
+      "profile_image_url": null,
+      "booking_for": "myself",
+      "age": null,
+      "gender": null,
+      "emergency_contact": null,
+      "medical_history": null,
+      "latest_vitals": [
+        {
+          "vital_type": "heart_rate",
+          "value": "130",
+          "unit": "bpm",
+          "recorded_at": "2026-11-25T17:25:09.332401",
+          "flag": {
+            "status": "high",
+            "label": "High",
+            "reason": "Heart rate above 100 bpm. Tell the family or the patient's doctor for a medical review.",
+            "emergency": false,
+            "message": null
+          },
+          "glucose_context": null
+        },
+        {
+          "vital_type": "blood_pressure",
+          "value": "135/78",
+          "unit": "mmHg",
+          "recorded_at": "2026-11-25T17:25:09.328338",
+          "flag": {
+            "status": "normal",
+            "label": "Normal",
+            "reason": null,
+            "emergency": false,
+            "message": null
+          },
+          "glucose_context": null
+        },
+        {
+          "vital_type": "sleep_duration",
+          "value": "5",
+          "unit": "hrs",
+          "recorded_at": "2026-11-25T17:25:09.319093",
+          "flag": null,
+          "glucose_context": null
+        },
+        {
+          "vital_type": "blood_glucose",
+          "value": "130",
+          "unit": "mg/dL",
+          "recorded_at": "2026-11-25T17:25:09.314914",
+          "flag": {
+            "status": "normal",
+            "label": "Normal",
+            "reason": null,
+            "emergency": false,
+            "message": null
+          },
+          "glucose_context": null
+        },
+        {
+          "vital_type": "temperature",
+          "value": "100.4",
+          "unit": "°F",
+          "recorded_at": "2026-11-25T17:25:09.302901",
+          "flag": {
+            "status": "high",
+            "label": "High",
+            "reason": "Temperature above 37.5 °C.",
+            "emergency": false,
+            "message": null
+          },
+          "glucose_context": null
+        }
+      ]
+    }
+  },
+  "note": "latest_vitals items carry flag and glucose_context."
+}

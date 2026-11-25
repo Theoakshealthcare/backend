@@ -245,6 +245,10 @@ class Settings(BaseSettings):
     # Gemini AI Configuration
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-3.5-flash"
+    # FallGuard v2.0: the optional AI summary of a result. OFF by default: the tier, reasons and recommendations are rule
+    # based and never come from a model, and the handover PDF has no step that sends answers to an outside AI service
+    # (that is a legal question, E4). When on, the text is returned with ai_review_status PENDING_CLINICIAN_REVIEW.
+    FALLGUARD_AI_ADVICE_ENABLED: bool = False
 
     # AI voice notes (docs/plans/2026-11-07-ai-note-transcription.md section 10). Off until the owner switches it on: the
     # switch is the kill switch too. Every limit has a default so a missing line never stops the app booting.

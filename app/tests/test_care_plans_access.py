@@ -5,6 +5,7 @@ matrix. A caregiver with no access of any kind gets the same body whether the bo
 """
 
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -63,7 +64,9 @@ def _assert_no_access(client, caregiver, scene, booking):
 @pytest.mark.parametrize("status", NOT_LIVE)
 def test_a_booking_that_is_not_live_gives_no_access(db, client, scene, status):
     other = make_nurse(db)
-    booking = make_booking(db, scene["patient"], other, status=status, booking_for="myself")
+    # A visit completed long ago: the nurse's 2-hour post-visit note grace (tested in test_care_templates_docs_space.py) is over.
+    ended = datetime.utcnow() - timedelta(hours=3) if status == BookingStatus.COMPLETED else None
+    booking = make_booking(db, scene["patient"], other, status=status, booking_for="myself", actual_end_time=ended)
     _assert_no_access(client, other, scene, booking)
 
 
@@ -111,6 +114,7 @@ def test_a_caregiver_who_dropped_out_loses_access(db, client, scene):
 def test_access_ends_when_the_visit_completes(db, client, scene):
     assert client.get(f"{BASE}/care-plans/{scene['plan']['id']}", headers=h(scene["owner"])).status_code == 200
     scene["booking"].status = BookingStatus.COMPLETED
+    scene["booking"].actual_end_time = datetime.utcnow() - timedelta(hours=3)  # past the nurse's 2 h note grace
     db.commit()
     _assert_no_access(client, scene["owner"], scene, scene["booking"])
 
@@ -192,7 +196,8 @@ def test_the_visit_summary_and_the_client_profile_agree_on_who_gets_in(db, clien
     patient = make_patient(db)
     patient.is_active = patient_active
     db.commit()
-    booking = make_booking(db, patient, owner, status=status, booking_for="myself")
+    ended = datetime.utcnow() - timedelta(hours=3) if status == BookingStatus.COMPLETED else None  # past the 2 h note grace
+    booking = make_booking(db, patient, owner, status=status, booking_for="myself", actual_end_time=ended)
     profile = client.get(f"{BASE}/bookings/{booking.id}/client", headers=h(caller))
     summary = client.get(f"{BASE}/bookings/{booking.id}/care-plan", headers=h(caller))
     assert summary.status_code == profile.status_code, (summary.text, profile.text)
@@ -228,7 +233,9 @@ def test_a_nurse_without_access_gets_404_before_any_role_check(db, client, scene
 def test_the_nurse_test_uses_the_skill_row_not_the_typed_specialization(db, client):
     typed_only = make_caregiver(db, specialization="Registered Nurse")
     assert client.get(f"{BASE}/home", headers=h(typed_only)).json()["can_author_care_plans"] is False
-    assert client.get(f"{BASE}/care-plan-templates", headers=h(typed_only)).status_code == 403
+    typed_list = client.get(f"{BASE}/care-plan-templates", headers=h(typed_only))
+    assert typed_list.status_code == 200 and [i["key"] for i in typed_list.json()["items"]] == [
+        "elderly_daily_living_dementia"]  # no nurse skill: only the template any caregiver may use
     skilled = make_nurse(db, specialization="Cook")
     assert client.get(f"{BASE}/home", headers=h(skilled)).json()["can_author_care_plans"] is True
     assert client.get(f"{BASE}/care-plan-templates", headers=h(skilled)).status_code == 200
@@ -240,7 +247,8 @@ def test_other_skills_do_not_make_an_author(db, client):
     cg = make_caregiver(db)
     db.add_all([CaregiverSkill(caregiver_id=cg.id, service_type=t) for t in ("doctor", "physiotherapist", "caregiver")])
     db.commit()
-    assert client.get(f"{BASE}/care-plan-templates", headers=h(cg)).status_code == 403
+    listed = client.get(f"{BASE}/care-plan-templates", headers=h(cg))
+    assert listed.status_code == 200 and len(listed.json()["items"]) == 1  # still only the caregiver-usable one
 
 
 # --- other account types and anonymous callers ----------------------------------------------------------------------

@@ -136,6 +136,7 @@ class AccountErasureService:
             self._wipe_patient(patient, email)
         self._wipe_care_recipients(user)
         self._wipe_care_plans(patient, user)
+        self._wipe_visit_documentation(patient)
         self._wipe_voice_notes(patient, now)
         self.db.query(PushToken).filter(PushToken.user_id == user.id).delete(synchronize_session=False)
         self.db.query(Notification).filter(Notification.user_id == user.id).delete(synchronize_session=False)  # their feed
@@ -408,6 +409,14 @@ class AccountErasureService:
         )
         for (recipient_id,) in self_recipients:
             wipe_plans_for_subject(self.db, recipient_id=recipient_id)
+
+    def _wipe_visit_documentation(self, patient: Optional[Patient]) -> None:
+        """A caregiver's own documentation of this person's visits is health text about them: the text is blanked, the rows stay."""
+        if patient is None:
+            return
+        from app.services.visit_documentation import blank_for_patient
+
+        blank_for_patient(self.db, patient.id)
 
     def _wipe_voice_notes(self, patient: Optional[Patient], now: datetime) -> None:
         """The voice notes of the person's own bookings are health text, not a legal-retention record: the rows (and any audio still parked

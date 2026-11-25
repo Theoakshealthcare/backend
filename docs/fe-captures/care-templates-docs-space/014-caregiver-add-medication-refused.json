@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/6b522513-a4d9-4336-8881-1c5f5564b208/medications",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "name": "Placeholder medicine",
+      "frequency": "once_daily",
+      "start_date": "2026-11-25"
+    }
+  },
+  "response": {
+    "status_code": 403,
+    "body": {
+      "detail": {
+        "code": "not_a_nurse",
+        "message": "Only nurses can create or change a care plan."
+      }
+    }
+  },
+  "note": "Medicines stay nurse-only, even on a plan the caregiver may edit."
+}
