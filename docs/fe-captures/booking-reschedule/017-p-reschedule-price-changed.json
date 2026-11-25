@@ -1,11 +1,11 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/e57d6569-4426-4e47-b8e1-1e3d3541f0e1/reschedule",
+    "path": "/api/v1/booking/366cc55a-d869-4872-a998-b8225e80958e/reschedule",
     "query": null,
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "new_scheduled_date": "2026-11-28T18:55:11.919579Z",
+      "new_scheduled_date": "2026-11-28T22:23:13.085780Z",
       "accepted_total_kobo": 5000000
     }
   },

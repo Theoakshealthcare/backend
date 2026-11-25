@@ -285,6 +285,8 @@ class RescheduleOut(BaseModel):
     price_handling: Literal["none", "credit_due"] = Field(
         description="credit_due: Finance refunds the difference (staff refund) once the visit is completed or cancelled")
     caregiver_released: bool
+    superseded: bool = Field(description="True for every row but the newest: each row is priced against the amount originally "
+                                         "paid, so only the newest row's difference counts (see reschedule_credit_due_kobo)")
 
 
 class BookingDetail(BaseModel):
@@ -320,6 +322,9 @@ class BookingDetail(BaseModel):
     timeline: List[TimelineEntry]
     available_actions: List[ActionName]
     reschedule_count: int = 0
+    reschedule_credit_due_kobo: int = Field(
+        0, description="What the family is owed back for a lower price after a reschedule: the NEWEST reschedule's credit "
+                       "only (not the sum of the rows). Queued as a pending refund when the visit is completed.")
     reschedules: List[RescheduleOut] = []
 
 

@@ -30,18 +30,18 @@ A booking id that does not exist is 404 `booking_not_found`; someone else's book
 <!-- capture: 001-p-terms.json response.body -->
 ```json
 {
-  "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
-  "booking_code": "1DC0524D",
+  "booking_id": "a71bf046-a903-4caa-bcb7-52975cf607c0",
+  "booking_code": "56C8E8D8",
   "can_reschedule": true,
   "reason": null,
   "message": null,
-  "current_scheduled_date": "2026-11-27T10:55:12.170540",
+  "current_scheduled_date": "2026-11-27T14:23:13.344988",
   "free_hours": 12,
   "reschedules_used": 0,
   "reschedules_allowed": 2,
   "reschedules_left": 2,
-  "earliest_new_time": "2026-11-26T06:55:12.237034",
-  "latest_new_time": "2026-12-23T18:55:12.237034",
+  "earliest_new_time": "2026-11-26T10:23:13.415599",
+  "latest_new_time": "2026-12-23T22:23:13.415599",
   "caregiver_assigned": false,
   "price": {
     "paid_amount": 44000.0,
@@ -57,7 +57,7 @@ A booking id that does not exist is 404 `booking_not_found`; someone else's book
   "new_time_ok": null,
   "new_time_reason": null,
   "new_time_message": null,
-  "as_of": "2026-11-25T18:55:12.237034"
+  "as_of": "2026-11-25T22:23:13.415599"
 }
 ```
 
@@ -70,18 +70,18 @@ With a target time the answer adds `new_time_ok`:
 <!-- capture: 003-p-terms-target-too-far.json response.body -->
 ```json
 {
-  "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
-  "booking_code": "1DC0524D",
+  "booking_id": "a71bf046-a903-4caa-bcb7-52975cf607c0",
+  "booking_code": "56C8E8D8",
   "can_reschedule": true,
   "reason": null,
   "message": null,
-  "current_scheduled_date": "2026-11-27T10:55:12.170540",
+  "current_scheduled_date": "2026-11-27T14:23:13.344988",
   "free_hours": 12,
   "reschedules_used": 0,
   "reschedules_allowed": 2,
   "reschedules_left": 2,
-  "earliest_new_time": "2026-11-26T06:55:12.249422",
-  "latest_new_time": "2026-12-23T18:55:12.249422",
+  "earliest_new_time": "2026-11-26T10:23:13.429239",
+  "latest_new_time": "2026-12-23T22:23:13.429239",
   "caregiver_assigned": false,
   "price": {
     "paid_amount": 44000.0,
@@ -97,7 +97,7 @@ With a target time the answer adds `new_time_ok`:
   "new_time_ok": false,
   "new_time_reason": "new_time_too_far",
   "new_time_message": "The new time can be at most 28 days from now. Please contact support to book further ahead.",
-  "as_of": "2026-11-25T18:55:12.249422"
+  "as_of": "2026-11-25T22:23:13.429239"
 }
 ```
 
@@ -108,7 +108,7 @@ With a target time the answer adds `new_time_ok`:
 <!-- capture: 004-p-reschedule-unassigned.json request.body -->
 ```json
 {
-  "new_scheduled_date": "2026-11-28T18:55:11.919579Z",
+  "new_scheduled_date": "2026-11-28T22:23:13.085780Z",
   "request_id": "11111111-1111-4111-8111-111111111111",
   "accepted_total_kobo": 4400000
 }
@@ -117,13 +117,13 @@ With a target time the answer adds `new_time_ok`:
 <!-- capture: 004-p-reschedule-unassigned.json response.body -->
 ```json
 {
-  "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
-  "booking_code": "1DC0524D",
+  "booking_id": "a71bf046-a903-4caa-bcb7-52975cf607c0",
+  "booking_code": "56C8E8D8",
   "status": "pending",
   "already_rescheduled": false,
-  "previous_scheduled_date": "2026-11-27T10:55:12.170540",
-  "scheduled_date": "2026-11-28T18:55:11.919579",
-  "scheduled_end_date": "2026-11-28T22:55:11.919579",
+  "previous_scheduled_date": "2026-11-27T14:23:13.344988",
+  "scheduled_date": "2026-11-28T22:23:13.085780",
+  "scheduled_end_date": "2026-11-29T02:23:13.085780",
   "reschedules_used": 1,
   "reschedules_left": 1,
   "caregiver_released": false,
@@ -149,13 +149,13 @@ With a target time the answer adds `new_time_ok`:
 <!-- capture: 006-p-reschedule-caregiver-released.json response.body -->
 ```json
 {
-  "booking_id": "7fe94933-7b94-4be2-9b4f-b6277fea3374",
-  "booking_code": "3EDF7E79",
+  "booking_id": "4732e516-669f-4ec8-a71b-3f04b9bc138a",
+  "booking_code": "D991EC1C",
   "status": "pending",
   "already_rescheduled": false,
-  "previous_scheduled_date": "2026-11-27T00:55:12.175531",
-  "scheduled_date": "2026-11-29T18:55:11.919579",
-  "scheduled_end_date": "2026-11-29T22:55:11.919579",
+  "previous_scheduled_date": "2026-11-27T04:23:13.350469",
+  "scheduled_date": "2026-11-29T22:23:13.085780",
+  "scheduled_end_date": "2026-11-30T02:23:13.085780",
   "reschedules_used": 1,
   "reschedules_left": 1,
   "caregiver_released": true,
@@ -181,13 +181,13 @@ Generate one UUID **per confirm screen** and send it. Sending the same `request_
 <!-- capture: 005-p-reschedule-replay.json response.body -->
 ```json
 {
-  "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
-  "booking_code": "1DC0524D",
+  "booking_id": "a71bf046-a903-4caa-bcb7-52975cf607c0",
+  "booking_code": "56C8E8D8",
   "status": "pending",
   "already_rescheduled": true,
-  "previous_scheduled_date": "2026-11-27T10:55:12.170540",
-  "scheduled_date": "2026-11-28T18:55:11.919579",
-  "scheduled_end_date": "2026-11-28T22:55:11.919579",
+  "previous_scheduled_date": "2026-11-27T14:23:13.344988",
+  "scheduled_date": "2026-11-28T22:23:13.085780",
+  "scheduled_end_date": "2026-11-29T02:23:13.085780",
   "reschedules_used": 1,
   "reschedules_left": 1,
   "caregiver_released": false,
@@ -208,6 +208,11 @@ Generate one UUID **per confirm screen** and send it. Sending the same `request_
 
 Treat `already_rescheduled: true` as success, not as an error.
 
+### 2.5 Sending the new time (read this before wiring the date picker)
+
+- Send `new_scheduled_date` as ISO 8601 **with a `Z`** (`2026-11-28T18:55:11Z`) or an offset. A value **without** a zone is read as **UTC**, not as the phone's local time, so convert local picks to UTC first.
+- On the `GET reschedule-terms?new_scheduled_date=...` query string an **unencoded `+01:00` turns into a space and the call is a 422**. Send the `Z` form, or URL-encode the value (`encodeURIComponent` turns `+` into `%2B`). The POST body has no such problem.
+
 ## 3. Caregiver pushes (for the caregiver app)
 
 The caregiver who is released gets this push (booking code only: never the patient, address or condition) and an in-app notice on the booking:
@@ -219,10 +224,10 @@ The caregiver who is released gets this push (booking code only: never the patie
     {
       "to": "ExponentPushToken[placeholder-caregiver]",
       "title": "Visit rescheduled",
-      "body": "Booking 3EDF7E79 was rescheduled and is no longer assigned to you.",
+      "body": "Booking D991EC1C was rescheduled and is no longer assigned to you.",
       "data": {
         "type": "booking_rescheduled",
-        "booking_id": "7fe94933-7b94-4be2-9b4f-b6277fea3374"
+        "booking_id": "4732e516-669f-4ec8-a71b-3f04b9bc138a"
       },
       "sound": "default",
       "priority": "high"
@@ -240,12 +245,12 @@ The new wave is the existing `job_offer` push, and **`scheduled_at` is the new t
     {
       "to": "ExponentPushToken[placeholder-caregiver]",
       "title": "New visit request",
-      "body": "Nurse visit in Lagos, Sat 28 Nov, 19:55",
+      "body": "Nurse visit in Lagos, Sat 28 Nov, 23:23",
       "data": {
         "type": "job_offer",
-        "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
+        "booking_id": "a71bf046-a903-4caa-bcb7-52975cf607c0",
         "area": "Lagos",
-        "scheduled_at": "2026-11-28T18:55:11.919579Z"
+        "scheduled_at": "2026-11-28T22:23:13.085780Z"
       },
       "sound": "default",
       "priority": "high"
@@ -253,12 +258,12 @@ The new wave is the existing `job_offer` push, and **`scheduled_at` is the new t
     {
       "to": "ExponentPushToken[placeholder-caregiver]",
       "title": "New visit request",
-      "body": "Nurse visit in Lagos, Sun 29 Nov, 19:55",
+      "body": "Nurse visit in Lagos, Sun 29 Nov, 23:23",
       "data": {
         "type": "job_offer",
-        "booking_id": "7fe94933-7b94-4be2-9b4f-b6277fea3374",
+        "booking_id": "4732e516-669f-4ec8-a71b-3f04b9bc138a",
         "area": "Lagos",
-        "scheduled_at": "2026-11-29T18:55:11.919579Z"
+        "scheduled_at": "2026-11-29T22:23:13.085780Z"
       },
       "sound": "default",
       "priority": "high"
@@ -275,49 +280,49 @@ The caregiver app must handle `data.type == "booking_rescheduled"` (open the boo
 ```json
 [
   {
-    "id": "3368a64e-b533-4812-9aa5-c08e10d09b74",
+    "id": "366cc55a-d869-4872-a998-b8225e80958e",
     "status": "pending",
-    "scheduled_date": "2026-11-27T20:55:12.340923",
-    "reschedule_count": 0,
-    "can_reschedule": true,
-    "reschedules_left": 2,
-    "dispatch_state": null
-  },
-  {
-    "id": "343c6556-40d4-45dd-84c4-06ece92e8013",
-    "status": "pending",
-    "scheduled_date": "2026-11-26T00:55:12.301231",
-    "reschedule_count": 0,
-    "can_reschedule": false,
-    "reschedules_left": 2,
-    "dispatch_state": null
-  },
-  {
-    "id": "41e9d554-ad67-4b03-8c6d-4ce7050c56a7",
-    "status": "pending",
-    "scheduled_date": "2026-11-27T20:55:12.308784",
-    "reschedule_count": 0,
-    "can_reschedule": true,
-    "reschedules_left": 2,
-    "dispatch_state": null
-  },
-  {
-    "id": "62ab8149-7682-49c4-96d8-534209080dcb",
-    "status": "pending",
-    "scheduled_date": "2026-11-27T20:55:12.349670",
-    "reschedule_count": 0,
-    "can_reschedule": false,
-    "reschedules_left": 2,
-    "dispatch_state": null
-  },
-  {
-    "id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
-    "status": "pending",
-    "scheduled_date": "2026-11-28T18:55:11.919579",
+    "scheduled_date": "2026-11-28T22:23:13.085780",
     "reschedule_count": 1,
     "can_reschedule": true,
     "reschedules_left": 1,
     "dispatch_state": "dispatching"
+  },
+  {
+    "id": "4732e516-669f-4ec8-a71b-3f04b9bc138a",
+    "status": "pending",
+    "scheduled_date": "2026-11-30T22:23:13.085780",
+    "reschedule_count": 2,
+    "can_reschedule": false,
+    "reschedules_left": 0,
+    "dispatch_state": "dispatching"
+  },
+  {
+    "id": "7769be56-5f78-42da-8e4d-08fc5cb89a06",
+    "status": "pending",
+    "scheduled_date": "2026-11-28T00:23:13.537623",
+    "reschedule_count": 0,
+    "can_reschedule": false,
+    "reschedules_left": 2,
+    "dispatch_state": null
+  },
+  {
+    "id": "a71bf046-a903-4caa-bcb7-52975cf607c0",
+    "status": "pending",
+    "scheduled_date": "2026-11-28T22:23:13.085780",
+    "reschedule_count": 1,
+    "can_reschedule": true,
+    "reschedules_left": 1,
+    "dispatch_state": "dispatching"
+  },
+  {
+    "id": "b2ff3d44-1111-4512-8973-7418d878a14a",
+    "status": "pending",
+    "scheduled_date": "2026-11-26T04:23:13.486411",
+    "reschedule_count": 0,
+    "can_reschedule": false,
+    "reschedules_left": 2,
+    "dispatch_state": null
   }
 ]
 ```
@@ -443,13 +448,13 @@ The pricing engine has no time-of-day input: the price at the new time is the pr
 <!-- capture: 018-p-reschedule-lower-price-credit.json response.body -->
 ```json
 {
-  "booking_id": "e57d6569-4426-4e47-b8e1-1e3d3541f0e1",
-  "booking_code": "1CC996A5",
+  "booking_id": "366cc55a-d869-4872-a998-b8225e80958e",
+  "booking_code": "369FA3EF",
   "status": "pending",
   "already_rescheduled": false,
-  "previous_scheduled_date": "2026-11-27T20:55:12.320224",
-  "scheduled_date": "2026-11-28T18:55:11.919579",
-  "scheduled_end_date": "2026-11-28T22:55:11.919579",
+  "previous_scheduled_date": "2026-11-28T00:23:13.507455",
+  "scheduled_date": "2026-11-28T22:23:13.085780",
+  "scheduled_end_date": "2026-11-29T02:23:13.085780",
   "reschedules_used": 1,
   "reschedules_left": 1,
   "caregiver_released": false,
@@ -467,6 +472,8 @@ The pricing engine has no time-of-day input: the price at the new time is the pr
   }
 }
 ```
+
+   **Several reschedules, one amount:** each reschedule is priced against the amount **originally paid**, so the credits are **not added up**: only the **latest** quote counts. Paid 10,000, then a quote of 8,000 (credit 2,000), then a quote of 10,000 means nothing is owed; 8,000 then 9,000 means 1,000 is owed, not 3,000. Always show the credit of the response you just received, never a sum over earlier ones.
 
 3. **Higher price**: the app **cannot** move the visit without charging the family, so the server refuses. The terms endpoint already says so (`can_reschedule: false`, `reason: "price_increase_needs_support"`), so **disable the option and show a contact-support action** with the message instead of letting them pick a time. This is the PDF's "manually adjust at the client's request" path.
 
@@ -541,20 +548,80 @@ The pricing engine has no time-of-day input: the price at the new time is the pr
 <!-- capture: 024-a-booking-detail-reschedules.json response.body -->
 ```json
 {
-  "scheduled_date": "2026-11-28T18:55:11.919579",
+  "scheduled_date": "2026-11-28T22:23:13.085780",
   "reschedule_count": 1,
+  "reschedule_credit_due_kobo": 600000,
   "reschedules": [
     {
-      "created_at": "2026-11-25T18:55:12.331937",
-      "old_scheduled_date": "2026-11-27T20:55:12.320224",
-      "new_scheduled_date": "2026-11-28T18:55:11.919579",
+      "created_at": "2026-11-25T22:23:13.518555",
+      "old_scheduled_date": "2026-11-28T00:23:13.507455",
+      "new_scheduled_date": "2026-11-28T22:23:13.085780",
       "old_total_kobo": 5000000,
       "new_total_kobo": 4400000,
       "price_difference_kobo": -600000,
       "price_handling": "credit_due",
-      "caregiver_released": false
+      "caregiver_released": false,
+      "superseded": false
     }
   ]
+}
+```
+
+**One amount owed, newest row only.** Every row is priced against the amount originally paid, so the rows are not cumulative: `reschedule_credit_due_kobo` on the booking is the amount owed (the newest row's credit), and every older row has `superseded: true`. Show that one number to Finance, not a sum of the rows.
+
+**When the visit is completed** (by the caregiver, or an admin marking it completed), the owed amount is put in the **refund queue** as a `pending_approval` refund (reason `other`, a note saying why, suggested amount = the credit, never more than what is left to refund) and the booking gets `refund_required: true` with `refund_required_reason: "reschedule_price_difference"`. A person approves it as any refund; nothing is paid by itself. A booking **cancelled** instead gets nothing extra: the cancel refund is paid minus the fee, so the difference is already inside it.
+
+<!-- capture: 026-a-booking-detail-after-completion.json response.body -->
+```json
+{
+  "status": "completed",
+  "reschedule_count": 1,
+  "reschedule_credit_due_kobo": 600000,
+  "payment": {
+    "status": "paid",
+    "refund_required": true,
+    "refund_required_reason": "reschedule_price_difference",
+    "refund_amount_kobo": 600000
+  }
+}
+```
+
+<!-- capture: 027-a-refund-queue-credit.json response.body -->
+```json
+{
+  "items": [
+    {
+      "id": "c5620e35-2ab8-4628-ad96-8f7f6b426764",
+      "booking_id": "366cc55a-d869-4872-a998-b8225e80958e",
+      "booking_code": "369FA3EF",
+      "status": "pending_approval",
+      "reason_code": "other",
+      "origin": "system",
+      "suggested_amount_naira": 6000.0,
+      "amount_naira": null,
+      "destination": null,
+      "take_back_from_caregiver": false,
+      "take_back_naira": 0.0,
+      "failure_reason": null,
+      "note": "Reschedule price difference: paid 50000.00, price at the new time 44000.00. The family was told this would be refunded after the visit.",
+      "rejected_reason": null,
+      "requested_by": null,
+      "approved_by": null,
+      "review_flagged_at": null,
+      "review_reason": null,
+      "created_at": "2026-11-25T22:23:13.899837",
+      "approved_at": null,
+      "processed_at": null,
+      "max_approvable_naira": 50000.0,
+      "available_actions": [
+        "approve",
+        "reject"
+      ]
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
 }
 ```
 
@@ -573,9 +640,9 @@ The pricing engine has no time-of-day input: the price at the new time is the pr
 
 | Behaviour | Verified |
 |---|---|
-| Terms and reschedule bodies, replay, caregiver release, errors 403/409/422, list fields, admin detail, policy PATCH | Yes, live on the test harness (captures `001` to `025`) |
+| Terms and reschedule bodies, replay, caregiver release, errors 403/409/422, list fields, admin detail, policy PATCH, the refund queued at completion | Yes, live on the test harness (captures `001` to `027`) |
 | The release push and the re-offer push | Yes, as the exact request to a fake Expo (captures `007`, `008`). A real device was **not** tested |
-| Exactly 12 hours and exactly 28 days, the limit of 2, double submit, reschedule racing a caregiver accept | Yes, by backend tests (`app/tests/test_booking_reschedule.py`), not by captures |
+| Exactly 12 hours and exactly 28 days, the limit of 2, double submit, reschedule racing a caregiver accept, the credit being the latest quote only, matching restarting at a reschedule, a decline staying final | Yes, by backend tests (`app/tests/test_booking_reschedule.py`, `test_booking_reschedule_fixes.py`), not by captures |
 | 503 `booking_settings_not_configured`, `service_unavailable`, `request_id_reused`, `request_id_too_long`, `booking_already_cancelled`, `booking_not_reschedulable` | Yes in backend tests; **no capture**, the shapes follow the same `{code, message}` as the captured ones |
 | A real Paystack payment before rescheduling | No: bookings are created already paid. Settlement is covered by its own guide |
 | The "nobody accepts, then the admin unmatched queue" path end to end with a worker | Partly: the test calls the dispatch tick with an explicit clock; the ARQ cron schedule is not exercised |

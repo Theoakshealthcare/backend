@@ -1,11 +1,11 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/3368a64e-b533-4812-9aa5-c08e10d09b74/reschedule",
+    "path": "/api/v1/booking/d6462896-54a1-4305-b816-d6a71b77613b/reschedule",
     "query": null,
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "new_scheduled_date": "2026-11-28T18:55:11.919579Z"
+      "new_scheduled_date": "2026-11-28T22:23:13.085780Z"
     }
   },
   "response": {

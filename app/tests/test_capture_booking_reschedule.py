@@ -156,8 +156,31 @@ def test_capture(db, client, expo):
     detail = r.json()
     _write("024-a-booking-detail-reschedules.json", {
         "request": {**_http(r)["request"], "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>"},
-        "response": {"status_code": r.status_code, "body": {k: detail[k] for k in ("scheduled_date", "reschedule_count", "reschedules")}}})
+        "response": {"status_code": r.status_code, "body": {k: detail[k] for k in ("scheduled_date", "reschedule_count", "reschedule_credit_due_kobo", "reschedules")}}})
     body = {"reason": "Pilot settings", "reschedule_free_hours": 12, "reschedule_max_free": 2, "reschedule_max_days_ahead": 28}
     r = client.patch("/api/v1/admin/booking-policy", json=body, headers=a)
     _write("025-a-policy-patch.json", {**_http(r, "PATCH", body), "response": {
         "status_code": r.status_code, "body": {k: v for k, v in r.json().items() if k.startswith("reschedule")}}})
+
+
+    # the visit is done: the promised difference is queued for Finance (the caregiver completes it over real HTTP)
+    from app.services import booking_reschedule as resched_service
+    cheaper = db.get(type(cheaper), cheaper.id)
+    cheaper.caregiver_id, cheaper.status, cheaper.actual_start_time = cg.id, BookingStatus.IN_PROGRESS, now
+    cheaper.dispatch_state = "matched"
+    db.commit()
+    cg_headers = auth_headers(cg.user)
+    r = client.post(f"{API}/caregiver/action/{cheaper.id}", json={"action": "complete"}, headers=cg_headers)
+    assert r.status_code == 200, r.text
+    r = client.get(f"/api/v1/admin/bookings/{cheaper.id}", headers=a)
+    detail = r.json()
+    _write("026-a-booking-detail-after-completion.json", {
+        "request": {**_http(r)["request"], "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>"},
+        "response": {"status_code": r.status_code, "body": {
+            "status": detail["status"], "reschedule_count": detail["reschedule_count"],
+            "reschedule_credit_due_kobo": detail["reschedule_credit_due_kobo"], "payment": {
+                k: detail["payment"][k] for k in ("status", "refund_required", "refund_required_reason", "refund_amount_kobo")}}}})
+    r = client.get("/api/v1/admin/refunds", params={"booking_id": str(cheaper.id)}, headers=a)
+    _write("027-a-refund-queue-credit.json", {**_http(r, query={"booking_id": "<BOOKING_ID>"}), "response": {
+        "status_code": r.status_code, "body": r.json()}})
+    assert resched_service.credit_owed_kobo(db, cheaper.id) == 600000

@@ -545,7 +545,7 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
   - [x] Admin booking detail shows the history; FE guide with live captures (`docs/fe-captures/booking-reschedule/`)
   - [ ] Patient app screens (hide the option when `can_reschedule` is false), admin console fields and history
   - [ ] Admin-made manual reschedule (beyond 28 days, past the limit, price increase) with a patient notice event
-  - [ ] Automatic refund of the `credit_due` difference once the visit is completed or cancelled (needs a decision on the caregiver take-back)
+  - [x] The `credit_due` difference is the latest quote only and is queued as a pending refund when the visit is completed (follow-up PR after the Opus review; a cancel needs nothing extra); matching restarts at a reschedule; a decline stays final
   - [ ] Owner decisions: what a price increase should do (absorb, top-up payment, cancel and rebook); whether a booking under 12 h away with no caregiver may move
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
 - [ ] FallGuard v2.0 (replaces the 24-question screener):
