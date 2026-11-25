@@ -15,10 +15,10 @@ def _columns(eng):
     return {c["name"] for c in inspect(eng).get_columns("caregiver_locations")}
 
 
-def test_the_revision_chains_and_is_the_only_head():
+def test_the_revision_chains_and_the_history_has_one_head():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     assert script.get_revision(THIS).down_revision == BEFORE
-    assert script.get_heads() == [THIS]
+    assert len(script.get_heads()) == 1  # a later migration may sit on top; two heads would be a fork
 
 
 def test_upgrade_adds_a_nullable_column_and_downgrade_removes_it(scratch):
