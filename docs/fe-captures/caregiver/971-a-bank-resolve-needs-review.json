@@ -14,7 +14,7 @@
       "content-type": "application/json"
     },
     "body": {
-      "account_name": "S***** O**********",
+      "account_name": "S**** O****",
       "account_number": "0000000011",
       "bank_code": "058",
       "bank_name": "Placeholder Bank",

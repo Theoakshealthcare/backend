@@ -2539,7 +2539,7 @@ A caregiver may save a payout account whose holder name does not look like their
 | Route | Permission | Notes |
 |---|---|---|
 | `GET /admin/payouts/bank-reviews` | `payments.read` | filter `status` (`pending` is the default, `rejected`, `approved`); `limit` (1 to 200), `offset`; oldest first. Shows both names so a person can compare them |
-| `POST /admin/payouts/bank-reviews/{caregiver_id}/approve` | `payouts.execute` (Finance, Super Admin) | body `{"reason": "...", "account_last4": "0011"}`; payouts to the account resume |
+| `POST /admin/payouts/bank-reviews/{caregiver_id}/approve` | `payouts.execute` (Finance, Super Admin) | body `{"reason": "...", "review_token": "<the review_token of the queue item>"}`; payouts to the account resume |
 | `POST /admin/payouts/bank-reviews/{caregiver_id}/reject` | `payouts.execute` | same body; no payout is made to the account and the caregiver must save a different one |
 
 The id in the path is the **caregiver's id**, not a bank-account id (a caregiver has one account; saving again replaces it).
@@ -2551,15 +2551,16 @@ The queue (capture `970`). **`caregiver_name` is the name on the Oakly profile a
 {
   "items": [
     {
-      "caregiver_id": "bcb2697a-a91d-4ea6-92b6-666e90f3ce9e",
+      "caregiver_id": "ebe8699f-8d9e-49d3-87be-2ad3a582333c",
       "caregiver_name": "Placeholder Tosin",
       "account_name": "SAMPLE OTHERPERSON",
       "bank_name": "Placeholder Bank",
       "account_number": "******0011",
       "status": "pending",
       "balance_kobo": 0,
-      "submitted_at": "2026-11-25T13:20:55.933351",
-      "decided_at": null
+      "submitted_at": "2026-11-25T17:13:31.151399",
+      "decided_at": null,
+      "review_token": "dd74b5247e20c65a93c39d8cdfe044cc"
     }
   ],
   "total": 1
@@ -2568,7 +2569,7 @@ The queue (capture `970`). **`caregiver_name` is the name on the Oakly profile a
 
 _capture `970-finance-bank-reviews.json` (the wallet was empty in the capture, so `balance_kobo` is 0)_
 
-**Send the last four digits of the account the reviewer looked at as `account_last4`.** If the caregiver has saved a different account since the queue was loaded, the decision is refused and nothing changes (capture `971`), so the page must reload the item and let the reviewer look again:
+**Send the `review_token` of the queue item the reviewer looked at.** It names the exact account (number, bank and holder name). If the caregiver has saved a different account since the queue was loaded, even one that ends in the same four digits, the decision is refused and nothing changes (capture `971`), so the page must reload the item and let the reviewer look again:
 
 <!-- capture: 971-finance-bank-review-stale.json response.body -->
 ```json
@@ -2579,20 +2580,21 @@ _capture `970-finance-bank-reviews.json` (the wallet was empty in the capture, s
 
 _capture `971-finance-bank-review-stale.json`_
 
-Approval returns the item with `status` `approved` and `decided_at` set (capture `972`); a rejection is the same with `rejected` (capture `974`). A decision on an account that is not `pending` is `409` (capture `973`); an unknown caregiver is `404` `{"detail": "Bank account not found"}` **[not live: automated test]**; a missing `reason` or a malformed `account_last4` is `422` **[not live: automated test]**; a role without `payouts.execute` gets `403` `Access denied. Missing permission: payouts.execute` **[not live: automated test for these routes; the same message is captured for the other payout routes]**.
+Approval returns the item with `status` `approved` and `decided_at` set (capture `972`); a rejection is the same with `rejected` (capture `974`). A decision on an account that is not `pending` is `409` (capture `973`); an unknown caregiver is `404` `{"detail": "Bank account not found"}` **[not live: automated test]**; a missing `reason` or a malformed `review_token` is `422` **[not live: automated test]**; a role without `payouts.execute` gets `403` `Access denied. Missing permission: payouts.execute` **[not live: automated test for these routes; the same message is captured for the other payout routes]**.
 
 <!-- capture: 972-finance-bank-review-approve.json response.body -->
 ```json
 {
-  "caregiver_id": "bcb2697a-a91d-4ea6-92b6-666e90f3ce9e",
+  "caregiver_id": "ebe8699f-8d9e-49d3-87be-2ad3a582333c",
   "caregiver_name": "Placeholder Tosin",
   "account_name": "SAMPLE OTHERPERSON",
   "bank_name": "Placeholder Bank",
   "account_number": "******0011",
   "status": "approved",
   "balance_kobo": 0,
-  "submitted_at": "2026-11-25T13:20:55.933351",
-  "decided_at": "2026-11-25T13:20:56.164724"
+  "submitted_at": "2026-11-25T17:13:31.151399",
+  "decided_at": "2026-11-25T17:13:31.216489",
+  "review_token": "dd74b5247e20c65a93c39d8cdfe044cc"
 }
 ```
 

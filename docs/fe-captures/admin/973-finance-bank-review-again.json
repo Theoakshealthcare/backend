@@ -1,11 +1,11 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/admin/payouts/bank-reviews/642c0f16-f324-442f-948b-8e5a412208e0/approve",
+    "path": "/api/v1/admin/payouts/bank-reviews/ebe8699f-8d9e-49d3-87be-2ad3a582333c/approve",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
       "reason": "Placeholder: second click",
-      "account_last4": "0011"
+      "review_token": "dd74b5247e20c65a93c39d8cdfe044cc"
     }
   },
   "response": {
