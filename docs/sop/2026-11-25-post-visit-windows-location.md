@@ -36,7 +36,7 @@ The owner's first real-phone test (2026-11-25) approved four behaviours. The app
 | `app/services/voice_notes/access.py` | uses the shared note windows |
 | `app/api/v1/endpoints/booking.py`, `app/schemas/booking.py` | `send_chat_message` 409, payload fields, booking-notes windows |
 | `app/services/caregiver_chats.py`, `app/schemas/caregiver_chat.py` | list item fields |
-| `deploy/env.example` | the five new settings (code defaults apply; `.env.*.enc` untouched) |
+| `deploy/env.example` | the five new settings in both `deploy/env.example` and `.env.example` (code defaults apply; `.env.*.enc` untouched) |
 | `.github/workflows/ci.yml` | the new guide's render check |
 
 ## Verification
