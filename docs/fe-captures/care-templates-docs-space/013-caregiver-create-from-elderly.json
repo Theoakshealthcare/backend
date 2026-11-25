@@ -1,0 +1,133 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bookings/330cd2e4-726b-4f39-89f1-4119d7fe521b/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "template_id": "5f437e3b-d9c0-4150-9fc2-afc2f3b7ed24",
+      "diagnosis": "Placeholder diagnosis"
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "body": {
+      "id": "6b522513-a4d9-4336-8881-1c5f5564b208",
+      "version": 1,
+      "status": "active",
+      "booking_id": "330cd2e4-726b-4f39-89f1-4119d7fe521b",
+      "client": {
+        "full_name": "Placeholder Client",
+        "age": 71,
+        "gender": "female"
+      },
+      "diagnosis": "Placeholder diagnosis",
+      "risk_level": "medium",
+      "start_date": "2026-11-25",
+      "duration_days": 30,
+      "review_every_days": 14,
+      "review_due_on": "2026-12-09",
+      "template": {
+        "id": "5f437e3b-d9c0-4150-9fc2-afc2f3b7ed24",
+        "name": "Elderly Daily Living and Dementia Support",
+        "version": 1
+      },
+      "author": {
+        "name": "Placeholder Caregiver Chidi",
+        "kind": "caregiver"
+      },
+      "allergies": [],
+      "special_instructions": [
+        "Do not leave the client alone if wandering is a risk",
+        "Note any new confusion or change in behaviour"
+      ],
+      "goals": [
+        {
+          "id": "09a32137-0d15-4399-b627-b5487f672150",
+          "title": "Calm, predictable daily routine",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        },
+        {
+          "id": "fba58548-8e12-414f-b4ed-9a22988d0267",
+          "title": "Safe home and fall prevention",
+          "target": null,
+          "frequency": "ongoing",
+          "status": "active"
+        },
+        {
+          "id": "cc1d183d-a9d9-44a0-bf05-7bb680433bbb",
+          "title": "Regular meals, fluids and toileting",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        },
+        {
+          "id": "7a5e6546-1b7f-4f40-a7ac-7c68c1bf8d5c",
+          "title": "Keep the client engaged",
+          "target": null,
+          "frequency": "daily",
+          "status": "active"
+        }
+      ],
+      "medications": [],
+      "tasks": [
+        {
+          "id": "f4008090-5dff-4ab7-baa6-eed43fe3b51a",
+          "title": "Morning routine: wash, dress, breakfast",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "d7dcf244-54c2-4197-9175-200e6b0cb439",
+          "title": "Hydration prompts",
+          "time_slot": "morning",
+          "time_of_day": "08:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "id": "fc0f0ca7-6465-4c84-b5fb-0265ac9ccceb",
+          "title": "Hydration prompts",
+          "time_slot": "afternoon",
+          "time_of_day": "13:00",
+          "days_of_week": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      ],
+      "capabilities": {
+        "can_edit_plan": true,
+        "can_edit_medications": false,
+        "can_tick_tasks": true,
+        "can_add_observation": true
+      },
+      "observations_close_at": null,
+      "created_at": "2026-11-25T17:41:52.598313",
+      "updated_at": "2026-11-25T17:41:52.598314"
+    }
+  },
+  "note": "`capabilities.can_edit_plan` is true; `can_edit_medications` is false. `tasks` trimmed to its first 3 items; the real list is longer."
+}

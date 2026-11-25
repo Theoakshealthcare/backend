@@ -49,7 +49,11 @@ def test_upgrade_downgrade_round_trip(scratch):  # noqa: F811
 def test_five_templates_are_seeded_pending_review_and_active(db):
     rows = db.query(CarePlanTemplate).all()
     assert len(rows) == 5
-    assert all(t.clinical_review_status == "pending" and t.is_active and t.version == 1 for t in rows)
+    # 0031 rewrote four of them (version 2, clinician-approved text); sign-off itself is still pending for all five
+    assert {t.key: t.version for t in rows} == {
+        "stroke_recovery": 2, "diabetes_management": 2, "post_surgery_recovery": 2, "cardiac_rehabilitation": 2,
+        "elderly_daily_living_dementia": 1}
+    assert all(t.clinical_review_status == "pending" and t.is_active for t in rows)
     assert all(t.reviewed_by_admin_id is None and t.reviewed_at is None for t in rows)
     for t in rows:
         body = t.body

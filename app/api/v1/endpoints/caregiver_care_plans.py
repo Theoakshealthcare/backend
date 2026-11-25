@@ -30,11 +30,14 @@ from app.services import care_plan_observations as notes
 from app.services import care_plan_tasks as tasks
 from app.services import care_plans as svc
 from app.services.care_plan_access import (
-    NotANurse, PlanAccess, PlanNotAvailable, require_author, resolve_plan_access, resolve_plan_access_for_plan,
+    NotANurse, PlanAccess, PlanNotAvailable, is_care_plan_author, require_author, resolve_grace_access_for_plan,
+    resolve_grace_access_for_booking, resolve_plan_access, resolve_plan_access_for_plan,
 )
 
 NOT_FOUND = "Care plan not found"
 NOT_A_NURSE = {"code": "not_a_nurse", "message": "Only nurses can create or change a care plan."}
+# Any caregiver may start and edit a plan from a template flagged `caregiver_can_use` (Elderly); medications stay nurse-only.
+
 
 
 def _no_store(response: Response) -> None:
@@ -71,20 +74,30 @@ def _caregiver(db: Session, user: User) -> Caregiver:
     return caregiver
 
 
-def _nurse(db: Session, caregiver: Caregiver) -> None:
+def _nurse(db: Session, caregiver: Caregiver, *, plan: Optional[CarePlan] = None,
+           template: Optional[Any] = None) -> None:
+    """403 ``not_a_nurse`` unless the caller is a nurse, or the plan or template is one any caregiver may use."""
     try:
-        require_author(db, caregiver)
+        require_author(db, caregiver, plan=plan, template=template)
     except NotANurse:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=NOT_A_NURSE)
 
 
-def _plan_access(db: Session, caregiver: Caregiver, plan_id: UUID) -> tuple[CarePlan, PlanAccess]:
+def _plan_access(db: Session, caregiver: Caregiver, plan_id: UUID, *,
+                 note_grace: bool = False) -> tuple[CarePlan, PlanAccess]:
+    """Access to a plan through a live visit. ``note_grace``: the assigned nurse may also reach it for the 2 hours after the
+    visit (the note routes and the plan read only; never an edit or a tick)."""
     plan = db.get(CarePlan, plan_id)
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     try:
         return plan, resolve_plan_access_for_plan(db, caregiver, plan)
     except PlanNotAvailable:
+        if note_grace:
+            try:
+                return plan, resolve_grace_access_for_plan(db, caregiver, plan)
+            except PlanNotAvailable:
+                pass
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
 
 
@@ -115,23 +128,27 @@ def _conflict(db: Session, caregiver: Caregiver, plan_id: UUID, exc: svc.Version
 
 # --- templates (nurses) ---------------------------------------------------------------------------------------------
 
-@router.get("/care-plan-templates", response_model=TemplateList, responses=NURSE_ONLY)
+@router.get("/care-plan-templates", response_model=TemplateList)
 def list_templates(current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db)) -> Any:
-    """The seeded templates for the Templates tab. Not yet clinically reviewed while ``clinical_review_status`` is pending."""
-    _nurse(db, _caregiver(db, current_user))
-    return svc.list_templates(db)
+    """The seeded templates for the Templates tab. Not yet clinically reviewed while ``clinical_review_status`` is pending.
+    A nurse sees all of them; any other caregiver sees only the ones with `caregiver_can_use` (Elderly)."""
+    caregiver = _caregiver(db, current_user)
+    return svc.list_templates(db, caregiver_templates_only=not is_care_plan_author(db, caregiver))
 
 
 @router.get("/care-plan-templates/{template_id}", response_model=TemplateDetail,
             responses={**NURSE_ONLY, 404: {"description": "No such (active) template."}})
 def get_template(template_id: UUID, current_user: User = Depends(get_current_caregiver),
                  db: Session = Depends(get_db)) -> Any:
-    """Preview: the goals, tasks and special instructions a plan created from this template starts with."""
-    _nurse(db, _caregiver(db, current_user))
+    """Preview: the goals, tasks and special instructions a plan created from this template starts with. 403 `not_a_nurse`
+    for a template a non-nurse caregiver may not use."""
+    caregiver = _caregiver(db, current_user)
     try:
-        return svc.template_detail(svc.get_template(db, template_id))
+        template = svc.get_template(db, template_id)
     except svc.TemplateNotFound as exc:
         raise _refuse(exc)
+    _nurse(db, caregiver, template=template)
+    return svc.template_detail(template)
 
 
 # --- lists and the visit summary --------------------------------------------------------------------------------------
@@ -148,12 +165,11 @@ def list_care_plans(
     return result
 
 
-@router.get("/care-plans/candidates", response_model=CandidateList, responses=NURSE_ONLY)
+@router.get("/care-plans/candidates", response_model=CandidateList)
 def list_candidates(current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db)) -> Any:
     """The client picker for "Use template": clients of my live visits who have no active plan yet. Declared before
     ``/care-plans/{plan_id}`` so the word is not read as an id."""
     caregiver = _caregiver(db, current_user)
-    _nurse(db, caregiver)
     return svc.list_candidates(db, caregiver)
 
 
@@ -162,9 +178,17 @@ def get_visit_care_plan(booking_id: UUID, current_user: User = Depends(get_curre
                         db: Session = Depends(get_db)) -> Any:
     """Care plan summary for one visit. 200 with ``plan: null`` means access is fine and the client has no active plan yet;
     ``subject_ready: false`` means this visit's client cannot be identified (an app booking for someone else); 404 means no
-    access."""
+    access. The assigned nurse also gets it for the 2 hours after the visit was completed (`can_author` is then false: a plan is
+    created during a live visit), so the app can find the plan to add a note to."""
     caregiver = _caregiver(db, current_user)
-    return svc.visit_summary(db, caregiver, _booking_access(db, caregiver, booking_id))
+    try:
+        access = resolve_plan_access(db, caregiver, booking_id)
+    except PlanNotAvailable:
+        try:
+            access = resolve_grace_access_for_booking(db, caregiver, booking_id)
+        except PlanNotAvailable:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    return svc.visit_summary(db, caregiver, access)
 
 
 # --- create, read, edit -----------------------------------------------------------------------------------------------
@@ -175,10 +199,17 @@ def get_visit_care_plan(booking_id: UUID, current_user: User = Depends(get_curre
                         422: {"description": "Validation, or `invalid_care_plan`."}})
 def create_care_plan(booking_id: UUID, body: CarePlanCreate, current_user: User = Depends(get_current_caregiver),
                      db: Session = Depends(get_db)) -> Any:
-    """Create the client's plan, blank or from a template (the template only fills what the body leaves out)."""
+    """Create the client's plan, blank or from a template (the template only fills what the body leaves out). A caregiver who
+    is not a nurse may do this only from a template with `caregiver_can_use` (Elderly)."""
     caregiver = _caregiver(db, current_user)
     access = _booking_access(db, caregiver, booking_id)
-    _nurse(db, caregiver)
+    template = None
+    if body.template_id is not None and not is_care_plan_author(db, caregiver):
+        try:
+            template = svc.get_template(db, body.template_id)
+        except svc.TemplateNotFound as exc:
+            raise _refuse(exc)
+    _nurse(db, caregiver, template=template)
     try:
         plan = svc.create_plan(db, caregiver, access, body)
     except svc.CarePlanExists as exc:
@@ -191,9 +222,10 @@ def create_care_plan(booking_id: UUID, body: CarePlanCreate, current_user: User 
 @router.get("/care-plans/{plan_id}", response_model=CarePlanOut, responses=NO_ACCESS)
 def get_care_plan(plan_id: UUID, current_user: User = Depends(get_current_caregiver), db: Session = Depends(get_db)) -> Any:
     """The full plan, visible while any of my live visits is for this client. A completed or archived plan stays visible
-    as history."""
+    as history. The assigned nurse can also read it for the 2 hours after the visit (to add a note): then the booking is
+    completed, only `can_add_observation` can be true and `observations_close_at` says when it closes."""
     caregiver = _caregiver(db, current_user)
-    plan, access = _plan_access(db, caregiver, plan_id)
+    plan, access = _plan_access(db, caregiver, plan_id, note_grace=True)
     return svc.build_plan(db, caregiver, access, plan)
 
 
@@ -206,7 +238,7 @@ def update_care_plan(plan_id: UUID, body: CarePlanPatch, current_user: User = De
     `expected_version`."""
     caregiver = _caregiver(db, current_user)
     plan, access = _plan_access(db, caregiver, plan_id)
-    _nurse(db, caregiver)
+    _nurse(db, caregiver, plan=plan)
     try:
         plan = svc.update_plan(db, caregiver, plan_id, body)
     except svc.VersionConflict as exc:
@@ -236,8 +268,8 @@ def add_goal(plan_id: UUID, body: GoalCreate, current_user: User = Depends(get_c
              db: Session = Depends(get_db)) -> Any:
     """Add a goal. `expected_version` is optional here: adding never overwrites anything."""
     caregiver = _caregiver(db, current_user)
-    _plan_access(db, caregiver, plan_id)
-    _nurse(db, caregiver)
+    plan, _ = _plan_access(db, caregiver, plan_id)
+    _nurse(db, caregiver, plan=plan)
     try:
         return _goal_result(*svc.add_goal(db, caregiver, plan_id, body))
     except svc.VersionConflict as exc:
@@ -252,7 +284,7 @@ def update_goal(goal_id: UUID, body: GoalPatch, current_user: User = Depends(get
     """Edit a goal, or mark it achieved or discontinued. Needs the plan's `expected_version`."""
     caregiver = _caregiver(db, current_user)
     goal = _goal_access(db, caregiver, goal_id)
-    _nurse(db, caregiver)
+    _nurse(db, caregiver, plan=db.get(CarePlan, goal.plan_id))
     plan_id = goal.plan_id
     try:
         return _goal_result(*svc.update_goal(db, caregiver, goal, body))
@@ -268,7 +300,7 @@ def remove_goal(goal_id: UUID, expected_version: int = Query(ge=1), current_user
     """Remove a goal: it is marked `discontinued` and kept. Needs the plan's `expected_version` as a query parameter."""
     caregiver = _caregiver(db, current_user)
     goal = _goal_access(db, caregiver, goal_id)
-    _nurse(db, caregiver)
+    _nurse(db, caregiver, plan=db.get(CarePlan, goal.plan_id))
     plan_id = goal.plan_id
     try:
         return _goal_result(*svc.remove_goal(db, caregiver, goal, expected_version))
@@ -303,8 +335,8 @@ def add_task(plan_id: UUID, body: TaskCreate, current_user: User = Depends(get_c
     """Add a daily task to the plan. `expected_version` is optional here: adding never overwrites anything. The task is
     scheduled from today on (it never appears on earlier days)."""
     caregiver = _caregiver(db, current_user)
-    _plan_access(db, caregiver, plan_id)
-    _nurse(db, caregiver)
+    plan, _ = _plan_access(db, caregiver, plan_id)
+    _nurse(db, caregiver, plan=plan)
     try:
         return _task_result(*tasks.add_task(db, caregiver, plan_id, body))
     except svc.VersionConflict as exc:
@@ -318,8 +350,8 @@ def update_task(task_id: UUID, body: TaskPatch, current_user: User = Depends(get
                 db: Session = Depends(get_db)) -> Any:
     """Edit a task: title, slot, display time or days. Needs the plan's `expected_version`. A removed task is 404."""
     caregiver = _caregiver(db, current_user)
-    task, _, _ = _task_access(db, caregiver, task_id)
-    _nurse(db, caregiver)
+    task, plan, _ = _task_access(db, caregiver, task_id)
+    _nurse(db, caregiver, plan=plan)
     plan_id = task.plan_id
     try:
         return _task_result(*tasks.update_task(db, caregiver, task, body))
@@ -337,8 +369,8 @@ def remove_task(task_id: UUID, expected_version: int = Query(ge=1), current_user
     """Remove a task from the plan: it stops being scheduled and leaves `tasks`; its ticks are kept. Needs the plan's
     `expected_version` as a query parameter."""
     caregiver = _caregiver(db, current_user)
-    task, _, _ = _task_access(db, caregiver, task_id)
-    _nurse(db, caregiver)
+    task, plan, _ = _task_access(db, caregiver, task_id)
+    _nurse(db, caregiver, plan=plan)
     plan_id = task.plan_id
     try:
         return _task_result(*tasks.remove_task(db, caregiver, task, expected_version))
@@ -392,7 +424,7 @@ def list_observations(
 ) -> Any:
     """Visit notes, newest first. A completed plan keeps its notes as history."""
     caregiver = _caregiver(db, current_user)
-    plan, _ = _plan_access(db, caregiver, plan_id)
+    plan, _ = _plan_access(db, caregiver, plan_id, note_grace=True)
     if before is not None and before.tzinfo is not None:
         before = before.astimezone(timezone.utc).replace(tzinfo=None)
     return notes.list_observations(db, plan, before, before_id, limit, category)
@@ -402,10 +434,12 @@ def list_observations(
              responses={**NO_ACCESS, 409: {"description": "`visit_not_in_progress` or `plan_not_editable`."}})
 def add_observation(plan_id: UUID, body: ObservationIn, current_user: User = Depends(get_current_caregiver),
                     db: Session = Depends(get_db)) -> Any:
-    """Add a note during a visit of yours that is in progress. Any caregiver on the client may, not only a nurse. Notes
-    cannot be edited or deleted: a correction is a new note."""
+    """Add a note during a visit of yours that is in progress. Any caregiver on the client may, not only a nurse. The assigned
+    **nurse** may also add one for 2 hours after the visit was completed (`VOICE_NOTE_POST_VISIT_GRACE_MINUTES`, the typed- and
+    voice-note window); later it is the same 404 as any lost access. Notes cannot be edited or deleted: a correction is a new
+    note."""
     caregiver = _caregiver(db, current_user)
-    plan, access = _plan_access(db, caregiver, plan_id)
+    plan, access = _plan_access(db, caregiver, plan_id, note_grace=True)
     try:
         return notes.add_observation(db, caregiver, access, plan, body)
     except svc.CarePlanError as exc:

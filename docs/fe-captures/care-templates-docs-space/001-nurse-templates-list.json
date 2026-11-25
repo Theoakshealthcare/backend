@@ -1,0 +1,76 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/care-plan-templates",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "3aa70b63-2b40-4f74-9e8d-4fd43c909c1c",
+          "key": "cardiac_rehabilitation",
+          "name": "Cardiac Rehabilitation",
+          "summary": "Light activity, resting readings and low-salt meals while recovering from a heart event.",
+          "duration_days": 45,
+          "review_every_days": 14,
+          "default_risk_level": "high",
+          "clinical_review_status": "pending",
+          "version": 2,
+          "caregiver_can_use": false
+        },
+        {
+          "id": "a96d8aba-6ada-457c-8aaf-67fc14091df1",
+          "key": "diabetes_management",
+          "name": "Diabetes Management",
+          "summary": "Meals, readings, foot care and gentle activity for a client living with diabetes.",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "default_risk_level": "medium",
+          "clinical_review_status": "pending",
+          "version": 2,
+          "caregiver_can_use": false
+        },
+        {
+          "id": "5f437e3b-d9c0-4150-9fc2-afc2f3b7ed24",
+          "key": "elderly_daily_living_dementia",
+          "name": "Elderly Daily Living and Dementia Support",
+          "summary": "A calm daily routine with meals, fluids, safety and engagement for an older client or a client with dementia.",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "default_risk_level": "medium",
+          "clinical_review_status": "pending",
+          "version": 1,
+          "caregiver_can_use": true
+        },
+        {
+          "id": "0d0fdf9e-52e5-4a3b-965f-656587415f7d",
+          "key": "post_surgery_recovery",
+          "name": "Post-Surgery Recovery",
+          "summary": "Wound care, comfort, gentle movement and nutrition while healing after an operation.",
+          "duration_days": 21,
+          "review_every_days": 7,
+          "default_risk_level": "medium",
+          "clinical_review_status": "pending",
+          "version": 2,
+          "caregiver_can_use": false
+        },
+        {
+          "id": "9a7ee442-10c3-4c20-8339-8929f6365e9f",
+          "key": "stroke_recovery",
+          "name": "Stroke Recovery",
+          "summary": "Daily support after a stroke: safe movement, therapy exercises, swallowing and skin care.",
+          "duration_days": 30,
+          "review_every_days": 14,
+          "default_risk_level": "high",
+          "clinical_review_status": "pending",
+          "version": 2,
+          "caregiver_can_use": false
+        }
+      ]
+    }
+  },
+  "note": "A nurse sees all five. Four are version 2 (clinician-approved text); Elderly is version 1 and `caregiver_can_use`."
+}

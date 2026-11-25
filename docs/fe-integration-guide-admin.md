@@ -7197,6 +7197,10 @@ After confirming, `skills` holds the confirmed roles and `requested_skills` is u
 
 **[seeded]** The two applicants in these captures were inserted straight into the database (`950-db-seeded-applicants-roles.json`): the first carries what the caregiver app's step 2 stores (that call is captured live in the caregiver guide, `950`-`958` there), the second is a row from before the field. The `409` with the changed `NO_SKILLS` message is captured live in the caregiver guide (`958`). Re-run with `poetry run python -m scripts.capture_admin_flow --env-file <env> --section caregiver-roles` (it replaces only its own block, `950`-`969`).
 
+## 12.16 Caregiver documentation: `GET /api/v1/admin/visit-documentation` (new 2026-11-25, migration `0031`)
+
+A read-only list of what caregivers wrote in their own, private documentation space for a visit (never shown to the family). Permission `careplans.read` (Clinical Reviewer, Super Admin). Filters `booking_id`, `plan_id`, `caregiver_id`; `limit` 1 to 50 (default 20) and `offset`. Every call is audited as `visit_documentation.view` (filters and count only, never the text). The console page is **Clinical > Caregiver documentation** (`/clinical/documentation`). Bodies, the author nesting (`caregiver.{id,name}`) and the `403` for Support are in [the care templates guide](fe-integration-guide-care-templates-docs-space.md) section 5. Template items now also carry `caregiver_can_use` (section 12.13's template list); the four rewritten templates are `version: 2` and still `pending` until an admin signs them off.
+
 ## 13. Pricing settings: `/api/v1/booking-settings`
 
 The price list the app and the WhatsApp flow quote from: base fee per hour, platform fee, per-service multipliers, surge and discount. **Money is in naira here**, as before.

@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/caregiver/care-plans/9886e885-1dbb-41a0-b9e1-1c8845b7c8da",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "expected_version": 1,
+      "diagnosis": "Placeholder"
+    }
+  },
+  "response": {
+    "status_code": 404,
+    "body": {
+      "detail": "Care plan not found"
+    }
+  },
+  "note": "Editing still needs a live visit."
+}
