@@ -12,7 +12,7 @@
 
 - **Examples are generated, not typed.** Every JSON block is rendered from the capture named in the comment above it by `poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-patient-fallguard.md docs/fe-captures/patient-fallguard` (`--check` fails if a guide is stale).
 - **Placeholders.** All data is fake: `example.com` emails, `Placeholder ...` names. IDs and timestamps come from the local run. `age` in a capture depends on the day it was taken, because the server uses its own "today" (Africa/Lagos).
-- **The clinical wording is not final.** The question text, the "explain" sentences, the seven red-flag items R1 to R7 and the gate-reason names for HIGH are **not in the PDF**, so the backend serves placeholders and says so (section 2.4). The recommendation sentences and the messages are the PDF's own default English and are awaiting the clinical lead's sign-off. **Nothing here may go live before that sign-off** (section 8).
+- **The wording is the supplied wording, and it is not signed off.** The question text, answer labels, "explain" sentences and red-flag items R1 to R7 come from the handover package's own `questionnaire_v2_0.json`; the recommendation sentences and messages are the PDF's default English. The clinical lead's sign-off (Appendix E of the PDF) is still blank, so every string carries `wording_status: PENDING_CLINICAL_SIGN_OFF`. **Nothing here may go live before that sign-off** (section 8).
 - Section 9 is the table of what is verified live and what is not.
 
 ## 1. What the feature is, in the app's terms
@@ -44,32 +44,32 @@ The rules that shape every screen:
 - `answers[].score` is the item's Part B points, and **null** for Part A and C items. `answers[].id` is always **null** for a v2.0 assessment (it exists only on old 24-question rows).
 - `answers[].answer` is always a **string**, even for numbers (`"1"`) and lists (`"DIABETES,ARTHRITIS"`). The request sends real numbers and arrays.
 - `questions[].id` is now an **item id** (`"A1"`), not a UUID. It is still a string.
-- `result.gate_tier`, `score_tier` and `final_tier` and `result.score` are **`null`** (present, not absent) when `result.eligible` is false.
+- When `result.eligible` is false (under 60) `result` has **fewer keys**: `gate_tier`, `score_tier`, `final_tier` and `score` are `null`, `referral_message_key` is `"UNDER_60_REFERRAL"`, and `gate_reasons`, `incomplete`, `provisional`, `unknown_items`, `part_b_points`, `top_factors`, `consequence_flag` and `pharmacist_review_flag` are **absent**, not null (section 3.3). Check `eligible` before reading them.
 
 ### 2.2 The questions: `GET /api/v1/fallguard/questions`
 
-The 35 items in order (A1 to A7, B1 to B19, C1 to C9). The older fields (`id`, `question`, `options[].text`, `options[].score`, `order`, `is_active`) keep their names; the rest is additive. **Send `options[].code` back as the answer** (not `text`). `score` is shown for completeness: do not use it to compute a result.
+The 34 items in order (A1 to A7, B1 to B19, C1 to C8). The older fields (`id`, `question`, `options[].text`, `options[].score`, `order`, `is_active`) keep their names; the rest is additive. **Send `options[].code` back as the answer** (not `text`). `score` is the points of a Part B choice and is **null** for Part A and Part C choices; do not use it to compute a result.
 
 <!-- capture: 001-p-questions.json response.body first=2 -->
 ```json
 [
   {
     "id": "A1",
-    "question": "Item A1",
+    "question": "In the last 12 months, have you fallen (landed on the ground or a lower level by accident)?",
     "options": [
       {
-        "text": "no",
-        "score": 0,
+        "text": "No",
+        "score": null,
         "code": 0
       },
       {
-        "text": "once",
-        "score": 1,
+        "text": "Yes, once",
+        "score": null,
         "code": 1
       },
       {
-        "text": "twice or more",
-        "score": 2,
+        "text": "Yes, 2 or more times",
+        "score": null,
         "code": 2
       }
     ],
@@ -82,25 +82,25 @@ The 35 items in order (A1 to A7, B1 to B19, C1 to C9). The older fields (`id`, `
     "required": true,
     "allows_unknown": false,
     "show_if": null,
-    "summary": null,
-    "wording_status": "PENDING_CLINICAL_WORDING",
+    "icon": "fall",
+    "explain": null,
     "exclusive_codes": null,
-    "count_bands": null,
-    "age_bands": null,
-    "analytics_only": null
+    "scoring": null,
+    "fields": null,
+    "wording_status": "PENDING_CLINICAL_SIGN_OFF"
   },
   {
     "id": "A2",
-    "question": "injury needing medical care",
+    "question": "Did any fall cause an injury that needed medical care?",
     "options": [
       {
-        "text": "no",
-        "score": 0,
+        "text": "No",
+        "score": null,
         "code": 0
       },
       {
-        "text": "yes (injury needing medical care)",
-        "score": 1,
+        "text": "Yes",
+        "score": null,
         "code": 1
       }
     ],
@@ -110,24 +110,24 @@ The 35 items in order (A1 to A7, B1 to B19, C1 to C9). The older fields (`id`, `
     "updated_at": null,
     "part": "A",
     "type": "single",
-    "required": false,
+    "required": true,
     "allows_unknown": false,
     "show_if": {
       "item": "A1",
       "op": ">=",
       "value": 1
     },
-    "summary": "injury needing medical care",
-    "wording_status": "PENDING_CLINICAL_WORDING",
+    "icon": "injury",
+    "explain": null,
     "exclusive_codes": null,
-    "count_bands": null,
-    "age_bands": null,
-    "analytics_only": null
+    "scoring": null,
+    "fields": null,
+    "wording_status": "PENDING_CLINICAL_SIGN_OFF"
   }
 ]
 ```
 
-Item types: `single` (send the code), `multi` (send a list of codes; `NONE` and `NOT_SURE` cannot be combined with another code, an empty list is invalid, so the person must tick "None of these"), `derived` (B1, the age: **not asked**, never send it), `text_list` (C7, optional free text, a list of strings), `auto` (C9, captured by the app). `show_if` means: skip the item when the condition is false (A2, A3 and A7 only when A1 is 1 or more; C3 only when B2 is 1). A hidden item counts as 0 and an answer sent for it is ignored.
+Item types: `single` (send the code), `multi` (send a list of codes; `exclusive_codes` such as `NONE` and `NOT_SURE` cannot be combined with another code, an empty list is invalid, so the person must tick "None of these"), `derived` (B1, the age: **not asked**, never send it), `text_list` (C7, optional free text, a list of strings or one string), `demographics` (C8, optional, `{"sex": ..., "education": ...}` with the codes in `fields`). `explain` is the sentence the result screen shows when the item is a top factor; `icon` is the questionnaire's icon key. `show_if` means: skip the item when the condition is false (A2, A3 and A7 only when A1 is 1 or more; C3 only when B2 is 1). A hidden item counts as 0 and an answer sent for it is ignored.
 
 `allows_unknown` is true for Part B items except B1: offer "I don't know" and "Skip, ask my nurse" as secondary buttons and send the string `"UNKNOWN"` for both.
 
@@ -144,7 +144,7 @@ Everything needed to render the flow: versions, items, the seven red-flag items,
   "algorithm_version": "2.0.0",
   "content_version": "2.0.0",
   "language": "en",
-  "wording_status": "PENDING_CLINICAL_WORDING",
+  "wording_status": "PENDING_CLINICAL_SIGN_OFF",
   "content_sign_off_status": "PENDING_CLINICAL_LEAD_SIGN_OFF",
   "emergency_number": "112",
   "assessment_minutes": 8,
@@ -152,38 +152,38 @@ Everything needed to render the flow: versions, items, the seven red-flag items,
   "red_flags": [
     {
       "id": "R1",
-      "text": null,
-      "summary": "blow to the head (the PDF logic pairs it with blood thinners, C5)"
+      "text": "Did you hit your head?",
+      "rule": "URGENT unless C5 == 0 (then prompt attention)"
     },
     {
       "id": "R2",
-      "text": null,
-      "summary": null
+      "text": "Since the fall, do you have a worsening headache, repeated vomiting, or unusual sleepiness or confusion?",
+      "rule": "URGENT"
     },
     {
       "id": "R3",
-      "text": null,
-      "summary": null
+      "text": "Do you have severe pain, cannot put weight on a leg, or see a deformed arm or leg?",
+      "rule": "URGENT"
     },
     {
       "id": "R4",
-      "text": null,
-      "summary": null
+      "text": "Do you have new weakness or numbness on one side, a drooping face, or trouble speaking?",
+      "rule": "URGENT"
     },
     {
       "id": "R5",
-      "text": null,
-      "summary": null
+      "text": "Do you have chest pain, a racing or irregular heartbeat, or severe breathlessness?",
+      "rule": "URGENT"
     },
     {
       "id": "R6",
-      "text": null,
-      "summary": null
+      "text": "Did you faint or black out?",
+      "rule": "URGENT"
     },
     {
       "id": "R7",
-      "text": null,
-      "summary": null
+      "text": "Are you unable to get up, and is nobody with you?",
+      "rule": "URGENT"
     }
   ]
 }
@@ -208,19 +208,19 @@ Everything needed to render the flow: versions, items, the seven red-flag items,
 }
 ```
 
-### 2.4 What is a placeholder (do not ship these)
+### 2.4 What is still not final (do not ship until it is)
 
-- `question` is the PDF's own table description (`"injury needing medical care"`), or `"Item A1"` where the PDF gives none. `wording_status` is `PENDING_CLINICAL_WORDING`. The real patient-facing wording and the "explain" sentences were meant to come in the PDF's `questionnaire_v2_0.json`, which was never supplied.
-- `red_flags` R1 to R7 have no text (`text: null`). Only R1 is understood (a blow to the head; it is paired with blood thinners, C5). The app cannot show the red-flag screen until the clinical lead supplies R1 to R7.
-- `result.gate_reasons` for a **HIGH** gate use placeholder names (`GATE_H_...`). The three INTERMEDIATE names (`GATE_I_ONE_FALL`, `GATE_I_UNSTEADY`, `GATE_I_WORRY`) are the PDF's. Treat every gate-reason code as an opaque key to look up a sentence, and do not show the code.
-- There is no per-state emergency number list yet: `emergency_number` is the PDF's default `112` everywhere.
+- **Every string is unsigned.** Appendix E of the PDF (the clinical lead's sign-off of the gate rules, red-flag items and wording, the Part B scale and cut-offs, the recommendation wording, the service targets and the welcome text) is blank. `wording_status` is `PENDING_CLINICAL_SIGN_OFF` on every item and in the config.
+- **There is no sentence for a gate reason.** `result.gate_reasons` holds codes (`GATE_I_ONE_FALL`, `GATE_H_FAINTING`, ...). The package supplies "explain" strings for Part B items only, so the app needs a sentence per gate code from the clinical lead. Treat the code as an opaque key and never show it.
+- **There is no per-state emergency number list yet:** `emergency_number` is the default `112` everywhere.
+- The Appendix A example in the PDF lists `C9` (completer role, language, mode) as an "auto" item; the supplied questionnaire has no C9, so the API has none. The app records who answered and the mode itself when the assessment record exists (a later slice).
 
 ## 3. Submit: `POST /api/v1/fallguard/submit`
 
 Body: `{"answers": [{"question_id": "A1", "answer": 1}, ...], "date_of_birth": "1946-05-20"}`.
 
-- `answer` is a number for single items, a list of strings for multi items and C7, the string `"UNKNOWN"` for an unknown Part B item, and `true`/`false` for a red-flag item (R1 to R7: send only the ones that were shown; a red-flag item left out counts as not yes).
-- `date_of_birth` (ISO date) is used for the age. If it is left out the date of birth on the patient's profile is used; if neither exists the answer is `422` `fallguard_date_of_birth_required` (020). **Age is worked out on the day of the submission in Africa/Lagos, by the server.**
+- `answer` is a number for single items, a list of strings for multi items and C7, the string `"UNKNOWN"` for an unknown Part B item, and `true`/`false` for a red-flag item (R1 to R7: send only the ones that were shown; a red-flag item left out counts as not yes). A red-flag answer must be a real JSON boolean: `"yes"` or `1` is a `422` (020), because the scoring library only counts `true`.
+- `date_of_birth` (ISO date) is used for the age. If it is left out the date of birth on the patient's profile is used; if neither exists the answer is `422` `fallguard_date_of_birth_required` (022). **Age is worked out on the day of the submission in Africa/Lagos, by the server.**
 - `score` on an answer is accepted and ignored (014).
 - Send the whole assessment at once. There is no server-side draft in this release: **keep the draft on the device** and submit at the end.
 
@@ -247,12 +247,12 @@ Body: `{"answers": [{"question_id": "A1", "answer": 1}, ...], "date_of_birth": "
 <!-- capture: 006-p-submit-appendix-a.json response.body keys=id,patient_id,total_score,ai_summary,ai_recommendations,created_at,questionnaire_version,algorithm_version,content_version,result -->
 ```json
 {
-  "id": "50437af6-0bb6-46c0-af7f-adab6da6bac4",
-  "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+  "id": "97b5610b-2fa3-46ec-851b-f3642d474d33",
+  "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
   "total_score": 18,
   "ai_summary": null,
   "ai_recommendations": null,
-  "created_at": "2026-11-25T17:31:07.740648",
+  "created_at": "2026-11-25T21:23:32.052429",
   "questionnaire_version": "2.0.0",
   "algorithm_version": "2.0.0",
   "content_version": "2.0.0",
@@ -314,8 +314,8 @@ What the fields mean for the screen:
 |---|---|
 | `result.final_tier` | The tier to show: `LOW`, `INTERMEDIATE` or `HIGH`. Always with the word, never colour alone. |
 | `result.gate_tier`, `result.score_tier` | The two inputs. `final_tier` is the higher of the two; it is never below `gate_tier`. Show only `final_tier`. |
-| `result.gate_reasons` | The rules that raised the gate tier, e.g. `GATE_I_ONE_FALL`. Show a plain sentence for each, **before** the factor sentences. Sentences for them have not been supplied (2.4). |
-| `result.top_factors` | Up to 3 Part B item ids (B1 never appears) behind the score, highest points first. Turn them into sentences with the item's "explain" string (not supplied yet). An item id here can be an **unknown** item, so check `unknown_items`. |
+| `result.gate_reasons` | The rules that raised the gate tier, e.g. `GATE_I_ONE_FALL`. Show a plain sentence for each, **before** the factor sentences. The package supplies no sentences for gate reasons (2.4). |
+| `result.top_factors` | Up to 3 Part B item ids (B1 never appears) behind the score, highest points first. Turn them into sentences with the item's `explain` string from the questions list. An item id here can be an **unknown** item, so check `unknown_items`. |
 | `result.score`, `result.part_b_points` | The Part B total and per-item points. Do not show the total as a "percentage" or compute a tier from it. |
 | `result.incomplete` and `result.provisional` | Always equal. True when more than 3 Part B items were unknown or skipped: show the provisional label and offer nurse-assisted completion. The tier is still shown. |
 | `result.unknown_items` | The Part B items that scored 1 because they were unknown, skipped or left out. |
@@ -360,7 +360,7 @@ A fainting answer raises the tier by itself (gate HIGH, score LOW, final HIGH) a
 {
   "gate_tier": "HIGH",
   "gate_reasons": [
-    "GATE_H_FAINTED"
+    "GATE_H_FAINTING"
   ],
   "score": 1,
   "score_tier": "LOW",
@@ -409,7 +409,7 @@ Part A only (every Part B item unknown): provisional, and the unknown items scor
 }
 ```
 
-Under 60 (no score, no tier, no recommendations):
+Under 60 (no score, no tier, no recommendations; note the shorter `result`: see 2.1):
 
 <!-- capture: 010-p-submit-under-60.json response.body keys=total_score,result,recommendations -->
 ```json
@@ -422,19 +422,12 @@ Under 60 (no score, no tier, no recommendations):
     "urgent": false,
     "red_flags_triggered": [],
     "eligible": false,
-    "gate_tier": null,
-    "gate_reasons": [],
-    "score": null,
-    "score_tier": null,
     "final_tier": null,
-    "incomplete": false,
-    "provisional": false,
-    "unknown_items": [],
-    "part_b_points": {},
-    "top_factors": [],
-    "prompt_attention": false,
-    "consequence_flag": false,
-    "pharmacist_review_flag": false
+    "gate_tier": null,
+    "score_tier": null,
+    "score": null,
+    "referral_message_key": "UNDER_60_REFERRAL",
+    "prompt_attention": false
   },
   "recommendations": {
     "top": [],
@@ -452,25 +445,24 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
 | `422` `fallguard_no_answers` | empty list | 015 |
 | `422` `fallguard_duplicate_question` | the same item twice | 016 |
 | `422` `fallguard_unknown_question` | an item id that is not in the questionnaire (a v1 UUID lands here), B1 (derived), or a red-flag id other than R1 to R7 | 017 |
-| `422` `fallguard_invalid_option` | an answer that is not one of the item's codes; a wrong type; `"UNKNOWN"` on a Part A item; an empty, duplicate or exclusive-combined multi list | 018 |
-| `422` `fallguard_missing_required` | a required Part A item is missing; every missing item is in `fields` | 019 |
-| `422` `fallguard_date_of_birth_required` | no date of birth in the body or the profile | 020 |
-| `422` `fallguard_invalid_date_of_birth` | a date in the future, or not a date | 021 |
-| `429` `fallguard_rate_limited` | the 11th submission within an hour | 026 |
+| `422` `INVALID_ANSWER` | an answer that is not one of the item's codes; a wrong type (the library's own code); a red-flag answer that is not a boolean; a Part C or multi-select answer of the wrong shape | 018, 020, 021 |
+| `422` `EXCLUSIVE_ANSWER` | `NONE` or `NOT_SURE` combined with another code in a multi list **[not live]** (library code; asserted in `app/tests/test_fallguard_rules.py`) | none |
+| `422` `MISSING_REQUIRED` | a required Part A item is missing; **only the first missing item** is named, in `question_id` and `fields` | 019 |
+| `422` `fallguard_date_of_birth_required` | no date of birth in the body or the profile | 022 |
+| `422` `fallguard_invalid_date_of_birth` | a date of birth in the future | 023 |
+| `422` `INVALID_DATE` | a date of birth that is not a calendar date **[not live]** (library code) | none |
+| `429` `fallguard_rate_limited` | the 11th submission within an hour | 028 |
 | `503` `SCORING_UNAVAILABLE` | scoring or storing failed: **no tier was stored or returned.** **[not live]** (a fault cannot be triggered in the running app; shape asserted in `app/tests/test_fallguard_submit.py`) | none |
 
 <!-- capture: 019-p-submit-missing-required.json response.body -->
 ```json
 {
   "detail": {
-    "code": "fallguard_missing_required",
+    "code": "MISSING_REQUIRED",
     "message": "Answer every required question.",
+    "question_id": "A5",
     "fields": {
-      "A2": "required",
-      "A3": "required",
-      "A5": "required",
-      "A6": "required",
-      "A7": "required"
+      "A5": "MISSING_REQUIRED"
     }
   }
 }
@@ -480,11 +472,11 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
 ```json
 {
   "detail": {
-    "code": "fallguard_invalid_option",
+    "code": "INVALID_ANSWER",
     "message": "That answer is not one of the choices for the question.",
     "question_id": "A1",
     "fields": {
-      "A1": "invalid_option"
+      "A1": "INVALID_ANSWER"
     }
   }
 }
@@ -496,7 +488,7 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
   "detail": {
     "code": "fallguard_unknown_question",
     "message": "One of the questions is not part of the assessment.",
-    "question_id": "86e528a7-cfed-4ecb-8b9a-ee9f9639002a"
+    "question_id": "fa1b5563-41d4-43cd-a784-690cc9a9d622"
   }
 }
 ```
@@ -522,7 +514,7 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
 }
 ```
 
-<!-- capture: 020-p-submit-no-date-of-birth.json response.body -->
+<!-- capture: 022-p-submit-no-date-of-birth.json response.body -->
 ```json
 {
   "detail": {
@@ -535,7 +527,7 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
 }
 ```
 
-<!-- capture: 021-p-submit-future-date-of-birth.json response.body -->
+<!-- capture: 023-p-submit-future-date-of-birth.json response.body -->
 ```json
 {
   "detail": {
@@ -548,7 +540,7 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
 }
 ```
 
-<!-- capture: 026-p-submit-rate-limited.json response.body -->
+<!-- capture: 028-p-submit-rate-limited.json response.body -->
 ```json
 {
   "detail": {
@@ -558,7 +550,7 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
 }
 ```
 
-<!-- capture: 022-p-submit-bad-body.json response.body -->
+<!-- capture: 024-p-submit-bad-body.json response.body -->
 ```json
 {
   "detail": [
@@ -583,14 +575,14 @@ Show `messages["referral.under60"]` and the help button. Do not show a tier.
 
 Not logged in, or a caregiver token:
 
-<!-- capture: 023-c-submit-as-caregiver.json response.body -->
+<!-- capture: 025-c-submit-as-caregiver.json response.body -->
 ```json
 {
   "detail": "Access denied. Patient account required."
 }
 ```
 
-<!-- capture: 024-none-submit-no-token.json response.body -->
+<!-- capture: 026-none-submit-no-token.json response.body -->
 ```json
 {
   "detail": "Not authenticated"
@@ -606,13 +598,13 @@ The patient's own assessments, newest first, in the same shape as a submit respo
 []
 ```
 
-<!-- capture: 025-p-history.json response.body path=0 keys=id,patient_id,total_score,created_at,questionnaire_version,algorithm_version,content_version -->
+<!-- capture: 027-p-history.json response.body path=0 keys=id,patient_id,total_score,created_at,questionnaire_version,algorithm_version,content_version -->
 ```json
 {
-  "id": "abbf22d3-bdd4-4fcd-adcb-16c27c2bbcb6",
-  "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+  "id": "22929f4e-4d12-4b7d-b367-35d6615ba8c3",
+  "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
   "total_score": 1,
-  "created_at": "2026-11-25T17:31:07.815342",
+  "created_at": "2026-11-25T21:23:32.086540",
   "questionnaire_version": "2.0.0",
   "algorithm_version": "2.0.0",
   "content_version": "2.0.0"
@@ -627,7 +619,7 @@ The red-flag items R1 to R7 are sent in the same `answers` list as `true` or `fa
 - R1 yes and C5 (blood thinners) is 1, 9 (not sure) or **not answered**: `urgent` is true (the cautious default);
 - R1 yes and C5 is 0: not urgent, but `prompt_attention` is true.
 
-`result.red_flags_triggered` lists the items that caused Urgent. It does **not** list R1 in the third case.
+`result.red_flags_triggered` lists **every** red-flag item answered yes, urgent or not: in the third case it is `["R1"]` while `urgent` is false. **Decide the Urgent screen from `urgent`, never from the list being non-empty.**
 
 <!-- capture: 011-p-submit-urgent.json response.body path=result keys=urgent,red_flags_triggered,final_tier,score -->
 ```json
@@ -645,7 +637,9 @@ The red-flag items R1 to R7 are sent in the same `answers` list as `true` or `fa
 ```json
 {
   "urgent": false,
-  "red_flags_triggered": [],
+  "red_flags_triggered": [
+    "R1"
+  ],
   "prompt_attention": true,
   "final_tier": "LOW"
 }
@@ -667,9 +661,9 @@ The red-flag items R1 to R7 are sent in the same `answers` list as `true` or `fa
 
 ## 6. Admin list (read only)
 
-`GET /api/v1/fallguard/admin/questions` returns the same 35 items. The old admin editor is retired: creating, editing or deleting a question is `410` `fallguard_questionnaire_is_versioned`, because the questionnaire changes only with a release (the PDF forbids hot edits). The admin console must remove its question editor.
+`GET /api/v1/fallguard/admin/questions` returns the same 34 items. The old admin editor is retired: creating, editing or deleting a question is `410` `fallguard_questionnaire_is_versioned`, because the questionnaire changes only with a release (the PDF forbids hot edits). The admin console must remove its question editor.
 
-<!-- capture: 028-a-admin-create-question-retired.json response.body -->
+<!-- capture: 030-a-admin-create-question-retired.json response.body -->
 ```json
 {
   "detail": {
@@ -693,26 +687,27 @@ The red-flag items R1 to R7 are sent in the same `answers` list as `true` or `fa
 
 ## 8. Not ready to launch: what is missing from the PDF
 
-The questionnaire wording, the explain sentences, R1 to R7, the HIGH gate-reason names, the state emergency numbers and the clinical lead's sign-off (Appendix E is blank) were not supplied. The full list is in the SOP, under "Open questions for the clinician" (`docs/sop/2026-11-25-fallguard-v2-backend.md`). The app screens should be built against the shapes above, with those strings coming from the server so they can change without an app release.
+The clinical lead's sign-off (Appendix E is blank), a sentence for each gate-reason code, and the per-state emergency numbers are still missing; the wording, R1 to R7 and the explain strings were supplied with the handover package but are unsigned. The full list is in the SOP, under "Open questions for the clinician" (`docs/sop/2026-11-25-fallguard-v2-backend.md`). The app screens should be built against the shapes above, with those strings coming from the server so they can change without an app release.
 
 ## 9. Verification table
 
 | Behaviour | Verified live? | Evidence / reason |
 |---|---|---|
-| Questions: 35 items in order; 403 for a caregiver; 401 without a token | **Yes** | 001, 003, 004 |
-| Config: versions, red-flag items, messages, emergency number | **Yes** | 002 |
+| Questions: 34 items in order (the supplied wording); 403 for a caregiver; 401 without a token | **Yes** | 001, 003, 004 |
+| Config: versions, real red-flag items R1 to R7, messages, emergency number | **Yes** | 002 |
 | Appendix A example gives the PDF's tier, score 18, gate reasons, top factors | **Yes** (age depends on the day) | 006 |
 | LOW result; gate raises the tier; provisional; under 60 | **Yes** | 007 to 010 |
 | Urgent; R1 with and without blood thinners | **Yes** | 011 to 013 |
 | `score` ignored | **Yes** | 014 |
-| 422 for empty, duplicate, unknown, invalid, missing required, no date of birth, future date of birth; malformed body | **Yes** | 015 to 022 |
-| 403 and 401 on submit | **Yes** | 023, 024 |
-| History empty, then newest first | **Yes** | 005, 025 |
-| 429 on the 11th submission in an hour | **Yes** | 026 |
-| Admin list readable; admin create, update and delete are 410 | **Yes** | 027 to 030 |
+| 422 for empty, duplicate, unknown, invalid, missing required, red flag not boolean, bad Part C, no date of birth, future date of birth; malformed body | **Yes** | 015 to 024 |
+| 403 and 401 on submit | **Yes** | 025, 026 |
+| History empty, then newest first | **Yes** | 005, 027 |
+| 429 on the 11th submission in an hour | **Yes** | 028 |
+| Admin list readable; admin create, update and delete are 410 | **Yes** | 029 to 032 |
 | `503 SCORING_UNAVAILABLE`: nothing stored, no tier returned | **Not live** | unit test (`app/tests/test_fallguard_submit.py`); a fault cannot be triggered in the running app |
+| `EXCLUSIVE_ANSWER`, `INVALID_DATE` | **Not live** | `app/tests/test_fallguard_rules.py` |
 | Immutability (a stored result cannot be updated) | **Not live over HTTP** | database trigger tested in `app/tests/test_fallguard_submit.py` and the migration test |
 | Date of birth taken from the patient profile when the body has none | **Not live** | unit test; no profile date-of-birth call in the capture |
-| Every rule's edge cases (unknown, bands, flags, SR-4 over 10,000 random cases) | **Not live** | `app/tests/test_fallguard_scoring.py` |
+| Every rule's edge cases (the package's TV1 to TV17, 10,000-case properties, parity) | **Not live** | `app/tests/test_fallguard_scoring.py` (the package's own suite) and `test_fallguard_rules.py` |
 | The optional AI summary | **No** | off by default; no Gemini key in the capture stack |
 | The patient app screens against this | **No** | not part of this slice |

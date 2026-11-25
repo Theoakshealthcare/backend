@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.security import decrypt
 from app.db.models.fallguard import FallGuardAssessment
 from app.services import fallguard as fallguard_service
+from app.services import fallguard_questionnaire as questionnaire
 from app.services import fallguard_scoring as scoring
 from app.tests.factories import auth_headers, make_admin, make_caregiver, make_patient
 
@@ -121,7 +122,7 @@ def test_an_under_60_submission_has_no_score_no_tier_and_no_recommendations(db, 
 
 
 def test_a_red_flag_answer_makes_the_result_urgent_without_changing_the_tier(client, patient):
-    r = submit(client, patient.user, [*LOW_FULL, {"question_id": "R3", "answer": True}, {"question_id": "R2", "answer": "no"}],
+    r = submit(client, patient.user, [*LOW_FULL, {"question_id": "R3", "answer": True}, {"question_id": "R2", "answer": False}],
                date_of_birth="1960-06-15")
     result = r.json()["result"]
     assert result["urgent"] is True and result["red_flags_triggered"] == ["R3"]
@@ -199,14 +200,19 @@ def test_an_unknown_question_is_a_422_not_a_500(db, client, patient, question_id
 
 def test_an_answer_that_is_not_a_choice_is_a_422_and_names_the_field(db, client, patient):
     r = refused(db, client, patient, [{"question_id": "A1", "answer": 7}, *LOW_ANSWERS[1:]])
-    assert r.status_code == 422 and code(r) == "fallguard_invalid_option"
-    assert r.json()["detail"]["question_id"] == "A1" and r.json()["detail"]["fields"] == {"A1": "invalid_option"}
+    assert r.status_code == 422 and code(r) == "INVALID_ANSWER"
+    assert r.json()["detail"]["question_id"] == "A1" and r.json()["detail"]["fields"] == {"A1": "INVALID_ANSWER"}
 
 
-def test_a_missing_required_answer_is_a_422_listing_every_missing_item(db, client, patient):
+def test_a_missing_required_answer_is_a_422_naming_the_first_missing_item(db, client, patient):
     r = refused(db, client, patient, [{"question_id": "A1", "answer": 1}, {"question_id": "A4", "answer": 0}])
-    assert r.status_code == 422 and code(r) == "fallguard_missing_required"
-    assert r.json()["detail"]["fields"] == {k: "required" for k in ("A5", "A6", "A2", "A3", "A7")}
+    assert r.status_code == 422 and code(r) == "MISSING_REQUIRED"  # the reference library's own code
+    assert r.json()["detail"]["question_id"] == "A5" and r.json()["detail"]["fields"] == {"A5": "MISSING_REQUIRED"}
+
+
+def test_an_a1_of_1_makes_a2_a3_and_a7_required(db, client, patient):
+    r = refused(db, client, patient, [{"question_id": q, "answer": 1 if q == "A1" else 0} for q in ("A1", "A4", "A5", "A6")])
+    assert r.status_code == 422 and r.json()["detail"]["fields"] == {"A2": "MISSING_REQUIRED"}
 
 
 def test_a_future_date_of_birth_is_a_422(db, client, patient):
@@ -230,6 +236,43 @@ def test_only_a_patient_may_submit(client, db):
     assert submit(client, caregiver.user, LOW_ANSWERS).status_code in (401, 403)
     assert client.post(f"{API}/submit", json={"answers": []}).status_code in (401, 403)
     assert client.get(f"{API}/config").status_code in (401, 403)
+
+
+# --- what the reference library does not check, closed in the API layer --------------------------------------------------------
+
+@pytest.mark.parametrize("bad", ["yes", 1, "true", None])
+def test_a_red_flag_answer_must_be_true_or_false(db, client, patient, bad):
+    r = refused(db, client, patient, [*LOW_FULL, {"question_id": "R2", "answer": bad}])
+    assert r.status_code == 422 and code(r) == "INVALID_ANSWER" and r.json()["detail"]["question_id"] == "R2"
+
+
+@pytest.mark.parametrize("item,bad", [("C1", 2), ("C1", True), ("C2", "WEEKLY"), ("C5", 2), ("C7", [1]), ("C7", 5),
+                                      ("C8", {"sex": "X"}), ("C8", "F"), ("B8", [["STROKE"]]), ("B8", {"a": 1})])
+def test_part_c_and_multi_select_shapes_are_422_never_a_500_or_503(db, client, patient, item, bad):
+    r = refused(db, client, patient, [*LOW_FULL, {"question_id": item, "answer": bad}] if item != "B8" else
+                [*[a for a in LOW_FULL if a["question_id"] != "B8"], {"question_id": "B8", "answer": bad}])
+    assert r.status_code == 422 and code(r) == "INVALID_ANSWER" and r.json()["detail"]["question_id"] == item
+
+
+def test_a_single_text_c7_answer_is_kept_as_a_list_and_flags_a_pharmacist_review(client, patient):
+    r = submit(client, patient.user, [*LOW_FULL, {"question_id": "C7", "answer": "Placeholder herbal tea"}],
+               date_of_birth="1960-06-15")
+    assert r.status_code == 200 and r.json()["result"]["pharmacist_review_flag"] is True
+    assert {a["question_id"]: a["answer"] for a in r.json()["answers"]}["C7"] == "Placeholder herbal tea"
+
+
+def test_unknown_is_accepted_for_part_b_and_not_for_part_a(db, client, patient):
+    ok = submit(client, patient.user, [*LOW_ANSWERS, {"question_id": "B3", "answer": "UNKNOWN"}])
+    assert ok.status_code == 200 and "B3" in ok.json()["result"]["unknown_items"]
+    r = refused_after(db, client, patient, [{"question_id": "A1", "answer": "UNKNOWN"}, *LOW_ANSWERS[1:]])
+    assert r.status_code == 422 and code(r) == "INVALID_ANSWER"
+
+
+def refused_after(db, client, patient, answers):
+    count = db.query(FallGuardAssessment).count()
+    r = submit(client, patient.user, answers)
+    assert db.query(FallGuardAssessment).count() == count
+    return r
 
 
 # --- SR-5 and the rate limit ---------------------------------------------------------------------------------------------------
@@ -296,11 +339,15 @@ def test_an_ai_service_that_raises_never_fails_the_submission(client, patient, m
 
 def test_questions_list_every_item_in_order_in_the_older_shape_plus_additive_fields(client, patient):
     items = client.get(f"{API}/questions", headers=auth_headers(patient.user)).json()
-    assert [i["id"] for i in items] == scoring.ITEM_ORDER and [i["order"] for i in items] == list(range(1, 36))
+    assert [i["id"] for i in items] == questionnaire.ITEM_ORDER and [i["order"] for i in items] == list(range(1, 35))
     a1 = items[0]
-    assert a1["options"] == [{"text": "no", "score": 0, "code": 0}, {"text": "once", "score": 1, "code": 1},
-                             {"text": "twice or more", "score": 2, "code": 2}]
-    assert a1["required"] is True and a1["part"] == "A" and a1["wording_status"] == "PENDING_CLINICAL_WORDING"
+    assert a1["options"] == [{"text": "No", "score": None, "code": 0}, {"text": "Yes, once", "score": None, "code": 1},
+                             {"text": "Yes, 2 or more times", "score": None, "code": 2}]  # Part A choices carry no points
+    assert a1["question"].startswith("In the last 12 months, have you fallen") and a1["explain"] is None
+    assert a1["required"] is True and a1["part"] == "A" and a1["wording_status"] == "PENDING_CLINICAL_SIGN_OFF"
+    b3 = next(i for i in items if i["id"] == "B3")
+    assert [o["score"] for o in b3["options"]] == [0, 1, 2] and b3["allows_unknown"] is True
+    assert b3["explain"] == "You find it hard to stand up from a chair without using your hands"
     assert next(i for i in items if i["id"] == "A2")["show_if"] == {"item": "A1", "op": ">=", "value": 1}
 
 
@@ -310,7 +357,8 @@ def test_config_has_versions_items_red_flags_messages_and_the_emergency_number(c
     assert r.status_code == 200 and cfg["language"] == "en"  # only English exists; the app falls back per string
     assert (cfg["questionnaire_version"], cfg["algorithm_version"], cfg["content_version"]) == ("2.0.0", "2.0.0", "2.0.0")
     assert cfg["emergency_number"] == "112" and cfg["min_age"] == 60 and cfg["assessment_minutes"] == 8
-    assert [r["id"] for r in cfg["red_flags"]] == [f"R{n}" for n in range(1, 8)] and len(cfg["items"]) == 35
+    assert [r["id"] for r in cfg["red_flags"]] == [f"R{n}" for n in range(1, 8)] and len(cfg["items"]) == 34
+    assert cfg["red_flags"][0]["text"] == "Did you hit your head?" and cfg["red_flags"][0]["rule"].startswith("URGENT unless C5")
     assert cfg["messages"]["urgent.message"].startswith("Please get medical help now.")
     assert cfg["content_sign_off_status"] == "PENDING_CLINICAL_LEAD_SIGN_OFF"
 

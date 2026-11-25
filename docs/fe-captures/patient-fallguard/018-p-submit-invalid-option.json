@@ -32,11 +32,11 @@
     },
     "body": {
       "detail": {
-        "code": "fallguard_invalid_option",
+        "code": "INVALID_ANSWER",
         "message": "That answer is not one of the choices for the question.",
         "question_id": "A1",
         "fields": {
-          "A1": "invalid_option"
+          "A1": "INVALID_ANSWER"
         }
       }
     }

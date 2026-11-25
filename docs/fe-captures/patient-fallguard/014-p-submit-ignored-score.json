@@ -131,12 +131,12 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "abbf22d3-bdd4-4fcd-adcb-16c27c2bbcb6",
-      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "id": "22929f4e-4d12-4b7d-b367-35d6615ba8c3",
+      "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
       "total_score": 1,
       "ai_summary": null,
       "ai_recommendations": null,
-      "created_at": "2026-11-25T17:31:07.815342",
+      "created_at": "2026-11-25T21:23:32.086540",
       "answers": [
         {
           "question_id": "A1",

@@ -12,12 +12,12 @@
     },
     "body": [
       {
-        "id": "abbf22d3-bdd4-4fcd-adcb-16c27c2bbcb6",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "22929f4e-4d12-4b7d-b367-35d6615ba8c3",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 1,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.815342",
+        "created_at": "2026-11-25T21:23:32.086540",
         "answers": [
           {
             "question_id": "A1",
@@ -215,12 +215,12 @@
         "ai_review_status": null
       },
       {
-        "id": "efef6e7d-a027-4cf9-9f73-2484cf9c19f4",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "3b70e94d-6c31-4d4b-bcfd-7c8070553273",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 1,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.808321",
+        "created_at": "2026-11-25T21:23:32.082423",
         "answers": [
           {
             "question_id": "A1",
@@ -442,12 +442,12 @@
         "ai_review_status": null
       },
       {
-        "id": "bb58407d-3688-453f-aafc-bf5d9900f4bb",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "e1b17910-b05a-461d-8777-3098516b33bc",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 1,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.797844",
+        "created_at": "2026-11-25T21:23:32.078374",
         "answers": [
           {
             "question_id": "A1",
@@ -602,7 +602,9 @@
           "algorithm_version": "2.0.0",
           "age": 66,
           "urgent": false,
-          "red_flags_triggered": [],
+          "red_flags_triggered": [
+            "R1"
+          ],
           "eligible": true,
           "gate_tier": "LOW",
           "gate_reasons": [],
@@ -667,12 +669,12 @@
         "ai_review_status": null
       },
       {
-        "id": "9a102872-4830-487b-9af1-352f5a652925",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "d6bb08ee-c67a-4fc2-9f65-afda37dfb9b8",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 1,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.790268",
+        "created_at": "2026-11-25T21:23:32.074484",
         "answers": [
           {
             "question_id": "A1",
@@ -878,12 +880,12 @@
         "ai_review_status": null
       },
       {
-        "id": "7ee455c5-5874-4029-9a07-5b8e961e718d",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "81772f8b-ba0d-45e5-ac19-d30f6889859a",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": null,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.781768",
+        "created_at": "2026-11-25T21:23:32.070418",
         "answers": [
           {
             "question_id": "A1",
@@ -1028,19 +1030,12 @@
           "urgent": false,
           "red_flags_triggered": [],
           "eligible": false,
-          "gate_tier": null,
-          "gate_reasons": [],
-          "score": null,
-          "score_tier": null,
           "final_tier": null,
-          "incomplete": false,
-          "provisional": false,
-          "unknown_items": [],
-          "part_b_points": {},
-          "top_factors": [],
-          "prompt_attention": false,
-          "consequence_flag": false,
-          "pharmacist_review_flag": false
+          "gate_tier": null,
+          "score_tier": null,
+          "score": null,
+          "referral_message_key": "UNDER_60_REFERRAL",
+          "prompt_attention": false
         },
         "recommendations": {
           "top": [],
@@ -1049,12 +1044,12 @@
         "ai_review_status": null
       },
       {
-        "id": "71708d54-6f8d-4654-ba99-b70642db3b98",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "23828c96-8b3d-4dd8-9f14-d55a8fee7823",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 19,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.773719",
+        "created_at": "2026-11-25T21:23:32.066508",
         "answers": [
           {
             "question_id": "A1",
@@ -1252,12 +1247,12 @@
         "ai_review_status": null
       },
       {
-        "id": "d740b8b2-bc86-42a9-984a-51fe70005420",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "b3c142f5-0df3-47b6-9ca0-66acf7420218",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 1,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.764032",
+        "created_at": "2026-11-25T21:23:32.062375",
         "answers": [
           {
             "question_id": "A1",
@@ -1404,7 +1399,7 @@
           "eligible": true,
           "gate_tier": "HIGH",
           "gate_reasons": [
-            "GATE_H_FAINTED"
+            "GATE_H_FAINTING"
           ],
           "score": 1,
           "score_tier": "LOW",
@@ -1482,12 +1477,12 @@
         "ai_review_status": null
       },
       {
-        "id": "611abe29-8c02-4538-802d-19e0c2deaf19",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "06c484ad-7d42-43c0-973f-fb7ab8cf123a",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 1,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.754055",
+        "created_at": "2026-11-25T21:23:32.058343",
         "answers": [
           {
             "question_id": "A1",
@@ -1685,12 +1680,12 @@
         "ai_review_status": null
       },
       {
-        "id": "50437af6-0bb6-46c0-af7f-adab6da6bac4",
-        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "id": "97b5610b-2fa3-46ec-851b-f3642d474d33",
+        "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
         "total_score": 18,
         "ai_summary": null,
         "ai_recommendations": null,
-        "created_at": "2026-11-25T17:31:07.740648",
+        "created_at": "2026-11-25T21:23:32.052429",
         "answers": [
           {
             "question_id": "A1",

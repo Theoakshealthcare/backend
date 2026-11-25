@@ -1,7 +1,7 @@
 {
   "generated_by": "scripts/capture_patient_fallguard.py",
-  "run_tag": "16e0d1",
-  "captured_at": "2026-11-25T17:31:08.035899Z",
+  "run_tag": "f48288",
+  "captured_at": "2026-11-25T21:23:32.145978Z",
   "captures": [
     {
       "file": "001-p-questions.json",
@@ -99,57 +99,67 @@
       "status": 422
     },
     {
-      "file": "020-p-submit-no-date-of-birth.json",
+      "file": "020-p-submit-red-flag-not-boolean.json",
+      "label": "p-submit-red-flag-not-boolean",
+      "status": 422
+    },
+    {
+      "file": "021-p-submit-part-c-invalid.json",
+      "label": "p-submit-part-c-invalid",
+      "status": 422
+    },
+    {
+      "file": "022-p-submit-no-date-of-birth.json",
       "label": "p-submit-no-date-of-birth",
       "status": 422
     },
     {
-      "file": "021-p-submit-future-date-of-birth.json",
+      "file": "023-p-submit-future-date-of-birth.json",
       "label": "p-submit-future-date-of-birth",
       "status": 422
     },
     {
-      "file": "022-p-submit-bad-body.json",
+      "file": "024-p-submit-bad-body.json",
       "label": "p-submit-bad-body",
       "status": 422
     },
     {
-      "file": "023-c-submit-as-caregiver.json",
+      "file": "025-c-submit-as-caregiver.json",
       "label": "c-submit-as-caregiver",
       "status": 403
     },
     {
-      "file": "024-none-submit-no-token.json",
+      "file": "026-none-submit-no-token.json",
       "label": "none-submit-no-token",
       "status": 401
     },
     {
-      "file": "025-p-history.json",
+      "file": "027-p-history.json",
       "label": "p-history",
       "status": 200
     },
     {
-      "file": "026-p-submit-rate-limited.json",
+      "file": "028-p-submit-rate-limited.json",
       "label": "p-submit-rate-limited",
       "status": 429
     },
     {
-      "file": "027-a-admin-questions.json",
+      "file": "029-a-admin-questions.json",
       "label": "a-admin-questions",
       "status": 200
     },
     {
-      "file": "028-a-admin-create-question-retired.json",
+      "file": "030-a-admin-create-question-retired.json",
       "label": "a-admin-create-question-retired",
       "status": 410
     },
     {
-      "file": "029-a-admin-update-question-retired.json",
+      "file": "031-a-admin-update-question-retired.json",
       "label": "a-admin-update-question-retired",
       "status": 410
     },
     {
-      "file": "030-a-admin-delete-question-retired.json",
+      "file": "032-a-admin-delete-question-retired.json",
       "label": "a-admin-delete-question-retired",
       "status": 410
     }

@@ -530,7 +530,7 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 
 ## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 in progress (FallGuard backend scoring built 2026-11-25, PR open) ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
 - [ ] Settle conflicts: wallet (owner refuses), drug reminders vs the medication notice, family details spec, who is alerted
-- [x] The three files the PDF says it ships were never supplied, so the owner chose to rebuild them from the PDF (2026-11-25): `questionnaire_v2_0.json`, the scoring library and its tests were written from the PDF's tables, rules and Appendix A. **Still open: ask for the originals (TV1 to TV17) and cross-check ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), open question 1).**
+- [x] The three files the PDF ships (`fallguard_scoring.py`, `test_fallguard_scoring.py` TV1-TV17, `questionnaire_v2_0.json`) were supplied by the owner on 2026-11-25 and are vendored unmodified into backend #85; our earlier hand-made re-implementation was deleted ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), "What changed when the reference arrived")
 - [x] 1a care template text (version 2, clinician-approved), caregiver own-documentation space (private, audited admin read), Elderly template for nurse or caregiver, nurse 2 h grace for care-plan notes. Built 2026-11-25 (backend `feature/care-templates-docs-space`, migration `0031`; [SOP](../sop/2026-11-25-care-templates-docs-space.md); [FE guide](../fe-integration-guide-care-templates-docs-space.md)). PRs open, not merged; app screens need a simulator pass; templates still `pending` until an admin signs them off
 - [x] 1b vitals flag engine and badges: server flags on every vitals response (no migration), badges in the caregiver and patient apps; 2026-11-25, `feature/vitals-flags` + monorepo `feature/vitals-flags-badges`, [SOP](../sop/2026-11-25-vitals-flags.md), [FE guide](../fe-integration-guide-vitals-flags.md). Open: seven clinician questions in the SOP; visual pass on a device pending
   - [x] Flags engine, glucose label (Random / Fasting / After meal), diabetes and kidney BP line, 112 message on critical; weight and sleep never flagged
@@ -540,8 +540,7 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
 - [ ] FallGuard v2.0 (replaces the 24-question screener):
   - [x] Backend scoring and config, branch `feature/fallguard-v2-scoring`, PR open, not merged (2026-11-25): questionnaire JSON, pure scoring library, recommendation catalogue, immutable versioned results (`0033`), `/questions`, `/config`, `/submit`, `/history`, 10 per hour limit, 503 `SCORING_UNAVAILABLE`, old seed script and admin editor retired ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), [FE guide](../fe-integration-guide-patient-fallguard.md))
-  - [ ] Clinician supplies: question wording and "explain" strings, red-flag items R1 to R7, HIGH gate-reason names, state emergency numbers, Appendix E sign-off (SOP: 16 open questions)
-  - [ ] Cross-check against the PDF's own `fallguard_scoring.py` and TV1 to TV17 (owner to obtain)
+  - [ ] Clinician: Appendix E sign-off, a sentence per gate-reason code, state emergency numbers, content version, AI service decision (SOP: 9 open questions; wording and R1-R7 came with the package, unsigned)
   - [ ] Patient app screens (after the backend is reviewed)
   - [ ] Red-flag events endpoint, consent, access grants, override, Part D clinical tests, care plans, recommendation flags
   - [ ] Check-ins, reassessment reminders, PDF export

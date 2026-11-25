@@ -109,12 +109,12 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "d740b8b2-bc86-42a9-984a-51fe70005420",
-      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "id": "b3c142f5-0df3-47b6-9ca0-66acf7420218",
+      "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
       "total_score": 1,
       "ai_summary": null,
       "ai_recommendations": null,
-      "created_at": "2026-11-25T17:31:07.764032",
+      "created_at": "2026-11-25T21:23:32.062375",
       "answers": [
         {
           "question_id": "A1",
@@ -261,7 +261,7 @@
         "eligible": true,
         "gate_tier": "HIGH",
         "gate_reasons": [
-          "GATE_H_FAINTED"
+          "GATE_H_FAINTING"
         ],
         "score": 1,
         "score_tier": "LOW",

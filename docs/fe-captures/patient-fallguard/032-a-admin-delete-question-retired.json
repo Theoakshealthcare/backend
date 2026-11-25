@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "DELETE",
-    "path": "/api/v1/fallguard/admin/question/82d5a207-eff9-4d31-833c-04320ddf7c82",
+    "path": "/api/v1/fallguard/admin/question/49c182e5-bda4-463b-87fe-ff57f3e38af7",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
   },

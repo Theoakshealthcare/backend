@@ -117,12 +117,12 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "bb58407d-3688-453f-aafc-bf5d9900f4bb",
-      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "id": "e1b17910-b05a-461d-8777-3098516b33bc",
+      "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
       "total_score": 1,
       "ai_summary": null,
       "ai_recommendations": null,
-      "created_at": "2026-11-25T17:31:07.797844",
+      "created_at": "2026-11-25T21:23:32.078374",
       "answers": [
         {
           "question_id": "A1",
@@ -277,7 +277,9 @@
         "algorithm_version": "2.0.0",
         "age": 66,
         "urgent": false,
-        "red_flags_triggered": [],
+        "red_flags_triggered": [
+          "R1"
+        ],
         "eligible": true,
         "gate_tier": "LOW",
         "gate_reasons": [],

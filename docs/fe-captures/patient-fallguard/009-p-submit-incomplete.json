@@ -31,12 +31,12 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "71708d54-6f8d-4654-ba99-b70642db3b98",
-      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "id": "23828c96-8b3d-4dd8-9f14-d55a8fee7823",
+      "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
       "total_score": 19,
       "ai_summary": null,
       "ai_recommendations": null,
-      "created_at": "2026-11-25T17:31:07.773719",
+      "created_at": "2026-11-25T21:23:32.066508",
       "answers": [
         {
           "question_id": "A1",

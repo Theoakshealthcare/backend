@@ -11,10 +11,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Mapping
 
-from app.services.fallguard_scoring import HIGH, INTERMEDIATE, LOW, load_json
+from app.services.fallguard_questionnaire import CONTENT
 
-CONTENT: Dict[str, Any] = load_json("content_v2_0.json")
-CONTENT_VERSION: str = CONTENT["content_version"]
+LOW, INTERMEDIATE, HIGH = "LOW", "INTERMEDIATE", "HIGH"
 CATALOGUE: List[Dict[str, Any]] = sorted(CONTENT["recommendations"], key=lambda r: r["priority"])
 TOP_N = 3  # section 7: "the result screen shows the top three by priority"
 

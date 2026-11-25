@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "PUT",
-    "path": "/api/v1/fallguard/admin/question/2a2bf948-80d9-4c55-895d-474e28fcf602",
+    "path": "/api/v1/fallguard/admin/question/c3c83f10-bbe3-4115-b42f-c98a782e5137",
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {}
   },

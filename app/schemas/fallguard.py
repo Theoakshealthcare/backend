@@ -17,7 +17,7 @@ class FallGuardQuestionResponse(BaseModel):
     """One questionnaire item, v2.0. ``id``, ``question``, ``options``, ``order`` and ``is_active`` are the older fields
     (``id`` is now an item id such as ``"A1"``, not a UUID); the rest is additive."""
     id: str
-    question: str
+    question: Optional[str] = None
     options: List[FallGuardOption]
     order: int
     is_active: bool = True
@@ -28,12 +28,12 @@ class FallGuardQuestionResponse(BaseModel):
     required: Optional[bool] = None
     allows_unknown: Optional[bool] = None
     show_if: Optional[Dict[str, Any]] = None
-    summary: Optional[str] = None
-    wording_status: Optional[str] = None
+    icon: Optional[str] = None
+    explain: Optional[str] = None
     exclusive_codes: Optional[List[str]] = None
-    count_bands: Optional[List[Dict[str, Any]]] = None
-    age_bands: Optional[List[Dict[str, Any]]] = None
-    analytics_only: Optional[bool] = None
+    scoring: Optional[Dict[str, Any]] = None
+    fields: Optional[Dict[str, Any]] = None
+    wording_status: Optional[str] = None
 
 
 class FallGuardAnswerResponse(BaseModel):

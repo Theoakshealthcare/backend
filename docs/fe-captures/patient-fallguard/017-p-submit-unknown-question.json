@@ -22,7 +22,7 @@
           "answer": 0
         },
         {
-          "question_id": "86e528a7-cfed-4ecb-8b9a-ee9f9639002a",
+          "question_id": "fa1b5563-41d4-43cd-a784-690cc9a9d622",
           "answer": "No"
         }
       ],
@@ -38,7 +38,7 @@
       "detail": {
         "code": "fallguard_unknown_question",
         "message": "One of the questions is not part of the assessment.",
-        "question_id": "86e528a7-cfed-4ecb-8b9a-ee9f9639002a"
+        "question_id": "fa1b5563-41d4-43cd-a784-690cc9a9d622"
       }
     }
   },

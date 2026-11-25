@@ -113,12 +113,12 @@
       "content-type": "application/json"
     },
     "body": {
-      "id": "9a102872-4830-487b-9af1-352f5a652925",
-      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "id": "d6bb08ee-c67a-4fc2-9f65-afda37dfb9b8",
+      "patient_id": "c5470c8e-7b9e-4aed-b63b-b83a1beb1f68",
       "total_score": 1,
       "ai_summary": null,
       "ai_recommendations": null,
-      "created_at": "2026-11-25T17:31:07.790268",
+      "created_at": "2026-11-25T21:23:32.074484",
       "answers": [
         {
           "question_id": "A1",
@@ -324,5 +324,5 @@
       "ai_review_status": null
     }
   },
-  "note": "Any of R2 to R7 answered yes: `urgent` true. The tier is unchanged. R3 is a placeholder item id: the PDF does not say what R1 to R7 ask."
+  "note": "Any of R2 to R7 answered yes: `urgent` true. The tier is unchanged."
 }

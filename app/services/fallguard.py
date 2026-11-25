@@ -7,6 +7,7 @@ refusals to a stable 422, stores the result in one transaction, and never stores
 """
 
 import logging
+import re
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -16,14 +17,18 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models.fallguard import FallGuardAssessment
 from app.schemas.fallguard import FallGuardAssessmentCreate
+from app.services import fallguard_questionnaire as questionnaire
 from app.services import fallguard_recommendations as recommendations
 from app.services import fallguard_scoring as scoring
+from app.services.fallguard_questionnaire import (  # noqa: F401  (used by the endpoints)
+    config_view,
+    questions_view,
+)
 from app.services.gemini import gemini_service
 
 log = logging.getLogger(__name__)
 
 SUBMIT_RATE_LIMIT_PER_HOUR = 10  # handover PDF section 17: "Submit: 10 per hour per subject"
-WORDING_PENDING = "PENDING_CLINICAL_WORDING"
 AI_PENDING_REVIEW = "PENDING_CLINICIAN_REVIEW"  # the PDF and the owner: AI-generated FallGuard text is reviewed before launch
 
 
@@ -41,55 +46,6 @@ class FallGuardSubmissionError(Exception):
 def assessment_date() -> date:
     """The assessment date is today in Africa/Lagos (PDF section 17), decided by the server."""
     return datetime.now(ZoneInfo(settings.HOME_TIMEZONE)).date()
-
-
-# --- the questionnaire as the app receives it --------------------------------------------------------------------------------
-
-def question_view(item: Dict[str, Any], order: int) -> Dict[str, Any]:
-    wording_ready = item.get("text") is not None
-    return {
-        "id": item["id"],
-        "question": item.get("text") or item.get("summary") or f"Item {item['id']}",
-        "options": [{"text": o.get("label") or str(o["code"]), "score": o.get("points"), "code": o["code"]}
-                    for o in item["options"]],
-        "order": order,
-        "is_active": True,
-        "part": item["part"],
-        "type": item["type"],
-        "required": item["required"],
-        "allows_unknown": item["allows_unknown"],
-        "show_if": item["show_if"],
-        "summary": item.get("summary"),
-        "wording_status": "APPROVED" if wording_ready else WORDING_PENDING,
-        "exclusive_codes": item.get("exclusive_codes"),
-        "count_bands": item.get("count_bands"),
-        "age_bands": item.get("age_bands"),
-        "analytics_only": item.get("analytics_only"),
-    }
-
-
-def questions_view() -> List[Dict[str, Any]]:
-    return [question_view(item, n) for n, item in enumerate(scoring.QUESTIONNAIRE["items"], start=1)]
-
-
-def config_view() -> Dict[str, Any]:
-    """Everything the app needs to render the questionnaire, the red-flag items and the fixed messages."""
-    content = recommendations.CONTENT
-    return {
-        "questionnaire_version": scoring.QUESTIONNAIRE_VERSION,
-        "algorithm_version": scoring.ALGORITHM_VERSION,
-        "content_version": recommendations.CONTENT_VERSION,
-        "language": "en",
-        "wording_status": scoring.QUESTIONNAIRE["wording_status"],
-        "content_sign_off_status": content["sign_off_status"],
-        "emergency_number": content["emergency_number"]["default"],
-        "assessment_minutes": content["assessment_minutes"],
-        "min_age": scoring.QUESTIONNAIRE["scoring"]["min_age"],
-        "items": questions_view(),
-        "red_flags": scoring.QUESTIONNAIRE["red_flags"],
-        "messages": content["messages"],
-        "welcome": content["welcome"],
-    }
 
 
 # --- stored answers as the app reads them back --------------------------------------------------------------------------------
@@ -145,28 +101,38 @@ class FallGuardService:
 
     @staticmethod
     def build_payload(data: FallGuardAssessmentCreate, date_of_birth: Optional[date]) -> Dict[str, Any]:
+        """The scoring input from the app's answers list. Everything the reference library does not check (it assumes a
+        well-formed request) is checked here, so a bad body is a 422 and never a silent mis-score or a 503."""
         if not data.answers:
             raise FallGuardSubmissionError("fallguard_no_answers", "Answer at least one question.")
         parts: Dict[str, Dict[str, Any]] = {"part_a": {}, "part_b": {}, "part_c": {}, "red_flags": {}}
         seen = set()
         for ans in data.answers:
-            if ans.question_id in seen:
+            qid = ans.question_id
+            if qid in seen:
                 raise FallGuardSubmissionError(
-                    "fallguard_duplicate_question", "Each question can only be answered once.", ans.question_id)
-            seen.add(ans.question_id)
-            if ans.question_id in scoring.RED_FLAG_IDS:
-                parts["red_flags"][ans.question_id] = ans.answer
-            elif ans.question_id in scoring.ITEMS:
-                parts[f"part_{scoring.ITEMS[ans.question_id]['part'].lower()}"][ans.question_id] = ans.answer
+                    "fallguard_duplicate_question", "Each question can only be answered once.", qid)
+            seen.add(qid)
+            item = questionnaire.ITEMS.get(qid)
+            if qid in questionnaire.RED_FLAG_IDS:
+                if not isinstance(ans.answer, bool):
+                    raise _invalid_answer(qid, "A red-flag answer is true or false.")
+                parts["red_flags"][qid] = ans.answer
+            elif item is None or item["type"] == "derived":  # B1 is worked out from the date of birth, never asked
+                raise FallGuardSubmissionError(
+                    "fallguard_unknown_question", "One of the questions is not part of the assessment.", qid)
             else:
-                raise FallGuardSubmissionError(
-                    "fallguard_unknown_question", "One of the questions is not part of the assessment.", ans.question_id)
+                parts[f"part_{item['part'].lower()}"][qid] = _check_answer_shape(item, ans.answer)
         dob = data.date_of_birth or date_of_birth
         if dob is None:
             raise FallGuardSubmissionError(
                 "fallguard_date_of_birth_required", "Date of birth is needed to work out the age.",
                 fields={"date_of_birth": "required"})
-        return {"date_of_birth": dob.isoformat(), "assessment_date": assessment_date().isoformat(), **parts}
+        today = assessment_date()
+        if dob > today:  # the reference library would call a negative age "under 60", so refuse it here
+            raise FallGuardSubmissionError(
+                "fallguard_invalid_date_of_birth", "Date of birth is in the future.", fields={"date_of_birth": "future"})
+        return {"date_of_birth": dob.isoformat(), "assessment_date": today.isoformat(), **parts}
 
     def _check_rate_limit(self, patient_id) -> None:
         since = datetime.utcnow() - timedelta(hours=1)
@@ -185,8 +151,8 @@ class FallGuardService:
         self._check_rate_limit(patient_id)
         try:
             result = scoring.score_assessment(payload)
-        except scoring.ScoringError as exc:  # the request is wrong: 422 with the library's code (PDF section 8)
-            raise FallGuardSubmissionError(exc.code, exc.message, exc.question_id, exc.fields) from exc
+        except scoring.ValidationError as exc:  # the request is wrong: 422 with the library's code (PDF section 8)
+            raise _library_error(exc) from exc
         except Exception as exc:  # SR-5: scoring failed, so no tier is stored or returned
             log.error("FallGuard scoring failed: %s", type(exc).__name__)
             raise _scoring_unavailable() from exc
@@ -195,9 +161,9 @@ class FallGuardService:
             assessment = FallGuardAssessment(
                 patient_id=patient_id, total_score=result["score"],
                 questionnaire_version=result["questionnaire_version"], algorithm_version=result["algorithm_version"],
-                content_version=recommendations.CONTENT_VERSION, eligible=result["eligible"],
+                content_version=questionnaire.CONTENT_VERSION, eligible=result["eligible"],
                 gate_tier=result["gate_tier"], score_tier=result["score_tier"], final_tier=result["final_tier"],
-                urgent=result["urgent"], incomplete=result["incomplete"])
+                urgent=result["urgent"], incomplete=result.get("incomplete", False))
             assessment.answers_json = payload
             assessment.result_json = {"scoring": result, "recommendations": recs}
             self.db.add(assessment)
@@ -214,7 +180,7 @@ class FallGuardService:
     async def _add_ai_advice(self, assessment: FallGuardAssessment, payload: Dict[str, Any], result: Dict[str, Any]) -> None:
         """Optional and off by default. Never fails the submission; never sends the date of birth or free text."""
         coded = [{"question_id": i, "answer": a} for part in ("part_a", "part_b", "part_c")
-                 for i, a in payload[part].items() if i not in ("C7", "C8", "C9")]
+                 for i, a in payload[part].items() if i not in ("C7", "C8")]
         try:
             ai = await gemini_service.analyze_fallguard_assessment(coded, result["score"] or 0)
             assessment.ai_summary, assessment.ai_recommendations = ai.get("summary"), ai.get("recommendations")
@@ -231,7 +197,55 @@ class FallGuardService:
         return self.db.query(FallGuardAssessment).filter(FallGuardAssessment.id == assessment_id).first()
 
 
+_LIBRARY_MESSAGES = {
+    "INVALID_ANSWER": "That answer is not one of the choices for the question.",
+    "EXCLUSIVE_ANSWER": "\"None of these\" and \"I am not sure\" cannot be combined with another choice.",
+    "MISSING_REQUIRED": "Answer every required question.",
+    "INVALID_DATE": "That is not a calendar date (YYYY-MM-DD).",
+    "INVALID_RED_FLAG": "That is not a red-flag item.",
+}
+
+
+def _invalid_answer(item_id: str, message: str = _LIBRARY_MESSAGES["INVALID_ANSWER"]) -> FallGuardSubmissionError:
+    return FallGuardSubmissionError("INVALID_ANSWER", message, item_id, {item_id: "INVALID_ANSWER"})
+
+
+def _library_error(exc: "scoring.ValidationError") -> FallGuardSubmissionError:
+    """The reference library's refusal as a 422 with its own code. It names the item first in its detail text."""
+    detail = str(exc).split(": ", 1)[-1]
+    found = re.match(r"[A-Z]\d+", detail)
+    item_id = found.group(0) if found else ("date_of_birth" if exc.code == "INVALID_DATE" else None)
+    return FallGuardSubmissionError(
+        exc.code, _LIBRARY_MESSAGES.get(exc.code, "The assessment could not be scored."),
+        item_id if found else None, {item_id: exc.code} if item_id else None)
+
+
+def _check_answer_shape(item: Dict[str, Any], value: Any) -> Any:
+    """What the reference library does not check. Part A and the Part B choices are range-checked by the library; here the
+    types it would trip over (a list inside a list) and the whole of Part C, which it never reads for validity."""
+    kind, qid = item["type"], item["id"]
+    if value is None:
+        return None
+    if kind == "multi":
+        if value != "UNKNOWN" and not (isinstance(value, list) and all(isinstance(v, str) for v in value)):
+            raise _invalid_answer(qid)
+    elif kind == "single" and item["part"] == "C":
+        codes = [o["code"] for o in item["options"]]
+        if not any(type(value) is type(c) and value == c for c in codes):
+            raise _invalid_answer(qid)
+    elif kind == "text_list":
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise _invalid_answer(qid)
+    elif kind == "demographics":
+        fields = item["fields"]
+        if not isinstance(value, dict) or any(k not in fields or v not in fields[k] for k, v in value.items()):
+            raise _invalid_answer(qid)
+    return value
+
+
 def _scoring_unavailable() -> FallGuardSubmissionError:
     # error.safety is the PDF's fixed Appendix C text (SR-5); the app shows its own copy of it with the emergency details.
     return FallGuardSubmissionError(
-        "SCORING_UNAVAILABLE", recommendations.CONTENT["messages"]["error.safety"], http_status=503)
+        "SCORING_UNAVAILABLE", questionnaire.CONTENT["messages"]["error.safety"], http_status=503)

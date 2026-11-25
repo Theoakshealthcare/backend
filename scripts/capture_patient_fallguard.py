@@ -77,13 +77,13 @@ def run(args) -> None:
         return rec.call(label, "POST", f"{api}/submit", token=tp, json_body=body, expect=expect, note=note)
 
     questions = rec.call("p-questions", "GET", f"{api}/questions", token=tp,
-                         note="The v2.0 questionnaire as a list, in order (35 items, A1 to C9).").json()
+                         note="The v2.0 questionnaire as a list, in order (34 items, A1 to C8).").json()
     rec.call("p-config", "GET", f"{api}/config", token=tp, params={"lang": "en"},
              note="Versions, items, the red-flag items, the fixed messages and the emergency number.")
     rec.call("c-questions-as-caregiver", "GET", f"{api}/questions", token=tc, expect=403)
     rec.call("none-questions-no-token", "GET", f"{api}/questions", expect=401)
     rec.call("p-history-empty", "GET", f"{api}/history", token=tp)
-    assert len(questions) == 35
+    assert len(questions) == 34
 
     submit("p-submit-appendix-a", APPENDIX_A, dob="1946-05-20",
            note="The handover PDF's Appendix A example (born 1946-05-20). The date of birth is in the body; the response "
@@ -100,8 +100,7 @@ def run(args) -> None:
     submit("p-submit-under-60", PART_A_ZERO + ZERO_B, dob="1990-01-01",
            note="Under 60: no score and no tier. Only `urgent` is still decided.")
     submit("p-submit-urgent", PART_A_ZERO + ZERO_B + [{"question_id": "R3", "answer": True}],
-           note="Any of R2 to R7 answered yes: `urgent` true. The tier is unchanged. R3 is a placeholder item id: the "
-                "PDF does not say what R1 to R7 ask.")
+           note="Any of R2 to R7 answered yes: `urgent` true. The tier is unchanged.")
     submit("p-submit-r1-no-blood-thinner", PART_A_ZERO + ZERO_B + [
         {"question_id": "C5", "answer": 0}, {"question_id": "R1", "answer": True}],
         note="R1 yes with C5 = 0 (no blood thinners): not urgent, but `prompt_attention` is true.")
@@ -116,7 +115,12 @@ def run(args) -> None:
            note="A v1 (24-question) client sending its UUID question ids lands here.")
     submit("p-submit-invalid-option", [{"question_id": "A1", "answer": 7}, *PART_A_ZERO[1:]], expect=422)
     submit("p-submit-missing-required", [{"question_id": "A1", "answer": 1}, {"question_id": "A4", "answer": 0}], expect=422,
-           note="A1 = 1 makes A2, A3 and A7 required as well; every missing item is listed in `fields`.")
+           note="Here A5 is the first missing required item (A1, A4, A5, A6 are checked first, then A2, A3, A7 when A1 is 1 or "
+                "more). The library names the FIRST missing item only.")
+    submit("p-submit-red-flag-not-boolean", [*PART_A_ZERO, {"question_id": "R2", "answer": "yes"}], expect=422,
+           note="A red-flag answer must be the JSON boolean true or false.")
+    submit("p-submit-part-c-invalid", [*PART_A_ZERO, {"question_id": "C2", "answer": "WEEKLY"}], expect=422,
+           note="Part C answers are checked against the questionnaire's codes.")
     submit("p-submit-no-date-of-birth", PART_A_ZERO + ZERO_B, dob=None, expect=422,
            note="This patient's profile has no date of birth and the body has none.")
     submit("p-submit-future-date-of-birth", PART_A_ZERO + ZERO_B, dob="2999-01-01", expect=422)
