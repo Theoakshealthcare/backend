@@ -14,12 +14,12 @@
       "bank_name": "Placeholder Bank",
       "bank_code": "058",
       "account_number": "0000000012",
-      "account_name": "A****** S******* N***",
+      "account_name": "A**** S**** N****",
       "verified": true,
-      "payouts_blocked_until": "2026-11-26T13:29:55.530111",
+      "payouts_blocked_until": "2026-11-26T17:10:25.634580",
       "name_review_status": "rejected",
-      "created_at": "2026-11-25T13:29:55.421264",
-      "updated_at": "2026-11-25T13:29:55.530111"
+      "created_at": "2026-11-25T17:10:25.491984",
+      "updated_at": "2026-11-25T17:10:25.634580"
     }
   },
   "note": "After a rejection name_review_status is 'rejected' and the name stays masked: no payout is made to it. The caregiver must save a different account."

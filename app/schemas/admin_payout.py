@@ -118,11 +118,11 @@ class BatchList(BaseModel):
 
 
 class BankReviewDecisionIn(BaseModel):
-    """Finance's decision on a held account. ``account_last4`` is the account they looked at; if the caregiver saved another
-    one since, the decision is refused with 409."""
+    """Finance's decision on a held account. ``review_token`` is the token the queue returned for the account they looked at; if the
+    caregiver changed the account since (number, bank or holder name), the decision is refused with 409."""
     model_config = ConfigDict(extra="forbid")
     reason: str = Field(min_length=1, max_length=2000)
-    account_last4: str = Field(pattern=r"^\d{4}$")
+    review_token: str = Field(pattern=r"^[0-9a-f]{32}$")
 
 
 class BankReviewOut(BaseModel):
@@ -135,6 +135,7 @@ class BankReviewOut(BaseModel):
     balance_kobo: int  # the caregiver's available balance, so Finance sees what is waiting
     submitted_at: datetime  # when the account was last saved
     decided_at: Optional[datetime] = None
+    review_token: str  # send it back with the decision: it names the exact account that was shown
 
 
 class BankReviewList(BaseModel):

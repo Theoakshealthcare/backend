@@ -13,19 +13,20 @@
     "body": {
       "items": [
         {
-          "caregiver_id": "642c0f16-f324-442f-948b-8e5a412208e0",
+          "caregiver_id": "9457c29a-e54d-43b9-b18f-a8d715c61e18",
           "caregiver_name": "Placeholder Tosin",
           "account_name": "SAMPLE OTHERPERSON",
           "bank_name": "Placeholder Bank",
           "account_number": "******0011",
           "status": "pending",
           "balance_kobo": 0,
-          "submitted_at": "2026-11-25T13:29:55.421264",
-          "decided_at": null
+          "submitted_at": "2026-11-25T17:10:25.491984",
+          "decided_at": null,
+          "review_token": "ff1f29d3cbc6004970579d8665ce435c"
         }
       ],
       "total": 1
     }
   },
-  "note": "Finance's queue (pending by default): both names side by side, the account number masked, and the caregiver's available balance. The wallet was seeded empty here, so balance_kobo is 0."
+  "note": "Finance's queue (pending by default): both names side by side, the account number masked, and the caregiver's available balance. The wallet was seeded empty here, so balance_kobo is 0. review_token names the exact account that is shown: a decision must send it back."
 }

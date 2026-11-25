@@ -39,8 +39,15 @@ def _flagged(db, client, fake_paystack, *, profile="Ada Okafor", holder="CHIDI O
     return cg
 
 
-def _decide(client, cg, verb, headers, *, last4="6789", reason="Checked with the caregiver by phone"):
-    return client.post(f"{REVIEWS}/{cg.id}/{verb}", json={"reason": reason, "account_last4": last4}, headers=headers)
+def _token(db, cg):
+    """The review token of the account as it is saved now (what the queue returns)."""
+    db.expire_all()
+    return bank_accounts.account_review_token(db.query(CaregiverBankAccount).filter_by(caregiver_id=cg.id).one())
+
+
+def _decide(db, client, cg, verb, headers, *, token=None, reason="Checked with the caregiver by phone"):
+    token = token or _token(db, cg)
+    return client.post(f"{REVIEWS}/{cg.id}/{verb}", json={"reason": reason, "review_token": token}, headers=headers)
 
 
 def _wallet(db, cg):
@@ -72,7 +79,7 @@ def test_the_queue_needs_a_permission_and_a_login(db, client, fake_paystack):
 def test_the_queue_lists_pending_by_default_and_rejected_on_request(db, client, fake_paystack):
     cg = _flagged(db, client, fake_paystack)
     fin = _admin(db, "finance")
-    assert _decide(client, cg, "reject", fin).status_code == 200
+    assert _decide(db, client, cg, "reject", fin).status_code == 200
     assert client.get(REVIEWS, headers=fin).json()["total"] == 0
     assert client.get(REVIEWS, params={"status": "rejected"}, headers=fin).json()["total"] == 1
 
@@ -85,7 +92,7 @@ def test_approving_releases_the_hold_and_is_audited_with_no_account_number(db, c
     assert bank_accounts.is_on_name_hold(_wallet(db, cg))
     fin = _admin(db, "finance")
     submitted = client.get(REVIEWS, headers=fin).json()["items"][0]["submitted_at"]
-    r = _decide(client, cg, "approve", fin)
+    r = _decide(db, client, cg, "approve", fin)
     assert r.status_code == 200 and r.json()["status"] == "approved"
     assert r.json()["submitted_at"] == submitted and r.json()["decided_at"] is not None  # a decision is not a new save
     row = _wallet(db, cg)
@@ -100,13 +107,13 @@ def test_the_caregiver_sees_the_real_name_only_once_the_account_is_approved(db, 
     cg = _flagged(db, client, fake_paystack, holder="CHIDI OBI")
     h = auth_headers(cg.user)
     assert client.get(ACCOUNT, headers=h).json()["account_name"] == bank_accounts.mask_name("CHIDI OBI")
-    assert _decide(client, cg, "approve", _admin(db, "finance")).status_code == 200
+    assert _decide(db, client, cg, "approve", _admin(db, "finance")).status_code == 200
     assert client.get(ACCOUNT, headers=h).json()["account_name"] == "CHIDI OBI"
 
 
 def test_rejecting_keeps_the_hold_and_the_name_masked(db, client, fake_paystack):
     cg = _flagged(db, client, fake_paystack)
-    assert _decide(client, cg, "reject", _admin(db, "finance")).status_code == 200
+    assert _decide(db, client, cg, "reject", _admin(db, "finance")).status_code == 200
     row = _wallet(db, cg)
     assert row.name_review_status == "rejected" and bank_accounts.is_on_name_hold(row)
     assert db.query(AdminAuditLog).filter_by(action="bank_account.name_reject").count() == 1
@@ -116,41 +123,60 @@ def test_rejecting_keeps_the_hold_and_the_name_masked(db, client, fake_paystack)
 def test_only_someone_who_may_execute_payouts_decides(db, client, fake_paystack):
     cg = _flagged(db, client, fake_paystack)
     for role in ("support", "operations", "verification"):
-        assert _decide(client, cg, "approve", _admin(db, role)).status_code == 403, role
+        assert _decide(db, client, cg, "approve", _admin(db, role)).status_code == 403, role
     assert _wallet(db, cg).name_review_status == "pending"
 
 
 def test_a_decision_needs_a_reason(db, client, fake_paystack):
     cg = _flagged(db, client, fake_paystack)
-    r = client.post(f"{REVIEWS}/{cg.id}/approve", json={"account_last4": "6789"}, headers=_admin(db, "finance"))
+    r = client.post(f"{REVIEWS}/{cg.id}/approve", json={"review_token": "a" * 32}, headers=_admin(db, "finance"))
     assert r.status_code == 422
 
 
 def test_a_decision_on_a_changed_account_is_refused(db, client, fake_paystack):
     """The reviewer looked at one account; the caregiver then saved another. The decision must not carry over."""
     cg = _flagged(db, client, fake_paystack)
+    seen = _token(db, cg)
     fake_paystack.accounts[("0987654321", "058")] = "SOMEONE ELSE"
     client.put(ACCOUNT, json={"account_number": "0987654321", "bank_code": "058"}, headers=auth_headers(cg.user))
-    r = _decide(client, cg, "approve", _admin(db, "finance"), last4="6789")
+    r = _decide(db, client, cg, "approve", _admin(db, "finance"), token=seen)
     assert r.status_code == 409 and "changed" in r.json()["detail"]
     assert _wallet(db, cg).name_review_status == "pending"
+
+
+def test_a_decision_on_an_account_that_only_shares_the_last_four_digits_is_refused(db, client, fake_paystack):
+    """The reviewer saw ...6789; the caregiver saved another account that also ends in 6789 (and is flagged too)."""
+    cg = _flagged(db, client, fake_paystack, number="0123456789", holder="CHIDI OBI")
+    seen = client.get(REVIEWS, headers=_admin(db, "finance")).json()["items"][0]["review_token"]
+    fake_paystack.accounts[("9999996789", "058")] = "CHIDI OBI"
+    client.put(ACCOUNT, json={"account_number": "9999996789", "bank_code": "058"}, headers=auth_headers(cg.user))
+    r = _decide(db, client, cg, "approve", _admin(db, "finance"), token=seen)
+    assert r.status_code == 409 and _wallet(db, cg).name_review_status == "pending"
+
+
+def test_the_token_the_queue_returns_is_the_one_that_decides(db, client, fake_paystack):
+    cg = _flagged(db, client, fake_paystack)
+    fin = _admin(db, "finance")
+    token = client.get(REVIEWS, headers=fin).json()["items"][0]["review_token"]
+    assert token == _token(db, cg)
+    assert _decide(db, client, cg, "approve", fin, token=token).status_code == 200
 
 
 def test_a_decision_is_refused_when_nothing_is_waiting(db, client, fake_paystack):
     cg = _flagged(db, client, fake_paystack)
     fin = _admin(db, "finance")
-    assert _decide(client, cg, "approve", fin).status_code == 200
-    again = _decide(client, cg, "reject", fin)
+    assert _decide(db, client, cg, "approve", fin).status_code == 200
+    again = _decide(db, client, cg, "reject", fin)
     assert again.status_code == 409 and again.json()["detail"] == "This account is not waiting for a name review"
     matching = make_caregiver(db, full_name="Ada Okafor")
     fake_paystack.accounts[("1111111111", "058")] = "ADA OKAFOR"
     client.put(ACCOUNT, json={"account_number": "1111111111", "bank_code": "058"}, headers=auth_headers(matching.user))
-    assert _decide(client, matching, "approve", fin, last4="1111").status_code == 409  # a clean account has nothing to decide
+    assert _decide(db, client, matching, "approve", fin).status_code == 409  # a clean account has nothing to decide
 
 
 def test_an_unknown_caregiver_is_404(db, client):
     import uuid
-    r = client.post(f"{REVIEWS}/{uuid.uuid4()}/approve", json={"reason": "x", "account_last4": "6789"},
+    r = client.post(f"{REVIEWS}/{uuid.uuid4()}/approve", json={"reason": "x", "review_token": "a" * 32},
                     headers=_admin(db, "finance"))
     assert r.status_code == 404
 
@@ -171,7 +197,7 @@ def test_an_account_held_for_review_is_not_paid_until_approved(db, client, fake_
     db.query(CaregiverBankAccount).filter_by(caregiver_id=cg.id).update({"payout_blocked_until": None})
     db.commit()
     if verb != "none":
-        assert _decide(client, cg, verb, _admin(db, "finance")).status_code == 200
+        assert _decide(db, client, cg, verb, _admin(db, "finance")).status_code == 200
     payouts.create_batch(db, period_key="2026-10-12", now=NOW)
     assert _payout_rows(db, cg) is paid
     assert (payouts._eligibility_problem(db, cg.id, NOW) is None) is paid
