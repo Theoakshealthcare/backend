@@ -250,6 +250,10 @@ class CaregiverTransaction(Base):
 
 class CaregiverBankAccount(Base):
     __tablename__ = "caregiver_bank_accounts"
+    __table_args__ = (
+        CheckConstraint("name_review_status IS NULL OR name_review_status IN ('pending', 'approved', 'rejected')",
+                        name="ck_bank_name_review_status"),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False, unique=True)
     bank_name = Column(String, nullable=False)
@@ -261,6 +265,10 @@ class CaregiverBankAccount(Base):
     recipient_code = Column(String, nullable=True)
     verified_at = Column(DateTime, nullable=True)
     payout_blocked_until = Column(DateTime, nullable=True)
+    # Holder-name review. NULL = the bank's name matched the profile (nothing to review). pending | rejected hold payouts until
+    # Finance approves the account; approved = a person confirmed it is the caregiver's. Cleared by saving a matching account.
+    name_review_status = Column(String, nullable=True)
+    name_review_at = Column(DateTime, nullable=True)  # when it was last decided (who and why are in admin_audit_log)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     caregiver = relationship("Caregiver", backref="bank_account")

@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/bank-reviews/ebe8699f-8d9e-49d3-87be-2ad3a582333c/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: checked the wrong account",
+      "review_token": "00000000000000000000000000000000"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "The caregiver changed their account since you opened it. Refresh and look again."
+    }
+  },
+  "note": "review_token must be the token the queue returned for the account the reviewer looked at (here a placeholder that matches no account). Anything else is refused, so a decision never carries over to an account the caregiver saved afterwards, even one with the same last four digits."
+}

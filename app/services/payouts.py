@@ -106,7 +106,7 @@ from app.db.models.payout import (
 from app.db.models.user import User
 from app.services import booking_policy, earnings
 from app.services.audit import AuditService
-from app.services.bank_accounts import is_cooling_down
+from app.services.bank_accounts import is_cooling_down, is_on_name_hold
 from app.services.paystack import PaystackService
 
 logger = logging.getLogger(__name__)
@@ -178,6 +178,8 @@ def _eligibility_problem(db: Session, caregiver_id: uuid.UUID, now: datetime, *,
         return "the caregiver's payouts are frozen until an admin has looked at a payout Paystack contradicted"
     if account is None or not account.recipient_code or not account.bank_code:
         return "the caregiver has no verified bank account"
+    if is_on_name_hold(account):
+        return "the bank account's holder name is waiting for a Finance review (or was rejected)"
     if is_cooling_down(account, now):
         return "the bank account was changed in the last 24 hours"
     if snapshot is not None and (account.recipient_code != snapshot.recipient_code
@@ -244,6 +246,7 @@ def create_batch(db: Session, *, period_key: str, now: Optional[datetime] = None
         .join(User, User.id == Caregiver.user_id)
         .filter(CaregiverWallet.balance >= min_kobo, CaregiverWallet.balance > 0,
                 CaregiverBankAccount.recipient_code.isnot(None), CaregiverBankAccount.bank_code.isnot(None),
+                CaregiverBankAccount.name_review_status.is_(None) | (CaregiverBankAccount.name_review_status == "approved"),
                 CaregiverWallet.payouts_frozen_at.is_(None), Caregiver.profile_status != "suspended", User.is_active.is_(True))
         .order_by(CaregiverWallet.caregiver_id).all())]
     db.rollback()  # end the read transaction; the work below is one new transaction

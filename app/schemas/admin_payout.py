@@ -115,3 +115,29 @@ class BatchDetail(BatchOut):
 class BatchList(BaseModel):
     items: List[BatchOut]
     total: int
+
+
+class BankReviewDecisionIn(BaseModel):
+    """Finance's decision on a held account. ``review_token`` is the token the queue returned for the account they looked at; if the
+    caregiver changed the account since (number, bank or holder name), the decision is refused with 409."""
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=2000)
+    review_token: str = Field(pattern=r"^[0-9a-f]{32}$")
+
+
+class BankReviewOut(BaseModel):
+    caregiver_id: UUID
+    caregiver_name: Optional[str] = None  # the name on the Oakly profile
+    account_name: str  # the name the bank holds for the account
+    bank_name: str
+    account_number: str  # masked to the last four digits
+    status: Literal["pending", "approved", "rejected"]
+    balance_kobo: int  # the caregiver's available balance, so Finance sees what is waiting
+    submitted_at: datetime  # when the account was last saved
+    decided_at: Optional[datetime] = None
+    review_token: str  # send it back with the decision: it names the exact account that was shown
+
+
+class BankReviewList(BaseModel):
+    items: List[BankReviewOut]
+    total: int

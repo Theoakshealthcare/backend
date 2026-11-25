@@ -55,7 +55,7 @@ def test_resolve_returns_the_name_the_bank_holds(db, client, fake_paystack):
     r = client.post(RESOLVE, json={"account_number": "0123456789", "bank_code": "058"}, headers=auth_headers(cg.user))
     assert r.status_code == 200, r.text
     assert r.json() == {"account_name": "ADA OBI", "account_number": "0123456789", "bank_code": "058",
-                        "bank_name": "Placeholder Bank"}
+                        "bank_name": "Placeholder Bank", "needs_review": False}
 
 
 @pytest.mark.parametrize("body, detail", [
@@ -194,10 +194,6 @@ def test_only_a_caregiver_can_use_the_bank_endpoints(db, client):
 
 # --- the account holder must be the caregiver (DP2-05) -----------------------------------------------------------------
 
-MISMATCH = {"code": "bank_account_name_mismatch",
-            "message": "The account name must match the name on your Oakly profile. If your name is different, contact support."}
-
-
 @pytest.mark.parametrize("profile, holder", [
     ("Ada Okafor", "ADA OKAFOR"),                    # match, case-insensitive
     ("Ada Okafor", "OKAFOR, ADA"),                   # reordered, punctuation
@@ -207,6 +203,9 @@ MISMATCH = {"code": "bank_account_name_mismatch",
     ("Ada Nurse", "ADA OKAFOR NURSE"),               # a third word on the account is fine
     ("Ada Okafor", "ADA O'KAFOR-X OKAFOR"),          # extra words and punctuation
     ("Ada", "ADA OKAFOR"),                           # single-name profile: that name must be on the account
+    ("Adebayo Tosin", "VICTOR OLUWATOSIN ADEBAYO"),  # a short form of a longer name (Tosin / Oluwatosin), one word exact
+    ("Tunde Bello", "BABATUNDE BELLO"),              # ... and the same at the other end of the name
+    ("Chidi Okafor", "CHIDINMA OKAFOR"),
 ])
 def test_the_account_holder_matching_the_profile_name_is_accepted(db, client, fake_paystack, profile, holder):
     cg = make_caregiver(db, full_name=profile)
@@ -217,6 +216,7 @@ def test_the_account_holder_matching_the_profile_name_is_accepted(db, client, fa
     r = client.put(ACCOUNT, json=body, headers=h)
     assert r.status_code == 200, r.text
     assert r.json()["account_name"] == holder
+    assert r.json()["name_review_status"] is None  # a match is saved with no review
 
 
 @pytest.mark.parametrize("profile, holder", [
@@ -225,36 +225,61 @@ def test_the_account_holder_matching_the_profile_name_is_accepted(db, client, fa
     ("Ada Okafor", "OKAFOR CHIDI"),                  # the last name only
     ("Ada Okafor", "A OKAFOR"),                      # an initial does not stand in for the first name
     ("Ada", "CHIDI OBI"),                            # single-name profile, no match
-    ("Ada", "ADAEZE OKAFOR"),                        # a prefix is not a match
+    ("Ada", "ADAEZE OKAFOR"),                        # a one-word profile is never a prefix match
+    ("Ada Okafor", "ADAEZE OKAFOR"),                 # "Ada" is too short (under 4 letters) to count as a short form
+    ("Tosin Tunde", "OLUWATOSIN BABATUNDE"),         # two short forms and no whole shared word
     ("A B", "A B OKAFOR"),                           # a profile of initials only cannot match anyone
 ])
-def test_a_different_account_holder_is_refused_with_a_code_and_no_names(db, client, fake_paystack, caplog, profile, holder):
+def test_a_different_account_holder_is_saved_but_held_for_review(db, client, fake_paystack, caplog, profile, holder):
     cg = make_caregiver(db, full_name=profile)
     fake_paystack.accounts[("0123456789", "058")] = holder
     h = auth_headers(cg.user)
     body = {"account_number": "0123456789", "bank_code": "058"}
     with caplog.at_level("INFO"):
-        put = client.put(ACCOUNT, json=body, headers=h)
         resolve = client.post(RESOLVE, json=body, headers=h)
-    for r in (put, resolve):
-        assert r.status_code == 422 and r.json() == {"detail": MISMATCH}, r.text
-        assert holder not in r.text and profile not in r.text
-    assert "does not match the profile name" in caplog.text and "****6789" in caplog.text
+        put = client.put(ACCOUNT, json=body, headers=h)
+    # the lookup says "needs review" and shows the name masked: never a free account-number -> name lookup
+    assert resolve.status_code == 200, resolve.text
+    assert resolve.json()["needs_review"] is True
+    assert holder not in resolve.text  # the real holder name is never in the lookup response
+    assert resolve.json()["account_name"] == bank_accounts.mask_name(holder)
+    # the save goes through, but payouts wait for a person
+    assert put.status_code == 200, put.text
+    assert put.json()["name_review_status"] == "pending"
+    # the saved account is masked too, so saving an account number is not a way round the masked lookup
+    assert put.json()["account_name"] == bank_accounts.mask_name(holder) and holder not in put.text
+    got = client.get(ACCOUNT, headers=h)
+    assert got.json()["account_name"] == bank_accounts.mask_name(holder) and holder not in got.text
+    row = db.query(CaregiverBankAccount).one()
+    assert row.name_review_status == "pending" and row.recipient_code  # registered, so approval pays at once
+    assert bank_accounts.is_on_name_hold(row)
+    assert "needs a name review" in caplog.text and "****6789" in caplog.text
     assert holder not in caplog.text and profile not in caplog.text
-    assert db.query(CaregiverBankAccount).count() == 0 and db.query(CaregiverBankEvent).count() == 0
-    assert not [x for x in fake_paystack.requests if x[1].endswith("/transferrecipient")]  # nothing registered with Paystack
+    assert db.query(CaregiverBankEvent).one().after["name_review"] == "pending"
 
 
-def test_a_mismatch_leaves_an_existing_account_and_its_cool_down_untouched(db, client, fake_paystack):
+def test_a_mismatched_change_replaces_the_account_and_holds_it_for_review(db, client, fake_paystack):
     cg = make_caregiver(db, full_name="Ada Okafor")
     h = auth_headers(cg.user)
     fake_paystack.accounts[("0123456789", "058")] = "ADA OKAFOR"
     assert client.put(ACCOUNT, json={"account_number": "0123456789", "bank_code": "058"}, headers=h).status_code == 200
     fake_paystack.accounts[("0987654321", "090")] = "SOMEONE ELSE"
     r = client.put(ACCOUNT, json={"account_number": "0987654321", "bank_code": "090"}, headers=h)
-    assert r.status_code == 422
+    assert r.status_code == 200
     got = client.get(ACCOUNT, headers=h).json()
-    assert got["account_number"] == "0123456789" and got["payouts_blocked_until"] is None  # no change, no 24h pause
+    assert got["account_number"] == "0987654321" and got["name_review_status"] == "pending"
+    assert got["payouts_blocked_until"] is not None  # a change of account keeps its 24 hour pause as well
+
+
+def test_saving_a_matching_account_clears_an_earlier_review(db, client, fake_paystack):
+    cg = make_caregiver(db, full_name="Ada Okafor")
+    h = auth_headers(cg.user)
+    fake_paystack.accounts[("0987654321", "090")] = "SOMEONE ELSE"
+    fake_paystack.accounts[("0123456789", "058")] = "ADA OKAFOR"
+    client.put(ACCOUNT, json={"account_number": "0987654321", "bank_code": "090"}, headers=h)
+    r = client.put(ACCOUNT, json={"account_number": "0123456789", "bank_code": "058"}, headers=h)
+    assert r.json()["name_review_status"] is None
+    assert not bank_accounts.is_on_name_hold(db.query(CaregiverBankAccount).one())
 
 
 def test_a_matching_change_of_account_still_starts_the_24_hour_pause(db, client, fake_paystack):
@@ -274,6 +299,17 @@ def test_a_matching_change_of_account_still_starts_the_24_hour_pause(db, client,
     (None, "ADA OKAFOR", False),
     ("Ada Okafor", "", False),
     ("Ada Okafor", None, False),
+    ("Adebayo Tosin", "Victor Oluwatosin Adebayo", True),   # Tosin is the end of Oluwatosin; Adebayo is shared whole
+    ("Tunde Bello", "Babatunde Bello", True),
+    ("Tosin Tunde", "Oluwatosin Babatunde", False),         # no whole word shared
+    ("Ada Okafor", "Adaeze Okafor", False),                 # under 4 letters is never a short form
+    ("Ada", "Adaeze Okafor", False),                        # a one-word profile needs the whole word
 ])
 def test_account_name_matches_profile(profile, holder, expected):
     assert bank_accounts.account_name_matches_profile(profile, holder) is expected
+
+
+def test_mask_name_keeps_only_each_words_first_letter_and_not_its_length():
+    assert bank_accounts.mask_name("VICTOR OLUWATOSIN ADEBAYO") == "V**** O**** A****"
+    assert bank_accounts.mask_name("Åda O'Kafor-X") == "A**** O**** K**** X****"  # accents and punctuation fold like the matcher
+    assert bank_accounts.mask_name("") == "" and bank_accounts.mask_name(None) == ""

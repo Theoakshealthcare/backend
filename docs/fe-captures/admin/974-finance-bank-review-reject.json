@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/bank-reviews/ebe8699f-8d9e-49d3-87be-2ad3a582333c/reject",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: the caregiver could not confirm this account",
+      "review_token": "195eec07f6a2bf9103a572efc385d424"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "caregiver_id": "ebe8699f-8d9e-49d3-87be-2ad3a582333c",
+      "caregiver_name": "Placeholder Tosin",
+      "account_name": "ANOTHER STRANGER NAME",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0012",
+      "status": "rejected",
+      "balance_kobo": 0,
+      "submitted_at": "2026-11-25T17:13:31.252269",
+      "decided_at": "2026-11-25T17:13:31.295972",
+      "review_token": "195eec07f6a2bf9103a572efc385d424"
+    }
+  }
+}

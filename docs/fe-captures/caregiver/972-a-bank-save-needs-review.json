@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "PUT",
+    "path": "/api/v1/caregiver/bank-account",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "account_number": "0000000011",
+      "bank_code": "058"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "bank_name": "Placeholder Bank",
+      "bank_code": "058",
+      "account_number": "0000000011",
+      "account_name": "S**** O****",
+      "verified": true,
+      "payouts_blocked_until": null,
+      "name_review_status": "pending",
+      "created_at": "2026-11-25T17:13:31.151399",
+      "updated_at": "2026-11-25T17:13:31.151399"
+    }
+  },
+  "note": "FAKE PAYSTACK: the holder name is what the local fake returns for this placeholder account. The save is accepted, but name_review_status is 'pending' and account_name is MASKED (the real name is not shown to the caregiver until Finance approves the account). Payouts to it wait for Finance."
+}

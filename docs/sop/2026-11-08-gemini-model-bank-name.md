@@ -1,3 +1,5 @@
+> **Superseded in part (2026-11-25):** a holder name that does not match is no longer refused with `422`; the account is saved and held for review, and the match accepts short forms of a name. See [the bank name review SOP](2026-11-25-bank-name-review.md). The `bank_account_name_mismatch` code no longer exists.
+
 # SOP: Gemini model setting + fallback, and bank account holder must match the profile name (DP2-05)
 
 | | |

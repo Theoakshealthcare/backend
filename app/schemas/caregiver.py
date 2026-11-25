@@ -230,6 +230,7 @@ class BankAccountResolveOut(BaseModel):
     account_number: str
     bank_code: str
     bank_name: str
+    needs_review: bool = False  # the name does not look like the profile name: the account can be saved but is held for review
 
 
 class CaregiverBankAccountOut(BaseModel):
@@ -239,6 +240,9 @@ class CaregiverBankAccountOut(BaseModel):
     account_name: str
     verified: bool  # true once the name was resolved by the bank and the account registered for payouts
     payouts_blocked_until: Optional[datetime] = None  # a changed account is not paid for 24 hours
+    # null = the bank's name matched the profile (nothing to review). pending | rejected = no payout until Finance approves the
+    # account (a rejected one must be replaced); approved = confirmed by a person.
+    name_review_status: Optional[Literal['pending', 'approved', 'rejected']] = None
     created_at: datetime
     updated_at: datetime
 
