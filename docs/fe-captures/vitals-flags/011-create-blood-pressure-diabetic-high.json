@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "<PATIENT_ID>",
+      "recorded_by_user_id": "<USER_ID>",
+      "vital_type": "blood_pressure",
+      "value": "135/78",
+      "unit": "mmHg",
+      "source": "manual"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "vital_type": "blood_pressure",
+      "value": "135/78",
+      "unit": "mmHg",
+      "source": "manual",
+      "recorded_at": "2026-11-25T17:25:09.323749",
+      "notes": null,
+      "id": "fdb1264a-a523-4e0d-add7-6bbcd0b05a8c",
+      "patient_id": "a28c98f7-bf05-4f3b-96c3-7b3ef376c368",
+      "recorded_by_user_id": "cd6bc15f-ab89-406b-b753-42e877ac1c9f",
+      "flag": {
+        "status": "high",
+        "label": "High",
+        "reason": "Blood pressure above 130/80 mmHg. Tell the family or the patient's doctor for a medical review.",
+        "emergency": false,
+        "message": null
+      },
+      "glucose_context": null
+    }
+  },
+  "note": "Same 135/78 would be Normal for a patient without diabetes or kidney disease."
+}

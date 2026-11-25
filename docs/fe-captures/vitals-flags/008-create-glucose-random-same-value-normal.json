@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "<PATIENT_ID>",
+      "recorded_by_user_id": "<USER_ID>",
+      "vital_type": "blood_glucose",
+      "value": "130",
+      "unit": "mg/dL",
+      "source": "manual",
+      "notes": "RBS"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "vital_type": "blood_glucose",
+      "value": "130",
+      "unit": "mg/dL",
+      "source": "manual",
+      "recorded_at": "2026-11-25T17:25:09.310815",
+      "notes": "RBS",
+      "id": "b0e585c4-e4ea-42da-be06-df95152498f1",
+      "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+      "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+      "flag": {
+        "status": "normal",
+        "label": "Normal",
+        "reason": null,
+        "emergency": false,
+        "message": null
+      },
+      "glucose_context": "random"
+    }
+  }
+}

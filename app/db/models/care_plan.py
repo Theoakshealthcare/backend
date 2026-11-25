@@ -56,6 +56,8 @@ class CarePlanTemplate(Base):
     version = Column(Integer, nullable=False, default=1, server_default=text("1"))
     is_active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
     clinical_review_status = Column(String, nullable=False, default="pending", server_default=text("'pending'"))
+    # true: a caregiver who is not a nurse may start and edit a plan from this template (the Elderly template, 0031)
+    caregiver_can_use = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     reviewed_by_admin_id = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -232,3 +234,22 @@ class CarePlanMedication(Base):
     stopped_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class VisitDocumentation(Base):
+    """A caregiver's own documentation for a visit (clinician pack, section 1: "a space for the caregiver to make own
+    documentation"). Private to its author and the admin console: it is never sent to the patient or the family. Append-only,
+    like the visit notes (a correction is a new entry). ``body_encrypted`` is Fernet ciphertext, nullable only so that
+    account erasure can blank it. ``plan_id`` is the client's active plan when there was one at the time of writing."""
+    __tablename__ = "visit_documentation"
+    __table_args__ = (
+        Index("ix_visit_documentation_booking_created", "booking_id", "created_at"),
+        Index("ix_visit_documentation_caregiver_created", "caregiver_id", text("created_at DESC")),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=False)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=False)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("care_plans.id"), nullable=True)
+    body_encrypted = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

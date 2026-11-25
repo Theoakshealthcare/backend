@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/49727168-3c98-45f7-ae87-95a143dfc6e7/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "49727168-3c98-45f7-ae87-95a143dfc6e7",
+      "subject_ready": true,
+      "can_author": false,
+      "author_scope": "full",
+      "plan": {
+        "id": "9886e885-1dbb-41a0-b9e1-1c8845b7c8da",
+        "version": 1,
+        "status": "active",
+        "diagnosis": "Placeholder diagnosis alpha",
+        "risk_level": "high",
+        "start_date": "2026-11-25",
+        "duration_days": 30,
+        "review_every_days": 14,
+        "review_due_on": "2026-12-09",
+        "goal_count": 1,
+        "task_count": 1
+      }
+    }
+  },
+  "note": "30 minutes after the visit was completed. `can_author` is false (a plan is created during a live visit)."
+}

@@ -84,8 +84,8 @@ Each is implemented as the more cautious reading behind the constant named. None
 ## Operate / roll back
 
 - Deploy: run migration `0033` (expand only: nullable columns, a nullable `total_score`, a trigger). The old `fallguard_questions` and `fallguard_answers` tables stay, unused, until a later contract migration. Nothing needs seeding.
-- **Chain:** `0033` is written on `0030_bank_name_review`. If the care-template and vitals slices merge `0031`/`0032` first, re-point `down_revision` at the last of them so `alembic heads` stays single (`test_single_head` fails otherwise).
-- Roll back: `alembic downgrade 0030_bank_name_review` drops the trigger and columns and sets a NULL score (an under-60 row) to 0. The previous app build still works after a downgrade only if the 24-question rows and seed exist: none was seeded on staging, so there is nothing to restore.
+- **Chain:** `0033` follows `0031_care_templates_docs_space` (the vitals-flags slice added no migration). If another migration merges first, re-point `down_revision` at it so `alembic heads` stays single (`test_single_head` fails otherwise).
+- Roll back: `alembic downgrade 0031_care_templates_docs_space` drops the trigger and columns and sets a NULL score (an under-60 row) to 0. The previous app build still works after a downgrade only if the 24-question rows and seed exist: none was seeded on staging, so there is nothing to restore.
 - The app `v1` build cannot submit against v2.0 (its UUID question ids are refused). The patient app change is the next slice.
 - Switches: `FALLGUARD_AI_ADVICE_ENABLED` (default false). There is no kill switch or version registry yet (the PDF's `fallguard.enabled` flag and `fg_version_registry` are follow-ups).
 

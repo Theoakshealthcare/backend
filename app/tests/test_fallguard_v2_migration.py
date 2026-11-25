@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.tests.test_dropout_migration import _run, scratch  # noqa: F401  (scratch is a fixture)
 
-BEFORE, REVISION = "0030_bank_name_review", "0033_fallguard_v2_results"
+BEFORE, REVISION = "0031_care_templates_docs_space", "0033_fallguard_v2_results"
 USER, PATIENT, V1_ROW = ("00000000-0000-0000-0000-00000000f001", "00000000-0000-0000-0000-00000000f002",
                          "00000000-0000-0000-0000-00000000f003")
 NEW = {"questionnaire_version", "algorithm_version", "content_version", "eligible", "gate_tier", "score_tier", "final_tier",
@@ -27,7 +27,7 @@ def _v1_row(conn):
     conn.execute(text(f"INSERT INTO fallguard_assessments (id, patient_id, total_score) VALUES ('{V1_ROW}', '{PATIENT}', 7)"))
 
 
-def test_the_revision_chains_on_0030():
+def test_the_revision_chains_on_0031():
     assert ScriptDirectory.from_config(Config("alembic.ini")).get_revision(REVISION).down_revision == BEFORE
 
 

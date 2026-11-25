@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "<PATIENT_ID>",
+      "recorded_by_user_id": "<USER_ID>",
+      "vital_type": "heart_rate",
+      "value": "45",
+      "unit": "bpm",
+      "source": "manual"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "vital_type": "heart_rate",
+      "value": "45",
+      "unit": "bpm",
+      "source": "manual",
+      "recorded_at": "2026-11-25T17:25:09.284725",
+      "notes": null,
+      "id": "116988be-e9b4-479c-a80d-39419d7a3e3e",
+      "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+      "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+      "flag": {
+        "status": "critical",
+        "label": "Critical",
+        "reason": "Heart rate below 50 bpm. Contact the family and arrange an ambulance.",
+        "emergency": true,
+        "message": "This may be an emergency. Call 112 now."
+      },
+      "glucose_context": null
+    }
+  },
+  "note": "Critical: emergency is true and message is set."
+}

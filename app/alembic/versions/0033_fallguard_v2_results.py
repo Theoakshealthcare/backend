@@ -1,7 +1,7 @@
 """FallGuard v2.0 results: versioned, immutable assessment results on ``fallguard_assessments``.
 
 Revision ID: 0033_fallguard_v2_results
-Revises: 0030_bank_name_review
+Revises: 0031_care_templates_docs_space
 Create Date: 2026-11-25
 
 Expand only (the FallGuard handover allows no destructive migration during the pilot):
@@ -17,8 +17,8 @@ The old ``fallguard_questions`` and ``fallguard_answers`` tables stay (nothing r
 drops them. Downgrade removes the trigger and the new columns and sets a NULL score (an under-60 v2 row) to 0 so ``total_score`` can be
 NOT NULL again; the v2 detail of those rows is lost with the columns.
 
-Chain: written on top of 0030 (the head when this was cut); the care-template and vitals slices may add 0031 and 0032, in which
-case re-point ``down_revision`` at the last of them before merging so ``alembic heads`` stays single.
+Chain: on top of 0031 (care templates). The vitals-flags slice added no migration, so 0032 is unused; if another migration merges
+before this one, re-point ``down_revision`` at it so ``alembic heads`` stays single.
 """
 from typing import Sequence, Union
 
@@ -26,7 +26,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = '0033_fallguard_v2_results'
-down_revision: Union[str, None] = '0030_bank_name_review'
+down_revision: Union[str, None] = '0031_care_templates_docs_space'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

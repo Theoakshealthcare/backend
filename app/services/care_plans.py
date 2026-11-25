@@ -31,8 +31,9 @@ from app.db.models.admin import AdminUser
 from app.db.models.caregiver import Caregiver
 from app.schemas.care_plan import MAX_GOALS, MAX_TASKS, CarePlanCreate, CarePlanPatch, GoalCreate, GoalPatch
 from app.services.care_plan_access import (
-    PlanAccess, Subject, accessible_subjects, is_care_plan_author,
+    PlanAccess, Subject, accessible_subjects, is_care_plan_author, may_author_plan, post_visit_note_grace,
 )
+from app.services import visit_windows
 from app.services.audit import AuditService
 from app.services.caregiver_clients import age_in_years
 
@@ -200,7 +201,12 @@ def _author(db: Session, plan: CarePlan) -> Dict[str, Any]:
 
 
 def can_edit(db: Session, caregiver: Caregiver, plan: CarePlan) -> bool:
-    return plan.status == "active" and is_care_plan_author(db, caregiver)
+    return plan.status == "active" and may_author_plan(db, caregiver, plan)
+
+
+def in_note_grace(access: PlanAccess) -> bool:
+    """The access is the nurse's post-visit one (a completed booking), not a live visit."""
+    return access.booking.status == BookingStatus.COMPLETED
 
 
 def can_record_visit(access: PlanAccess, plan: CarePlan) -> bool:
@@ -233,10 +239,15 @@ def plan_core(db: Session, plan: CarePlan, subject: Subject) -> Dict[str, Any]:
 
 
 def build_plan(db: Session, caregiver: Caregiver, access: PlanAccess, plan: CarePlan) -> Dict[str, Any]:
+    grace = in_note_grace(access)
     return {
         **plan_core(db, plan, access.require_subject()), "booking_id": access.booking.id,
-        "capabilities": {"can_edit_plan": can_edit(db, caregiver, plan), "can_tick_tasks": can_record_visit(access, plan),
-                         "can_add_observation": can_record_visit(access, plan)},
+        # In the post-visit grace only a note may be added: no edit, no tick.
+        "capabilities": {"can_edit_plan": not grace and can_edit(db, caregiver, plan),
+                         "can_edit_medications": not grace and plan.status == "active" and is_care_plan_author(db, caregiver),
+                         "can_tick_tasks": can_record_visit(access, plan),
+                         "can_add_observation": can_record_visit(access, plan) or (grace and plan.status == "active")},
+        "observations_close_at": visit_windows.ended_at(access.booking) + post_visit_note_grace() if grace else None,
     }
 
 
@@ -260,8 +271,12 @@ def _active_plan(db: Session, subject: Subject) -> Optional[CarePlan]:
 def visit_summary(db: Session, caregiver: Caregiver, access: PlanAccess) -> Dict[str, Any]:
     ready = access.subject is not None
     plan = _active_plan(db, access.subject) if ready else None
+    nurse = is_care_plan_author(db, caregiver)
     return {"booking_id": access.booking.id, "subject_ready": ready,
-            "can_author": ready and is_care_plan_author(db, caregiver),
+            "can_author": ready and nurse and not in_note_grace(access),  # creating needs a live visit
+            # "full": a nurse, any template or a blank plan. "caregiver_templates": any other caregiver, only from the
+            # templates flagged caregiver_can_use. Same for ``plan.can_edit`` on an existing plan.
+            "author_scope": "full" if nurse else "caregiver_templates",
             "plan": _summary(db, plan) if plan is not None else None}
 
 
@@ -308,8 +323,12 @@ def list_candidates(db: Session, caregiver: Caregiver) -> Dict[str, Any]:
 
 # --- templates ------------------------------------------------------------------------------------------------------
 
-def list_templates(db: Session) -> Dict[str, Any]:
-    rows = db.query(CarePlanTemplate).filter(CarePlanTemplate.is_active.is_(True)).order_by(CarePlanTemplate.name).all()
+def list_templates(db: Session, caregiver_templates_only: bool = False) -> Dict[str, Any]:
+    """Active templates. ``caregiver_templates_only``: a caregiver who is not a nurse sees only the ones flagged for them."""
+    query = db.query(CarePlanTemplate).filter(CarePlanTemplate.is_active.is_(True))
+    if caregiver_templates_only:
+        query = query.filter(CarePlanTemplate.caregiver_can_use.is_(True))
+    rows = query.order_by(CarePlanTemplate.name).all()
     return {"items": [{k: v for k, v in template_detail(t).items() if k not in ("goals", "tasks", "special_instructions")}
                       for t in rows]}
 
@@ -327,7 +346,8 @@ def template_detail(template: CarePlanTemplate) -> Dict[str, Any]:
         "id": template.id, "key": template.key, "name": template.name, "summary": template.summary,
         "duration_days": template.duration_days, "review_every_days": template.review_every_days,
         "default_risk_level": template.default_risk_level, "clinical_review_status": template.clinical_review_status,
-        "version": template.version, "goals": body.get("goals", []), "tasks": body.get("tasks", []),
+        "version": template.version, "caregiver_can_use": bool(template.caregiver_can_use),
+        "goals": body.get("goals", []), "tasks": body.get("tasks", []),
         "special_instructions": body.get("special_instructions", []),
     }
 

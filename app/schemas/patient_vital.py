@@ -41,11 +41,24 @@ class PatientVitalUpdate(BaseModel):
     recorded_at: Optional[datetime] = None
     notes: Optional[str] = None
 
+class VitalFlagOut(BaseModel):
+    """The clinician-approved rating of one reading (``app/services/vital_flags.py``). Additive: older clients ignore it."""
+    status: str  # normal | high | low | critical
+    label: str  # Normal | High | Low | Critical
+    reason: Optional[str] = None  # null for normal
+    emergency: bool = False  # true only for critical: show `message`
+    message: Optional[str] = None  # "This may be an emergency. Call 112 now." when emergency, else null
+
+
 class PatientVitalResponse(PatientVitalBase):
     id: UUID
     patient_id: UUID
     recorded_by_user_id: UUID
     recorded_at: datetime
+    # Additive. null for weight, sleep and any reading that cannot be rated (a value that is not a number).
+    flag: Optional[VitalFlagOut] = None
+    # Glucose only: random | fasting | after_meal, read from the label the app stored in `notes` (RBS / FBS / PP).
+    glucose_context: Optional[str] = None
 
     class Config:
         from_attributes = True 

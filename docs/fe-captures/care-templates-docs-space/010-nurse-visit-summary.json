@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/bookings/49727168-3c98-45f7-ae87-95a143dfc6e7/care-plan",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "49727168-3c98-45f7-ae87-95a143dfc6e7",
+      "subject_ready": true,
+      "can_author": true,
+      "author_scope": "full",
+      "plan": null
+    }
+  },
+  "note": "`author_scope: full` for a nurse."
+}

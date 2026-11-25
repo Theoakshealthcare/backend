@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "<PATIENT_ID>",
+      "recorded_by_user_id": "<USER_ID>",
+      "vital_type": "blood_pressure",
+      "value": "85/50",
+      "unit": "mmHg",
+      "source": "manual"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "vital_type": "blood_pressure",
+      "value": "85/50",
+      "unit": "mmHg",
+      "source": "manual",
+      "recorded_at": "2026-11-25T17:25:09.298609",
+      "notes": null,
+      "id": "dceea673-3f3a-45a0-a441-514c293f12a0",
+      "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+      "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+      "flag": {
+        "status": "critical",
+        "label": "Critical",
+        "reason": "Top number below 90 mmHg. Contact the family and arrange an ambulance.",
+        "emergency": true,
+        "message": "This may be an emergency. Call 112 now."
+      },
+      "glucose_context": null
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/care-plans/9886e885-1dbb-41a0-b9e1-1c8845b7c8da/observations",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "body": "Placeholder: client rested well after the visit."
+    }
+  },
+  "response": {
+    "status_code": 201,
+    "body": {
+      "id": "c5d87653-341f-45df-bd46-9571a8e7bc72",
+      "category": "observation",
+      "body": "Placeholder: client rested well after the visit.",
+      "author": {
+        "name": "Placeholder Nurse Ngozi",
+        "kind": "caregiver"
+      },
+      "created_at": "2026-11-25T17:41:52.731292"
+    }
+  }
+}
