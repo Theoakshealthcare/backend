@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 HANDLING_NONE, HANDLING_CREDIT_DUE = "none", "credit_due"
 RESCHEDULED = "rescheduled"  # the response a stale offer is closed with; the accept path refuses it
-CLOSED_OFFER_RESPONSES = (None, "accept", "assigned_by_admin")  # the offers that are still "live" for the old time
+KEPT_OFFER_RESPONSES = ("declined", RESCHEDULED)  # a decline stays final; everything else was an offer for the OLD time
 REQUEST_ID_MAX = 64
 
 _NOT_RESCHEDULABLE = {
@@ -323,7 +323,7 @@ def _apply(db: Session, booking: Booking, user: User, new: datetime, quote: Quot
     # refuses a ``rescheduled`` one); the new wave resets the ones it re-offers.
     for offer in db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id,
                                                        BookingNotification.notification_type == "new_booking"):
-        if offer.response in CLOSED_OFFER_RESPONSES:
+        if offer.response not in KEPT_OFFER_RESPONSES:   # includes auto_declined: it must not be acceptable on stale terms
             offer.response = RESCHEDULED
             offer.response_at = now
 

@@ -572,7 +572,8 @@ class BookingService:
             notification = self.db.query(BookingNotification).filter(
                 and_(
                     BookingNotification.booking_id == booking_id,
-                    BookingNotification.caregiver_id == caregiver_id
+                    BookingNotification.caregiver_id == caregiver_id,
+                    BookingNotification.notification_type == "new_booking",  # the offer, never an informational notice row
                 )
             ).first()
             is_assigned = booking.caregiver_id == caregiver_id

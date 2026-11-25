@@ -264,6 +264,23 @@ def test_a_caregiver_who_is_not_re_offered_cannot_accept_the_stale_offer(db, pat
     assert reload(db, booking).status == BookingStatus.PENDING
 
 
+def test_an_auto_declined_offer_and_an_info_notice_cannot_be_used_to_accept_the_stale_time(db, patient):
+    """B was offered with A, A accepted (B's row became auto_declined), then the visit was moved and B was not re-offered."""
+    a = make_candidate(db, 0, at=NOW)
+    b = make_caregiver(db)                                           # no location: never re-offered
+    booking, _ = _offer_for(db, patient, a)
+    db.add(BookingNotification(booking_id=booking.id, caregiver_id=b.id, title="t", message="m",
+                               notification_type="new_booking", response="auto_declined"))
+    db.add(BookingNotification(booking_id=booking.id, caregiver_id=b.id, title="Visit reassigned", message="m",
+                               notification_type="booking_update", response="info"))   # a notice row for the same person
+    db.commit()
+    go(db, patient, booking, hours(60))
+    with pytest.raises(BookingActionForbidden) as err:
+        BookingService(db).handle_booking_action(booking.id, b.id, BookingActionRequest(action="accept"))
+    assert "rescheduled" in str(err.value).lower()
+    assert reload(db, booking).status == BookingStatus.PENDING
+
+
 def test_a_re_offered_caregiver_can_accept_the_new_time(db, patient):
     cg = make_candidate(db, at=datetime.utcnow())
     booking = paid(db, patient, start_in=30, scheduled_date=datetime.utcnow() + timedelta(hours=30),
