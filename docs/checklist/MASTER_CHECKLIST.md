@@ -530,7 +530,9 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] Settle conflicts: wallet (owner refuses), drug reminders vs the medication notice, family details spec, who is alerted
 - [ ] Owner supplies `fallguard_scoring.py`, `test_fallguard_scoring.py`, `questionnaire_v2_0.json`
 - [ ] 1a care template text, caregiver documentation space, Elderly template for nurse or caregiver
-- [ ] 1b vitals flag engine and badges (thresholds supplied by the clinical lead)
+- [x] 1b vitals flag engine and badges: server flags on every vitals response (no migration), badges in the caregiver and patient apps; 2026-11-25, `feature/vitals-flags` + monorepo `feature/vitals-flags-badges`, [SOP](../sop/2026-11-25-vitals-flags.md), [FE guide](../fe-integration-guide-vitals-flags.md). Open: seven clinician questions in the SOP; visual pass on a device pending
+  - [x] Flags engine, glucose label (Random / Fasting / After meal), diabetes and kidney BP line, 112 message on critical; weight and sleep never flagged
+  - [x] Hook for 1c: `stored_reading_is_out_of_range`
 - [ ] 1c alerts for out-of-range readings and missed tasks
 - [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price)
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
