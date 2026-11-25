@@ -115,3 +115,28 @@ class BatchDetail(BatchOut):
 class BatchList(BaseModel):
     items: List[BatchOut]
     total: int
+
+
+class BankReviewDecisionIn(BaseModel):
+    """Finance's decision on a held account. ``account_last4`` is the account they looked at; if the caregiver saved another
+    one since, the decision is refused with 409."""
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=2000)
+    account_last4: str = Field(pattern=r"^\d{4}$")
+
+
+class BankReviewOut(BaseModel):
+    caregiver_id: UUID
+    caregiver_name: Optional[str] = None  # the name on the Oakly profile
+    account_name: str  # the name the bank holds for the account
+    bank_name: str
+    account_number: str  # masked to the last four digits
+    status: Literal["pending", "approved", "rejected"]
+    balance_kobo: int  # the caregiver's available balance, so Finance sees what is waiting
+    submitted_at: datetime  # when the account was last saved
+    decided_at: Optional[datetime] = None
+
+
+class BankReviewList(BaseModel):
+    items: List[BankReviewOut]
+    total: int

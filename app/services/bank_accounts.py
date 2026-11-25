@@ -8,6 +8,10 @@ Changing to a *different* account starts a 24 hour cool-down in which no payout 
 money the same day), and writes a ``caregiver_bank_events`` row. Saving the first account, or saving the same account again,
 does not.
 
+A holder name that does not look like the caregiver's profile name does not refuse the save: the account is stored with
+``name_review_status = "pending"`` and no payout is made to it until Finance approves it (``review_name``). The lookup shows such
+a name masked, so the endpoint is never a free account-number -> name search.
+
 Paystack is called with no database lock held. The save takes the wallet lock first and then the bank row, the same order the
 payout creation uses (wallet, then the bank row it reads), so a payout is created either before the change or after it.
 """
@@ -24,17 +28,21 @@ from typing import Deque, Dict, List, Optional
 from fastapi import Request
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.client_ip import client_ip
 from app.db.models.caregiver import Caregiver, CaregiverBankAccount
 from app.db.models.payout import CaregiverBankEvent
-from app.services import earnings
+from app.services import admin_notify, earnings
+from app.services.audit import AuditService
 from app.services.kyc_matching import name_tokens
 from app.services.paystack import PaystackService
 
 logger = logging.getLogger(__name__)
 
 COOLDOWN = timedelta(hours=24)
+REVIEW_PENDING, REVIEW_APPROVED, REVIEW_REJECTED = "pending", "approved", "rejected"
+SHORT_FORM_MIN = 4  # a word shorter than this is never accepted as the short form of a longer one ("Ada" is not "Adaeze")
 BANKS_TTL_SECONDS = 24 * 3600
 RESOLVE_LIMIT = 10          # account-name lookups per caregiver ...
 RESOLVE_WINDOW_SECONDS = 60  # ... per this many seconds
@@ -53,18 +61,16 @@ class BankUnavailable(BankError):
     """Paystack could not be reached, or refused for a reason that is not the caregiver's (HTTP 503)."""
 
 
-class BankNameMismatch(BankError):
-    """The name the bank holds for the account is not the caregiver's profile name (HTTP 422, ``detail.code``). Neither name
-    is ever put in the message."""
-
-    code = "bank_account_name_mismatch"
-
-    def __init__(self):
-        super().__init__("The account name must match the name on your Oakly profile. If your name is different, contact support.")
-
-
 class BankThrottled(BankError):
     """Too many lookups (HTTP 429)."""
+
+
+class ReviewNotFound(Exception):
+    """The caregiver has no bank account (HTTP 404)."""
+
+
+class ReviewConflict(Exception):
+    """The account is not in a state that allows this decision; ``str(exc)`` is safe to show an admin (HTTP 409)."""
 
 
 def mask(account_number: Optional[str]) -> Optional[str]:
@@ -126,15 +132,34 @@ def _throttle(caregiver_id) -> None:
         window.append(now)
 
 
+def _is_short_form(word: str, other: str) -> bool:
+    """``word`` is the beginning or the end of the longer ``other`` ("tosin" in "oluwatosin", "tunde" in "babatunde")."""
+    short, long_ = sorted((word, other), key=len)
+    return len(short) >= SHORT_FORM_MIN and len(short) < len(long_) and (long_.startswith(short) or long_.endswith(short))
+
+
 def account_name_matches_profile(profile_name: Optional[str], account_name: Optional[str]) -> bool:
-    """Is the account held by the person on the profile? Tolerant of case, punctuation, word order, a middle name and
-    initials: the profile's first and last words (one-letter initials ignored) must both be words of the account name, so
-    "ADA OKAFOR NURSE" matches the profile "Ada Nurse". A one-word profile needs that word. No words -> no match."""
+    """Is the account held by the person on the profile? Tolerant of case, punctuation, word order, a middle name, initials
+    and a short form of a name. One-letter initials are ignored; the profile's first and last words must each be a word of the
+    account name, or the start or end of one (at least 4 letters: Tosin / Oluwatosin, Tunde / Babatunde), and at least one of
+    the two must be a whole word, so "Adebayo Tosin" matches "VICTOR OLUWATOSIN ADEBAYO" and "ADA OKAFOR NURSE" matches "Ada
+    Nurse". A one-word profile needs that exact word. No words -> no match."""
     profile = [t for t in name_tokens(profile_name) if len(t) > 1]
-    account = set(name_tokens(account_name))
+    account = name_tokens(account_name)
     if not profile or not account:
         return False
-    return profile[0] in account and profile[-1] in account
+    ends = (profile[0], profile[-1]) if len(profile) > 1 else (profile[0],)
+    whole = [w in account for w in ends]
+    if len(ends) == 1:
+        return whole[0]
+    near = [w in account or any(_is_short_form(w, a) for a in account) for w in ends]
+    return all(near) and any(whole)
+
+
+def mask_name(name: Optional[str]) -> str:
+    """The first letter of each word and a star for every other letter: "V***** O********* A******". Shown to a caregiver in
+    place of a holder name that is not theirs."""
+    return " ".join(t[0].upper() + "*" * (len(t) - 1) for t in name_tokens(name))
 
 
 @dataclass(frozen=True)
@@ -143,12 +168,13 @@ class Resolved:
     bank_code: str
     bank_name: str
     account_name: str
+    needs_review: bool = False  # the holder's name does not look like the profile name: the account is held once saved
 
 
 def resolve(caregiver_id, account_number: str, bank_code: str, profile_name: Optional[str],
             paystack: Optional[PaystackService] = None) -> Resolved:
-    """Look the account up and require its holder to be the caregiver: ``profile_name`` is the name on their Oakly
-    profile. Raises ``BankNameMismatch`` otherwise (the names are not logged or returned)."""
+    """Look the account up. ``profile_name`` is the name on the caregiver's Oakly profile: a holder that does not look like it
+    comes back with ``needs_review`` (the names are not logged or returned here; the caller masks the name)."""
     paystack = paystack or PaystackService()
     account_number, bank_code = (account_number or "").strip(), (bank_code or "").strip()
     if not ACCOUNT_NUMBER.match(account_number):
@@ -163,12 +189,11 @@ def resolve(caregiver_id, account_number: str, bank_code: str, profile_name: Opt
             logger.warning("account resolve failed (%s) for ****%s", result.get("message"), account_number[-4:])
             raise BankUnavailable("We cannot check the account right now. Please try again in a moment.")
         raise BankInvalid("We could not find that account. Check the account number and the bank.")
-    if not account_name_matches_profile(profile_name, result.get("account_name")):
-        logger.warning("bank account name does not match the profile name: caregiver %s, account ****%s", caregiver_id,
-                       account_number[-4:])
-        raise BankNameMismatch()
+    needs_review = not account_name_matches_profile(profile_name, result.get("account_name"))
+    if needs_review:
+        logger.warning("bank account needs a name review: caregiver %s, account ****%s", caregiver_id, account_number[-4:])
     return Resolved(account_number=account_number, bank_code=bank_code, bank_name=bank["name"],
-                    account_name=result["account_name"])
+                    account_name=result["account_name"], needs_review=needs_review)
 
 
 # --- saving the account --------------------------------------------------------------------------------------------
@@ -178,11 +203,13 @@ def resolve(caregiver_id, account_number: str, bank_code: str, profile_name: Opt
 class SaveResult:
     account: CaregiverBankAccount
     changed: bool  # a different account replaced an earlier one: payouts are blocked for 24 hours
+    needs_review: bool = False  # the holder's name did not match the profile: held until Finance approves it
 
 
 def save(db: Session, caregiver: Caregiver, account_number: str, bank_code: str, *, request: Optional[Request] = None,
          paystack: Optional[PaystackService] = None, now: Optional[datetime] = None) -> SaveResult:
-    """Resolve (the holder must be the caregiver), register with Paystack, then store. Commits."""
+    """Resolve, register with Paystack, then store. A holder name that does not look like the caregiver's is stored too, with
+    ``name_review_status = "pending"`` (no payout until it is approved). Commits."""
     paystack = paystack or PaystackService()
     resolved = resolve(caregiver.id, account_number, bank_code, caregiver.full_name, paystack)
     recipient = paystack.create_transfer_recipient(name=resolved.account_name, account_number=resolved.account_number,
@@ -205,6 +232,7 @@ def save(db: Session, caregiver: Caregiver, account_number: str, bank_code: str,
             account_name=resolved.account_name, bank_code=resolved.bank_code, recipient_code=recipient["recipient_code"],
             verified_at=now, created_at=now, updated_at=now,
             payout_blocked_until=now + COOLDOWN if first_with_balance else None,
+            name_review_status=REVIEW_PENDING if resolved.needs_review else None,
         ).on_conflict_do_nothing(index_elements=["caregiver_id"]).returning(CaregiverBankAccount.id)).first() is not None
         account = (db.query(CaregiverBankAccount).filter(CaregiverBankAccount.caregiver_id == caregiver.id)
                    .with_for_update().populate_existing().one())
@@ -220,6 +248,9 @@ def save(db: Session, caregiver: Caregiver, account_number: str, bank_code: str,
             account.bank_code = resolved.bank_code
             account.recipient_code = recipient["recipient_code"]
             account.verified_at = now
+            # A later save restarts the review: a matching account has nothing to review, a flagged one waits again.
+            account.name_review_status = REVIEW_PENDING if resolved.needs_review else None
+            account.name_review_at = None
             if different:
                 account.payout_blocked_until = now + COOLDOWN
             account.updated_at = now
@@ -235,13 +266,52 @@ def save(db: Session, caregiver: Caregiver, account_number: str, bank_code: str,
         raise
     if different:
         logger.info("caregiver %s changed bank account: payouts blocked until %s", caregiver.id, account.payout_blocked_until)
-    return SaveResult(account=account, changed=different)
+    if resolved.needs_review:
+        admin_notify.notify("bank_name_review", caregiver_id=caregiver.id)  # best effort, after the commit
+    return SaveResult(account=account, changed=different, needs_review=resolved.needs_review)
 
 
 def _describe(account: CaregiverBankAccount) -> Dict[str, Optional[str]]:
     return {"bank_name": account.bank_name, "bank_code": account.bank_code, "account_number": mask(account.account_number),
-            "account_name": account.account_name}
+            "account_name": account.account_name, "name_review": account.name_review_status}
 
 
 def is_cooling_down(account: Optional[CaregiverBankAccount], now: Optional[datetime] = None) -> bool:
     return bool(account and account.payout_blocked_until and account.payout_blocked_until > (now or datetime.utcnow()))
+
+
+def is_on_name_hold(account: Optional[CaregiverBankAccount]) -> bool:
+    """True while the holder-name review is open or was rejected: no payout is made to the account."""
+    return bool(account and account.name_review_status in (REVIEW_PENDING, REVIEW_REJECTED))
+
+
+# --- Finance decides (admin) ---------------------------------------------------------------------------------------
+
+
+def review_name(db: Session, caregiver_id, *, approve: bool, admin_id, reason: str, account_last4: str,
+                request: Optional[Request] = None, now: Optional[datetime] = None) -> CaregiverBankAccount:
+    """Approve or reject a held account. ``account_last4`` is the account the reviewer looked at: if the caregiver has saved
+    another account since, the decision is refused (409) rather than carried over. Writes an ``admin_audit_log`` row (masked
+    numbers only). Commits."""
+    now = now or datetime.utcnow()
+    try:
+        account = (db.query(CaregiverBankAccount).filter(CaregiverBankAccount.caregiver_id == caregiver_id)
+                   .with_for_update().populate_existing().first())
+        if account is None:
+            raise ReviewNotFound()
+        if account.name_review_status != REVIEW_PENDING:
+            raise ReviewConflict("This account is not waiting for a name review")
+        if not account.account_number.endswith(account_last4):
+            raise ReviewConflict("The caregiver changed their account since you opened it. Refresh and look again.")
+        before = _describe(account)
+        account.name_review_status = REVIEW_APPROVED if approve else REVIEW_REJECTED
+        account.name_review_at = now
+        flag_modified(account, "updated_at")  # keep the save time: the queue reports it as "submitted_at", a decision is not a new save
+        AuditService(db).record(admin_user_id=admin_id, action="bank_account.name_approve" if approve else "bank_account.name_reject",
+                                entity_type="caregiver_bank_account", entity_id=caregiver_id, before=before,
+                                after=_describe(account), reason=reason, request=request)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return account

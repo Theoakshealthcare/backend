@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/bank-reviews/642c0f16-f324-442f-948b-8e5a412208e0/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: second click",
+      "account_last4": "0011"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": "This account is not waiting for a name review"
+    }
+  },
+  "note": "A decision on an account that is not pending is refused."
+}

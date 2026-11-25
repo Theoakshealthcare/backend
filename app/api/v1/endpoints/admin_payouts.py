@@ -1,6 +1,7 @@
 """Admin: caregiver payouts (A3 slice 2). Money leaves Oakly through these routes. Approving a batch and cancelling a batch or a payout need
 ``payouts.execute`` (Finance and Super Admin); retrying, resolving (including ``force``) and unfreezing a caregiver need
-``ledger.adjust`` (Super Admin only); reading needs ``payments.read``. Every change needs a reason and writes
+``ledger.adjust`` (Super Admin only); reading needs ``payments.read``. Approving or rejecting a bank account whose holder name
+did not match the caregiver's profile needs ``payouts.execute`` too. Every change needs a reason and writes
 an ``admin_audit_log`` row. Batches are created by the scheduled job, never by a route."""
 
 from typing import Dict, List, Optional
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_permission
 from app.db.models.admin import AdminUser
-from app.db.models.caregiver import Caregiver, CaregiverWallet
+from app.db.models.caregiver import Caregiver, CaregiverBankAccount, CaregiverWallet
 from app.db.models.payout import PAYOUT_CANCELLED, Payout, PayoutAttempt, PayoutBatch
 from app.schemas.admin_payout import (
     AttemptOut,
@@ -20,6 +21,9 @@ from app.schemas.admin_payout import (
     BatchList,
     BatchOut,
     BatchStatusName,
+    BankReviewDecisionIn,
+    BankReviewList,
+    BankReviewOut,
     PayoutList,
     PayoutOut,
     PayoutReasonIn,
@@ -28,7 +32,7 @@ from app.schemas.admin_payout import (
     PayoutUnfreezeIn,
     UnfreezeOut,
 )
-from app.services import payouts
+from app.services import bank_accounts, payouts
 from app.services.bank_accounts import mask
 
 router = APIRouter()
@@ -159,6 +163,58 @@ def list_payouts(
     total = query.count()
     rows = query.order_by(Payout.created_at.desc(), Payout.id).limit(limit).offset(offset).all()
     return PayoutList(items=_payouts_out(db, rows), total=total)
+
+
+def _review_out(acct: CaregiverBankAccount, caregiver_name: Optional[str], balance) -> BankReviewOut:
+    return BankReviewOut(
+        caregiver_id=acct.caregiver_id, caregiver_name=caregiver_name, account_name=acct.account_name, bank_name=acct.bank_name,
+        account_number=mask(acct.account_number) or "", status=acct.name_review_status, balance_kobo=int(balance or 0),
+        submitted_at=acct.updated_at or acct.created_at, decided_at=acct.name_review_at)
+
+
+@router.get("/bank-reviews", response_model=BankReviewList)
+def list_bank_reviews(
+    status_: str = Query("pending", alias="status", pattern="^(pending|rejected|approved)$"),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db), _admin: AdminUser = Depends(require_permission("payments.read")),
+):
+    """Payout accounts whose holder name did not look like the caregiver's profile name, oldest first. Shows both names so a
+    person can decide; the account number is masked."""
+    query = (db.query(CaregiverBankAccount, Caregiver.full_name, CaregiverWallet.balance)
+             .join(Caregiver, Caregiver.id == CaregiverBankAccount.caregiver_id)
+             .outerjoin(CaregiverWallet, CaregiverWallet.caregiver_id == CaregiverBankAccount.caregiver_id)
+             .filter(CaregiverBankAccount.name_review_status == status_))
+    total = query.count()
+    rows = query.order_by(CaregiverBankAccount.updated_at, CaregiverBankAccount.id).limit(limit).offset(offset).all()
+    return BankReviewList(items=[_review_out(*row) for row in rows], total=total)
+
+
+def _decide_review(db: Session, caregiver_id: UUID, body: BankReviewDecisionIn, request: Request, admin: AdminUser, approve: bool):
+    try:
+        acct = bank_accounts.review_name(db, caregiver_id, approve=approve, admin_id=admin.id, reason=body.reason,
+                                         account_last4=body.account_last4, request=request)
+    except bank_accounts.ReviewNotFound:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Bank account not found")
+    except bank_accounts.ReviewConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc))
+    name, balance = (db.query(Caregiver.full_name, CaregiverWallet.balance)
+                     .outerjoin(CaregiverWallet, CaregiverWallet.caregiver_id == Caregiver.id)
+                     .filter(Caregiver.id == caregiver_id).one())
+    return _review_out(acct, name, balance)
+
+
+@router.post("/bank-reviews/{caregiver_id}/approve", response_model=BankReviewOut)
+def approve_bank_review(caregiver_id: UUID, body: BankReviewDecisionIn, request: Request, db: Session = Depends(get_db),
+                        admin: AdminUser = Depends(require_permission("payouts.execute"))):
+    """Confirm the account is the caregiver's: payouts to it resume. ``account_last4`` must be the account the reviewer saw."""
+    return _decide_review(db, caregiver_id, body, request, admin, True)
+
+
+@router.post("/bank-reviews/{caregiver_id}/reject", response_model=BankReviewOut)
+def reject_bank_review(caregiver_id: UUID, body: BankReviewDecisionIn, request: Request, db: Session = Depends(get_db),
+                       admin: AdminUser = Depends(require_permission("payouts.execute"))):
+    """Refuse the account: no payout is made to it, and the caregiver must save a different one."""
+    return _decide_review(db, caregiver_id, body, request, admin, False)
 
 
 @router.post("/{payout_id}/cancel", response_model=PayoutOut)

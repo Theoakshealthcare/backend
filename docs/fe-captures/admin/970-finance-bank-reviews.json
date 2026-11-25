@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/payouts/bank-reviews",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "items": [
+        {
+          "caregiver_id": "642c0f16-f324-442f-948b-8e5a412208e0",
+          "caregiver_name": "Placeholder Tosin",
+          "account_name": "SAMPLE OTHERPERSON",
+          "bank_name": "Placeholder Bank",
+          "account_number": "******0011",
+          "status": "pending",
+          "balance_kobo": 0,
+          "submitted_at": "2026-11-25T13:29:55.421264",
+          "decided_at": null
+        }
+      ],
+      "total": 1
+    }
+  },
+  "note": "Finance's queue (pending by default): both names side by side, the account number masked, and the caregiver's available balance. The wallet was seeded empty here, so balance_kobo is 0."
+}

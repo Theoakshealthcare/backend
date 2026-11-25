@@ -490,7 +490,7 @@ Every admin route needs exactly one permission. A `403` means "signed in, not al
 | `GET /admin/care-plans...`, `GET /admin/care-plan-templates` | `careplans.read` (Clinical Reviewer, Super Admin; section 12.13) |
 | `POST`/`PATCH`/`DELETE` on `/admin/care-plans...`, `/admin/care-plan-goals/...`, `/admin/care-plan-tasks/...`, `/admin/care-plan-medications/...` | `careplans.write` (section 12.13) |
 | `POST /admin/care-plan-templates/{id}/review` | `careplans.templates` (section 12.13) |
-| `POST /admin/payouts/batches/{id}/approve`, `POST /admin/payouts/batches/{id}/cancel`, `POST /admin/payouts/{id}/cancel` | `payouts.execute` (Finance, Super Admin; section 12.11) |
+| `POST /admin/payouts/batches/{id}/approve`, `POST /admin/payouts/batches/{id}/cancel`, `POST /admin/payouts/{id}/cancel`, `POST /admin/payouts/bank-reviews/{caregiver_id}/approve`, `.../reject` | `payouts.execute` (Finance, Super Admin; section 12.11) |
 | `POST /admin/payouts/{id}/retry`, `POST /admin/payouts/{id}/resolve`, `POST /admin/payouts/caregivers/{id}/unfreeze` | `ledger.adjust` (Super Admin only; section 12.11) |
 
 **Routes shared with the apps.** These six existing routes serve patients and caregivers as before, and **also accept an admin token** that holds the permission. For an admin they skip the "is this your own booking/record" check:
@@ -2531,6 +2531,83 @@ Money flow of a payout: `pending_approval` -> (admin approves the batch) `proces
 | `POST /admin/payouts/{id}/retry` | `ledger.adjust` (**Super Admin only**) | same body; only a `failed` or `reversed` payout, and only once Paystack has confirmed the failure (it is asked first) |
 | `POST /admin/payouts/{id}/resolve` | `ledger.adjust` (**Super Admin only**) | body `{"outcome": "paid" or "failed", "reason": "...", "force": false}`; only a `processing` or `needs_attention` payout; Paystack is asked first; `failed` returns the reserved money **net of the caregiver's shortfall** |
 | `POST /admin/payouts/caregivers/{caregiver_id}/unfreeze` | `ledger.adjust` (**Super Admin only**) | body `{"reason": "...", "write_off_shortfall": false}`; lets a frozen caregiver be paid again; refused while any of their payouts is `needs_attention` or `processing`; **debits any outstanding shortfall from the caregiver's available balance first**, and a shortfall the balance cannot cover is refused (`409`) unless `write_off_shortfall` is `true`; returns `{caregiver_id, payouts_frozen_at: null, debited_from_balance_kobo, written_off_shortfall_kobo, outstanding_shortfall_kobo}` |
+
+### Bank-account name reviews (2026-11-25)
+
+A caregiver may save a payout account whose holder name does not look like their profile name. It is **saved but held**: no payout is made to it until Finance approves it. These routes are the queue. They are in the same router, `/api/v1/admin/payouts`:
+
+| Route | Permission | Notes |
+|---|---|---|
+| `GET /admin/payouts/bank-reviews` | `payments.read` | filter `status` (`pending` is the default, `rejected`, `approved`); `limit` (1 to 200), `offset`; oldest first. Shows both names so a person can compare them |
+| `POST /admin/payouts/bank-reviews/{caregiver_id}/approve` | `payouts.execute` (Finance, Super Admin) | body `{"reason": "...", "account_last4": "0011"}`; payouts to the account resume |
+| `POST /admin/payouts/bank-reviews/{caregiver_id}/reject` | `payouts.execute` | same body; no payout is made to the account and the caregiver must save a different one |
+
+The id in the path is the **caregiver's id**, not a bank-account id (a caregiver has one account; saving again replaces it).
+
+The queue (capture `970`). **`caregiver_name` is the name on the Oakly profile and `account_name` is the name the bank holds**: show them side by side. `account_number` is masked. `balance_kobo` is the caregiver's available balance. `submitted_at` is when the account was saved and does not change when a decision is made; `decided_at` is `null` until then:
+
+<!-- capture: 970-finance-bank-reviews.json response.body -->
+```json
+{
+  "items": [
+    {
+      "caregiver_id": "bcb2697a-a91d-4ea6-92b6-666e90f3ce9e",
+      "caregiver_name": "Placeholder Tosin",
+      "account_name": "SAMPLE OTHERPERSON",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0011",
+      "status": "pending",
+      "balance_kobo": 0,
+      "submitted_at": "2026-11-25T13:20:55.933351",
+      "decided_at": null
+    }
+  ],
+  "total": 1
+}
+```
+
+_capture `970-finance-bank-reviews.json` (the wallet was empty in the capture, so `balance_kobo` is 0)_
+
+**Send the last four digits of the account the reviewer looked at as `account_last4`.** If the caregiver has saved a different account since the queue was loaded, the decision is refused and nothing changes (capture `971`), so the page must reload the item and let the reviewer look again:
+
+<!-- capture: 971-finance-bank-review-stale.json response.body -->
+```json
+{
+  "detail": "The caregiver changed their account since you opened it. Refresh and look again."
+}
+```
+
+_capture `971-finance-bank-review-stale.json`_
+
+Approval returns the item with `status` `approved` and `decided_at` set (capture `972`); a rejection is the same with `rejected` (capture `974`). A decision on an account that is not `pending` is `409` (capture `973`); an unknown caregiver is `404` `{"detail": "Bank account not found"}` **[not live: automated test]**; a missing `reason` or a malformed `account_last4` is `422` **[not live: automated test]**; a role without `payouts.execute` gets `403` `Access denied. Missing permission: payouts.execute` **[not live: automated test for these routes; the same message is captured for the other payout routes]**.
+
+<!-- capture: 972-finance-bank-review-approve.json response.body -->
+```json
+{
+  "caregiver_id": "bcb2697a-a91d-4ea6-92b6-666e90f3ce9e",
+  "caregiver_name": "Placeholder Tosin",
+  "account_name": "SAMPLE OTHERPERSON",
+  "bank_name": "Placeholder Bank",
+  "account_number": "******0011",
+  "status": "approved",
+  "balance_kobo": 0,
+  "submitted_at": "2026-11-25T13:20:55.933351",
+  "decided_at": "2026-11-25T13:20:56.164724"
+}
+```
+
+_capture `972-finance-bank-review-approve.json`_
+
+<!-- capture: 973-finance-bank-review-again.json response.body -->
+```json
+{
+  "detail": "This account is not waiting for a name review"
+}
+```
+
+_capture `973-finance-bank-review-again.json`_
+
+Every decision writes an `admin_audit_log` row (`bank_account.name_approve` or `bank_account.name_reject`, entity `caregiver_bank_account`, masked numbers, the reason). **Not built:** an admin console page for this queue (the routes and e-mail exist; the page does not), and any message to the caregiver when a decision is made. Admins who hold `payouts.execute` are e-mailed when an account is flagged **[not live: automated test; no mail transport in the capture stack]**.
 
 **Finance can approve and cancel, but not retry, resolve or unfreeze.** Approving a batch and cancelling a batch or a payout need `payouts.execute`, which Finance and the Super Admin hold; retry, resolve (with or without `force`) and unfreeze need `ledger.adjust`, which only the Super Admin holds. Show Approve and Cancel to anyone whose `permissions` (from `GET /admin/me`) include `payouts.execute`, and Retry, Resolve and Unfreeze only to those with `ledger.adjust`; a missing permission is `403` `Access denied. Missing permission: payouts.execute` or `Access denied. Missing permission: ledger.adjust` (captures `194`, `211`). The admin who acted is recorded on the payout (`approved_by`, `cancelled_by`) and in the audit log.
 
@@ -7889,6 +7966,7 @@ not `display_name`.
 | Payouts: seeding, the batch step (3 of 5 caregivers, minimum and cool-down respected), batch list and detail, filters, `404`, bad status `422`, Operations `403`, no token `401` | Verified live, **against a fake Paystack** | 183 to 193 (the batch step is the real function run in the worker container for a date a week ahead; the schedule itself was not waited for). **Every payout in these captures carries `attempt_history`, `shortfall_kobo`, `returned_kobo`, `netted_kobo` and the two `caregiver_payouts_frozen_*` fields** |
 | Payouts: cancel (Operations `403`, no reason `422`, unknown `404`, success as Finance, again `409`), retry of a waiting payout `409` | Verified live | 194 to 199 |
 | Payouts: approve (Operations `403`, no or blank reason `422`, unknown `404`, success as Finance, again `409`), cancel after approval `409` | Verified live | 200 to 206 |
+| Bank-account name reviews: queue, stale account `409`, approve, second decision `409`, reject | Verified live, **against a fake Paystack** | captures 970-974, `scripts/capture_bank_name_review.py`; `404`, `422`, `403` and the e-mail are automated tests only (`test_bank_name_review.py`) |
 | Payouts: the send step posts the transfers; Paystack refusing one (balance too low) fails it and returns the money | Verified live, **against a fake Paystack** | 207, 208 |
 | Payouts: signed `transfer.success` webhook; a webhook delivered twice changes nothing | Verified live, **against a fake Paystack** | 209, 210, 217, 220 |
 | Payouts: retry (Finance `403`, Operations `403`, no reason `422`, a paid payout `409`, success with a new reference, again `409`) | Verified live | 211 to 216 |

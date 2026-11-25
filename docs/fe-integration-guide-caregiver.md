@@ -3500,23 +3500,39 @@ Errors, all `{"detail": "<sentence>"}` and safe to show:
 | 429 | `Too many account checks. Please wait a minute and try again.` | more than 10 lookups in a minute **[not live: automated test]** |
 | 503 | `We cannot check the account right now. Please try again in a moment.` | Paystack did not answer **[not live: automated test]** |
 | 503 | `We cannot load the list of banks right now. Please try again in a moment.` | no bank list could be loaded **[not live: automated test]** |
-| 422 | `detail` is an **object**, see "The account holder must be the caregiver" below | the name the bank holds is not the caregiver's profile name **[not live: automated test]** |
 | 403 | `Access denied. Caregiver account required.` | not a caregiver |
 
-**The account holder must be the caregiver (new).** After the bank resolves the account, the backend compares the holder's name with the **name on the caregiver's Oakly profile** (`full_name`). It ignores case, punctuation, word order, middle names and one-letter initials, and requires the profile's first and last word to both appear in the account name (so the profile "Ada Nurse" matches the account "ADA OKAFOR NURSE"; a one-word profile name must appear in the account name). If it does not match, **both** `POST /bank-account/resolve` and `PUT /bank-account` answer `422` and nothing is saved, so the caregiver never reaches the "is this you?" confirmation for someone else's account. Unlike the other bank errors, `detail` is an object (the backend's `detail.code` convention), and the body is exactly:
+**A holder name that is not the caregiver's no longer refuses the lookup (changed 2026-11-25; this replaces the old `422` `bank_account_name_mismatch`).** After the bank resolves the account, the backend compares the holder's name with the **name on the caregiver's Oakly profile** (`full_name`). It ignores case, punctuation, word order, a middle name and one-letter initials. The profile's first and last word must each be a word of the account name **or the start or end of one** (at least 4 letters: `Tosin` is the end of `OLUWATOSIN`, `Tunde` the end of `BABATUNDE`), and **at least one of the two must be a whole word**. A one-word profile name must be a whole word of the account name. When that holds, `needs_review` is `false` and the real name is returned, as in capture `970`:
 
+<!-- capture: 970-a-bank-resolve-short-form.json response.body -->
 ```json
 {
-  "detail": {
-    "code": "bank_account_name_mismatch",
-    "message": "The account name must match the name on your Oakly profile. If your name is different, contact support."
-  }
+  "account_name": "SAMPLE OLUWATOSIN PLACEHOLDER",
+  "account_number": "0000000010",
+  "bank_code": "058",
+  "bank_name": "Placeholder Bank",
+  "needs_review": false
 }
 ```
 
-_Shape source: asserted verbatim by `app/tests/test_payout_bank_accounts.py::test_a_different_account_holder_is_refused_with_a_code_and_no_names` (real app, throwaway Postgres, fake Paystack). **Not captured against the running stack**: the next full run of `scripts/capture_caregiver_flow.py` does not yet include this call._
+_capture `970-a-bank-resolve-short-form.json` (the profile was "Placeholder Tosin")_
 
-What the app must do: switch on `detail.code`, show `detail.message` (it is safe to show), and offer a "Contact support" action; the caregiver cannot fix this by retyping, only by choosing an account in their own name or having support correct the profile name. **Neither name is in the response**, so do not try to display them. Because `detail` is an object here and a plain string for the other bank errors, check `typeof detail === "string"` before reading `detail.code`. The existing 24 hour pause after changing to a different account is unchanged and only applies to a save that passed this check. Captures `125`, `127` and `178` above were taken before this rule; their account names are the profile's own, except `178` (an account named "PLACEHOLDER ACCOUNT 0001") which would now be refused for that profile, so treat that one as illustrating the response shape only.
+When it does not hold, the answer is **still `200`**, but `needs_review` is `true` and **`account_name` is masked** (the first letter of each word, then stars). The real name is never in this response, so this endpoint is not a free account-number to name search:
+
+<!-- capture: 971-a-bank-resolve-needs-review.json response.body -->
+```json
+{
+  "account_name": "S***** O**********",
+  "account_number": "0000000011",
+  "bank_code": "058",
+  "bank_name": "Placeholder Bank",
+  "needs_review": true
+}
+```
+
+_capture `971-a-bank-resolve-needs-review.json`_
+
+What the app must do when `needs_review` is `true`: **do not treat it as an error.** Show the masked name, tell the caregiver the account can still be saved but is only paid after Oakly has checked it, and offer "Save for review" (the same `PUT`). Do not show "Contact support" here; nothing is wrong yet. The caregiver app does this in `BankDetails.tsx`.
 
 `PUT /api/v1/caregiver/bank-account` saves it. The body is **only `bank_code` and `account_number`**; the backend resolves the name again itself (the old body with `bank_name` and `account_name` is no longer accepted as the source of those: a request without `bank_code` is a `422`). The same `400`/`503` messages as above apply, plus `400` `This account cannot receive payouts. Check the account number and the bank.` when Paystack refuses to register it **[not live: automated test]**.
 
@@ -3567,6 +3583,78 @@ The shape of the bank account (`GET` and `PUT` return the same object). Compared
 ```
 
 _capture `178-a-bank-account-change.json`_
+
+#### The holder-name review (`name_review_status`)
+
+`GET` and `PUT /caregiver/bank-account` now carry **`name_review_status`**: `null` (the bank's name matched the profile; nothing to review), `"pending"`, `"approved"` or `"rejected"`. **Captures `125`, `127` and `178` above were taken before this field existed, so they do not show it.** Captures `972`, `973`, `974` and `975` do. A save of an account whose holder is not the caregiver is **accepted** (`200`), and the account is **held**: no payout is made to it until Finance approves it. **While the account is `pending` or `rejected`, `account_name` is masked** (the first letter of each word, then stars), in `PUT` and in `GET`, exactly as in the lookup: otherwise saving an account number would be a free way to read the name behind it. The real name is returned once the status is `approved`. Show whatever `account_name` says; do not try to unmask it.
+
+<!-- capture: 972-a-bank-save-needs-review.json response.body -->
+```json
+{
+  "bank_name": "Placeholder Bank",
+  "bank_code": "058",
+  "account_number": "0000000011",
+  "account_name": "S***** O**********",
+  "verified": true,
+  "payouts_blocked_until": null,
+  "name_review_status": "pending",
+  "created_at": "2026-11-25T13:29:55.421264",
+  "updated_at": "2026-11-25T13:29:55.421264"
+}
+```
+
+_capture `972-a-bank-save-needs-review.json`_
+
+| `name_review_status` | Payouts | What the app shows |
+|---|---|---|
+| `null` | paid as normal (subject to the 24 hour pause after a change) | nothing |
+| `"pending"` | **held** until Finance decides (name masked) | "Our team is checking that this account is yours. We will pay into it as soon as it is confirmed." |
+| `"approved"` | paid as normal | nothing |
+| `"rejected"` | **held for good**: the caregiver must save a different account | "We could not confirm that this account is yours, so we cannot pay into it. Save a different account, or contact support." plus a Contact support action |
+
+After approval (capture `973`) and after a rejection (capture `975`; this one also shows `payouts_blocked_until`, because saving a different account starts the 24 hour pause):
+
+<!-- capture: 973-a-bank-get-approved.json response.body -->
+```json
+{
+  "bank_name": "Placeholder Bank",
+  "bank_code": "058",
+  "account_number": "0000000011",
+  "account_name": "SAMPLE OTHERPERSON",
+  "verified": true,
+  "payouts_blocked_until": null,
+  "name_review_status": "approved",
+  "created_at": "2026-11-25T13:29:55.421264",
+  "updated_at": "2026-11-25T13:29:55.421264"
+}
+```
+
+_capture `973-a-bank-get-approved.json`_
+
+<!-- capture: 975-a-bank-get-rejected.json response.body -->
+```json
+{
+  "bank_name": "Placeholder Bank",
+  "bank_code": "058",
+  "account_number": "0000000012",
+  "account_name": "A****** S******* N***",
+  "verified": true,
+  "payouts_blocked_until": "2026-11-26T13:29:55.530111",
+  "name_review_status": "rejected",
+  "created_at": "2026-11-25T13:29:55.421264",
+  "updated_at": "2026-11-25T13:29:55.530111"
+}
+```
+
+_capture `975-a-bank-get-rejected.json`_
+
+Things the app must surface:
+
+- **Saving a different account while one is approved replaces it and holds the new one.** `974` shows a second flagged save: the first account is gone and the status is `pending` again. Warn before saving if the caregiver already has an approved account.
+- **A matching account clears an earlier review** (`name_review_status` goes back to `null`) **[not live: automated test `test_saving_a_matching_account_clears_an_earlier_review`]**.
+- **There is no push or e-mail to the caregiver when Finance decides** (not built). The app only learns it by reading the account again; refresh it when the screen opens, and show the wallet's available balance as it is: money held by a pending account stays in the balance and is paid in the first batch after approval **[not live: automated test `test_an_account_held_for_review_is_not_paid_until_approved`]**.
+- The wallet summary does **not** yet say that a payout is held for a name review (only `payouts_blocked_until` for the 24 hour pause). Until it does, send the caregiver to the bank account screen.
+- Finance is told by e-mail (to admins who hold `payouts.execute`) when an account is flagged **[not live: automated test; no mail transport in the capture stack]**.
 
 The wallet then shows the block (`payouts_blocked_until`, capture `179-a-wallet-payouts-blocked.json`). Show "Payouts are paused until <time> because you changed your bank account."
 
@@ -3924,6 +4012,8 @@ suspend a caregiver mid-job). The app should show the message and stop the visit
 | Wallet, bank account (not set, bank list, resolve, resolve error, save, change with cool-down), withdraw removed (`410`) | Yes, **against a fake Paystack** | 121-130, 178-180. **Balance seeded in the DB; the bank list, name lookup and recipient are the fake's answers** |
 | First bank account saved while the wallet holds money starts the 24 hour cool-down (`payouts_blocked_until` set); with an empty wallet it does not | Cool-down: Yes, **against a fake Paystack** (127). Empty wallet: **No (tests)** | 127, 166; `test_payout_hardening.py`. The cool-down was then moved into the past in the DB (**[db-simulated]**) so the batch could run |
 | Resolve/save error messages other than the 10-digit one (unknown bank, unknown account, `429`, `503`) | **No** | Automated tests, `test_payout_bank_accounts.py` |
+| Holder-name review (2026-11-25): short-form match passes, a different holder is saved as `pending` with a masked name at the lookup, Finance approves and rejects, a re-save replaces the account and restarts the review | Yes, **against a fake Paystack**, real HTTP to a local API on a throwaway Postgres | 970-975 (caregiver) and 970-974 (admin), `scripts/capture_bank_name_review.py` |
+| A matching save clears an earlier review; a held account is skipped by the payout batch; Finance is e-mailed when an account is flagged | **No** | Automated tests, `test_payout_bank_accounts.py`, `test_bank_name_review.py` |
 | Payout reserved by the batch, approved by an admin, sent to Paystack, settled by a signed `transfer.success` webhook (delivered twice) | Yes, **against a fake Paystack** | 166-177 (the batch step is the real function run once in the worker container, standing in for the cron that acts on a payout day) |
 | A live Paystack transfer, a live webhook, Paystack's real bank list and name lookup | **No** | No live Paystack account exercised. Shapes come from Paystack's documentation as implemented in the fake |
 | `failed` and `cancelled` payout rows seen by the caregiver; the money returning to `available_balance` | **No (caregiver side)** | The admin captures show the failure and reversal; `test_payouts.py` asserts the balances |
