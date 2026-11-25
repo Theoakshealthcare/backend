@@ -26,6 +26,7 @@ from app.services.earnings import release_due as release_due_earnings
 from app.services.kyc_events import KycRetry, process_event as process_kyc_event
 from app.services.kyc_hooks import KycHooks
 from app.services.kyc_reconcile import reconcile as kyc_reconcile
+from app.services.location_nudge import nudge_stale_locations
 from app.services.payouts import create_scheduled_batch, dispatch_due as dispatch_payouts, reconcile as reconcile_payouts
 from app.services.refunds import dispatch_due as dispatch_refunds, reconcile as reconcile_refunds
 from app.services.voice_notes.audio_store import get_audio_store
@@ -204,6 +205,15 @@ async def voice_note_sweep_job(ctx: dict) -> dict:
     return counts
 
 
+async def location_nudge_job(ctx: dict) -> int:
+    """Push "Update your location" to available caregivers whose last fix is older than AVAILABLE_LOCATION_MAX_HOURS (at most once per
+    day each, never at night; app/services/location_nudge.py). Best effort: a failed push is logged, never raised."""
+    sent = await asyncio.to_thread(_run_with_session, nudge_stale_locations)
+    if sent:
+        logger.info("location_nudge: pushed %d caregiver(s)", sent)
+    return sent
+
+
 def json_serializer(obj: Any) -> bytes:
     return json.dumps(obj, default=str).encode()
 
@@ -221,7 +231,7 @@ class WorkerSettings:
                  func(kyc_process_event, keep_result=0),
                  kyc_reconcile_job,
                  func(transcribe_voice_note_job, timeout=200, max_tries=60, keep_result=0),
-                 voice_note_sweep_job]
+                 voice_note_sweep_job, location_nudge_job]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
     cron_jobs = [
@@ -239,6 +249,7 @@ class WorkerSettings:
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
         cron(kyc_reconcile_job, minute={3, 13, 23, 33, 43, 53}, second=15),  # every 10 minutes (design 6)
         cron(voice_note_sweep_job, minute={1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56}, second=25),  # every 5 minutes
+        cron(location_nudge_job, minute={4, 19, 34, 49}, second=35),  # every 15 minutes; a failed push is retried on the next run
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     job_serializer = staticmethod(json_serializer)

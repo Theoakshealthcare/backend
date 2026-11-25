@@ -263,7 +263,9 @@ class CaregiverLocation(Base):
     
     # Timestamps
     recorded_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # the last fix: pinned when anything else changes
+    # When the caregiver was last pushed "update your location" (naive UTC); null = never. Limits the nudge to one per window.
+    location_nudged_at = Column(DateTime, nullable=True)
     
     # Relationship
     caregiver = relationship("Caregiver", back_populates="locations")

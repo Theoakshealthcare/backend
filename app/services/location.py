@@ -38,12 +38,15 @@ class LocationService:
                              now: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """Find matchable caregivers within the radius.
 
-        A caregiver is matchable when approved and not suspended, available, and their location was
-        reported within LOCATION_FRESHNESS_MINUTES of ``now`` (UTC; injectable for tests). When
-        ``service_type`` is given they must also hold a caregiver_skills row for it.
+        A caregiver is matchable when approved and not suspended, available, and their last known
+        location was reported within AVAILABLE_LOCATION_MAX_HOURS of ``now`` (UTC; injectable for
+        tests): the app only reports while it is open, so a caregiver who pockets the phone keeps
+        receiving offers for that long. When ``service_type`` is given they must also hold a
+        caregiver_skills row for it. ``location_age_minutes`` says how old the fix is, so callers can
+        rank a stale fix below a fresh one (see ``get_nearby_active_caregivers_with_eta``).
         """
         now = now or datetime.utcnow()
-        fresh_after = now - timedelta(minutes=settings.LOCATION_FRESHNESS_MINUTES)
+        usable_after = now - timedelta(hours=settings.AVAILABLE_LOCATION_MAX_HOURS)
 
         query = self.db.query(
             CaregiverLocation,
@@ -56,7 +59,7 @@ class LocationService:
             and_(
                 CaregiverLocation.is_active == True,
                 CaregiverLocation.is_available == True,
-                CaregiverLocation.updated_at >= fresh_after,
+                CaregiverLocation.updated_at >= usable_after,
                 Caregiver.profile_status == 'approved',
                 Caregiver.suspended_at.is_(None),
                 User.is_active.is_(True),  # a closed or erased account is never offered work
@@ -89,7 +92,9 @@ class LocationService:
                     'distance_km': round(distance, 2),
                     'latitude': location.latitude,
                     'longitude': location.longitude,
-                    'is_available': location.is_available
+                    'is_available': location.is_available,
+                    'last_location_update': location.updated_at,
+                    'location_age_minutes': max(0, int((now - location.updated_at).total_seconds() // 60)),
                 })
         
         # Sort by distance
@@ -238,13 +243,17 @@ class LocationService:
             # Experience bonus
             experience_score = min(25, caregiver.get('years_of_experience', 0) * 2)
             
-            # Availability bonus (recently active locations get higher score)
+            # Availability bonus
             availability_score = 15 if caregiver['is_available'] else 0
+
+            # A fix older than LOCATION_FRESHNESS_MINUTES (still matched, up to AVAILABLE_LOCATION_MAX_HOURS) ranks
+            # below a fresh one at the same distance: the caregiver may have moved since.
+            stale_penalty = 0 if caregiver['location_age_minutes'] <= settings.LOCATION_FRESHNESS_MINUTES else 10
             
             # ETA bonus (faster arrival = higher score)
             eta_score = max(0, 30 - (eta_minutes // 2))
             
-            total_score = score + distance_score + experience_score + availability_score + eta_score
+            total_score = score + distance_score + experience_score + availability_score + eta_score - stale_penalty
             
             enhanced_caregiver = caregiver.copy()
             enhanced_caregiver.update({
