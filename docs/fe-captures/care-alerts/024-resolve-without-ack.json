@@ -8,7 +8,7 @@
   "response": {
     "status_code": 200,
     "body": {
-      "id": "ed3b977a-554e-4bd6-bc48-7b3d2072b314",
+      "id": "7ad879b6-978c-4042-b613-ff969327dc9f",
       "type": "task_missed",
       "severity": "warning",
       "status": "resolved",
@@ -18,12 +18,12 @@
       "occurrence_count": 1,
       "patient": {
         "full_name": "Test Patient",
-        "phone": "+2348965350251",
+        "phone": "+2348936873854",
         "masked": false
       },
       "care_recipient_name": null,
-      "booking_id": "6780e9a1-6a47-47ae-b5f8-e4eec9105202",
-      "booking_code": "7226431C",
+      "booking_id": "6a12ed48-0e22-41c3-98c4-1185b39f26a2",
+      "booking_code": "54E76B70",
       "vital_id": null,
       "family_notified_count": 0,
       "family_notified_at": null,
@@ -31,10 +31,10 @@
       "acknowledged_by": null,
       "acknowledged_at": null,
       "resolved_by": {
-        "id": "021ae30b-b641-4398-86a2-b5e5fe70cfb7",
+        "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
         "email": "super_admin@example.test"
       },
-      "resolved_at": "2026-11-25T18:51:39.595195",
+      "resolved_at": "2026-11-25T18:55:28.011965",
       "note": null,
       "detail": {
         "vital_type": null,

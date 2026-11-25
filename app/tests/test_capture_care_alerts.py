@@ -72,18 +72,20 @@ def test_capture(db, client, outbox, expo):
     run(db)
 
     r = client.get(ADMIN_ALERTS, headers=h)
-    _save("010-list-active-super-admin.json", r, "Default: status=active (open + acknowledged). Critical first.")
+    _save("010-list-active-super-admin.json", r, "Default: status=active (open + acknowledged). Critical first. Summary only: detail and note are null in the list for everyone.")
     assert r.status_code == 200
     items = r.json()["items"]
     critical = next(i for i in items if i["severity"] == "critical")
     missed = next(i for i in items if i["type"] == "task_missed")
 
     _save("011-list-active-support-masked.json", client.get(ADMIN_ALERTS, headers=auth_headers(admins["support"])),
-          "Support holds support.inbox only: the name and phone are masked and detail is null (detail_masked true).")
+          "Support holds support.inbox only: the name and phone are masked and detail_masked is true (it may not open the clinical detail).")
     _save("012-list-filtered.json", client.get(f"{ADMIN_ALERTS}?severity=warning&type=task_missed&limit=10", headers=h),
           "Filters: status, severity, type, limit (1-100), offset.")
     _save("013-detail-clinical-reviewer.json", client.get(f"{ADMIN_ALERTS}/{critical['id']}", headers=auth_headers(admins["clinical_reviewer"])),
           "clinical.read shows detail and note; people.pii is missing, so the name is masked. Opening it leaves a care_alert.read audit row.")
+    _save("015-detail-support-masked.json", client.get(f"{ADMIN_ALERTS}/{critical['id']}", headers=auth_headers(admins["support"])),
+          "The detail route for an admin without clinical.read: detail and note stay null, detail_masked is true.")
     _save("014-detail-missed-task.json", client.get(f"{ADMIN_ALERTS}/{missed['id']}", headers=h), "A missed-task alert: detail.tasks and detail.days. (Its timestamps are the capture's fixed sweep clock, the visit day; family_notified_* are null because this capture ran the sweep without the delivery step.)")
 
     body = {"note": "Phoned the family; ambulance called (placeholder note)."}

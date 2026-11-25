@@ -14,7 +14,7 @@ AlertStatus = Literal["open", "acknowledged", "resolved"]
 StatusFilter = Literal["active", "open", "acknowledged", "resolved", "all"]
 
 
-class PartyOut(BaseModel):
+class AlertPartyOut(BaseModel):
     full_name: str
     phone: Optional[str] = None
     masked: bool
@@ -46,7 +46,7 @@ class CareAlertOut(BaseModel):
     created_at: datetime
     last_occurred_at: datetime
     occurrence_count: int
-    patient: PartyOut
+    patient: AlertPartyOut
     care_recipient_name: Optional[str] = None  # the client, when the visit was booked for a relative
     booking_id: Optional[UUID] = None
     booking_code: Optional[str] = None

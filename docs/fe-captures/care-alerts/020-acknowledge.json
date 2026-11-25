@@ -10,13 +10,13 @@
   "response": {
     "status_code": 200,
     "body": {
-      "id": "db889960-2efb-4962-9a2b-5f768630b841",
+      "id": "41b093a6-f57b-413b-8c63-68dd793b3517",
       "type": "vital_out_of_range",
       "severity": "critical",
       "status": "acknowledged",
       "summary": "Heart rate reading is at a critical level.",
-      "created_at": "2026-11-25T18:51:38.926712",
-      "last_occurred_at": "2026-11-25T18:51:38.926712",
+      "created_at": "2026-11-25T18:55:27.360798",
+      "last_occurred_at": "2026-11-25T18:55:27.360798",
       "occurrence_count": 1,
       "patient": {
         "full_name": "Ada Okafor",
@@ -26,15 +26,15 @@
       "care_recipient_name": null,
       "booking_id": null,
       "booking_code": null,
-      "vital_id": "d9c8f9b0-e737-41a9-8361-25a5e615bb68",
+      "vital_id": "db3812d8-17ac-434b-b9cf-4c8206ea87ba",
       "family_notified_count": 1,
-      "family_notified_at": "2026-11-25T18:51:38.939631",
-      "admin_notified_at": "2026-11-25T18:51:38.941418",
+      "family_notified_at": "2026-11-25T18:55:27.373137",
+      "admin_notified_at": "2026-11-25T18:55:27.374697",
       "acknowledged_by": {
-        "id": "021ae30b-b641-4398-86a2-b5e5fe70cfb7",
+        "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
         "email": "super_admin@example.test"
       },
-      "acknowledged_at": "2026-11-25T18:51:39.567269",
+      "acknowledged_at": "2026-11-25T18:55:27.985401",
       "resolved_by": null,
       "resolved_at": null,
       "note": "Phoned the family; ambulance called (placeholder note).",

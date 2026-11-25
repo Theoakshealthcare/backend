@@ -47,21 +47,34 @@ def test_list_orders_critical_first_and_counts(db, client, outbox, admins):
     first = body["items"][0]
     assert first["type"] == "vital_out_of_range" and first["summary"] == "Heart rate reading is at a critical level."
     assert first["patient"] == {"full_name": "Ada Okafor", "phone": "+2348012345678", "masked": False}
-    assert first["detail"]["status"] == "critical" and first["detail"]["value"] == "45" and first["detail_masked"] is False
+    assert first["detail"] is None and first["note"] is None and first["detail_masked"] is False  # the list is summary only
     assert first["acknowledged_by"] is None and first["resolved_by"] is None
     assert r.headers["cache-control"] == "no-store"
 
 
+def test_the_list_never_carries_the_clinical_detail_or_the_note(db, client, outbox, admins):
+    """Health detail is read one alert at a time, so every read is audited (the sibling routes' rule)."""
+    make_alerts(db, client, outbox)
+    h = hdr(admins, "super_admin")
+    alert_id = client.get(ADMIN_ALERTS, headers=h).json()["items"][0]["id"]
+    client.post(f"{ADMIN_ALERTS}/{alert_id}/acknowledge", json={"note": "Placeholder note"}, headers=h)
+    for status in ("active", "all"):
+        for item in client.get(f"{ADMIN_ALERTS}?status={status}", headers=h).json()["items"]:
+            assert item["detail"] is None and item["note"] is None
+    assert client.get(f"{ADMIN_ALERTS}/{alert_id}", headers=h).json()["note"] == "Placeholder note"
+
+
 def test_masking_follows_people_pii_and_clinical_read(db, client, outbox, admins):
     make_alerts(db, client, outbox)
-    ops = client.get(ADMIN_ALERTS, headers=hdr(admins, "operations")).json()["items"][0]  # people.pii, no clinical.read
+    alert_id = client.get(ADMIN_ALERTS, headers=hdr(admins, "super_admin")).json()["items"][0]["id"]
+    ops = client.get(f"{ADMIN_ALERTS}/{alert_id}", headers=hdr(admins, "operations")).json()  # people.pii, no clinical.read
     assert ops["patient"]["full_name"] == "Ada Okafor" and ops["patient"]["masked"] is False
     assert ops["detail"] is None and ops["detail_masked"] is True and ops["note"] is None
     assert ops["summary"] == "Heart rate reading is at a critical level."  # the generic line is always there
     support = client.get(ADMIN_ALERTS, headers=hdr(admins, "support")).json()["items"][0]  # neither
     assert support["patient"]["full_name"] == "Ada O." and support["patient"]["masked"] is True
     assert support["patient"]["phone"] != "+2348012345678"
-    clinical = client.get(ADMIN_ALERTS, headers=hdr(admins, "clinical_reviewer")).json()["items"][0]  # clinical.read, no people.pii
+    clinical = client.get(f"{ADMIN_ALERTS}/{alert_id}", headers=hdr(admins, "clinical_reviewer")).json()  # clinical.read, no people.pii
     assert clinical["patient"]["masked"] is True and clinical["detail"]["reason"]
 
 
@@ -166,11 +179,12 @@ def test_finance_has_no_access_and_nobody_without_a_token(db, client, outbox, ad
 def test_a_missed_task_alert_lists_the_visit_and_the_titles(db, client, outbox, admins):
     one_visit(db)
     run(db)
-    item = client.get(ADMIN_ALERTS, headers=hdr(admins, "super_admin")).json()["items"][0]
+    listed = client.get(ADMIN_ALERTS, headers=hdr(admins, "super_admin")).json()["items"][0]
+    item = client.get(f"{ADMIN_ALERTS}/{listed['id']}", headers=hdr(admins, "super_admin")).json()
     assert item["type"] == "task_missed" and item["booking_code"] and item["booking_id"]
     assert item["detail"] == {"vital_type": None, "status": None, "reason": None, "value": None, "unit": None,
                               "tasks": ["Placeholder task one"], "days": ["2026-11-24"]}
-    assert client.get(ADMIN_ALERTS, headers=hdr(admins, "support")).json()["items"][0]["detail"] is None
+    assert client.get(f"{ADMIN_ALERTS}/{listed['id']}", headers=hdr(admins, "support")).json()["detail"] is None
 
 
 def test_the_family_delivery_state_is_visible_to_the_admin(db, client, outbox, admins):

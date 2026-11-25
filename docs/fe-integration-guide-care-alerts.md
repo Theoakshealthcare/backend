@@ -38,13 +38,13 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
 {
   "items": [
     {
-      "id": "db889960-2efb-4962-9a2b-5f768630b841",
+      "id": "41b093a6-f57b-413b-8c63-68dd793b3517",
       "type": "vital_out_of_range",
       "severity": "critical",
       "status": "open",
       "summary": "Heart rate reading is at a critical level.",
-      "created_at": "2026-11-25T18:51:38.926712",
-      "last_occurred_at": "2026-11-25T18:51:38.926712",
+      "created_at": "2026-11-25T18:55:27.360798",
+      "last_occurred_at": "2026-11-25T18:55:27.360798",
       "occurrence_count": 1,
       "patient": {
         "full_name": "Ada Okafor",
@@ -54,34 +54,26 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
       "care_recipient_name": null,
       "booking_id": null,
       "booking_code": null,
-      "vital_id": "d9c8f9b0-e737-41a9-8361-25a5e615bb68",
+      "vital_id": "db3812d8-17ac-434b-b9cf-4c8206ea87ba",
       "family_notified_count": 1,
-      "family_notified_at": "2026-11-25T18:51:38.939631",
-      "admin_notified_at": "2026-11-25T18:51:38.941418",
+      "family_notified_at": "2026-11-25T18:55:27.373137",
+      "admin_notified_at": "2026-11-25T18:55:27.374697",
       "acknowledged_by": null,
       "acknowledged_at": null,
       "resolved_by": null,
       "resolved_at": null,
       "note": null,
-      "detail": {
-        "vital_type": "heart_rate",
-        "status": "critical",
-        "reason": "Heart rate below 50 bpm. Contact the family and arrange an ambulance.",
-        "value": "45",
-        "unit": "bpm",
-        "tasks": null,
-        "days": null
-      },
+      "detail": null,
       "detail_masked": false
     },
     {
-      "id": "be2adec3-4438-4d4d-915d-137e47e692dc",
+      "id": "f171bbc7-3be5-4728-b89d-ad5a802496c4",
       "type": "vital_out_of_range",
       "severity": "warning",
       "status": "open",
       "summary": "Temperature reading is higher than the safe range.",
-      "created_at": "2026-11-25T18:51:38.902456",
-      "last_occurred_at": "2026-11-25T18:51:38.902456",
+      "created_at": "2026-11-25T18:55:27.339050",
+      "last_occurred_at": "2026-11-25T18:55:27.339050",
       "occurrence_count": 1,
       "patient": {
         "full_name": "Bola Placeholder",
@@ -91,28 +83,20 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
       "care_recipient_name": null,
       "booking_id": null,
       "booking_code": null,
-      "vital_id": "551d981c-6a85-4be9-aab5-d97e00e385d7",
+      "vital_id": "221ba2a5-e4c8-4171-b7a7-645d0d880f43",
       "family_notified_count": 0,
-      "family_notified_at": "2026-11-25T18:51:38.918764",
+      "family_notified_at": "2026-11-25T18:55:27.353649",
       "admin_notified_at": null,
       "acknowledged_by": null,
       "acknowledged_at": null,
       "resolved_by": null,
       "resolved_at": null,
       "note": null,
-      "detail": {
-        "vital_type": "temperature",
-        "status": "high",
-        "reason": "Temperature above 37.5 °C.",
-        "value": "38.5",
-        "unit": "°C",
-        "tasks": null,
-        "days": null
-      },
+      "detail": null,
       "detail_masked": false
     },
     {
-      "id": "ed3b977a-554e-4bd6-bc48-7b3d2072b314",
+      "id": "7ad879b6-978c-4042-b613-ff969327dc9f",
       "type": "task_missed",
       "severity": "warning",
       "status": "open",
@@ -122,12 +106,12 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
       "occurrence_count": 1,
       "patient": {
         "full_name": "Test Patient",
-        "phone": "+2348965350251",
+        "phone": "+2348936873854",
         "masked": false
       },
       "care_recipient_name": null,
-      "booking_id": "6780e9a1-6a47-47ae-b5f8-e4eec9105202",
-      "booking_code": "7226431C",
+      "booking_id": "6a12ed48-0e22-41c3-98c4-1185b39f26a2",
+      "booking_code": "54E76B70",
       "vital_id": null,
       "family_notified_count": 0,
       "family_notified_at": null,
@@ -137,19 +121,7 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
       "resolved_by": null,
       "resolved_at": null,
       "note": null,
-      "detail": {
-        "vital_type": null,
-        "status": null,
-        "reason": null,
-        "value": null,
-        "unit": null,
-        "tasks": [
-          "Placeholder task one"
-        ],
-        "days": [
-          "2026-11-24"
-        ]
-      },
+      "detail": null,
       "detail_masked": false
     }
   ],
@@ -165,25 +137,26 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
 
 **Traps (read these):**
 
-- **One flat `detail` object serves both types.** For a reading, `vital_type`, `status` (`high`, `low`, `critical`), `reason`, `value`, `unit` are set and `tasks`, `days` are `null`; for a missed task it is the other way round. The keys are always present (present-but-null, never absent).
-- **`detail` is `null` and `detail_masked` is `true` for an admin without `clinical.read`**; `note` is `null` for them too. `summary` is always there and is safe to show to anyone who can open the page.
+- **The list is summary only: `detail` and `note` are `null` in every list item, for every admin** (health detail is read, and audited, one alert at a time: open it with `GET /care-alerts/{id}`). `detail_masked` says whether this admin may open the detail at all: `false` = they can (show an "Open" action), `true` = they hold no `clinical.read`, so never offer it.
+- **One flat `detail` object serves both types (on the detail route and the two actions).** For a reading, `vital_type`, `status` (`high`, `low`, `critical`), `reason`, `value`, `unit` are set and `tasks`, `days` are `null`; for a missed task it is the other way round. The keys are always present (present-but-null, never absent).
+- **`detail` and `note` are also `null` on the detail route for an admin without `clinical.read`** (`detail_masked: true`). `summary` is always there and is safe to show to anyone who can open the page.
 - **`patient.masked`**: the name and phone are masked unless the admin holds `people.pii` (the same rule as the bookings console). For a visit booked for a relative, `patient` is the **booker** and `care_recipient_name` is the person the alert is about.
 - **`booking_id` / `booking_code` are `null` for a reading alert** (a reading belongs to a patient, not to a visit); `vital_id` is `null` for a missed-task alert. `vital_id` can also become `null` later if the reading was deleted.
 - **`family_notified_at` set with `family_notified_count` 0 means "tried, nobody could be reached"** (no consenting, verified family contact, or the provider failed). It is not an error. `family_notified_at` `null` means delivery has not run (yet). `admin_notified_at` is only ever set for `critical` (the admin e-mail).
 - Timestamps are naive UTC (no `Z`), like every other timestamp in the API.
 
-### 2.2 Masked view (an admin who holds only `support.inbox`)
+### 2.2 A list item for an admin who holds only `support.inbox` (name and phone masked)
 
 <!-- capture: 011-list-active-support-masked.json response.body path=items.0 -->
 ```json
 {
-  "id": "db889960-2efb-4962-9a2b-5f768630b841",
+  "id": "41b093a6-f57b-413b-8c63-68dd793b3517",
   "type": "vital_out_of_range",
   "severity": "critical",
   "status": "open",
   "summary": "Heart rate reading is at a critical level.",
-  "created_at": "2026-11-25T18:51:38.926712",
-  "last_occurred_at": "2026-11-25T18:51:38.926712",
+  "created_at": "2026-11-25T18:55:27.360798",
+  "last_occurred_at": "2026-11-25T18:55:27.360798",
   "occurrence_count": 1,
   "patient": {
     "full_name": "Ada O.",
@@ -193,10 +166,10 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
   "care_recipient_name": null,
   "booking_id": null,
   "booking_code": null,
-  "vital_id": "d9c8f9b0-e737-41a9-8361-25a5e615bb68",
+  "vital_id": "db3812d8-17ac-434b-b9cf-4c8206ea87ba",
   "family_notified_count": 1,
-  "family_notified_at": "2026-11-25T18:51:38.939631",
-  "admin_notified_at": "2026-11-25T18:51:38.941418",
+  "family_notified_at": "2026-11-25T18:55:27.373137",
+  "admin_notified_at": "2026-11-25T18:55:27.374697",
   "acknowledged_by": null,
   "acknowledged_at": null,
   "resolved_by": null,
@@ -223,7 +196,7 @@ Order of `items`: unresolved before resolved, critical before warning, open befo
 
 ### 2.4 Detail
 
-For an admin with `clinical.read` (and no `people.pii`):
+For an admin with `clinical.read` (and no `people.pii`; the name is masked but the clinical detail is shown):
 
 <!-- capture: 013-detail-clinical-reviewer.json response.body keys=patient,detail,detail_masked,note -->
 ```json
@@ -254,7 +227,7 @@ A missed-task alert (the two timestamps are the capture's fixed clock; `family_n
 {
   "type": "task_missed",
   "summary": "1 care task not marked done by the end of the visit.",
-  "booking_code": "7226431C",
+  "booking_code": "54E76B70",
   "detail": {
     "vital_type": null,
     "status": null,
@@ -271,7 +244,23 @@ A missed-task alert (the two timestamps are the capture's fixed clock; `family_n
 }
 ```
 
-**Opening a detail with the clinical `detail` visible writes a `care_alert.read` row in the audit log.** Do not prefetch details in a list view; open one when the admin opens it.
+For an admin without `clinical.read` the detail route answers the same shape with `detail` and `note` null:
+
+<!-- capture: 015-detail-support-masked.json response.body keys=patient,detail,detail_masked,note -->
+```json
+{
+  "patient": {
+    "full_name": "Ada O.",
+    "phone": "+234****9201",
+    "masked": true
+  },
+  "detail": null,
+  "detail_masked": true,
+  "note": null
+}
+```
+
+**Opening a detail with the clinical `detail` visible writes a `care_alert.read` row in the audit log.** Do not prefetch details for a list; open one when the admin opens it.
 
 ### 2.5 Acknowledge and resolve
 
@@ -294,10 +283,10 @@ A missed-task alert (the two timestamps are the capture's fixed clock; `family_n
 {
   "status": "acknowledged",
   "acknowledged_by": {
-    "id": "021ae30b-b641-4398-86a2-b5e5fe70cfb7",
+    "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
     "email": "super_admin@example.test"
   },
-  "acknowledged_at": "2026-11-25T18:51:39.567269",
+  "acknowledged_at": "2026-11-25T18:55:27.985401",
   "note": "Phoned the family; ambulance called (placeholder note).",
   "resolved_by": null
 }
@@ -308,14 +297,14 @@ A missed-task alert (the two timestamps are the capture's fixed clock; `family_n
 {
   "status": "resolved",
   "acknowledged_by": {
-    "id": "021ae30b-b641-4398-86a2-b5e5fe70cfb7",
+    "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
     "email": "super_admin@example.test"
   },
   "resolved_by": {
-    "id": "021ae30b-b641-4398-86a2-b5e5fe70cfb7",
+    "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
     "email": "super_admin@example.test"
   },
-  "resolved_at": "2026-11-25T18:51:39.582655",
+  "resolved_at": "2026-11-25T18:55:28.000174",
   "note": "Patient is at hospital (placeholder note)."
 }
 ```
@@ -474,7 +463,7 @@ A warning reading says "A {vital} reading for {first name} was higher|lower than
 |---|---|
 | Critical reading raises a critical alert; the family gets e-mail and push; admins with `support.inbox` get the e-mail | live (captures 001 to 003, 010) |
 | Missed task alert and its `detail` | live (010, 014) |
-| Masking by `people.pii` and `clinical.read` | live (011, 013) |
+| Masking by `people.pii` and `clinical.read`; the list never carries `detail` or `note` | live (010, 011, 013, 015) |
 | Acknowledge, resolve, resolve-without-ack | live (020, 022, 024) |
 | `409` shapes, `404`, `403`, `422` | live (021, 023, 030 to 033) |
 | Debounce windows and escalation (a critical is never absorbed by a warning) | test only (`test_care_alerts_vitals.py`) |

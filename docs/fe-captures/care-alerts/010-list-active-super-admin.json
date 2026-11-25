@@ -10,13 +10,13 @@
     "body": {
       "items": [
         {
-          "id": "db889960-2efb-4962-9a2b-5f768630b841",
+          "id": "41b093a6-f57b-413b-8c63-68dd793b3517",
           "type": "vital_out_of_range",
           "severity": "critical",
           "status": "open",
           "summary": "Heart rate reading is at a critical level.",
-          "created_at": "2026-11-25T18:51:38.926712",
-          "last_occurred_at": "2026-11-25T18:51:38.926712",
+          "created_at": "2026-11-25T18:55:27.360798",
+          "last_occurred_at": "2026-11-25T18:55:27.360798",
           "occurrence_count": 1,
           "patient": {
             "full_name": "Ada Okafor",
@@ -26,34 +26,26 @@
           "care_recipient_name": null,
           "booking_id": null,
           "booking_code": null,
-          "vital_id": "d9c8f9b0-e737-41a9-8361-25a5e615bb68",
+          "vital_id": "db3812d8-17ac-434b-b9cf-4c8206ea87ba",
           "family_notified_count": 1,
-          "family_notified_at": "2026-11-25T18:51:38.939631",
-          "admin_notified_at": "2026-11-25T18:51:38.941418",
+          "family_notified_at": "2026-11-25T18:55:27.373137",
+          "admin_notified_at": "2026-11-25T18:55:27.374697",
           "acknowledged_by": null,
           "acknowledged_at": null,
           "resolved_by": null,
           "resolved_at": null,
           "note": null,
-          "detail": {
-            "vital_type": "heart_rate",
-            "status": "critical",
-            "reason": "Heart rate below 50 bpm. Contact the family and arrange an ambulance.",
-            "value": "45",
-            "unit": "bpm",
-            "tasks": null,
-            "days": null
-          },
+          "detail": null,
           "detail_masked": false
         },
         {
-          "id": "be2adec3-4438-4d4d-915d-137e47e692dc",
+          "id": "f171bbc7-3be5-4728-b89d-ad5a802496c4",
           "type": "vital_out_of_range",
           "severity": "warning",
           "status": "open",
           "summary": "Temperature reading is higher than the safe range.",
-          "created_at": "2026-11-25T18:51:38.902456",
-          "last_occurred_at": "2026-11-25T18:51:38.902456",
+          "created_at": "2026-11-25T18:55:27.339050",
+          "last_occurred_at": "2026-11-25T18:55:27.339050",
           "occurrence_count": 1,
           "patient": {
             "full_name": "Bola Placeholder",
@@ -63,28 +55,20 @@
           "care_recipient_name": null,
           "booking_id": null,
           "booking_code": null,
-          "vital_id": "551d981c-6a85-4be9-aab5-d97e00e385d7",
+          "vital_id": "221ba2a5-e4c8-4171-b7a7-645d0d880f43",
           "family_notified_count": 0,
-          "family_notified_at": "2026-11-25T18:51:38.918764",
+          "family_notified_at": "2026-11-25T18:55:27.353649",
           "admin_notified_at": null,
           "acknowledged_by": null,
           "acknowledged_at": null,
           "resolved_by": null,
           "resolved_at": null,
           "note": null,
-          "detail": {
-            "vital_type": "temperature",
-            "status": "high",
-            "reason": "Temperature above 37.5 °C.",
-            "value": "38.5",
-            "unit": "°C",
-            "tasks": null,
-            "days": null
-          },
+          "detail": null,
           "detail_masked": false
         },
         {
-          "id": "ed3b977a-554e-4bd6-bc48-7b3d2072b314",
+          "id": "7ad879b6-978c-4042-b613-ff969327dc9f",
           "type": "task_missed",
           "severity": "warning",
           "status": "open",
@@ -94,12 +78,12 @@
           "occurrence_count": 1,
           "patient": {
             "full_name": "Test Patient",
-            "phone": "+2348965350251",
+            "phone": "+2348936873854",
             "masked": false
           },
           "care_recipient_name": null,
-          "booking_id": "6780e9a1-6a47-47ae-b5f8-e4eec9105202",
-          "booking_code": "7226431C",
+          "booking_id": "6a12ed48-0e22-41c3-98c4-1185b39f26a2",
+          "booking_code": "54E76B70",
           "vital_id": null,
           "family_notified_count": 0,
           "family_notified_at": null,
@@ -109,19 +93,7 @@
           "resolved_by": null,
           "resolved_at": null,
           "note": null,
-          "detail": {
-            "vital_type": null,
-            "status": null,
-            "reason": null,
-            "value": null,
-            "unit": null,
-            "tasks": [
-              "Placeholder task one"
-            ],
-            "days": [
-              "2026-11-24"
-            ]
-          },
+          "detail": null,
           "detail_masked": false
         }
       ],
@@ -134,5 +106,5 @@
       }
     }
   },
-  "note": "Default: status=active (open + acknowledged). Critical first."
+  "note": "Default: status=active (open + acknowledged). Critical first. Summary only: detail and note are null in the list for everyone."
 }
