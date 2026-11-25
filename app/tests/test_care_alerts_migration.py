@@ -8,13 +8,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.tests.test_dropout_migration import _run, scratch  # noqa: F401  (scratch is a fixture)
 
-BEFORE, THIS = "0029_location_nudged_at", "0035_care_alerts"
+BEFORE, THIS = "0030_bank_name_review", "0035_care_alerts"
 
 
-def test_the_revision_chains_and_is_the_only_head():
+def test_the_revision_chains_and_there_is_one_head():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     assert script.get_revision(THIS).down_revision == BEFORE
-    assert script.get_heads() == [THIS]
+    assert len(script.get_heads()) == 1  # a later migration may sit on top; two heads would be a fork
 
 
 def test_upgrade_creates_both_tables_with_their_checks_and_downgrade_drops_them(scratch):

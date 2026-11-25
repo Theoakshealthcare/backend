@@ -47,7 +47,12 @@ COPY = {
     "identity_review": ("Caregiver identity check needs a review",
                         "has an identity check that ended as needs review and is waiting for an admin."),
     "document_added": ("Caregiver added a document", "added a document while their application is open."),
+    "bank_name_review": ("Payout account needs a name check",
+                         "saved a payout account whose holder name does not match their profile. No payout is made to it until Finance reviews it."),
 }
+PAYOUT_PERMISSION = "payouts.execute"
+# event -> (permission its reviewers hold, console path); events not listed go to the caregiver reviewers
+ROUTES = {"bank_name_review": (PAYOUT_PERMISSION, "/payouts")}
 
 # Test hook: True sends on the calling thread, so a test can read the mail transport straight after the call.
 _send_inline = False
@@ -90,11 +95,13 @@ def _prepare(event: str, caregiver_id: Optional[UUID], user_id: Optional[UUID], 
             return []
         if event == "document_added" and not _document_is_news(db, caregiver, document_id):
             return []
-        recipients = _recipients(db)
+        permission, path = ROUTES.get(event, (APPROVE_PERMISSION, None))
+        recipients = _recipients(db, permission)
         full_name, link_id = caregiver.full_name or "A caregiver", caregiver.id
     if not recipients:
         return []
-    link = f"{settings.ADMIN_CONSOLE_URL.rstrip('/')}/caregivers/applications/{link_id}"
+    path = path or f"/caregivers/applications/{link_id}"
+    link = f"{settings.ADMIN_CONSOLE_URL.rstrip('/')}{path}"
     html = email_service.render_template("admin_caregiver_notice", {
         "project_name": settings.PROJECT_NAME, "heading": heading, "message": message, "full_name": full_name, "link": link})
     subject = f"{settings.PROJECT_NAME} - {heading}"
@@ -102,7 +109,7 @@ def _prepare(event: str, caregiver_id: Optional[UUID], user_id: Optional[UUID], 
 
 
 def _recipients(db, permission: str = APPROVE_PERMISSION) -> list[str]:
-    """Active admins holding ``permission`` (default: the approve permission), plus the optional extra address; lower-cased, no duplicates."""
+    """Active admins holding ``permission``, plus the optional extra address; lower-cased, no duplicates."""
     with_permission = (select(AdminUserRole.admin_user_id)
                        .join(AdminRolePermission, AdminRolePermission.role_id == AdminUserRole.role_id)
                        .where(AdminRolePermission.permission == permission))

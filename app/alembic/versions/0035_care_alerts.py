@@ -1,12 +1,11 @@
 """Care alerts: ``care_alerts`` (the admin queue) and ``care_alert_occurrences`` (the dedupe ledger).
 
 Revision ID: 0035_care_alerts
-Revises: 0029_location_nudged_at
+Revises: 0030_bank_name_review
 Create Date: 2026-11-25
 
 Slice 1c of the clinician-approved build. Two new tables, no change to an existing one and no new admin permission (the console
-queue sits behind ``support.inbox``). The number 0035 was reserved for this slice; the current single head of the branch it is cut
-from is 0029, so ``down_revision`` points there and the lead re-points the chain when the other slices merge.
+queue sits behind ``support.inbox``). The number 0035 was reserved for this slice; the current single head on develop (after #83) is 0030, so ``down_revision`` points there and the lead re-points the chain when the other slices merge.
 
 Downgrade drops both tables (every alert and its ledger are lost; nothing existed before this feature).
 """
@@ -17,7 +16,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = '0035_care_alerts'
-down_revision: Union[str, None] = '0029_location_nudged_at'
+down_revision: Union[str, None] = '0030_bank_name_review'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

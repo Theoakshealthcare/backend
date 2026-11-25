@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/payouts/bank-reviews/ebe8699f-8d9e-49d3-87be-2ad3a582333c/approve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Placeholder: confirmed with the caregiver by phone",
+      "review_token": "dd74b5247e20c65a93c39d8cdfe044cc"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "caregiver_id": "ebe8699f-8d9e-49d3-87be-2ad3a582333c",
+      "caregiver_name": "Placeholder Tosin",
+      "account_name": "SAMPLE OTHERPERSON",
+      "bank_name": "Placeholder Bank",
+      "account_number": "******0011",
+      "status": "approved",
+      "balance_kobo": 0,
+      "submitted_at": "2026-11-25T17:13:31.151399",
+      "decided_at": "2026-11-25T17:13:31.216489",
+      "review_token": "dd74b5247e20c65a93c39d8cdfe044cc"
+    }
+  }
+}

@@ -481,9 +481,6 @@ def _caregiver_or_403(current_user: User, db: Session) -> Caregiver:
 
 
 def _bank_error(exc: bank_accounts.BankError) -> HTTPException:
-    if isinstance(exc, bank_accounts.BankNameMismatch):
-        return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                             detail={"code": exc.code, "message": str(exc)})
     if isinstance(exc, bank_accounts.BankThrottled):
         return HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc))
     if isinstance(exc, bank_accounts.BankUnavailable):
@@ -492,13 +489,17 @@ def _bank_error(exc: bank_accounts.BankError) -> HTTPException:
 
 
 def _bank_out(acct: CaregiverBankAccount) -> CaregiverBankAccountOut:
+    # A held account's holder is not (yet) known to be the caregiver: show the name masked, as the lookup does, so saving an
+    # account number is not a way round the masked lookup. The real name shows once Finance has approved the account.
+    held = bank_accounts.is_on_name_hold(acct)
     return CaregiverBankAccountOut(
         bank_name=acct.bank_name,
         bank_code=acct.bank_code,
         account_number=acct.account_number,
-        account_name=acct.account_name,
+        account_name=bank_accounts.mask_name(acct.account_name) if held else acct.account_name,
         verified=bool(acct.recipient_code),
         payouts_blocked_until=acct.payout_blocked_until if bank_accounts.is_cooling_down(acct) else None,
+        name_review_status=acct.name_review_status,
         created_at=acct.created_at,
         updated_at=acct.updated_at
     )
@@ -522,7 +523,8 @@ def resolve_bank_account(
     db: Session = Depends(get_db),
 ):
     """Check an account number and bank and return the name the bank holds for it, so the caregiver can confirm it is
-    theirs before saving. Rate limited per caregiver."""
+    theirs before saving. When the name does not look like the caregiver's profile name, ``needs_review`` is true and the name
+    comes back masked: the account can still be saved, but is not paid until Finance approves it. Rate limited per caregiver."""
     caregiver = _caregiver_or_403(current_user, db)
     caregiver_id, profile_name = caregiver.id, caregiver.full_name
     db.rollback()
@@ -530,8 +532,10 @@ def resolve_bank_account(
         resolved = bank_accounts.resolve(caregiver_id, data.account_number, data.bank_code, profile_name)
     except bank_accounts.BankError as exc:
         raise _bank_error(exc)
-    return BankAccountResolveOut(account_name=resolved.account_name, account_number=resolved.account_number,
-                                 bank_code=resolved.bank_code, bank_name=resolved.bank_name)
+    # A holder that is not the caregiver is shown masked: this endpoint is never a free account-number -> name search.
+    shown = bank_accounts.mask_name(resolved.account_name) if resolved.needs_review else resolved.account_name
+    return BankAccountResolveOut(account_name=shown, account_number=resolved.account_number, bank_code=resolved.bank_code,
+                                 bank_name=resolved.bank_name, needs_review=resolved.needs_review)
 
 
 @router.get("/bank-account", response_model=CaregiverBankAccountOut)
@@ -555,7 +559,8 @@ def update_bank_account(
 ):
     """Save the payout account. The server resolves the account holder's name itself (a name sent by the client is never
     used) and registers the account with Paystack. Changing to a different account, or saving the first one while there is money in the wallet,
-    blocks payouts for 24 hours."""
+    blocks payouts for 24 hours. A holder name that does not look like the profile name is saved with
+    ``name_review_status = "pending"``: no payout until Finance approves it."""
     caregiver = _caregiver_or_403(current_user, db)
     db.rollback()
     try:

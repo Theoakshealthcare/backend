@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/caregiver/bank-account/resolve",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "account_number": "0000000010",
+      "bank_code": "058"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "account_name": "SAMPLE OLUWATOSIN PLACEHOLDER",
+      "account_number": "0000000010",
+      "bank_code": "058",
+      "bank_name": "Placeholder Bank",
+      "needs_review": false
+    }
+  },
+  "note": "FAKE PAYSTACK: the holder name is what the local fake returns for this placeholder account. The profile is 'Placeholder Tosin'; 'tosin' is the end of 'OLUWATOSIN', so it passes with needs_review false and the real name is shown."
+}
