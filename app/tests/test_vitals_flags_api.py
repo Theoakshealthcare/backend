@@ -104,10 +104,16 @@ def test_the_active_care_plan_diagnosis_counts_too(db, client):
     assert post(client, patient, "blood_pressure", "135/78", "mmHg").json()["flag"]["status"] == "high"
 
 
-def test_a_beta_blocker_for_hypertension_is_named_in_the_low_heart_rate_reason(db, client):
-    patient = make_patient(db, medical_conditions="Hypertension", medications="Metoprolol 50mg twice daily")
-    flag = post(client, patient, "heart_rate", "58", "bpm").json()["flag"]
-    assert flag["status"] == "low" and "beta blocker" in flag["reason"]
+def test_the_reason_never_names_the_condition_behind_the_threshold(db, client):
+    # A caregiver with a vitals grant may not be allowed to read the diagnosis or the medicines.
+    patient = make_patient(db, medical_conditions="Hypertension, diabetes", medications="Metoprolol 50mg twice daily")
+    low_hr = post(client, patient, "heart_rate", "58", "bpm").json()["flag"]
+    high_bp = post(client, patient, "blood_pressure", "135/78", "mmHg").json()["flag"]
+    assert low_hr["status"] == "low" and high_bp["status"] == "high"
+    for flag in (low_hr, high_bp):
+        text = (flag["reason"] or "").lower()
+        assert not any(word in text for word in ("diabet", "kidney", "renal", "beta", "hypertens", "metoprolol"))
+    assert patient_context(db, patient.id).beta_blocker_for_hypertension is True
 
 
 def test_the_caregiver_sees_the_same_flags_during_a_visit(db, client):

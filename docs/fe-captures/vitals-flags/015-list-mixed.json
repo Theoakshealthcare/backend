@@ -1,0 +1,236 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/vitals/59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": [
+      {
+        "vital_type": "heart_rate",
+        "value": "130",
+        "unit": "bpm",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.332401",
+        "notes": null,
+        "id": "3c78e66c-6651-44e7-9e62-6c232739d03a",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "high",
+          "label": "High",
+          "reason": "Heart rate above 100 bpm. Tell the family or the patient's doctor for a medical review.",
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "blood_pressure",
+        "value": "135/78",
+        "unit": "mmHg",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.328338",
+        "notes": null,
+        "id": "24c05dff-32cf-4547-9b97-e2f2f81d93a4",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "normal",
+          "label": "Normal",
+          "reason": null,
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "sleep_duration",
+        "value": "5",
+        "unit": "hrs",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.319093",
+        "notes": "22:30-03:30",
+        "id": "4ef2c658-11e5-43d6-838d-c67962fcab2a",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": null,
+        "glucose_context": null
+      },
+      {
+        "vital_type": "blood_glucose",
+        "value": "130",
+        "unit": "mg/dL",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.314914",
+        "notes": null,
+        "id": "f098005e-9f1e-4541-b824-b7ea020f1c8c",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "normal",
+          "label": "Normal",
+          "reason": null,
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "blood_glucose",
+        "value": "130",
+        "unit": "mg/dL",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.310815",
+        "notes": "RBS",
+        "id": "b0e585c4-e4ea-42da-be06-df95152498f1",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "normal",
+          "label": "Normal",
+          "reason": null,
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": "random"
+      },
+      {
+        "vital_type": "blood_glucose",
+        "value": "130",
+        "unit": "mg/dL",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.306793",
+        "notes": "FBS",
+        "id": "5299c65d-fb33-46b8-bfa0-bfe89ed77b66",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "high",
+          "label": "High",
+          "reason": "Blood glucose 126 mg/dL or more (fasting). Tell the patient's doctor or book a review, and inform the family.",
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": "fasting"
+      },
+      {
+        "vital_type": "temperature",
+        "value": "100.4",
+        "unit": "°F",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.302901",
+        "notes": null,
+        "id": "4cedba39-eddb-41d8-8016-e85c59bfc90e",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "high",
+          "label": "High",
+          "reason": "Temperature above 37.5 °C.",
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "blood_pressure",
+        "value": "85/50",
+        "unit": "mmHg",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.298609",
+        "notes": null,
+        "id": "dceea673-3f3a-45a0-a441-514c293f12a0",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "critical",
+          "label": "Critical",
+          "reason": "Top number below 90 mmHg. Contact the family and arrange an ambulance.",
+          "emergency": true,
+          "message": "This may be an emergency. Call 112 now."
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "blood_pressure",
+        "value": "96/58",
+        "unit": "mmHg",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.294521",
+        "notes": null,
+        "id": "2c0d4ab5-aaac-4612-8488-53a26afb9372",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "low",
+          "label": "Low",
+          "reason": "Blood pressure below 100/60 mmHg.",
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "blood_pressure",
+        "value": "128/82",
+        "unit": "mmHg",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.289952",
+        "notes": null,
+        "id": "d8a21b10-1a63-45e2-8cc8-b81166f1bb75",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "normal",
+          "label": "Normal",
+          "reason": null,
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "heart_rate",
+        "value": "45",
+        "unit": "bpm",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.284725",
+        "notes": null,
+        "id": "116988be-e9b4-479c-a80d-39419d7a3e3e",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "critical",
+          "label": "Critical",
+          "reason": "Heart rate below 50 bpm. Contact the family and arrange an ambulance.",
+          "emergency": true,
+          "message": "This may be an emergency. Call 112 now."
+        },
+        "glucose_context": null
+      },
+      {
+        "vital_type": "heart_rate",
+        "value": "110",
+        "unit": "bpm",
+        "source": "manual",
+        "recorded_at": "2026-11-25T17:25:09.276034",
+        "notes": null,
+        "id": "75839d54-105f-4645-b957-198f5fb5fb5b",
+        "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+        "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+        "flag": {
+          "status": "high",
+          "label": "High",
+          "reason": "Heart rate above 100 bpm. Tell the family or the patient's doctor for a medical review.",
+          "emergency": false,
+          "message": null
+        },
+        "glucose_context": null
+      }
+    ]
+  },
+  "note": "Newest first; every row carries flag and glucose_context."
+}

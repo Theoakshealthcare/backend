@@ -49,9 +49,9 @@ def test_heart_rate_high_and_low_are_not_emergencies():
         assert flag.emergency is False and flag.message is None
 
 
-def test_beta_blocker_patient_flags_a_heart_rate_below_60_and_says_why():
+def test_beta_blocker_patient_flags_a_heart_rate_below_60_without_naming_the_medicine():
     flag = evaluate_reading("heart_rate", "58", "bpm", None, BETA)
-    assert flag.status == "low" and "beta blocker" in flag.reason.lower()
+    assert flag.status == "low" and "beta" not in flag.reason.lower()
     assert status("heart_rate", "60", "bpm", context=BETA) == "normal"
 
 

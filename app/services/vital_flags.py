@@ -16,7 +16,12 @@ Weight, sleep             never flagged
 
 Patient context (read from the profile and the active care plan, see ``patient_context``):
 - diabetes or kidney disease: blood pressure above 130/80 is high;
-- hypertension treated with a beta blocker: a heart rate below 60 is flagged (it already is for everyone; the reason says why).
+- hypertension treated with a beta blocker: a heart rate below 60 is flagged. That is already Low for everyone, so today
+  this context changes no status; it is read and kept for the alerts slice (1c), which can word the message for the prescriber.
+
+Privacy: the reason text states the number crossed, never the condition behind it. A caregiver who may read vitals (a live
+visit, or a patient grant) is not necessarily allowed to read the diagnosis or the medicines, so the diagnosis never
+appears in a response. The only trace is the threshold itself (a 130/80 line instead of 140/90).
 
 Decisions where the pack was silent (each is a question for the clinical lead, listed in the SOP):
 - glucose below 70 mg/dL (3.9 mmol/L) is Low, because the pack's normal band starts at 70;
@@ -112,10 +117,7 @@ def _heart_rate(value: str, context: PatientVitalContext) -> Optional[VitalFlag]
         return _flag(CRITICAL, f"Heart rate below {HEART_RATE_CRITICAL_BELOW} bpm. Contact the family and arrange an ambulance.")
     low, high = HEART_RATE_NORMAL
     if bpm < low:
-        why = f"Heart rate below {low} bpm."
-        if context.beta_blocker_for_hypertension:
-            why += " The patient takes a beta blocker for hypertension: tell the prescriber."
-        return _flag(LOW, why)
+        return _flag(LOW, f"Heart rate below {low} bpm.")
     if bpm > high:
         return _flag(HIGH, f"Heart rate above {high} bpm. Tell the family or the patient's doctor for a medical review.")
     return _flag(NORMAL)
@@ -130,10 +132,8 @@ def _blood_pressure(value: str, context: PatientVitalContext) -> Optional[VitalF
         return _flag(CRITICAL, f"Top number below {BP_CRITICAL_SYSTOLIC_BELOW} mmHg. Contact the family and arrange an ambulance.")
     high_sys, high_dia = BP_HIGH_ABOVE_DIABETES_RENAL if context.lowers_bp_ceiling else BP_HIGH_ABOVE
     if systolic > high_sys or diastolic > high_dia:
-        why = f"Blood pressure above {high_sys}/{high_dia} mmHg."
-        if context.lowers_bp_ceiling:
-            why += " The limit is lower for diabetes or kidney disease."
-        return _flag(HIGH, why + " Tell the family or the patient's doctor for a medical review.")
+        return _flag(HIGH, f"Blood pressure above {high_sys}/{high_dia} mmHg. "
+                           "Tell the family or the patient's doctor for a medical review.")
     low_sys, low_dia = BP_LOW_BELOW
     if systolic < low_sys or diastolic < low_dia:
         return _flag(LOW, f"Blood pressure below {low_sys}/{low_dia} mmHg.")
