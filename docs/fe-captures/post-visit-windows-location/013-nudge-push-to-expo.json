@@ -1,0 +1,15 @@
+{
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-caregiver-device]",
+      "title": "Update your location",
+      "body": "We have not seen your location for a while. Open Oakly so we can keep offering you visits near you.",
+      "data": {
+        "type": "location_stale"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ],
+  "note": "The request body the app made to Expo for one caregiver whose last fix is 7 h old (fake Expo; nudge_stale_locations called with an explicit now)."
+}

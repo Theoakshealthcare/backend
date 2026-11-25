@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/chat/53ad3ac3-32a4-4a13-83d6-1784601f2d60/send",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "message": "Placeholder: are you still there?"
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "body": {
+      "detail": {
+        "code": "chat_closed",
+        "message": "This chat is closed. You can still read the conversation, but you can no longer send messages."
+      }
+    }
+  }
+}

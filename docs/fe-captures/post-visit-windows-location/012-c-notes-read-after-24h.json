@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/notes/5e44e968-b928-481c-ae59-b068ae79a911",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "body": {
+      "detail": {
+        "code": "not_found",
+        "message": "This note could not be found."
+      }
+    }
+  }
+}
