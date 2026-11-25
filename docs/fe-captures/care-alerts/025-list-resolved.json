@@ -1,0 +1,89 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-alerts?status=resolved",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "41b093a6-f57b-413b-8c63-68dd793b3517",
+          "type": "vital_out_of_range",
+          "severity": "critical",
+          "status": "resolved",
+          "summary": "Heart rate reading is at a critical level.",
+          "created_at": "2026-11-25T18:55:27.360798",
+          "last_occurred_at": "2026-11-25T18:55:27.360798",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Ada Okafor",
+            "phone": "+2340000719201",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": null,
+          "booking_code": null,
+          "vital_id": "db3812d8-17ac-434b-b9cf-4c8206ea87ba",
+          "family_notified_count": 1,
+          "family_notified_at": "2026-11-25T18:55:27.373137",
+          "admin_notified_at": "2026-11-25T18:55:27.374697",
+          "acknowledged_by": {
+            "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
+            "email": "super_admin@example.test"
+          },
+          "acknowledged_at": "2026-11-25T18:55:27.985401",
+          "resolved_by": {
+            "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
+            "email": "super_admin@example.test"
+          },
+          "resolved_at": "2026-11-25T18:55:28.000174",
+          "note": null,
+          "detail": null,
+          "detail_masked": false
+        },
+        {
+          "id": "7ad879b6-978c-4042-b613-ff969327dc9f",
+          "type": "task_missed",
+          "severity": "warning",
+          "status": "resolved",
+          "summary": "1 care task not marked done by the end of the visit.",
+          "created_at": "2026-11-24T11:10:00",
+          "last_occurred_at": "2026-11-24T11:10:00",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Test Patient",
+            "phone": "+2348936873854",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": "6a12ed48-0e22-41c3-98c4-1185b39f26a2",
+          "booking_code": "54E76B70",
+          "vital_id": null,
+          "family_notified_count": 0,
+          "family_notified_at": null,
+          "admin_notified_at": null,
+          "acknowledged_by": null,
+          "acknowledged_at": null,
+          "resolved_by": {
+            "id": "57dd1fa3-7e17-4bee-832b-65c6996963ec",
+            "email": "super_admin@example.test"
+          },
+          "resolved_at": "2026-11-25T18:55:28.011965",
+          "note": null,
+          "detail": null,
+          "detail_masked": false
+        }
+      ],
+      "total": 2,
+      "counts": {
+        "open": 1,
+        "acknowledged": 0,
+        "resolved": 2,
+        "critical_active": 0
+      }
+    }
+  }
+}

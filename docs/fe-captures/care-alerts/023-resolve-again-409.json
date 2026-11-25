@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-alerts/<ALERT_ID>/resolve",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {}
+  },
+  "response": {
+    "status_code": 409,
+    "body": {
+      "detail": {
+        "code": "already_resolved",
+        "message": "This alert has already been resolved."
+      }
+    }
+  }
+}

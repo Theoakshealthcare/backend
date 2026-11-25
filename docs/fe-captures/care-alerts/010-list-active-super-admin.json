@@ -1,0 +1,110 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-alerts",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "41b093a6-f57b-413b-8c63-68dd793b3517",
+          "type": "vital_out_of_range",
+          "severity": "critical",
+          "status": "open",
+          "summary": "Heart rate reading is at a critical level.",
+          "created_at": "2026-11-25T18:55:27.360798",
+          "last_occurred_at": "2026-11-25T18:55:27.360798",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Ada Okafor",
+            "phone": "+2340000719201",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": null,
+          "booking_code": null,
+          "vital_id": "db3812d8-17ac-434b-b9cf-4c8206ea87ba",
+          "family_notified_count": 1,
+          "family_notified_at": "2026-11-25T18:55:27.373137",
+          "admin_notified_at": "2026-11-25T18:55:27.374697",
+          "acknowledged_by": null,
+          "acknowledged_at": null,
+          "resolved_by": null,
+          "resolved_at": null,
+          "note": null,
+          "detail": null,
+          "detail_masked": false
+        },
+        {
+          "id": "f171bbc7-3be5-4728-b89d-ad5a802496c4",
+          "type": "vital_out_of_range",
+          "severity": "warning",
+          "status": "open",
+          "summary": "Temperature reading is higher than the safe range.",
+          "created_at": "2026-11-25T18:55:27.339050",
+          "last_occurred_at": "2026-11-25T18:55:27.339050",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Bola Placeholder",
+            "phone": "+2340000719202",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": null,
+          "booking_code": null,
+          "vital_id": "221ba2a5-e4c8-4171-b7a7-645d0d880f43",
+          "family_notified_count": 0,
+          "family_notified_at": "2026-11-25T18:55:27.353649",
+          "admin_notified_at": null,
+          "acknowledged_by": null,
+          "acknowledged_at": null,
+          "resolved_by": null,
+          "resolved_at": null,
+          "note": null,
+          "detail": null,
+          "detail_masked": false
+        },
+        {
+          "id": "7ad879b6-978c-4042-b613-ff969327dc9f",
+          "type": "task_missed",
+          "severity": "warning",
+          "status": "open",
+          "summary": "1 care task not marked done by the end of the visit.",
+          "created_at": "2026-11-24T11:10:00",
+          "last_occurred_at": "2026-11-24T11:10:00",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Test Patient",
+            "phone": "+2348936873854",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": "6a12ed48-0e22-41c3-98c4-1185b39f26a2",
+          "booking_code": "54E76B70",
+          "vital_id": null,
+          "family_notified_count": 0,
+          "family_notified_at": null,
+          "admin_notified_at": null,
+          "acknowledged_by": null,
+          "acknowledged_at": null,
+          "resolved_by": null,
+          "resolved_at": null,
+          "note": null,
+          "detail": null,
+          "detail_masked": false
+        }
+      ],
+      "total": 3,
+      "counts": {
+        "open": 3,
+        "acknowledged": 0,
+        "resolved": 0,
+        "critical_active": 1
+      }
+    }
+  },
+  "note": "Default: status=active (open + acknowledged). Critical first. Summary only: detail and note are null in the list for everyone."
+}

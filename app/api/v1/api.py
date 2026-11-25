@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, admin_auth, admin_users, devices, caregiver_app, admin_bookings, admin_booking_policy, admin_earnings, admin_payouts, admin_refunds, caregiver_clients, caregiver_care_plans, admin_care_plans, caregiver_chats, visit_documentation
 from app.api.v1.endpoints import auth, caregiver, booking, booking_settings, payment, prescription, vitals, fallguard, patient, admin_caregivers, devices, caregiver_app, whatsapp
 from app.api.v1.endpoints import kyc_webhook, kyc_widget, patient_notifications
-from app.api.v1.endpoints import caregiver_voice_notes, patient_voice_notes, admin_voice_notes, admin_service_catalog
+from app.api.v1.endpoints import caregiver_voice_notes, patient_voice_notes, admin_voice_notes, admin_service_catalog, admin_care_alerts
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
@@ -36,6 +36,7 @@ api_router.include_router(admin_users.router, prefix="/admin", tags=["admin-user
 api_router.include_router(admin_care_plans.router, prefix="/admin", tags=["admin-care-plans"])
 api_router.include_router(visit_documentation.admin_router, prefix="/admin", tags=["admin-caregiver-documentation"])
 api_router.include_router(admin_voice_notes.router, prefix="/admin", tags=["admin-voice-notes"])
+api_router.include_router(admin_care_alerts.router, prefix="/admin", tags=["admin-care-alerts"])
 api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
 api_router.include_router(kyc_webhook.router, prefix="/kyc/dojah", tags=["kyc"])
 api_router.include_router(kyc_widget.router, prefix="/kyc/widget", tags=["kyc"])

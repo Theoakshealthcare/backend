@@ -1,0 +1,53 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-alerts/<ALERT_ID>",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "id": "7ad879b6-978c-4042-b613-ff969327dc9f",
+      "type": "task_missed",
+      "severity": "warning",
+      "status": "open",
+      "summary": "1 care task not marked done by the end of the visit.",
+      "created_at": "2026-11-24T11:10:00",
+      "last_occurred_at": "2026-11-24T11:10:00",
+      "occurrence_count": 1,
+      "patient": {
+        "full_name": "Test Patient",
+        "phone": "+2348936873854",
+        "masked": false
+      },
+      "care_recipient_name": null,
+      "booking_id": "6a12ed48-0e22-41c3-98c4-1185b39f26a2",
+      "booking_code": "54E76B70",
+      "vital_id": null,
+      "family_notified_count": 0,
+      "family_notified_at": null,
+      "admin_notified_at": null,
+      "acknowledged_by": null,
+      "acknowledged_at": null,
+      "resolved_by": null,
+      "resolved_at": null,
+      "note": null,
+      "detail": {
+        "vital_type": null,
+        "status": null,
+        "reason": null,
+        "value": null,
+        "unit": null,
+        "tasks": [
+          "Placeholder task one"
+        ],
+        "days": [
+          "2026-11-24"
+        ]
+      },
+      "detail_masked": false
+    }
+  },
+  "note": "A missed-task alert: detail.tasks and detail.days. (Its timestamps are the capture's fixed sweep clock, the visit day; family_notified_* are null because this capture ran the sweep without the delivery step.)"
+}

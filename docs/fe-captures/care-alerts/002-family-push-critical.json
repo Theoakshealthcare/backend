@@ -1,0 +1,13 @@
+{
+  "note": "The push message (token omitted).",
+  "observed": {
+    "title": "Oakly care alert",
+    "body": "A heart rate reading for Ada is at a dangerous level. This may be an emergency. Call 112 now.",
+    "data": {
+      "type": "care_alert",
+      "severity": "critical"
+    },
+    "sound": "default",
+    "priority": "high"
+  }
+}

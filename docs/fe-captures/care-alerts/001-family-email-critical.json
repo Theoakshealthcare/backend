@@ -1,0 +1,9 @@
+{
+  "note": "What the family e-mail says (the HTML wraps this one sentence). No reading, no surname, no condition.",
+  "observed": {
+    "from": "Oakly <noreply@example.test>",
+    "to": "<FAMILY_EMAIL>",
+    "subject": "Oaklycare - Oakly care alert",
+    "message_in_body": "A heart rate reading for Ada is at a dangerous level. This may be an emergency. Call 112 now."
+  }
+}
