@@ -113,8 +113,9 @@ def _send_wave(db: Session, booking: Booking, wave_no: int, now: datetime,
 
     existing = {
         n.caregiver_id: n
-        for n in db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id)
-    } if renotify else {}
+        for n in db.query(BookingNotification).filter(BookingNotification.booking_id == booking.id,
+                                                       BookingNotification.notification_type == "new_booking")
+    } if renotify else {}  # offers only: an informational notice row must never be turned into a new request
     for c in chosen:
         previous = existing.get(c["caregiver_id"])
         if previous is not None:

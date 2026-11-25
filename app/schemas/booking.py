@@ -384,6 +384,9 @@ class BookingResponse(BaseModel):
         description="Error message if payment initialization failed",
         example="Payment gateway temporarily unavailable"
     )
+    reschedule_count: Optional[int] = Field(None, description="Free reschedules used so far. The patient's own views only; null elsewhere.")
+    can_reschedule: Optional[bool] = Field(None, description="Whether the booker may reschedule this booking right now (paid, not started, more than the free window away, reschedules left). Hide the option when false. The patient's own views only; null elsewhere. The server decides again when they confirm.")
+    reschedules_left: Optional[int] = Field(None, description="Free reschedules still available. The patient's own views only; null elsewhere.")
 
     class Config:
         from_attributes = True
@@ -765,3 +768,58 @@ class CancelBookingResponse(BaseModel):
     refund_needs_approval: bool
     caregiver_assigned: bool
     refund: Optional[RefundSummary] = None
+
+
+
+class _Price(BaseModel):
+    paid_amount: float
+    paid_amount_kobo: int
+    new_amount: float
+    new_amount_kobo: int
+    difference_amount: float = Field(description="New price minus what was paid, in naira (negative: the family paid more than the price now)")
+    difference_kobo: int
+    handling: Literal["none", "credit_due"] = Field(description="credit_due: the booking keeps the price it was paid at and the difference is refunded after the visit is completed or cancelled")
+    credit_amount: float
+    credit_kobo: int
+
+
+class RescheduleRequest(BaseModel):
+    new_scheduled_date: datetime = Field(description="The new start time (ISO 8601; an offset is converted to UTC)")
+    request_id: Optional[str] = Field(None, max_length=64, description="A client-generated id (a UUID) for this tap. Sending the same id again returns the first result with already_rescheduled true and changes nothing.")
+    accepted_total_kobo: Optional[int] = Field(None, ge=0, description="new_amount_kobo from reschedule-terms: the price the person saw. If the price is different when the reschedule is decided, nothing changes and the answer is 409 price_changed.")
+
+
+class RescheduleTermsResponse(BaseModel):
+    booking_id: uuid.UUID
+    booking_code: str
+    can_reschedule: bool
+    reason: Optional[str] = Field(None, description="Why not: booking_already_cancelled, booking_not_reschedulable, booking_unpaid, reschedule_window_closed, reschedule_limit_reached or price_increase_needs_support")
+    message: Optional[str] = None
+    current_scheduled_date: datetime
+    free_hours: int
+    reschedules_used: int
+    reschedules_allowed: int
+    reschedules_left: int
+    earliest_new_time: datetime = Field(description="The earliest start the patient may pick (now plus the free window, exclusive)")
+    latest_new_time: datetime = Field(description="The latest start the patient may pick (now plus the maximum days ahead, inclusive)")
+    caregiver_assigned: bool
+    price: Optional[_Price] = Field(None, description="The price at the new time, when the booking can be rescheduled at all")
+    new_time_ok: Optional[bool] = Field(None, description="Only when new_scheduled_date was sent")
+    new_time_reason: Optional[str] = Field(None, description="same_time, new_time_too_soon or new_time_too_far")
+    new_time_message: Optional[str] = None
+    as_of: datetime
+
+
+class RescheduleResponse(BaseModel):
+    booking_id: uuid.UUID
+    booking_code: str
+    status: str
+    already_rescheduled: bool = Field(description="True when this repeated a reschedule already made: nothing changed and the first result is returned again")
+    previous_scheduled_date: datetime
+    scheduled_date: datetime
+    scheduled_end_date: datetime
+    reschedules_used: int
+    reschedules_left: int
+    caregiver_released: bool
+    dispatch_state: Optional[str] = Field(None, description="dispatching: a new caregiver is being matched; unmatched: waiting for Oakly operations")
+    price: _Price

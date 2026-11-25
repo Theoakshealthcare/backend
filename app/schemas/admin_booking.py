@@ -275,6 +275,18 @@ class TimelineEntry(BaseModel):
     detail: Optional[str] = None
 
 
+class RescheduleOut(BaseModel):
+    created_at: datetime
+    old_scheduled_date: datetime
+    new_scheduled_date: datetime
+    old_total_kobo: int = Field(description="What the booking was paid at (the booking keeps this price)")
+    new_total_kobo: int = Field(description="The price at the live settings when it was rescheduled")
+    price_difference_kobo: int = Field(description="new minus paid; negative = the family is owed this much back")
+    price_handling: Literal["none", "credit_due"] = Field(
+        description="credit_due: Finance refunds the difference (staff refund) once the visit is completed or cancelled")
+    caregiver_released: bool
+
+
 class BookingDetail(BaseModel):
     id: UUID
     booking_code: str
@@ -307,6 +319,8 @@ class BookingDetail(BaseModel):
     note_count: int
     timeline: List[TimelineEntry]
     available_actions: List[ActionName]
+    reschedule_count: int = 0
+    reschedules: List[RescheduleOut] = []
 
 
 class CandidateOut(BaseModel):

@@ -15,6 +15,7 @@ DEFAULTS = {
     "onmyway_compensation_window_minutes": 120, "caregiver_late_fee_share_percent": 80,
     "caregiver_visit_share_percent": 80, "earning_hold_hours": 24, "payout_cadence": "weekly",
     "payout_min_naira": 5000, "finance_refund_limit_naira": 50000, "short_visit_min_percent": 50,
+    "reschedule_free_hours": 12, "reschedule_max_free": 2, "reschedule_max_days_ahead": 28,
 }
 
 

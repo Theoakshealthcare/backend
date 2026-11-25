@@ -21,6 +21,9 @@ POLICY_DEFAULTS = {
     "payout_min_naira": 5000,                # the smallest balance a scheduled payout will pay out
     "finance_refund_limit_naira": 50000,     # slice 3: the largest refund Finance may approve alone
     "short_visit_min_percent": 50,           # a visit with less than this share of the booked time on site is held for Finance
+    "reschedule_free_hours": 12,             # a booking can be rescheduled free of charge when the visit is MORE than this far away
+    "reschedule_max_free": 2,                # free reschedules per booking
+    "reschedule_max_days_ahead": 28,         # the new time may be at most this many days from now
 }
 PAYOUT_CADENCES = ("weekly", "biweekly", "monthly")
 
@@ -50,6 +53,9 @@ class BookingPolicy(Base):
         CheckConstraint(
             "dropout_redispatch_min_lead_minutes BETWEEN 0 AND 10080 AND dropout_decision_lead_minutes BETWEEN 0 AND 10080 "
             "AND onmyway_compensation_window_minutes BETWEEN 0 AND 10080", name="ck_booking_policies_minutes"),
+        CheckConstraint("reschedule_free_hours BETWEEN 0 AND 168", name="ck_booking_policies_reschedule_hours"),
+        CheckConstraint("reschedule_max_free BETWEEN 0 AND 20", name="ck_booking_policies_reschedule_max_free"),
+        CheckConstraint("reschedule_max_days_ahead BETWEEN 1 AND 365", name="ck_booking_policies_reschedule_days_ahead"),
         CheckConstraint("cancel_fee_percent <= cancel_late_fee_percent", name="ck_booking_policies_late_fee_not_lower"),
         CheckConstraint("cancel_late_hours < cancel_free_hours", name="ck_booking_policies_late_before_free"),
         CheckConstraint("dropout_decision_lead_minutes < dropout_redispatch_min_lead_minutes",
@@ -76,5 +82,11 @@ class BookingPolicy(Base):
     finance_refund_limit_naira = Column(Integer, nullable=False, default=POLICY_DEFAULTS["finance_refund_limit_naira"])
     short_visit_min_percent = Column(Integer, nullable=False, default=POLICY_DEFAULTS["short_visit_min_percent"],
                                      server_default=str(POLICY_DEFAULTS["short_visit_min_percent"]))
+    reschedule_free_hours = Column(Integer, nullable=False, default=POLICY_DEFAULTS["reschedule_free_hours"],
+                                   server_default=str(POLICY_DEFAULTS["reschedule_free_hours"]))
+    reschedule_max_free = Column(Integer, nullable=False, default=POLICY_DEFAULTS["reschedule_max_free"],
+                                 server_default=str(POLICY_DEFAULTS["reschedule_max_free"]))
+    reschedule_max_days_ahead = Column(Integer, nullable=False, default=POLICY_DEFAULTS["reschedule_max_days_ahead"],
+                                       server_default=str(POLICY_DEFAULTS["reschedule_max_days_ahead"]))
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(UUID(as_uuid=True), ForeignKey("admin_users.id"), nullable=True)

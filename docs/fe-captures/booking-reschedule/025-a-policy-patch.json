@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/admin/booking-policy",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "reason": "Pilot settings",
+      "reschedule_free_hours": 12,
+      "reschedule_max_free": 2,
+      "reschedule_max_days_ahead": 28
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "reschedule_free_hours": 12,
+      "reschedule_max_free": 2,
+      "reschedule_max_days_ahead": 28
+    }
+  }
+}

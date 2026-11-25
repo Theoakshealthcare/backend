@@ -46,6 +46,7 @@ class Booking(Base):
         ),
         CheckConstraint("channel IN ('app','whatsapp','admin')", name="ck_bookings_channel"),
         CheckConstraint("duration_minutes > 0", name="ck_bookings_duration_positive"),
+        CheckConstraint("reschedule_count >= 0", name="ck_bookings_reschedule_count"),
         CheckConstraint("cancel_fee_tier IN ('none','standard','late')", name="ck_bookings_cancel_fee_tier"),
         CheckConstraint(
             "dropout_state IN ('redispatching','awaiting_choice','waiting','handed_over','closed')",
@@ -140,6 +141,9 @@ class Booking(Base):
     dispatch_state = Column(String, nullable=True)  # dispatching | matched | unmatched
     dispatch_started_at = Column(DateTime, nullable=True)
 
+    # How many free reschedules the booker has used (``app/services/booking_reschedule.py``); the limit is a policy setting.
+    reschedule_count = Column(Integer, nullable=False, default=0, server_default="0")
+
     # Visit code (WA-FR-35): 4 digits generated when the caregiver accepts. Encrypted (not hashed)
     # because the booking's patient must be able to read it back; `start` compares it in constant time.
     # Three wrong guesses lock it for VISIT_CODE_LOCK_MINUTES.
@@ -213,6 +217,32 @@ class BookingDispatchWave(Base):
     notified_caregiver_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=False, default=list)
     sent_at = Column(DateTime, nullable=False)
     expires_at = Column(DateTime, nullable=False)
+
+
+class BookingReschedule(Base):
+    """One applied reschedule: the audit row and the idempotency key (``request_id``). The booking keeps the price it was paid
+    at; ``price_difference_kobo`` (new quote minus paid, never positive here: a higher price is refused) and ``price_handling``
+    record what is owed back (``credit_due``: Finance refunds it once the visit is completed or cancelled)."""
+    __tablename__ = "booking_reschedules"
+    __table_args__ = (
+        CheckConstraint("price_handling IN ('none','credit_due')", name="ck_booking_reschedules_price_handling"),
+        Index("ix_booking_reschedules_booking", "booking_id", "created_at"),
+        Index("uq_booking_reschedules_request", "booking_id", "request_id", unique=True,
+              postgresql_where=text("request_id IS NOT NULL")),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    requested_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    request_id = Column(String(64), nullable=True)
+    old_scheduled_date = Column(DateTime, nullable=False)
+    new_scheduled_date = Column(DateTime, nullable=False)
+    old_total_kobo = Column(BigInteger, nullable=False)
+    new_total_kobo = Column(BigInteger, nullable=False)
+    price_difference_kobo = Column(BigInteger, nullable=False)
+    price_handling = Column(String, nullable=False)
+    released_caregiver_id = Column(UUID(as_uuid=True), ForeignKey("caregivers.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class BookingNotification(Base):
