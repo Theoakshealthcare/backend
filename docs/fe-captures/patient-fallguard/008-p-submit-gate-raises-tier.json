@@ -1,0 +1,343 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": 0
+        },
+        {
+          "question_id": "A4",
+          "answer": 1
+        },
+        {
+          "question_id": "A5",
+          "answer": 0
+        },
+        {
+          "question_id": "A6",
+          "answer": 0
+        },
+        {
+          "question_id": "B2",
+          "answer": 0
+        },
+        {
+          "question_id": "B3",
+          "answer": 0
+        },
+        {
+          "question_id": "B4",
+          "answer": 0
+        },
+        {
+          "question_id": "B5",
+          "answer": 0
+        },
+        {
+          "question_id": "B6",
+          "answer": 0
+        },
+        {
+          "question_id": "B7",
+          "answer": 0
+        },
+        {
+          "question_id": "B9",
+          "answer": 0
+        },
+        {
+          "question_id": "B10",
+          "answer": 0
+        },
+        {
+          "question_id": "B11",
+          "answer": 0
+        },
+        {
+          "question_id": "B12",
+          "answer": 0
+        },
+        {
+          "question_id": "B13",
+          "answer": 0
+        },
+        {
+          "question_id": "B15",
+          "answer": 0
+        },
+        {
+          "question_id": "B16",
+          "answer": 0
+        },
+        {
+          "question_id": "B18",
+          "answer": 0
+        },
+        {
+          "question_id": "B19",
+          "answer": 0
+        },
+        {
+          "question_id": "B8",
+          "answer": [
+            "NONE"
+          ]
+        },
+        {
+          "question_id": "B14",
+          "answer": [
+            "NONE"
+          ]
+        },
+        {
+          "question_id": "B17",
+          "answer": [
+            "NONE"
+          ]
+        }
+      ],
+      "date_of_birth": "1960-06-15"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "d740b8b2-bc86-42a9-984a-51fe70005420",
+      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "total_score": 1,
+      "ai_summary": null,
+      "ai_recommendations": null,
+      "created_at": "2026-11-25T17:31:07.764032",
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A4",
+          "answer": "1",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A5",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A6",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B2",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B3",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B4",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B5",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B6",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B7",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B9",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B10",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B11",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B12",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B13",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B15",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B16",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B18",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B19",
+          "answer": "0",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B8",
+          "answer": "NONE",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B14",
+          "answer": "NONE",
+          "score": 0,
+          "id": null
+        },
+        {
+          "question_id": "B17",
+          "answer": "NONE",
+          "score": 0,
+          "id": null
+        }
+      ],
+      "questionnaire_version": "2.0.0",
+      "algorithm_version": "2.0.0",
+      "content_version": "2.0.0",
+      "result": {
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "age": 66,
+        "urgent": false,
+        "red_flags_triggered": [],
+        "eligible": true,
+        "gate_tier": "HIGH",
+        "gate_reasons": [
+          "GATE_H_FAINTED"
+        ],
+        "score": 1,
+        "score_tier": "LOW",
+        "final_tier": "HIGH",
+        "incomplete": false,
+        "provisional": false,
+        "unknown_items": [],
+        "part_b_points": {
+          "B1": 1,
+          "B2": 0,
+          "B3": 0,
+          "B4": 0,
+          "B5": 0,
+          "B6": 0,
+          "B7": 0,
+          "B8": 0,
+          "B9": 0,
+          "B10": 0,
+          "B11": 0,
+          "B12": 0,
+          "B13": 0,
+          "B14": 0,
+          "B15": 0,
+          "B16": 0,
+          "B17": 0,
+          "B18": 0,
+          "B19": 0
+        },
+        "top_factors": [],
+        "prompt_attention": true,
+        "consequence_flag": false,
+        "pharmacist_review_flag": false
+      },
+      "recommendations": {
+        "top": [
+          {
+            "id": "REC-PROMPT",
+            "priority": 1,
+            "text": "Please contact a nurse or doctor in the next few days."
+          },
+          {
+            "id": "REC-CLINICAL",
+            "priority": 2,
+            "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+          },
+          {
+            "id": "REC-EXERCISE",
+            "priority": 3,
+            "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+          }
+        ],
+        "all": [
+          {
+            "id": "REC-PROMPT",
+            "priority": 1,
+            "text": "Please contact a nurse or doctor in the next few days."
+          },
+          {
+            "id": "REC-CLINICAL",
+            "priority": 2,
+            "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+          },
+          {
+            "id": "REC-EXERCISE",
+            "priority": 3,
+            "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+          },
+          {
+            "id": "REC-BOOK-NURSE",
+            "priority": 4,
+            "text": "Book a nurse home visit to look at your risk in more detail."
+          }
+        ]
+      },
+      "ai_review_status": null
+    }
+  },
+  "note": "A4 = 1 (fainted or nearly): the gate tier is HIGH even though the score tier is LOW, so the final tier is HIGH, and `prompt_attention` is true."
+}

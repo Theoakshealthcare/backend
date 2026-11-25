@@ -1,0 +1,284 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": 0
+        },
+        {
+          "question_id": "A4",
+          "answer": 0
+        },
+        {
+          "question_id": "A5",
+          "answer": 0
+        },
+        {
+          "question_id": "A6",
+          "answer": 0
+        },
+        {
+          "question_id": "B2",
+          "answer": 0
+        },
+        {
+          "question_id": "B3",
+          "answer": 0
+        },
+        {
+          "question_id": "B4",
+          "answer": 0
+        },
+        {
+          "question_id": "B5",
+          "answer": 0
+        },
+        {
+          "question_id": "B6",
+          "answer": 0
+        },
+        {
+          "question_id": "B7",
+          "answer": 0
+        },
+        {
+          "question_id": "B9",
+          "answer": 0
+        },
+        {
+          "question_id": "B10",
+          "answer": 0
+        },
+        {
+          "question_id": "B11",
+          "answer": 0
+        },
+        {
+          "question_id": "B12",
+          "answer": 0
+        },
+        {
+          "question_id": "B13",
+          "answer": 0
+        },
+        {
+          "question_id": "B15",
+          "answer": 0
+        },
+        {
+          "question_id": "B16",
+          "answer": 0
+        },
+        {
+          "question_id": "B18",
+          "answer": 0
+        },
+        {
+          "question_id": "B19",
+          "answer": 0
+        },
+        {
+          "question_id": "B8",
+          "answer": [
+            "NONE"
+          ]
+        },
+        {
+          "question_id": "B14",
+          "answer": [
+            "NONE"
+          ]
+        },
+        {
+          "question_id": "B17",
+          "answer": [
+            "NONE"
+          ]
+        }
+      ],
+      "date_of_birth": "1990-01-01"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "7ee455c5-5874-4029-9a07-5b8e961e718d",
+      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "total_score": null,
+      "ai_summary": null,
+      "ai_recommendations": null,
+      "created_at": "2026-11-25T17:31:07.781768",
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A4",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A5",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A6",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B2",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B3",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B4",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B5",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B6",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B7",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B9",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B10",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B11",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B12",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B13",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B15",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B16",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B18",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B19",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B8",
+          "answer": "NONE",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B14",
+          "answer": "NONE",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "B17",
+          "answer": "NONE",
+          "score": null,
+          "id": null
+        }
+      ],
+      "questionnaire_version": "2.0.0",
+      "algorithm_version": "2.0.0",
+      "content_version": "2.0.0",
+      "result": {
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "age": 36,
+        "urgent": false,
+        "red_flags_triggered": [],
+        "eligible": false,
+        "gate_tier": null,
+        "gate_reasons": [],
+        "score": null,
+        "score_tier": null,
+        "final_tier": null,
+        "incomplete": false,
+        "provisional": false,
+        "unknown_items": [],
+        "part_b_points": {},
+        "top_factors": [],
+        "prompt_attention": false,
+        "consequence_flag": false,
+        "pharmacist_review_flag": false
+      },
+      "recommendations": {
+        "top": [],
+        "all": []
+      },
+      "ai_review_status": null
+    }
+  },
+  "note": "Under 60: no score and no tier. Only `urgent` is still decided."
+}

@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": 1
+        },
+        {
+          "question_id": "A4",
+          "answer": 0
+        }
+      ],
+      "date_of_birth": "1960-06-15"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "fallguard_missing_required",
+        "message": "Answer every required question.",
+        "fields": {
+          "A2": "required",
+          "A3": "required",
+          "A5": "required",
+          "A6": "required",
+          "A7": "required"
+        }
+      }
+    }
+  },
+  "note": "A1 = 1 makes A2, A3 and A7 required as well; every missing item is listed in `fields`."
+}

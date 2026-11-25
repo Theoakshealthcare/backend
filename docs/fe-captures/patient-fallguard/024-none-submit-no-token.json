@@ -6,8 +6,20 @@
     "body": {
       "answers": [
         {
-          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
-          "answer": "Less than 65"
+          "question_id": "A1",
+          "answer": 0
+        },
+        {
+          "question_id": "A4",
+          "answer": 0
+        },
+        {
+          "question_id": "A5",
+          "answer": 0
+        },
+        {
+          "question_id": "A6",
+          "answer": 0
         }
       ]
     }

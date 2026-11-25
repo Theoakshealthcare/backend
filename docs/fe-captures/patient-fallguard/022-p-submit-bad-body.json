@@ -6,7 +6,7 @@
     "body": {
       "answers": [
         {
-          "answer": "No"
+          "answer": 0
         }
       ]
     }
@@ -28,11 +28,11 @@
           ],
           "msg": "Field required",
           "input": {
-            "answer": "No"
+            "answer": 0
           }
         }
       ]
     }
   },
-  "note": "A malformed body is still FastAPI's own 422 (detail is a LIST here, an object for the four codes above)."
+  "note": "A malformed body is still FastAPI's own 422 (detail is a LIST here, an object for the codes above)."
 }

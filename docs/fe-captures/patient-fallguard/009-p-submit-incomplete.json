@@ -1,0 +1,238 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": 0
+        },
+        {
+          "question_id": "A4",
+          "answer": 0
+        },
+        {
+          "question_id": "A5",
+          "answer": 0
+        },
+        {
+          "question_id": "A6",
+          "answer": 0
+        }
+      ],
+      "date_of_birth": "1960-06-15"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "71708d54-6f8d-4654-ba99-b70642db3b98",
+      "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+      "total_score": 19,
+      "ai_summary": null,
+      "ai_recommendations": null,
+      "created_at": "2026-11-25T17:31:07.773719",
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A4",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A5",
+          "answer": "0",
+          "score": null,
+          "id": null
+        },
+        {
+          "question_id": "A6",
+          "answer": "0",
+          "score": null,
+          "id": null
+        }
+      ],
+      "questionnaire_version": "2.0.0",
+      "algorithm_version": "2.0.0",
+      "content_version": "2.0.0",
+      "result": {
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "age": 66,
+        "urgent": false,
+        "red_flags_triggered": [],
+        "eligible": true,
+        "gate_tier": "LOW",
+        "gate_reasons": [],
+        "score": 19,
+        "score_tier": "HIGH",
+        "final_tier": "HIGH",
+        "incomplete": true,
+        "provisional": true,
+        "unknown_items": [
+          "B2",
+          "B3",
+          "B4",
+          "B5",
+          "B6",
+          "B7",
+          "B8",
+          "B9",
+          "B10",
+          "B11",
+          "B12",
+          "B13",
+          "B14",
+          "B15",
+          "B16",
+          "B17",
+          "B18",
+          "B19"
+        ],
+        "part_b_points": {
+          "B1": 1,
+          "B2": 1,
+          "B3": 1,
+          "B4": 1,
+          "B5": 1,
+          "B6": 1,
+          "B7": 1,
+          "B8": 1,
+          "B9": 1,
+          "B10": 1,
+          "B11": 1,
+          "B12": 1,
+          "B13": 1,
+          "B14": 1,
+          "B15": 1,
+          "B16": 1,
+          "B17": 1,
+          "B18": 1,
+          "B19": 1
+        },
+        "top_factors": [
+          "B2",
+          "B3",
+          "B4"
+        ],
+        "prompt_attention": false,
+        "consequence_flag": false,
+        "pharmacist_review_flag": false
+      },
+      "recommendations": {
+        "top": [
+          {
+            "id": "REC-CLINICAL",
+            "priority": 2,
+            "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+          },
+          {
+            "id": "REC-EXERCISE",
+            "priority": 3,
+            "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+          },
+          {
+            "id": "REC-BOOK-NURSE",
+            "priority": 4,
+            "text": "Book a nurse home visit to look at your risk in more detail."
+          }
+        ],
+        "all": [
+          {
+            "id": "REC-CLINICAL",
+            "priority": 2,
+            "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+          },
+          {
+            "id": "REC-EXERCISE",
+            "priority": 3,
+            "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+          },
+          {
+            "id": "REC-BOOK-NURSE",
+            "priority": 4,
+            "text": "Book a nurse home visit to look at your risk in more detail."
+          },
+          {
+            "id": "REC-MEDS",
+            "priority": 5,
+            "text": "Some medicines can make falls more likely. Do not stop any medicine on your own. Ask a pharmacist or doctor to review all your medicines, including herbal ones."
+          },
+          {
+            "id": "REC-DIZZY",
+            "priority": 6,
+            "text": "Feeling dizzy when you stand up should be checked. Stand up slowly and tell a nurse or doctor."
+          },
+          {
+            "id": "REC-HOME",
+            "priority": 8,
+            "text": "Make your home safer. Fix or remove the hazards you ticked, add handrails and non-slip mats, and keep a rechargeable lamp or torch for power cuts."
+          },
+          {
+            "id": "REC-VISION",
+            "priority": 9,
+            "text": "Have your eyes checked every year. If you wear multifocal glasses, take extra care outside and on stairs."
+          },
+          {
+            "id": "REC-FOOT",
+            "priority": 10,
+            "text": "Wear well-fitting shoes with a firm sole and grip. See a nurse or foot specialist about foot pain or numbness."
+          },
+          {
+            "id": "REC-BLADDER",
+            "priority": 11,
+            "text": "Bladder urgency and night-time toilet trips can lead to falls. A nurse or doctor can help."
+          },
+          {
+            "id": "REC-PAIN",
+            "priority": 12,
+            "text": "Pain or stiffness that makes walking harder can often be treated. Speak to a nurse, physiotherapist or doctor."
+          },
+          {
+            "id": "REC-HEARING",
+            "priority": 13,
+            "text": "A hearing check is worthwhile. Hearing problems are linked to falls."
+          },
+          {
+            "id": "REC-AID",
+            "priority": 14,
+            "text": "Ask a physiotherapist or nurse to check that your walking aid fits you and to show you how to use it."
+          },
+          {
+            "id": "REC-MEMORY",
+            "priority": 16,
+            "text": "Memory or thinking changes are worth discussing with a doctor. Ask a family member or carer to help with this assessment."
+          },
+          {
+            "id": "REC-OUTDOOR",
+            "priority": 17,
+            "text": "Take care on uneven paths, drains and steps. Choose well-lit routes and use support where you can."
+          },
+          {
+            "id": "REC-ACTIVE",
+            "priority": 18,
+            "text": "Build up gradually to 150 minutes of activity a week, including balance and strength exercises."
+          },
+          {
+            "id": "REC-NUTRITION",
+            "priority": 19,
+            "text": "Regular, balanced meals help keep muscles and bones strong. Tell a nurse or doctor if you are losing weight without trying."
+          }
+        ]
+      },
+      "ai_review_status": null
+    }
+  },
+  "note": "Part A only: all 18 Part B items are unknown. The result is provisional (`incomplete` and `provisional` true) and unknown items score 1, never 0."
+}

@@ -1,0 +1,1173 @@
+{
+ "questionnaire_version": "2.0.0",
+ "source": "Oakly FallGuard v2.0 Developer Handover Package (handover v1.0, prepared 10 November 2026), section 4. Rebuilt from the PDF's own tables because the three files the PDF says it ships with were not supplied.",
+ "wording_status": "PENDING_CLINICAL_WORDING",
+ "wording_note": "The PDF says plain-language wording and the 'explain' strings live in questionnaire_v2_0.json, but gives neither. 'text' and 'explain' are therefore null until the clinical lead supplies them (E3). 'summary' is the PDF's own table description and is NOT patient-facing wording.",
+ "scoring": {
+  "min_age": 60,
+  "intermediate_from": 6,
+  "high_from": 12,
+  "max_unknown_before_incomplete": 3,
+  "max_part_b": 36,
+  "top_factors": 3
+ },
+ "red_flags": [
+  {
+   "id": "R1",
+   "text": null,
+   "summary": "blow to the head (the PDF logic pairs it with blood thinners, C5)"
+  },
+  {
+   "id": "R2",
+   "text": null,
+   "summary": null
+  },
+  {
+   "id": "R3",
+   "text": null,
+   "summary": null
+  },
+  {
+   "id": "R4",
+   "text": null,
+   "summary": null
+  },
+  {
+   "id": "R5",
+   "text": null,
+   "summary": null
+  },
+  {
+   "id": "R6",
+   "text": null,
+   "summary": null
+  },
+  {
+   "id": "R7",
+   "text": null,
+   "summary": null
+  }
+ ],
+ "items": [
+  {
+   "id": "A1",
+   "part": "A",
+   "type": "single",
+   "required": true,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": null,
+   "summary_source": null,
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "once"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "twice or more"
+    }
+   ],
+   "note": "The PDF gives the codes (0 no, 1 once, 2 twice or more) but no description or look-back period."
+  },
+  {
+   "id": "A2",
+   "part": "A",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": {
+    "item": "A1",
+    "op": ">=",
+    "value": 1
+   },
+   "summary": "injury needing medical care",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (injury needing medical care)"
+    }
+   ]
+  },
+  {
+   "id": "A3",
+   "part": "A",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": {
+    "item": "A1",
+    "op": ">=",
+    "value": 1
+   },
+   "summary": "could not get up",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (could not get up)"
+    }
+   ]
+  },
+  {
+   "id": "A4",
+   "part": "A",
+   "type": "single",
+   "required": true,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "fainted or nearly",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (fainted or nearly)"
+    }
+   ]
+  },
+  {
+   "id": "A5",
+   "part": "A",
+   "type": "single",
+   "required": true,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "feeling unsteady",
+   "summary_source": "Handover PDF Appendix A gate reason GATE_I_UNSTEADY (the s4 table gives no description)",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "never"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "sometimes"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "often"
+    }
+   ]
+  },
+  {
+   "id": "A6",
+   "part": "A",
+   "type": "single",
+   "required": true,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "worry about falling",
+   "summary_source": "Handover PDF s7 REC-FEAR and Appendix A gate reason GATE_I_WORRY (the s4 table gives no description)",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "not at all"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "somewhat"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "a lot"
+    }
+   ]
+  },
+  {
+   "id": "A7",
+   "part": "A",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": {
+    "item": "A1",
+    "op": ">=",
+    "value": 1
+   },
+   "summary": "fall in last 4 weeks",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (fall in last 4 weeks)"
+    }
+   ]
+  },
+  {
+   "id": "B1",
+   "part": "B",
+   "type": "derived",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "age from date of birth",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [],
+   "age_bands": [
+    {
+     "min": 0,
+     "max": 59,
+     "points": 0
+    },
+    {
+     "min": 60,
+     "max": 74,
+     "points": 1
+    },
+    {
+     "min": 75,
+     "max": 84,
+     "points": 2
+    },
+    {
+     "min": 85,
+     "max": null,
+     "points": 3
+    }
+   ]
+  },
+  {
+   "id": "B2",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "uses a walking aid",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (uses a walking aid)"
+    }
+   ]
+  },
+  {
+   "id": "B3",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": null,
+   "summary_source": null,
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "easily"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "with difficulty"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "not at all"
+    }
+   ],
+   "note": "The PDF gives the codes but no description of what is being done."
+  },
+  {
+   "id": "B4",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "dizzy on standing or walking",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "never"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "sometimes"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "often"
+    }
+   ]
+  },
+  {
+   "id": "B5",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "pain or stiffness",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "a little"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "a lot"
+    }
+   ]
+  },
+  {
+   "id": "B6",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "foot problems",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "none"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "some"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "significant"
+    }
+   ]
+  },
+  {
+   "id": "B7",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "footwear",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "supportive shoes"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "a mix"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "mostly slippers, flip-flops, loose or barefoot"
+    }
+   ]
+  },
+  {
+   "id": "B8",
+   "part": "B",
+   "type": "multi",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "health conditions",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": "STROKE",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "PARKINSONS",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "DIABETES",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "ARTHRITIS",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "HEART",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "DEPRESSION",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "KIDNEY",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "LUNG",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "NONE",
+     "points": null,
+     "label": null
+    }
+   ],
+   "exclusive_codes": [
+    "NONE"
+   ],
+   "count_bands": [
+    {
+     "min": 0,
+     "max": 0,
+     "points": 0
+    },
+    {
+     "min": 1,
+     "max": 2,
+     "points": 1
+    },
+    {
+     "min": 3,
+     "max": null,
+     "points": 2
+    }
+   ]
+  },
+  {
+   "id": "B9",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "bladder urgency, leaks, night-time toilet trips",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "sometimes"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "often"
+    }
+   ]
+  },
+  {
+   "id": "B10",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "memory or thinking problems",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "sometimes"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "often"
+    }
+   ]
+  },
+  {
+   "id": "B11",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "vision (with glasses)",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "clearly"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "some difficulty"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "significant difficulty"
+    }
+   ]
+  },
+  {
+   "id": "B12",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "hearing (with aid if used)",
+   "summary_source": "Handover PDF s4 '(with aid if used)' and s7 REC-HEARING (the s4 table names no topic)",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "easily"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "some difficulty"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "great difficulty"
+    }
+   ]
+  },
+  {
+   "id": "B13",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "number of regular medicines",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "0 to 3 regular medicines"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "4 or more regular medicines"
+    }
+   ]
+  },
+  {
+   "id": "B14",
+   "part": "B",
+   "type": "multi",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "medicines that can raise fall risk",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": "SEDATIVES",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "PSYCH",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "OPIOIDS",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "EPILEPSY",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "CARDIO_BP_DIURETIC",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "GLUCOSE_LOWERING",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "SEDATING_ALLERGY_COUGH",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "ANY_DROWSY_DIZZY",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "NONE",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "NOT_SURE",
+     "points": null,
+     "label": null
+    }
+   ],
+   "exclusive_codes": [
+    "NONE",
+    "NOT_SURE"
+   ],
+   "count_bands": [
+    {
+     "min": 0,
+     "max": 0,
+     "points": 0
+    },
+    {
+     "min": 1,
+     "max": 1,
+     "points": 1
+    },
+    {
+     "min": 2,
+     "max": null,
+     "points": 2
+    }
+   ],
+   "not_sure_code": "NOT_SURE",
+   "not_sure_points": 1,
+   "not_sure_sets_pharmacist_flag": true
+  },
+  {
+   "id": "B15",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "exercise per week",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "5–7 days"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "2–4 days"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "0–1 days"
+    }
+   ]
+  },
+  {
+   "id": "B16",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "alcohol",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "never or occasionally"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "one to two days a week"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "most days"
+    }
+   ]
+  },
+  {
+   "id": "B17",
+   "part": "B",
+   "type": "multi",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "hazards at home",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": "LOOSE_RUGS",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "UNEVEN_FLOORS",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "CLUTTER",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "NO_HANDRAIL",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "BATHROOM_NO_AID",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "POOR_LIGHT_NIGHT",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "NO_BACKUP_LIGHT",
+     "points": null,
+     "label": null
+    },
+    {
+     "code": "NONE",
+     "points": null,
+     "label": null
+    }
+   ],
+   "exclusive_codes": [
+    "NONE"
+   ],
+   "count_bands": [
+    {
+     "min": 0,
+     "max": 0,
+     "points": 0
+    },
+    {
+     "min": 1,
+     "max": 2,
+     "points": 1
+    },
+    {
+     "min": 3,
+     "max": null,
+     "points": 2
+    }
+   ]
+  },
+  {
+   "id": "B18",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "outdoor hazards",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "rarely or never"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "sometimes"
+    },
+    {
+     "code": 2,
+     "points": 2,
+     "label": "often"
+    }
+   ]
+  },
+  {
+   "id": "B19",
+   "part": "B",
+   "type": "single",
+   "required": false,
+   "allows_unknown": true,
+   "show_if": null,
+   "summary": "unintended weight loss or fewer than 2 meals a day",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (unintended weight loss or fewer than 2 meals a day)"
+    }
+   ]
+  },
+  {
+   "id": "C1",
+   "part": "C",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "lives alone",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (lives alone)"
+    }
+   ]
+  },
+  {
+   "id": "C2",
+   "part": "C",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "someone checks on you",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": "DAILY",
+     "points": null,
+     "label": "daily"
+    },
+    {
+     "code": "SOMETIMES",
+     "points": null,
+     "label": "sometimes"
+    },
+    {
+     "code": "RARELY",
+     "points": null,
+     "label": "rarely"
+    }
+   ]
+  },
+  {
+   "id": "C3",
+   "part": "C",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": {
+    "item": "B2",
+    "op": "==",
+    "value": 1
+   },
+   "summary": "walking aid fitted and taught",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (walking aid fitted and taught)"
+    }
+   ]
+  },
+  {
+   "id": "C4",
+   "part": "C",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "wears multifocals outdoors or on stairs",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": 0,
+     "label": "no or no glasses"
+    },
+    {
+     "code": 1,
+     "points": 1,
+     "label": "yes (wears multifocals outdoors or on stairs)"
+    }
+   ]
+  },
+  {
+   "id": "C5",
+   "part": "C",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "blood thinners",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": null,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": null,
+     "label": "yes"
+    },
+    {
+     "code": 9,
+     "points": null,
+     "label": "not sure"
+    }
+   ]
+  },
+  {
+   "id": "C6",
+   "part": "C",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "osteoporosis or fragility fracture",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [
+    {
+     "code": 0,
+     "points": null,
+     "label": "no"
+    },
+    {
+     "code": 1,
+     "points": null,
+     "label": "yes"
+    },
+    {
+     "code": 9,
+     "points": null,
+     "label": "not sure"
+    }
+   ]
+  },
+  {
+   "id": "C7",
+   "part": "C",
+   "type": "text_list",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "herbal or traditional remedies",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [],
+   "free_text": true
+  },
+  {
+   "id": "C8",
+   "part": "C",
+   "type": "single",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "analytics_only": true,
+   "summary": "sex and education (analytics only)",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "fields": {
+    "sex": [
+     "F",
+     "M",
+     "OTHER",
+     "NO_ANSWER"
+    ],
+    "education": [
+     "NONE",
+     "PRIMARY",
+     "SECONDARY",
+     "TERTIARY",
+     "NO_ANSWER"
+    ]
+   },
+   "options": []
+  },
+  {
+   "id": "C9",
+   "part": "C",
+   "type": "auto",
+   "required": false,
+   "allows_unknown": false,
+   "show_if": null,
+   "summary": "completer role, language, mode (captured by the app)",
+   "summary_source": "Handover PDF s4",
+   "text": null,
+   "explain": null,
+   "options": [],
+   "fields": {
+    "completer_role": [
+     "SELF",
+     "FAMILY",
+     "CARER",
+     "NURSE"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,1343 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/fallguard/config?lang=en",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "questionnaire_version": "2.0.0",
+      "algorithm_version": "2.0.0",
+      "content_version": "2.0.0",
+      "language": "en",
+      "wording_status": "PENDING_CLINICAL_WORDING",
+      "content_sign_off_status": "PENDING_CLINICAL_LEAD_SIGN_OFF",
+      "emergency_number": "112",
+      "assessment_minutes": 8,
+      "min_age": 60,
+      "items": [
+        {
+          "id": "A1",
+          "question": "Item A1",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "once",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "twice or more",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 1,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": null,
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "A2",
+          "question": "injury needing medical care",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (injury needing medical care)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 2,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "A1",
+            "op": ">=",
+            "value": 1
+          },
+          "summary": "injury needing medical care",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "A3",
+          "question": "could not get up",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (could not get up)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 3,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "A1",
+            "op": ">=",
+            "value": 1
+          },
+          "summary": "could not get up",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "A4",
+          "question": "fainted or nearly",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (fainted or nearly)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 4,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "fainted or nearly",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "A5",
+          "question": "feeling unsteady",
+          "options": [
+            {
+              "text": "never",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 5,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "feeling unsteady",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "A6",
+          "question": "worry about falling",
+          "options": [
+            {
+              "text": "not at all",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "somewhat",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "a lot",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 6,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "worry about falling",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "A7",
+          "question": "fall in last 4 weeks",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (fall in last 4 weeks)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 7,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "A1",
+            "op": ">=",
+            "value": 1
+          },
+          "summary": "fall in last 4 weeks",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B1",
+          "question": "age from date of birth",
+          "options": [],
+          "order": 8,
+          "is_active": true,
+          "part": "B",
+          "type": "derived",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "age from date of birth",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": [
+            {
+              "min": 0,
+              "max": 59,
+              "points": 0
+            },
+            {
+              "min": 60,
+              "max": 74,
+              "points": 1
+            },
+            {
+              "min": 75,
+              "max": 84,
+              "points": 2
+            },
+            {
+              "min": 85,
+              "max": null,
+              "points": 3
+            }
+          ],
+          "analytics_only": null
+        },
+        {
+          "id": "B2",
+          "question": "uses a walking aid",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (uses a walking aid)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 9,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "uses a walking aid",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B3",
+          "question": "Item B3",
+          "options": [
+            {
+              "text": "easily",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "with difficulty",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "not at all",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 10,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": null,
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B4",
+          "question": "dizzy on standing or walking",
+          "options": [
+            {
+              "text": "never",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 11,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "dizzy on standing or walking",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B5",
+          "question": "pain or stiffness",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "a little",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "a lot",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 12,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "pain or stiffness",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B6",
+          "question": "foot problems",
+          "options": [
+            {
+              "text": "none",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "some",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "significant",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 13,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "foot problems",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B7",
+          "question": "footwear",
+          "options": [
+            {
+              "text": "supportive shoes",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "a mix",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "mostly slippers, flip-flops, loose or barefoot",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 14,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "footwear",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B8",
+          "question": "health conditions",
+          "options": [
+            {
+              "text": "STROKE",
+              "score": null,
+              "code": "STROKE"
+            },
+            {
+              "text": "PARKINSONS",
+              "score": null,
+              "code": "PARKINSONS"
+            },
+            {
+              "text": "DIABETES",
+              "score": null,
+              "code": "DIABETES"
+            },
+            {
+              "text": "ARTHRITIS",
+              "score": null,
+              "code": "ARTHRITIS"
+            },
+            {
+              "text": "HEART",
+              "score": null,
+              "code": "HEART"
+            },
+            {
+              "text": "DEPRESSION",
+              "score": null,
+              "code": "DEPRESSION"
+            },
+            {
+              "text": "KIDNEY",
+              "score": null,
+              "code": "KIDNEY"
+            },
+            {
+              "text": "LUNG",
+              "score": null,
+              "code": "LUNG"
+            },
+            {
+              "text": "NONE",
+              "score": null,
+              "code": "NONE"
+            }
+          ],
+          "order": 15,
+          "is_active": true,
+          "part": "B",
+          "type": "multi",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "health conditions",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": [
+            "NONE"
+          ],
+          "count_bands": [
+            {
+              "min": 0,
+              "max": 0,
+              "points": 0
+            },
+            {
+              "min": 1,
+              "max": 2,
+              "points": 1
+            },
+            {
+              "min": 3,
+              "max": null,
+              "points": 2
+            }
+          ],
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B9",
+          "question": "bladder urgency, leaks, night-time toilet trips",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 16,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "bladder urgency, leaks, night-time toilet trips",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B10",
+          "question": "memory or thinking problems",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 17,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "memory or thinking problems",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B11",
+          "question": "vision (with glasses)",
+          "options": [
+            {
+              "text": "clearly",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "some difficulty",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "significant difficulty",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 18,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "vision (with glasses)",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B12",
+          "question": "hearing (with aid if used)",
+          "options": [
+            {
+              "text": "easily",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "some difficulty",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "great difficulty",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 19,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "hearing (with aid if used)",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B13",
+          "question": "number of regular medicines",
+          "options": [
+            {
+              "text": "0 to 3 regular medicines",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "4 or more regular medicines",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 20,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "number of regular medicines",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B14",
+          "question": "medicines that can raise fall risk",
+          "options": [
+            {
+              "text": "SEDATIVES",
+              "score": null,
+              "code": "SEDATIVES"
+            },
+            {
+              "text": "PSYCH",
+              "score": null,
+              "code": "PSYCH"
+            },
+            {
+              "text": "OPIOIDS",
+              "score": null,
+              "code": "OPIOIDS"
+            },
+            {
+              "text": "EPILEPSY",
+              "score": null,
+              "code": "EPILEPSY"
+            },
+            {
+              "text": "CARDIO_BP_DIURETIC",
+              "score": null,
+              "code": "CARDIO_BP_DIURETIC"
+            },
+            {
+              "text": "GLUCOSE_LOWERING",
+              "score": null,
+              "code": "GLUCOSE_LOWERING"
+            },
+            {
+              "text": "SEDATING_ALLERGY_COUGH",
+              "score": null,
+              "code": "SEDATING_ALLERGY_COUGH"
+            },
+            {
+              "text": "ANY_DROWSY_DIZZY",
+              "score": null,
+              "code": "ANY_DROWSY_DIZZY"
+            },
+            {
+              "text": "NONE",
+              "score": null,
+              "code": "NONE"
+            },
+            {
+              "text": "NOT_SURE",
+              "score": null,
+              "code": "NOT_SURE"
+            }
+          ],
+          "order": 21,
+          "is_active": true,
+          "part": "B",
+          "type": "multi",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "medicines that can raise fall risk",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": [
+            "NONE",
+            "NOT_SURE"
+          ],
+          "count_bands": [
+            {
+              "min": 0,
+              "max": 0,
+              "points": 0
+            },
+            {
+              "min": 1,
+              "max": 1,
+              "points": 1
+            },
+            {
+              "min": 2,
+              "max": null,
+              "points": 2
+            }
+          ],
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B15",
+          "question": "exercise per week",
+          "options": [
+            {
+              "text": "5–7 days",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "2–4 days",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "0–1 days",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 22,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "exercise per week",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B16",
+          "question": "alcohol",
+          "options": [
+            {
+              "text": "never or occasionally",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "one to two days a week",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "most days",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 23,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "alcohol",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B17",
+          "question": "hazards at home",
+          "options": [
+            {
+              "text": "LOOSE_RUGS",
+              "score": null,
+              "code": "LOOSE_RUGS"
+            },
+            {
+              "text": "UNEVEN_FLOORS",
+              "score": null,
+              "code": "UNEVEN_FLOORS"
+            },
+            {
+              "text": "CLUTTER",
+              "score": null,
+              "code": "CLUTTER"
+            },
+            {
+              "text": "NO_HANDRAIL",
+              "score": null,
+              "code": "NO_HANDRAIL"
+            },
+            {
+              "text": "BATHROOM_NO_AID",
+              "score": null,
+              "code": "BATHROOM_NO_AID"
+            },
+            {
+              "text": "POOR_LIGHT_NIGHT",
+              "score": null,
+              "code": "POOR_LIGHT_NIGHT"
+            },
+            {
+              "text": "NO_BACKUP_LIGHT",
+              "score": null,
+              "code": "NO_BACKUP_LIGHT"
+            },
+            {
+              "text": "NONE",
+              "score": null,
+              "code": "NONE"
+            }
+          ],
+          "order": 24,
+          "is_active": true,
+          "part": "B",
+          "type": "multi",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "hazards at home",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": [
+            "NONE"
+          ],
+          "count_bands": [
+            {
+              "min": 0,
+              "max": 0,
+              "points": 0
+            },
+            {
+              "min": 1,
+              "max": 2,
+              "points": 1
+            },
+            {
+              "min": 3,
+              "max": null,
+              "points": 2
+            }
+          ],
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B18",
+          "question": "outdoor hazards",
+          "options": [
+            {
+              "text": "rarely or never",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 25,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "outdoor hazards",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "B19",
+          "question": "unintended weight loss or fewer than 2 meals a day",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (unintended weight loss or fewer than 2 meals a day)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 26,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "summary": "unintended weight loss or fewer than 2 meals a day",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C1",
+          "question": "lives alone",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (lives alone)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 27,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "lives alone",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C2",
+          "question": "someone checks on you",
+          "options": [
+            {
+              "text": "daily",
+              "score": null,
+              "code": "DAILY"
+            },
+            {
+              "text": "sometimes",
+              "score": null,
+              "code": "SOMETIMES"
+            },
+            {
+              "text": "rarely",
+              "score": null,
+              "code": "RARELY"
+            }
+          ],
+          "order": 28,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "someone checks on you",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C3",
+          "question": "walking aid fitted and taught",
+          "options": [
+            {
+              "text": "no",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (walking aid fitted and taught)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 29,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "B2",
+            "op": "==",
+            "value": 1
+          },
+          "summary": "walking aid fitted and taught",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C4",
+          "question": "wears multifocals outdoors or on stairs",
+          "options": [
+            {
+              "text": "no or no glasses",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "yes (wears multifocals outdoors or on stairs)",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 30,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "wears multifocals outdoors or on stairs",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C5",
+          "question": "blood thinners",
+          "options": [
+            {
+              "text": "no",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "yes",
+              "score": null,
+              "code": 1
+            },
+            {
+              "text": "not sure",
+              "score": null,
+              "code": 9
+            }
+          ],
+          "order": 31,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "blood thinners",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C6",
+          "question": "osteoporosis or fragility fracture",
+          "options": [
+            {
+              "text": "no",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "yes",
+              "score": null,
+              "code": 1
+            },
+            {
+              "text": "not sure",
+              "score": null,
+              "code": 9
+            }
+          ],
+          "order": 32,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "osteoporosis or fragility fracture",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C7",
+          "question": "herbal or traditional remedies",
+          "options": [],
+          "order": 33,
+          "is_active": true,
+          "part": "C",
+          "type": "text_list",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "herbal or traditional remedies",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        },
+        {
+          "id": "C8",
+          "question": "sex and education (analytics only)",
+          "options": [],
+          "order": 34,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "sex and education (analytics only)",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": true
+        },
+        {
+          "id": "C9",
+          "question": "completer role, language, mode (captured by the app)",
+          "options": [],
+          "order": 35,
+          "is_active": true,
+          "part": "C",
+          "type": "auto",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "summary": "completer role, language, mode (captured by the app)",
+          "wording_status": "PENDING_CLINICAL_WORDING",
+          "exclusive_codes": null,
+          "count_bands": null,
+          "age_bands": null,
+          "analytics_only": null
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "R1",
+          "text": null,
+          "summary": "blow to the head (the PDF logic pairs it with blood thinners, C5)"
+        },
+        {
+          "id": "R2",
+          "text": null,
+          "summary": null
+        },
+        {
+          "id": "R3",
+          "text": null,
+          "summary": null
+        },
+        {
+          "id": "R4",
+          "text": null,
+          "summary": null
+        },
+        {
+          "id": "R5",
+          "text": null,
+          "summary": null
+        },
+        {
+          "id": "R6",
+          "text": null,
+          "summary": null
+        },
+        {
+          "id": "R7",
+          "text": null,
+          "summary": null
+        }
+      ],
+      "messages": {
+        "result.low": "Lower risk right now. Your answers suggest a lower risk of falling right now. Falls can still happen, so here is how to stay steady and protect yourself.",
+        "result.intermediate": "Some factors raise your risk. You have some factors that raise your risk of falling. The steps below can reduce it.",
+        "result.high": "Several factors raise your risk. You have several factors that raise your risk of falling. A clinical assessment is recommended.",
+        "provisional.label": "Provisional result: some answers were missing. A nurse can help you complete it.",
+        "overridden.label": "Reviewed by your clinician",
+        "prompt.message": "Please contact a nurse or doctor in the next few days.",
+        "urgent.message": "Please get medical help now. Call the emergency number or go to the nearest emergency department. Do not drive yourself. If someone is with you, ask them to stay with you.",
+        "error.safety": "We could not calculate your result. If you have fallen recently or feel unwell, get medical help now. Your answers are saved so you can try again.",
+        "referral.under60": "This screener is designed for people aged 60 and over. If you have fallen or feel unsteady, please speak to a nurse or doctor.",
+        "disclaimer": "This screener helps you understand your risk. It cannot examine you or replace advice from a doctor or nurse. If you feel unwell, get medical help.",
+        "carer.alert": "Please check on {name} now.",
+        "notify.checkin": "You have a FallGuard check-in.",
+        "notify.reassess": "It is time to repeat your FallGuard assessment."
+      },
+      "welcome": {
+        "welcome.1": "Falls are common, and often preventable. Every year about 684,000 people die from falls worldwide, and about 37.3 million falls need medical care. More than 8 in 10 of these deaths happen in low- and middle-income countries (WHO, 2021).",
+        "welcome.2": "Who is most at risk. People over 60 have the most serious falls. Balance, muscle strength, eyesight, medicines, health conditions and your home all play a part.",
+        "welcome.3": "What happens next. Answer a few short questions (about {minutes} minutes). You will see your result straight away, with steps you can take. If you ever feel unwell after a fall, get medical help first."
+      }
+    }
+  },
+  "note": "Versions, items, the red-flag items, the fixed messages and the emergency number."
+}

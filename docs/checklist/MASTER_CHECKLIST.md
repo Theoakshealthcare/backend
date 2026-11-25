@@ -227,7 +227,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **Pricing:** (APIs `/booking-settings` and `/admin/booking-policy` exist; console screens are A4) versioned price books with preview and publish; service areas; Nigerian form options (AD-FR-51–56)
 - [ ] **Support inbox:** WhatsApp handovers, 24-hour window enforcement, urgent alerts (AD-FR-59–63)
 - [ ] **Ratings list and low-rating review tasks** (AD-FR-65)
-- [ ] **FallGuard question editor with versioning;** remove the admin calls from the patient app (AD-FR-68–69)
+- [ ] **FallGuard question editor with versioning;** remove the admin calls from the patient app (AD-FR-68–69). *Superseded 2026-11-25: FallGuard v2.0 questions are versioned JSON released with the code (PDF SR-14), so there is no editor; the admin create, update and delete routes answer 410.*
 - [ ] **Break-glass clinical access, with every access audited** (AD-FR-73–74)
 - [ ] **WhatsApp ops:** templates, number health, opt-outs (AD-FR-75–77)
 - [ ] **CSV exports with masking** (AD-FR-88)
@@ -526,15 +526,22 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once; then production only after DEP-5 sign-off
 - [ ] Follow-ups: read the PR's first Semgrep and Trivy results; commit `.test_durations`; off-server backups and an alert; gitleaks in CI; feed three fixes back to the template repo (SOP follow-ups)
 
-## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 planned 2026-11-25, nothing built ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
+## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 in progress (FallGuard backend scoring built 2026-11-25, PR open) ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
 - [ ] Settle conflicts: wallet (owner refuses), drug reminders vs the medication notice, family details spec, who is alerted
-- [ ] Owner supplies `fallguard_scoring.py`, `test_fallguard_scoring.py`, `questionnaire_v2_0.json`
+- [x] The three files the PDF says it ships were never supplied, so the owner chose to rebuild them from the PDF (2026-11-25): `questionnaire_v2_0.json`, the scoring library and its tests were written from the PDF's tables, rules and Appendix A. **Still open: ask for the originals (TV1 to TV17) and cross-check ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), open question 1).**
 - [ ] 1a care template text, caregiver documentation space, Elderly template for nurse or caregiver
 - [ ] 1b vitals flag engine and badges (thresholds supplied by the clinical lead)
 - [ ] 1c alerts for out-of-range readings and missed tasks
 - [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price)
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
-- [ ] FallGuard v2.0: backend scoring and config, patient screens, caregiver module, admin console and go-live lock, hardening
+- [ ] FallGuard v2.0 (replaces the 24-question screener):
+  - [x] Backend scoring and config, branch `feature/fallguard-v2-scoring`, PR open, not merged (2026-11-25): questionnaire JSON, pure scoring library, recommendation catalogue, immutable versioned results (`0033`), `/questions`, `/config`, `/submit`, `/history`, 10 per hour limit, 503 `SCORING_UNAVAILABLE`, old seed script and admin editor retired ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), [FE guide](../fe-integration-guide-patient-fallguard.md))
+  - [ ] Clinician supplies: question wording and "explain" strings, red-flag items R1 to R7, HIGH gate-reason names, state emergency numbers, Appendix E sign-off (SOP: 16 open questions)
+  - [ ] Cross-check against the PDF's own `fallguard_scoring.py` and TV1 to TV17 (owner to obtain)
+  - [ ] Patient app screens (after the backend is reviewed)
+  - [ ] Red-flag events endpoint, consent, access grants, override, Part D clinical tests, care plans, recommendation flags
+  - [ ] Check-ins, reassessment reminders, PDF export
+  - [ ] Caregiver module, admin console (version registry, flags, kill switch, go-live lock), monitors, analytics, hardening
 - [ ] Server enforcement of the caregiver name lock; 2 h grace for care-plan observations (owner to decide)
 
 ## Backlog / upcoming

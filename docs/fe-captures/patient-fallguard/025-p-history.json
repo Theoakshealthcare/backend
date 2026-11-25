@@ -1,0 +1,2023 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/fallguard/history",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": [
+      {
+        "id": "abbf22d3-bdd4-4fcd-adcb-16c27c2bbcb6",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 1,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.815342",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 66,
+          "urgent": false,
+          "red_flags_triggered": [],
+          "eligible": true,
+          "gate_tier": "LOW",
+          "gate_reasons": [],
+          "score": 1,
+          "score_tier": "LOW",
+          "final_tier": "LOW",
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {
+            "B1": 1,
+            "B2": 0,
+            "B3": 0,
+            "B4": 0,
+            "B5": 0,
+            "B6": 0,
+            "B7": 0,
+            "B8": 0,
+            "B9": 0,
+            "B10": 0,
+            "B11": 0,
+            "B12": 0,
+            "B13": 0,
+            "B14": 0,
+            "B15": 0,
+            "B16": 0,
+            "B17": 0,
+            "B18": 0,
+            "B19": 0
+          },
+          "top_factors": [],
+          "prompt_attention": false,
+          "consequence_flag": false,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ]
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "efef6e7d-a027-4cf9-9f73-2484cf9c19f4",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 1,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.808321",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "C5",
+            "answer": "1",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "R1",
+            "answer": "true",
+            "score": null,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 66,
+          "urgent": true,
+          "red_flags_triggered": [
+            "R1"
+          ],
+          "eligible": true,
+          "gate_tier": "LOW",
+          "gate_reasons": [],
+          "score": 1,
+          "score_tier": "LOW",
+          "final_tier": "LOW",
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {
+            "B1": 1,
+            "B2": 0,
+            "B3": 0,
+            "B4": 0,
+            "B5": 0,
+            "B6": 0,
+            "B7": 0,
+            "B8": 0,
+            "B9": 0,
+            "B10": 0,
+            "B11": 0,
+            "B12": 0,
+            "B13": 0,
+            "B14": 0,
+            "B15": 0,
+            "B16": 0,
+            "B17": 0,
+            "B18": 0,
+            "B19": 0
+          },
+          "top_factors": [],
+          "prompt_attention": false,
+          "consequence_flag": true,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            },
+            {
+              "id": "REC-FALLPLAN",
+              "priority": 7,
+              "text": "Plan for what to do if you fall: keep a phone within reach, know how to get help, and ask a clinician about bone health."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            },
+            {
+              "id": "REC-FALLPLAN",
+              "priority": 7,
+              "text": "Plan for what to do if you fall: keep a phone within reach, know how to get help, and ask a clinician about bone health."
+            }
+          ]
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "bb58407d-3688-453f-aafc-bf5d9900f4bb",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 1,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.797844",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "C5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "R1",
+            "answer": "true",
+            "score": null,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 66,
+          "urgent": false,
+          "red_flags_triggered": [],
+          "eligible": true,
+          "gate_tier": "LOW",
+          "gate_reasons": [],
+          "score": 1,
+          "score_tier": "LOW",
+          "final_tier": "LOW",
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {
+            "B1": 1,
+            "B2": 0,
+            "B3": 0,
+            "B4": 0,
+            "B5": 0,
+            "B6": 0,
+            "B7": 0,
+            "B8": 0,
+            "B9": 0,
+            "B10": 0,
+            "B11": 0,
+            "B12": 0,
+            "B13": 0,
+            "B14": 0,
+            "B15": 0,
+            "B16": 0,
+            "B17": 0,
+            "B18": 0,
+            "B19": 0
+          },
+          "top_factors": [],
+          "prompt_attention": true,
+          "consequence_flag": false,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-PROMPT",
+              "priority": 1,
+              "text": "Please contact a nurse or doctor in the next few days."
+            },
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-PROMPT",
+              "priority": 1,
+              "text": "Please contact a nurse or doctor in the next few days."
+            },
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ]
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "9a102872-4830-487b-9af1-352f5a652925",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 1,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.790268",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "R3",
+            "answer": "true",
+            "score": null,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 66,
+          "urgent": true,
+          "red_flags_triggered": [
+            "R3"
+          ],
+          "eligible": true,
+          "gate_tier": "LOW",
+          "gate_reasons": [],
+          "score": 1,
+          "score_tier": "LOW",
+          "final_tier": "LOW",
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {
+            "B1": 1,
+            "B2": 0,
+            "B3": 0,
+            "B4": 0,
+            "B5": 0,
+            "B6": 0,
+            "B7": 0,
+            "B8": 0,
+            "B9": 0,
+            "B10": 0,
+            "B11": 0,
+            "B12": 0,
+            "B13": 0,
+            "B14": 0,
+            "B15": 0,
+            "B16": 0,
+            "B17": 0,
+            "B18": 0,
+            "B19": 0
+          },
+          "top_factors": [],
+          "prompt_attention": false,
+          "consequence_flag": false,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ]
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "7ee455c5-5874-4029-9a07-5b8e961e718d",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": null,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.781768",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "NONE",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "NONE",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "NONE",
+            "score": null,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 36,
+          "urgent": false,
+          "red_flags_triggered": [],
+          "eligible": false,
+          "gate_tier": null,
+          "gate_reasons": [],
+          "score": null,
+          "score_tier": null,
+          "final_tier": null,
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {},
+          "top_factors": [],
+          "prompt_attention": false,
+          "consequence_flag": false,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [],
+          "all": []
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "71708d54-6f8d-4654-ba99-b70642db3b98",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 19,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.773719",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 66,
+          "urgent": false,
+          "red_flags_triggered": [],
+          "eligible": true,
+          "gate_tier": "LOW",
+          "gate_reasons": [],
+          "score": 19,
+          "score_tier": "HIGH",
+          "final_tier": "HIGH",
+          "incomplete": true,
+          "provisional": true,
+          "unknown_items": [
+            "B2",
+            "B3",
+            "B4",
+            "B5",
+            "B6",
+            "B7",
+            "B8",
+            "B9",
+            "B10",
+            "B11",
+            "B12",
+            "B13",
+            "B14",
+            "B15",
+            "B16",
+            "B17",
+            "B18",
+            "B19"
+          ],
+          "part_b_points": {
+            "B1": 1,
+            "B2": 1,
+            "B3": 1,
+            "B4": 1,
+            "B5": 1,
+            "B6": 1,
+            "B7": 1,
+            "B8": 1,
+            "B9": 1,
+            "B10": 1,
+            "B11": 1,
+            "B12": 1,
+            "B13": 1,
+            "B14": 1,
+            "B15": 1,
+            "B16": 1,
+            "B17": 1,
+            "B18": 1,
+            "B19": 1
+          },
+          "top_factors": [
+            "B2",
+            "B3",
+            "B4"
+          ],
+          "prompt_attention": false,
+          "consequence_flag": false,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-CLINICAL",
+              "priority": 2,
+              "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+            },
+            {
+              "id": "REC-EXERCISE",
+              "priority": 3,
+              "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+            },
+            {
+              "id": "REC-BOOK-NURSE",
+              "priority": 4,
+              "text": "Book a nurse home visit to look at your risk in more detail."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-CLINICAL",
+              "priority": 2,
+              "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+            },
+            {
+              "id": "REC-EXERCISE",
+              "priority": 3,
+              "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+            },
+            {
+              "id": "REC-BOOK-NURSE",
+              "priority": 4,
+              "text": "Book a nurse home visit to look at your risk in more detail."
+            },
+            {
+              "id": "REC-MEDS",
+              "priority": 5,
+              "text": "Some medicines can make falls more likely. Do not stop any medicine on your own. Ask a pharmacist or doctor to review all your medicines, including herbal ones."
+            },
+            {
+              "id": "REC-DIZZY",
+              "priority": 6,
+              "text": "Feeling dizzy when you stand up should be checked. Stand up slowly and tell a nurse or doctor."
+            },
+            {
+              "id": "REC-HOME",
+              "priority": 8,
+              "text": "Make your home safer. Fix or remove the hazards you ticked, add handrails and non-slip mats, and keep a rechargeable lamp or torch for power cuts."
+            },
+            {
+              "id": "REC-VISION",
+              "priority": 9,
+              "text": "Have your eyes checked every year. If you wear multifocal glasses, take extra care outside and on stairs."
+            },
+            {
+              "id": "REC-FOOT",
+              "priority": 10,
+              "text": "Wear well-fitting shoes with a firm sole and grip. See a nurse or foot specialist about foot pain or numbness."
+            },
+            {
+              "id": "REC-BLADDER",
+              "priority": 11,
+              "text": "Bladder urgency and night-time toilet trips can lead to falls. A nurse or doctor can help."
+            },
+            {
+              "id": "REC-PAIN",
+              "priority": 12,
+              "text": "Pain or stiffness that makes walking harder can often be treated. Speak to a nurse, physiotherapist or doctor."
+            },
+            {
+              "id": "REC-HEARING",
+              "priority": 13,
+              "text": "A hearing check is worthwhile. Hearing problems are linked to falls."
+            },
+            {
+              "id": "REC-AID",
+              "priority": 14,
+              "text": "Ask a physiotherapist or nurse to check that your walking aid fits you and to show you how to use it."
+            },
+            {
+              "id": "REC-MEMORY",
+              "priority": 16,
+              "text": "Memory or thinking changes are worth discussing with a doctor. Ask a family member or carer to help with this assessment."
+            },
+            {
+              "id": "REC-OUTDOOR",
+              "priority": 17,
+              "text": "Take care on uneven paths, drains and steps. Choose well-lit routes and use support where you can."
+            },
+            {
+              "id": "REC-ACTIVE",
+              "priority": 18,
+              "text": "Build up gradually to 150 minutes of activity a week, including balance and strength exercises."
+            },
+            {
+              "id": "REC-NUTRITION",
+              "priority": 19,
+              "text": "Regular, balanced meals help keep muscles and bones strong. Tell a nurse or doctor if you are losing weight without trying."
+            }
+          ]
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "d740b8b2-bc86-42a9-984a-51fe70005420",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 1,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.764032",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "1",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 66,
+          "urgent": false,
+          "red_flags_triggered": [],
+          "eligible": true,
+          "gate_tier": "HIGH",
+          "gate_reasons": [
+            "GATE_H_FAINTED"
+          ],
+          "score": 1,
+          "score_tier": "LOW",
+          "final_tier": "HIGH",
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {
+            "B1": 1,
+            "B2": 0,
+            "B3": 0,
+            "B4": 0,
+            "B5": 0,
+            "B6": 0,
+            "B7": 0,
+            "B8": 0,
+            "B9": 0,
+            "B10": 0,
+            "B11": 0,
+            "B12": 0,
+            "B13": 0,
+            "B14": 0,
+            "B15": 0,
+            "B16": 0,
+            "B17": 0,
+            "B18": 0,
+            "B19": 0
+          },
+          "top_factors": [],
+          "prompt_attention": true,
+          "consequence_flag": false,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-PROMPT",
+              "priority": 1,
+              "text": "Please contact a nurse or doctor in the next few days."
+            },
+            {
+              "id": "REC-CLINICAL",
+              "priority": 2,
+              "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+            },
+            {
+              "id": "REC-EXERCISE",
+              "priority": 3,
+              "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-PROMPT",
+              "priority": 1,
+              "text": "Please contact a nurse or doctor in the next few days."
+            },
+            {
+              "id": "REC-CLINICAL",
+              "priority": 2,
+              "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+            },
+            {
+              "id": "REC-EXERCISE",
+              "priority": 3,
+              "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+            },
+            {
+              "id": "REC-BOOK-NURSE",
+              "priority": 4,
+              "text": "Book a nurse home visit to look at your risk in more detail."
+            }
+          ]
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "611abe29-8c02-4538-802d-19e0c2deaf19",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 1,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.754055",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "NONE",
+            "score": 0,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 66,
+          "urgent": false,
+          "red_flags_triggered": [],
+          "eligible": true,
+          "gate_tier": "LOW",
+          "gate_reasons": [],
+          "score": 1,
+          "score_tier": "LOW",
+          "final_tier": "LOW",
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {
+            "B1": 1,
+            "B2": 0,
+            "B3": 0,
+            "B4": 0,
+            "B5": 0,
+            "B6": 0,
+            "B7": 0,
+            "B8": 0,
+            "B9": 0,
+            "B10": 0,
+            "B11": 0,
+            "B12": 0,
+            "B13": 0,
+            "B14": 0,
+            "B15": 0,
+            "B16": 0,
+            "B17": 0,
+            "B18": 0,
+            "B19": 0
+          },
+          "top_factors": [],
+          "prompt_attention": false,
+          "consequence_flag": false,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-LOW",
+              "priority": 3,
+              "text": "Your answers suggest a lower risk of falling right now. Falls can still happen, so keep active, keep your home clear and have your eyes and feet checked."
+            }
+          ]
+        },
+        "ai_review_status": null
+      },
+      {
+        "id": "50437af6-0bb6-46c0-af7f-adab6da6bac4",
+        "patient_id": "71a37e3d-0974-41b7-9f76-ec781ddbefa9",
+        "total_score": 18,
+        "ai_summary": null,
+        "ai_recommendations": null,
+        "created_at": "2026-11-25T17:31:07.740648",
+        "answers": [
+          {
+            "question_id": "A1",
+            "answer": "1",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A2",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A3",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A4",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A5",
+            "answer": "1",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A6",
+            "answer": "2",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "A7",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "B2",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B3",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B4",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B5",
+            "answer": "2",
+            "score": 2,
+            "id": null
+          },
+          {
+            "question_id": "B6",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B7",
+            "answer": "2",
+            "score": 2,
+            "id": null
+          },
+          {
+            "question_id": "B8",
+            "answer": "DIABETES,ARTHRITIS",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B9",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B10",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B11",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B12",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B13",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B14",
+            "answer": "CARDIO_BP_DIURETIC",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B15",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B16",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "B17",
+            "answer": "LOOSE_RUGS,NO_BACKUP_LIGHT",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B18",
+            "answer": "1",
+            "score": 1,
+            "id": null
+          },
+          {
+            "question_id": "B19",
+            "answer": "0",
+            "score": 0,
+            "id": null
+          },
+          {
+            "question_id": "C1",
+            "answer": "1",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "C2",
+            "answer": "SOMETIMES",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "C5",
+            "answer": "0",
+            "score": null,
+            "id": null
+          },
+          {
+            "question_id": "C6",
+            "answer": "0",
+            "score": null,
+            "id": null
+          }
+        ],
+        "questionnaire_version": "2.0.0",
+        "algorithm_version": "2.0.0",
+        "content_version": "2.0.0",
+        "result": {
+          "questionnaire_version": "2.0.0",
+          "algorithm_version": "2.0.0",
+          "age": 80,
+          "urgent": false,
+          "red_flags_triggered": [],
+          "eligible": true,
+          "gate_tier": "INTERMEDIATE",
+          "gate_reasons": [
+            "GATE_I_ONE_FALL",
+            "GATE_I_UNSTEADY",
+            "GATE_I_WORRY"
+          ],
+          "score": 18,
+          "score_tier": "HIGH",
+          "final_tier": "HIGH",
+          "incomplete": false,
+          "provisional": false,
+          "unknown_items": [],
+          "part_b_points": {
+            "B1": 2,
+            "B2": 1,
+            "B3": 1,
+            "B4": 1,
+            "B5": 2,
+            "B6": 1,
+            "B7": 2,
+            "B8": 1,
+            "B9": 1,
+            "B10": 0,
+            "B11": 1,
+            "B12": 0,
+            "B13": 1,
+            "B14": 1,
+            "B15": 1,
+            "B16": 0,
+            "B17": 1,
+            "B18": 1,
+            "B19": 0
+          },
+          "top_factors": [
+            "B5",
+            "B7",
+            "B2"
+          ],
+          "prompt_attention": false,
+          "consequence_flag": true,
+          "pharmacist_review_flag": false
+        },
+        "recommendations": {
+          "top": [
+            {
+              "id": "REC-CLINICAL",
+              "priority": 2,
+              "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+            },
+            {
+              "id": "REC-EXERCISE",
+              "priority": 3,
+              "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+            },
+            {
+              "id": "REC-BOOK-NURSE",
+              "priority": 4,
+              "text": "Book a nurse home visit to look at your risk in more detail."
+            }
+          ],
+          "all": [
+            {
+              "id": "REC-CLINICAL",
+              "priority": 2,
+              "text": "A clinical assessment is recommended. A nurse can visit you at home to look at your balance, medicines, eyesight, home and more."
+            },
+            {
+              "id": "REC-EXERCISE",
+              "priority": 3,
+              "text": "Strength and balance exercise is the best-proven way to reduce falls. Join a structured programme such as a supervised class, Tai Chi or a physiotherapist-led plan."
+            },
+            {
+              "id": "REC-BOOK-NURSE",
+              "priority": 4,
+              "text": "Book a nurse home visit to look at your risk in more detail."
+            },
+            {
+              "id": "REC-MEDS",
+              "priority": 5,
+              "text": "Some medicines can make falls more likely. Do not stop any medicine on your own. Ask a pharmacist or doctor to review all your medicines, including herbal ones."
+            },
+            {
+              "id": "REC-DIZZY",
+              "priority": 6,
+              "text": "Feeling dizzy when you stand up should be checked. Stand up slowly and tell a nurse or doctor."
+            },
+            {
+              "id": "REC-FALLPLAN",
+              "priority": 7,
+              "text": "Plan for what to do if you fall: keep a phone within reach, know how to get help, and ask a clinician about bone health."
+            },
+            {
+              "id": "REC-HOME",
+              "priority": 8,
+              "text": "Make your home safer. Fix or remove the hazards you ticked, add handrails and non-slip mats, and keep a rechargeable lamp or torch for power cuts."
+            },
+            {
+              "id": "REC-VISION",
+              "priority": 9,
+              "text": "Have your eyes checked every year. If you wear multifocal glasses, take extra care outside and on stairs."
+            },
+            {
+              "id": "REC-FOOT",
+              "priority": 10,
+              "text": "Wear well-fitting shoes with a firm sole and grip. See a nurse or foot specialist about foot pain or numbness."
+            },
+            {
+              "id": "REC-BLADDER",
+              "priority": 11,
+              "text": "Bladder urgency and night-time toilet trips can lead to falls. A nurse or doctor can help."
+            },
+            {
+              "id": "REC-PAIN",
+              "priority": 12,
+              "text": "Pain or stiffness that makes walking harder can often be treated. Speak to a nurse, physiotherapist or doctor."
+            },
+            {
+              "id": "REC-AID",
+              "priority": 14,
+              "text": "Ask a physiotherapist or nurse to check that your walking aid fits you and to show you how to use it."
+            },
+            {
+              "id": "REC-FEAR",
+              "priority": 15,
+              "text": "Worry about falling is common. Staying active safely helps rebuild confidence."
+            },
+            {
+              "id": "REC-OUTDOOR",
+              "priority": 17,
+              "text": "Take care on uneven paths, drains and steps. Choose well-lit routes and use support where you can."
+            },
+            {
+              "id": "REC-ACTIVE",
+              "priority": 18,
+              "text": "Build up gradually to 150 minutes of activity a week, including balance and strength exercises."
+            }
+          ]
+        },
+        "ai_review_status": null
+      }
+    ]
+  },
+  "note": "Newest first: only the accepted submissions are here."
+}
