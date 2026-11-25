@@ -28,10 +28,10 @@ def _before_columns(eng):
     return {c["name"] for c in inspect(eng).get_columns("care_plan_templates")}
 
 
-def test_0031_follows_its_predecessor_and_is_the_only_head():
+def test_0031_follows_its_predecessor_and_there_is_one_head():
     script = ScriptDirectory.from_config(Config("alembic.ini"))
     assert script.get_revision(THIS).down_revision == PREVIOUS
-    assert script.get_heads() == [THIS]
+    assert len(script.get_heads()) == 1  # a later migration may sit on top; two heads would be a fork
 
 
 def test_upgrade_rewrites_four_templates_and_downgrade_puts_the_old_text_back(scratch):  # noqa: F811
