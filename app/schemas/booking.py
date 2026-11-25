@@ -352,6 +352,22 @@ class BookingResponse(BaseModel):
                           "cancelled; patient views only.", example=8000.0)
     refund: Optional[RefundSummary] = Field(
         None, description="The booking's refund, newest one, when it has one. Patient views only; null for caregivers.")
+    chat_open: bool = Field(
+        True, description="Whether the booking chat can still be written to: true while the booking is not over and for 24 hours "
+                          "after the visit was completed; false once it is closed or the booking was cancelled or declined. "
+                          "History stays readable either way. Sending to a closed chat is 409 `chat_closed`.")
+    chat_closes_at: Optional[datetime] = Field(
+        None, description="When the chat closes (UTC): the visit's end plus 24 hours, known once the booking is completed. Null "
+                          "while the booking is not completed, and for a cancelled or declined booking (closed already).")
+    notes_open: Optional[bool] = Field(
+        None, description="Caregiver views of their own visit only (null for everyone else): whether a visit note can be added "
+                          "now, typed or voice. True while the visit is in progress and for 2 hours after it was completed.")
+    notes_closes_at: Optional[datetime] = Field(
+        None, description="Caregiver views only: when adding notes stops (UTC), known once the visit is completed; null while "
+                          "it is in progress or not started.")
+    notes_readable_until: Optional[datetime] = Field(
+        None, description="Caregiver views only: when the caregiver stops being able to read, save or delete their notes for the "
+                          "visit (UTC), 24 hours after completion; null until the visit is completed.")
     # Payment fields for booking creation response
     payment_url: Optional[str] = Field(
         None,

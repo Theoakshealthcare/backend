@@ -8,7 +8,8 @@ from app.db.models.booking import BookingNotification, BookingStatus, ChatMessag
 from app.tests.factories import auth_headers, make_booking, make_caregiver, make_patient, refresh_headers
 
 URL = "/api/v1/caregiver/chats"
-ROW_KEYS = {"booking_id", "patient_name", "patient_photo_url", "service_type", "status", "scheduled_date", "last_message"}
+ROW_KEYS = {"booking_id", "patient_name", "patient_photo_url", "service_type", "status", "scheduled_date", "last_message",
+            "chat_open", "chat_closes_at"}
 MESSAGE_KEYS = {"text", "sent_at", "from_me"}
 NOW = datetime(2026, 11, 20, 12, 0, 0)
 

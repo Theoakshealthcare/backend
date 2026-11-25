@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Any, List, Optional, Union
 from uuid import UUID
 
@@ -30,9 +31,10 @@ from app.schemas.booking import (
 from app.services.booking import (
     BookingActionForbidden, BookingArrivalTooEarly, BookingService, BookingSettingsNotConfigured, BookingStateConflict, BookingVisitCodeError,
 )
-from app.services import booking_payment_link, earnings, patient_booking_cancel
+from app.services import booking_payment_link, earnings, patient_booking_cancel, visit_windows
 from app.services import service_catalog
 from app.services.chat_push import push_new_message
+from app.services.voice_notes.errors import not_found as voice_not_found
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
@@ -108,6 +110,18 @@ def attach_caregiver_earning(booking_dict: dict, booking: Booking, caregiver_id:
     return booking_dict
 
 
+def attach_notes_window(booking_dict: dict, booking: Booking, caregiver: Optional[Caregiver]) -> dict:
+    """Add the visit-note window (the voice-note rules, shared with typed notes) to a view that belongs to the booking's assigned
+    caregiver. Never called for patients, admins or a caregiver who only holds an offer."""
+    if caregiver is None or booking.caregiver_id != caregiver.id:
+        return booking_dict
+    window = visit_windows.notes_window(caregiver, booking, datetime.utcnow())
+    booking_dict["notes_open"] = window.open
+    booking_dict["notes_closes_at"] = window.closes_at
+    booking_dict["notes_readable_until"] = visit_windows.notes_readable_until(booking)
+    return booking_dict
+
+
 def enrich_booking_with_details(
     booking: Booking, db: Session, viewer_caregiver_id: Optional[UUID] = None
 ) -> dict:
@@ -131,6 +145,10 @@ def enrich_booking_with_details(
     booking_dict["cancel_fee_tier"] = None
     booking_dict["cancel_fee"] = None
     booking_dict["refund"] = None
+    chat = visit_windows.chat_window(booking, datetime.utcnow())
+    booking_dict["chat_open"] = chat.open
+    booking_dict["chat_closes_at"] = chat.closes_at
+    # The notes_* fields belong to the assigned caregiver's own views only (attach_notes_window); elsewhere they stay null.
     # A WhatsApp booking keeps the condition encrypted; the ciphertext never leaves, the plain text goes only to
     # whoever may see the condition (redact_offer below removes it for caregivers who only hold an offer).
     condition_cipher = booking_dict.pop("condition_encrypted", None)
@@ -656,6 +674,7 @@ def get_caregiver_bookings(
         enriched_booking = enrich_booking_with_details(
             booking, booking_service.db, viewer_caregiver_id=caregiver.id
         )
+        attach_notes_window(enriched_booking, booking, caregiver)
         enriched_bookings.append(attach_caregiver_earning(enriched_booking, booking, caregiver.id))
     
     return enriched_bookings
@@ -823,6 +842,7 @@ def get_booking_details(
     if isinstance(current_user, User) and current_user.user_type == "caregiver":  # ensure_booking_read_access: the assigned one
         caregiver = booking_service.db.query(Caregiver).filter(Caregiver.user_id == current_user.id).first()
         attach_caregiver_earning(enriched_booking, booking, caregiver.id if caregiver else None)
+        attach_notes_window(enriched_booking, booking, caregiver)
     if isinstance(current_user, User) and current_user.user_type == "patient":  # ensure_booking_read_access: its own patient
         refunds = patient_booking_cancel.refund_summaries(booking_service.db, [booking.id])
         patient_booking_cancel.attach_cancel_info(enriched_booking, booking, refunds)
@@ -1407,6 +1427,11 @@ def send_chat_message(
     **Access Control:**
     - Only patients and caregivers involved in the booking can send messages
     
+    **Closed chat:** while the booking is not over the chat is open, and it stays open for 24 hours after the visit was
+    completed (`CHAT_OPEN_HOURS_AFTER_VISIT`); after that, and at once for a cancelled or declined booking, it is read-only:
+    **409** `{"detail": {"code": "chat_closed", "message": "..."}}`, nothing is saved and nobody is pushed. Reading the history
+    (`GET /chat/{booking_id}/messages`) keeps working. The booking payloads carry `chat_open` and `chat_closes_at`.
+
     **Push:** once the message is saved, the other person in the chat gets a push (best effort: the title is the
     sender's first name, a patient's first name and last initial; the body is the text cut to 100 characters; `data` is
     `{type: "chat_message", booking_id}`). The sender never gets one.
@@ -1441,6 +1466,11 @@ def send_chat_message(
             detail="Access denied"
         )
     
+    # Read-only once the booking is cancelled, or 24 h after the visit was completed (reading history is unaffected).
+    # A rejected message is never saved, so no push goes out for it.
+    if not visit_windows.chat_window(booking, datetime.utcnow()).open:
+        raise visit_windows.chat_closed_error()
+
     message = booking_service.send_chat_message(
         booking_id, current_user.id, message_data.message
     )
@@ -1524,7 +1554,10 @@ async def create_booking_note(
     - Audio transcript support
     - AI-powered analysis including summary, keywords, and recommendations
     
-    **Access:** Only caregivers assigned to the booking can create notes
+    **Access:** Only caregivers assigned to the booking can create notes, while the visit is in progress and for 2 hours
+    after it was completed (`VOICE_NOTE_POST_VISIT_GRACE_MINUTES`, the same window as voice notes). Otherwise **409**
+    `{"detail": {"code": "visit_not_active", "message": "..."}}`. The caregiver's booking payloads carry `notes_open`,
+    `notes_closes_at` and `notes_readable_until`.
     
     **Authentication:** Requires caregiver authentication token.
     """
@@ -1548,6 +1581,14 @@ async def create_booking_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Booking not found or access denied"
         )
+
+    # The voice-note window (app/services/visit_windows.py): while the visit is in progress and for
+    # VOICE_NOTE_POST_VISIT_GRACE_MINUTES after it was completed. A caregiver who is no longer approved keeps only a visit in progress.
+    if not visit_windows.can_start_note(caregiver, booking, datetime.utcnow()):
+        if booking.status != BookingStatus.IN_PROGRESS and caregiver.profile_status != "approved":
+            raise voice_not_found()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail={"code": "visit_not_active", "message": visit_windows.NOTES_CLOSED_MESSAGE})
     
     note = await booking_service.create_booking_note(
         booking_id,
@@ -1577,7 +1618,8 @@ def get_booking_notes(
     
     **Access Control:**
     - Patients can view notes for their bookings
-    - Caregivers can view notes for their assigned bookings
+    - Caregivers can view notes for their assigned bookings while the visit is live and for 24 hours after it was completed
+      (`VOICE_NOTE_EDIT_WINDOW_HOURS`, the voice-note rule); later: **404** `{"detail": {"code": "not_found", ...}}`
     
     **Authentication:** Requires user authentication token.
     """
@@ -1609,5 +1651,8 @@ def get_booking_notes(
             detail="Access denied"
         )
     
+    if current_user.user_type == "caregiver" and not visit_windows.can_read_notes(caregiver, booking, datetime.utcnow()):
+        raise voice_not_found()
+
     notes = booking_service.get_booking_notes(booking_id)
     return notes

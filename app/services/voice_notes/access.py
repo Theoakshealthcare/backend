@@ -7,22 +7,20 @@
 * An **admin** with ``clinical.read`` reads saved notes of any booking (the route checks the permission).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.db.models.booking import Booking, BookingStatus
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.user import User
 from app.db.models.voice_note import VisitVoiceNote
 from app.services.patient_booking_cancel import is_booker
+from app.services.visit_windows import can_read_notes, can_start_note
 from app.services.voice_notes.errors import not_found, refuse
-
-LIVE = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
 
 
 def caregiver_of(db: Session, user: User) -> Caregiver:
@@ -40,36 +38,20 @@ def _owned_booking(db: Session, caregiver: Caregiver, booking_id: UUID) -> Optio
     )
 
 
-def _ended_at(booking: Booking) -> datetime:
-    # Never ``updated_at``: any later edit of the booking would stretch the caregiver's window. A completed booking with no recorded end
-    # falls back to when it was scheduled to end.
-    return booking.actual_end_time or booking.scheduled_end_date or booking.scheduled_date
-
-
 def booking_for_create(db: Session, caregiver: Caregiver, booking_id: UUID, now: datetime) -> Booking:
     """The visit a new note is for. 404 when it is not the caller's; ``visit_not_active`` when it is theirs but not under way."""
     booking = _owned_booking(db, caregiver, booking_id)
     if booking is None:
         raise not_found()
-    if booking.status == BookingStatus.IN_PROGRESS:
+    if can_start_note(caregiver, booking, now):
         return booking
-    if caregiver.profile_status != "approved":
+    if booking.status != BookingStatus.IN_PROGRESS and caregiver.profile_status != "approved":
         raise not_found()  # a suspended caregiver has no access outside a visit in progress
-    grace = timedelta(minutes=settings.VOICE_NOTE_POST_VISIT_GRACE_MINUTES)
-    if booking.status == BookingStatus.COMPLETED and now <= _ended_at(booking) + grace:
-        return booking
     raise refuse(409, "visit_not_active")
 
 
 def _visible_to_caregiver(caregiver: Caregiver, booking: Booking, now: datetime) -> bool:
-    if booking.status == BookingStatus.IN_PROGRESS:
-        return True
-    if caregiver.profile_status != "approved":
-        return False
-    if booking.status in LIVE:
-        return True
-    window = timedelta(hours=settings.VOICE_NOTE_EDIT_WINDOW_HOURS)
-    return booking.status == BookingStatus.COMPLETED and now <= _ended_at(booking) + window
+    return can_read_notes(caregiver, booking, now)  # the windows are shared with typed notes: app/services/visit_windows.py
 
 
 def booking_for_caregiver_reads(db: Session, caregiver: Caregiver, booking_id: UUID, now: datetime) -> Booking:
