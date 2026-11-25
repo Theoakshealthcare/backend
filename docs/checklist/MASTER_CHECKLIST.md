@@ -229,7 +229,7 @@ Spec: [PRD](../prd/PRD-admin-console.md). v1 must ship before the WhatsApp close
 - [ ] **Pricing:** (APIs `/booking-settings` and `/admin/booking-policy` exist; console screens are A4) versioned price books with preview and publish; service areas; Nigerian form options (AD-FR-51–56)
 - [ ] **Support inbox:** WhatsApp handovers, 24-hour window enforcement, urgent alerts (AD-FR-59–63)
 - [ ] **Ratings list and low-rating review tasks** (AD-FR-65)
-- [ ] **FallGuard question editor with versioning;** remove the admin calls from the patient app (AD-FR-68–69)
+- [ ] **FallGuard question editor with versioning;** remove the admin calls from the patient app (AD-FR-68–69). *Superseded 2026-11-25: FallGuard v2.0 questions are versioned JSON released with the code (PDF SR-14), so there is no editor; the admin create, update and delete routes answer 410.*
 - [ ] **Break-glass clinical access, with every access audited** (AD-FR-73–74)
 - [ ] **WhatsApp ops:** templates, number health, opt-outs (AD-FR-75–77)
 - [ ] **CSV exports with masking** (AD-FR-88)
@@ -528,9 +528,9 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once; then production only after DEP-5 sign-off
 - [ ] Follow-ups: read the PR's first Semgrep and Trivy results; commit `.test_durations`; off-server backups and an alert; gitleaks in CI; feed three fixes back to the template repo (SOP follow-ups)
 
-## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 planned 2026-11-25, nothing built ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
+## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 in progress (FallGuard backend scoring built 2026-11-25, PR open) ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
 - [ ] Settle conflicts: wallet (owner refuses), drug reminders vs the medication notice, family details spec, who is alerted
-- [ ] Owner supplies `fallguard_scoring.py`, `test_fallguard_scoring.py`, `questionnaire_v2_0.json`
+- [x] The three files the PDF ships (`fallguard_scoring.py`, `test_fallguard_scoring.py` TV1-TV17, `questionnaire_v2_0.json`) were supplied by the owner on 2026-11-25 and are vendored unmodified into backend #85; our earlier hand-made re-implementation was deleted ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), "What changed when the reference arrived")
 - [x] 1a care template text (version 2, clinician-approved), caregiver own-documentation space (private, audited admin read), Elderly template for nurse or caregiver, nurse 2 h grace for care-plan notes. Built 2026-11-25 (backend `feature/care-templates-docs-space`, migration `0031`; [SOP](../sop/2026-11-25-care-templates-docs-space.md); [FE guide](../fe-integration-guide-care-templates-docs-space.md)). PRs open, not merged; app screens need a simulator pass; templates still `pending` until an admin signs them off
 - [x] 1b vitals flag engine and badges: server flags on every vitals response (no migration), badges in the caregiver and patient apps; 2026-11-25, `feature/vitals-flags` + monorepo `feature/vitals-flags-badges`, [SOP](../sop/2026-11-25-vitals-flags.md), [FE guide](../fe-integration-guide-vitals-flags.md). Open: seven clinician questions in the SOP; visual pass on a device pending
   - [x] Flags engine, glucose label (Random / Fasting / After meal), diabetes and kidney BP line, 112 message on critical; weight and sleep never flagged
@@ -538,7 +538,13 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] 1c alerts for out-of-range readings and missed tasks
 - [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price)
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
-- [ ] FallGuard v2.0: backend scoring and config, patient screens, caregiver module, admin console and go-live lock, hardening
+- [ ] FallGuard v2.0 (replaces the 24-question screener):
+  - [x] Backend scoring and config, branch `feature/fallguard-v2-scoring`, PR open, not merged (2026-11-25): questionnaire JSON, pure scoring library, recommendation catalogue, immutable versioned results (`0033`), `/questions`, `/config`, `/submit`, `/history`, 10 per hour limit, 503 `SCORING_UNAVAILABLE`, old seed script and admin editor retired ([SOP](../sop/2026-11-25-fallguard-v2-backend.md), [FE guide](../fe-integration-guide-patient-fallguard.md))
+  - [ ] Clinician: Appendix E sign-off, a sentence per gate-reason code, state emergency numbers, content version, AI service decision (SOP: 9 open questions; wording and R1-R7 came with the package, unsigned)
+  - [ ] Patient app screens (after the backend is reviewed)
+  - [ ] Red-flag events endpoint, consent, access grants, override, Part D clinical tests, care plans, recommendation flags
+  - [ ] Check-ins, reassessment reminders, PDF export
+  - [ ] Caregiver module, admin console (version registry, flags, kill switch, go-live lock), monitors, analytics, hardening
 - [ ] Server enforcement of the caregiver name lock
 - [x] 2 h grace for care-plan observations (owner said yes 2026-11-25; assigned nurse only; built in 1a)
 

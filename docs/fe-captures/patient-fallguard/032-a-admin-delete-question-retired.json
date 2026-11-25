@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/api/v1/fallguard/admin/question/49c182e5-bda4-463b-87fe-ff57f3e38af7",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 410,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "fallguard_questionnaire_is_versioned",
+        "message": "The FallGuard questionnaire is versioned and changes only with a release."
+      }
+    }
+  }
+}

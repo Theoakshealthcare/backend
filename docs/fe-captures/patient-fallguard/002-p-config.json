@@ -1,0 +1,1341 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/fallguard/config?lang=en",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "questionnaire_version": "2.0.0",
+      "algorithm_version": "2.0.0",
+      "content_version": "2.0.0",
+      "language": "en",
+      "wording_status": "PENDING_CLINICAL_SIGN_OFF",
+      "content_sign_off_status": "PENDING_CLINICAL_LEAD_SIGN_OFF",
+      "emergency_number": "112",
+      "assessment_minutes": 8,
+      "min_age": 60,
+      "unknown_codes": [
+        "UNKNOWN"
+      ],
+      "items": [
+        {
+          "id": "A1",
+          "question": "In the last 12 months, have you fallen (landed on the ground or a lower level by accident)?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes, once",
+              "score": null,
+              "code": 1
+            },
+            {
+              "text": "Yes, 2 or more times",
+              "score": null,
+              "code": 2
+            }
+          ],
+          "order": 1,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "fall",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "A2",
+          "question": "Did any fall cause an injury that needed medical care?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            }
+          ],
+          "order": 2,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "A1",
+            "op": ">=",
+            "value": 1
+          },
+          "icon": "injury",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "A3",
+          "question": "After any fall, were you unable to get up without help, or did you lie on the floor for a long time?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            }
+          ],
+          "order": 3,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "A1",
+            "op": ">=",
+            "value": 1
+          },
+          "icon": "floor",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "A4",
+          "question": "In the last 12 months, have you fainted or blacked out, or nearly done so?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            }
+          ],
+          "order": 4,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "faint",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "A5",
+          "question": "Do you feel unsteady when standing or walking?",
+          "options": [
+            {
+              "text": "Never",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Sometimes",
+              "score": null,
+              "code": 1
+            },
+            {
+              "text": "Often",
+              "score": null,
+              "code": 2
+            }
+          ],
+          "order": 5,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "walk",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "A6",
+          "question": "Do you worry about falling?",
+          "options": [
+            {
+              "text": "Not at all",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Somewhat",
+              "score": null,
+              "code": 1
+            },
+            {
+              "text": "A lot",
+              "score": null,
+              "code": 2
+            }
+          ],
+          "order": 6,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "worry",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "A7",
+          "question": "Was your most recent fall within the last 4 weeks?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            }
+          ],
+          "order": 7,
+          "is_active": true,
+          "part": "A",
+          "type": "single",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "A1",
+            "op": ">=",
+            "value": 1
+          },
+          "icon": "calendar",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B1",
+          "question": "Age band, calculated from date of birth",
+          "options": [],
+          "order": 8,
+          "is_active": true,
+          "part": "B",
+          "type": "derived",
+          "required": true,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "age",
+          "explain": "Your age",
+          "exclusive_codes": null,
+          "scoring": {
+            "method": "age_bands",
+            "bands": [
+              {
+                "min_age": 0,
+                "points": 0
+              },
+              {
+                "min_age": 60,
+                "points": 1
+              },
+              {
+                "min_age": 75,
+                "points": 2
+              },
+              {
+                "min_age": 85,
+                "points": 3
+              }
+            ]
+          },
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B2",
+          "question": "Do you use a walking stick, frame, crutches or wheelchair?",
+          "options": [
+            {
+              "text": "No",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 9,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "cane",
+          "explain": "You use a walking aid",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B3",
+          "question": "Can you stand up from a chair without pushing with your hands?",
+          "options": [
+            {
+              "text": "Yes, easily",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "With difficulty",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Not at all",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 10,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "chair",
+          "explain": "You find it hard to stand up from a chair without using your hands",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B4",
+          "question": "When you stand up or walk, do you feel dizzy or lightheaded?",
+          "options": [
+            {
+              "text": "Never",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 11,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "dizzy",
+          "explain": "You feel dizzy or lightheaded when standing or walking",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B5",
+          "question": "Do pain or stiffness in your knees, hips or back make walking harder?",
+          "options": [
+            {
+              "text": "No",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "A little",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "A lot",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 12,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "joint",
+          "explain": "Pain or stiffness makes walking harder",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B6",
+          "question": "Do you have foot pain, numbness, swelling or deformed toes?",
+          "options": [
+            {
+              "text": "None",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Some",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Significant",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 13,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "foot",
+          "explain": "You have foot problems",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B7",
+          "question": "What do you usually wear on your feet at home and outside?",
+          "options": [
+            {
+              "text": "Closed, well-fitting shoes with grip",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "A mix",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Mostly slippers, flip-flops, backless or loose shoes, or barefoot",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 14,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "shoe",
+          "explain": "Your usual footwear gives little support or grip",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B8",
+          "question": "Do you have any of these? Tick all that apply.",
+          "options": [
+            {
+              "text": "Stroke",
+              "score": null,
+              "code": "STROKE"
+            },
+            {
+              "text": "Parkinson's disease",
+              "score": null,
+              "code": "PARKINSONS"
+            },
+            {
+              "text": "Diabetes",
+              "score": null,
+              "code": "DIABETES"
+            },
+            {
+              "text": "Arthritis",
+              "score": null,
+              "code": "ARTHRITIS"
+            },
+            {
+              "text": "Heart problem (for example irregular heartbeat or heart failure)",
+              "score": null,
+              "code": "HEART"
+            },
+            {
+              "text": "Depression",
+              "score": null,
+              "code": "DEPRESSION"
+            },
+            {
+              "text": "Kidney disease",
+              "score": null,
+              "code": "KIDNEY"
+            },
+            {
+              "text": "Lung disease causing breathlessness",
+              "score": null,
+              "code": "LUNG"
+            },
+            {
+              "text": "None of these",
+              "score": null,
+              "code": "NONE"
+            }
+          ],
+          "order": 15,
+          "is_active": true,
+          "part": "B",
+          "type": "multi",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "health",
+          "explain": "You have health conditions that can affect balance",
+          "exclusive_codes": [
+            "NONE"
+          ],
+          "scoring": {
+            "method": "count_bands",
+            "bands": [
+              {
+                "min_count": 0,
+                "points": 0
+              },
+              {
+                "min_count": 1,
+                "points": 1
+              },
+              {
+                "min_count": 3,
+                "points": 2
+              }
+            ]
+          },
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B9",
+          "question": "Do you often rush to the toilet, leak urine, or get up 2 or more times at night to pass urine?",
+          "options": [
+            {
+              "text": "No",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 16,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "toilet",
+          "explain": "Bladder urgency, leaks or night-time toilet trips",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B10",
+          "question": "Do memory or thinking problems affect your daily life?",
+          "options": [
+            {
+              "text": "No",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 17,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "memory",
+          "explain": "Memory or thinking problems affect daily life",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B11",
+          "question": "Even with your glasses, how well can you see?",
+          "options": [
+            {
+              "text": "Clearly",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Some difficulty",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Significant difficulty",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 18,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "eye",
+          "explain": "You have difficulty seeing, even with glasses",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B12",
+          "question": "Even with a hearing aid (if you use one), can you follow a conversation in a quiet room?",
+          "options": [
+            {
+              "text": "Easily",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "With some difficulty",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "With great difficulty",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 19,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "ear",
+          "explain": "You have difficulty hearing",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B13",
+          "question": "How many medicines do you take regularly (prescribed or bought)?",
+          "options": [
+            {
+              "text": "0 to 3",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "4 or more",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 20,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "pills",
+          "explain": "You take 4 or more medicines regularly",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B14",
+          "question": "Do you take any of these? Tick all that apply.",
+          "options": [
+            {
+              "text": "Sleeping or calming tablets",
+              "score": null,
+              "code": "SEDATIVES"
+            },
+            {
+              "text": "Medicines for anxiety, depression or mental illness",
+              "score": null,
+              "code": "PSYCH"
+            },
+            {
+              "text": "Strong painkillers (for example tramadol, codeine, morphine)",
+              "score": null,
+              "code": "OPIOIDS"
+            },
+            {
+              "text": "Epilepsy medicines",
+              "score": null,
+              "code": "EPILEPSY"
+            },
+            {
+              "text": "Water tablets, or medicines for blood pressure or the heart",
+              "score": null,
+              "code": "CARDIO_BP_DIURETIC"
+            },
+            {
+              "text": "Insulin or diabetes tablets",
+              "score": null,
+              "code": "GLUCOSE_LOWERING"
+            },
+            {
+              "text": "Allergy or cough medicines that cause sleepiness",
+              "score": null,
+              "code": "SEDATING_ALLERGY_COUGH"
+            },
+            {
+              "text": "Any other medicine that makes me drowsy or dizzy",
+              "score": null,
+              "code": "ANY_DROWSY_DIZZY"
+            },
+            {
+              "text": "None of these",
+              "score": null,
+              "code": "NONE"
+            },
+            {
+              "text": "I am not sure",
+              "score": null,
+              "code": "NOT_SURE"
+            }
+          ],
+          "order": 21,
+          "is_active": true,
+          "part": "B",
+          "type": "multi",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "pills",
+          "explain": "You take medicines that can raise the risk of falls",
+          "exclusive_codes": [
+            "NONE",
+            "NOT_SURE"
+          ],
+          "scoring": {
+            "method": "count_bands",
+            "bands": [
+              {
+                "min_count": 0,
+                "points": 0
+              },
+              {
+                "min_count": 1,
+                "points": 1
+              },
+              {
+                "min_count": 2,
+                "points": 2
+              }
+            ]
+          },
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B15",
+          "question": "On how many days a week do you exercise or walk briskly for at least 20 minutes?",
+          "options": [
+            {
+              "text": "5 to 7 days",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "2 to 4 days",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "0 to 1 days",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 22,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "exercise",
+          "explain": "You are not very active in a usual week",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B16",
+          "question": "How often do you drink alcohol?",
+          "options": [
+            {
+              "text": "Never or occasionally",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "1 to 2 days a week",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Most days",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 23,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "drink",
+          "explain": "You drink alcohol often",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B17",
+          "question": "Which of these are true in your home? Tick all that apply.",
+          "options": [
+            {
+              "text": "Loose rugs or mats",
+              "score": null,
+              "code": "LOOSE_RUGS"
+            },
+            {
+              "text": "Uneven, cracked or slippery floors",
+              "score": null,
+              "code": "UNEVEN_FLOORS"
+            },
+            {
+              "text": "Cluttered walkways or trailing cables",
+              "score": null,
+              "code": "CLUTTER"
+            },
+            {
+              "text": "Stairs or steps with no handrail",
+              "score": null,
+              "code": "NO_HANDRAIL"
+            },
+            {
+              "text": "Bathroom or toilet with no grab bar or non-slip floor",
+              "score": null,
+              "code": "BATHROOM_NO_AID"
+            },
+            {
+              "text": "Poor lighting in the hallway, stairs or toilet at night",
+              "score": null,
+              "code": "POOR_LIGHT_NIGHT"
+            },
+            {
+              "text": "No torch or backup light during power cuts",
+              "score": null,
+              "code": "NO_BACKUP_LIGHT"
+            },
+            {
+              "text": "None of these",
+              "score": null,
+              "code": "NONE"
+            }
+          ],
+          "order": 24,
+          "is_active": true,
+          "part": "B",
+          "type": "multi",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "home",
+          "explain": "Your home has features that can cause trips or slips",
+          "exclusive_codes": [
+            "NONE"
+          ],
+          "scoring": {
+            "method": "count_bands",
+            "bands": [
+              {
+                "min_count": 0,
+                "points": 0
+              },
+              {
+                "min_count": 1,
+                "points": 1
+              },
+              {
+                "min_count": 3,
+                "points": 2
+              }
+            ]
+          },
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B18",
+          "question": "Outside near home, how often do you face uneven paths, open drains, steps or slippery ground?",
+          "options": [
+            {
+              "text": "Rarely or never",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Sometimes",
+              "score": 1,
+              "code": 1
+            },
+            {
+              "text": "Often",
+              "score": 2,
+              "code": 2
+            }
+          ],
+          "order": 25,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "path",
+          "explain": "You often face outdoor hazards near home",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "B19",
+          "question": "In the last 3 months, have you lost weight without trying, or eaten fewer than 2 meals on most days?",
+          "options": [
+            {
+              "text": "No",
+              "score": 0,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": 1,
+              "code": 1
+            }
+          ],
+          "order": 26,
+          "is_active": true,
+          "part": "B",
+          "type": "single",
+          "required": false,
+          "allows_unknown": true,
+          "show_if": null,
+          "icon": "food",
+          "explain": "You have lost weight or are eating less",
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C1",
+          "question": "Do you live alone?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            }
+          ],
+          "order": 27,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "alone",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C2",
+          "question": "Does someone check on you every day?",
+          "options": [
+            {
+              "text": "Yes, every day",
+              "score": null,
+              "code": "DAILY"
+            },
+            {
+              "text": "Sometimes",
+              "score": null,
+              "code": "SOMETIMES"
+            },
+            {
+              "text": "Rarely or never",
+              "score": null,
+              "code": "RARELY"
+            }
+          ],
+          "order": 28,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "check",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C3",
+          "question": "Was your walking aid fitted for you, and were you shown how to use it?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            }
+          ],
+          "order": 29,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": {
+            "item": "B2",
+            "op": "==",
+            "value": 1
+          },
+          "icon": "cane",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C4",
+          "question": "Do you wear multifocal (bifocal or varifocal) glasses when walking outside or on stairs?",
+          "options": [
+            {
+              "text": "No, or I do not wear glasses",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            }
+          ],
+          "order": 30,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "glasses",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C5",
+          "question": "Do you take blood thinners (for example warfarin, rivaroxaban, apixaban)?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            },
+            {
+              "text": "I am not sure",
+              "score": null,
+              "code": 9
+            }
+          ],
+          "order": 31,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "blood",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C6",
+          "question": "Have you been told you have osteoporosis, or broken a bone from a minor fall or knock?",
+          "options": [
+            {
+              "text": "No",
+              "score": null,
+              "code": 0
+            },
+            {
+              "text": "Yes",
+              "score": null,
+              "code": 1
+            },
+            {
+              "text": "I am not sure",
+              "score": null,
+              "code": 9
+            }
+          ],
+          "order": 32,
+          "is_active": true,
+          "part": "C",
+          "type": "single",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "bone",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C7",
+          "question": "Do you take herbal or traditional remedies regularly? Please list them.",
+          "options": [],
+          "order": 33,
+          "is_active": true,
+          "part": "C",
+          "type": "text_list",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": "herbal",
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": null,
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        },
+        {
+          "id": "C8",
+          "question": "Optional: sex and highest level of education (used only to check the tool works fairly for everyone)",
+          "options": [],
+          "order": 34,
+          "is_active": true,
+          "part": "C",
+          "type": "demographics",
+          "required": false,
+          "allows_unknown": false,
+          "show_if": null,
+          "icon": null,
+          "explain": null,
+          "exclusive_codes": null,
+          "scoring": null,
+          "fields": {
+            "sex": [
+              "F",
+              "M",
+              "OTHER",
+              "NO_ANSWER"
+            ],
+            "education": [
+              "NONE",
+              "PRIMARY",
+              "SECONDARY",
+              "TERTIARY",
+              "NO_ANSWER"
+            ]
+          },
+          "wording_status": "PENDING_CLINICAL_SIGN_OFF"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "R1",
+          "text": "Did you hit your head?",
+          "rule": "URGENT unless C5 == 0 (then prompt attention)"
+        },
+        {
+          "id": "R2",
+          "text": "Since the fall, do you have a worsening headache, repeated vomiting, or unusual sleepiness or confusion?",
+          "rule": "URGENT"
+        },
+        {
+          "id": "R3",
+          "text": "Do you have severe pain, cannot put weight on a leg, or see a deformed arm or leg?",
+          "rule": "URGENT"
+        },
+        {
+          "id": "R4",
+          "text": "Do you have new weakness or numbness on one side, a drooping face, or trouble speaking?",
+          "rule": "URGENT"
+        },
+        {
+          "id": "R5",
+          "text": "Do you have chest pain, a racing or irregular heartbeat, or severe breathlessness?",
+          "rule": "URGENT"
+        },
+        {
+          "id": "R6",
+          "text": "Did you faint or black out?",
+          "rule": "URGENT"
+        },
+        {
+          "id": "R7",
+          "text": "Are you unable to get up, and is nobody with you?",
+          "rule": "URGENT"
+        }
+      ],
+      "messages": {
+        "result.low": "Lower risk right now. Your answers suggest a lower risk of falling right now. Falls can still happen, so here is how to stay steady and protect yourself.",
+        "result.intermediate": "Some factors raise your risk. You have some factors that raise your risk of falling. The steps below can reduce it.",
+        "result.high": "Several factors raise your risk. You have several factors that raise your risk of falling. A clinical assessment is recommended.",
+        "provisional.label": "Provisional result: some answers were missing. A nurse can help you complete it.",
+        "overridden.label": "Reviewed by your clinician",
+        "prompt.message": "Please contact a nurse or doctor in the next few days.",
+        "urgent.message": "Please get medical help now. Call the emergency number or go to the nearest emergency department. Do not drive yourself. If someone is with you, ask them to stay with you.",
+        "error.safety": "We could not calculate your result. If you have fallen recently or feel unwell, get medical help now. Your answers are saved so you can try again.",
+        "referral.under60": "This screener is designed for people aged 60 and over. If you have fallen or feel unsteady, please speak to a nurse or doctor.",
+        "disclaimer": "This screener helps you understand your risk. It cannot examine you or replace advice from a doctor or nurse. If you feel unwell, get medical help.",
+        "carer.alert": "Please check on {name} now.",
+        "notify.checkin": "You have a FallGuard check-in.",
+        "notify.reassess": "It is time to repeat your FallGuard assessment."
+      },
+      "welcome": {
+        "welcome.1": "Falls are common, and often preventable. Every year about 684,000 people die from falls worldwide, and about 37.3 million falls need medical care. More than 8 in 10 of these deaths happen in low- and middle-income countries (WHO, 2021).",
+        "welcome.2": "Who is most at risk. People over 60 have the most serious falls. Balance, muscle strength, eyesight, medicines, health conditions and your home all play a part.",
+        "welcome.3": "What happens next. Answer a few short questions (about {minutes} minutes). You will see your result straight away, with steps you can take. If you ever feel unwell after a fall, get medical help first."
+      }
+    }
+  },
+  "note": "Versions, items, the red-flag items, the fixed messages and the emergency number."
+}

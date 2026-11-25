@@ -6,14 +6,27 @@
     "body": {
       "answers": [
         {
-          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
-          "answer": "Less than 65"
+          "question_id": "A1",
+          "answer": 0
         },
         {
-          "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf",
-          "answer": "65–74"
+          "question_id": "A4",
+          "answer": 0
+        },
+        {
+          "question_id": "A5",
+          "answer": 0
+        },
+        {
+          "question_id": "A6",
+          "answer": 0
+        },
+        {
+          "question_id": "A1",
+          "answer": 2
         }
-      ]
+      ],
+      "date_of_birth": "1960-06-15"
     }
   },
   "response": {
@@ -25,7 +38,7 @@
       "detail": {
         "code": "fallguard_duplicate_question",
         "message": "Each question can only be answered once.",
-        "question_id": "26571531-2674-4a7f-a1dc-96ca9bdbf7cf"
+        "question_id": "A1"
       }
     }
   }

@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": 1
+        },
+        {
+          "question_id": "A4",
+          "answer": 0
+        }
+      ],
+      "date_of_birth": "1960-06-15"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "MISSING_REQUIRED",
+        "message": "Answer every required question.",
+        "question_id": "A5",
+        "fields": {
+          "A5": "MISSING_REQUIRED"
+        }
+      }
+    }
+  },
+  "note": "Here A5 is the first missing required item (A1, A4, A5, A6 are checked first, then A2, A3, A7 when A1 is 1 or more). The library names the FIRST missing item only."
+}

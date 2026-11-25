@@ -1,0 +1,121 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/fallguard/submit",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "answers": [
+        {
+          "question_id": "A1",
+          "answer": 0
+        },
+        {
+          "question_id": "A4",
+          "answer": 0
+        },
+        {
+          "question_id": "A5",
+          "answer": 0
+        },
+        {
+          "question_id": "A6",
+          "answer": 0
+        },
+        {
+          "question_id": "B2",
+          "answer": 0
+        },
+        {
+          "question_id": "B3",
+          "answer": 0
+        },
+        {
+          "question_id": "B4",
+          "answer": 0
+        },
+        {
+          "question_id": "B5",
+          "answer": 0
+        },
+        {
+          "question_id": "B6",
+          "answer": 0
+        },
+        {
+          "question_id": "B7",
+          "answer": 0
+        },
+        {
+          "question_id": "B9",
+          "answer": 0
+        },
+        {
+          "question_id": "B10",
+          "answer": 0
+        },
+        {
+          "question_id": "B11",
+          "answer": 0
+        },
+        {
+          "question_id": "B12",
+          "answer": 0
+        },
+        {
+          "question_id": "B13",
+          "answer": 0
+        },
+        {
+          "question_id": "B15",
+          "answer": 0
+        },
+        {
+          "question_id": "B16",
+          "answer": 0
+        },
+        {
+          "question_id": "B18",
+          "answer": 0
+        },
+        {
+          "question_id": "B19",
+          "answer": 0
+        },
+        {
+          "question_id": "B8",
+          "answer": [
+            "NONE"
+          ]
+        },
+        {
+          "question_id": "B14",
+          "answer": [
+            "NONE"
+          ]
+        },
+        {
+          "question_id": "B17",
+          "answer": [
+            "NONE"
+          ]
+        }
+      ]
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "detail": {
+        "code": "fallguard_date_of_birth_required",
+        "message": "Date of birth is needed to work out the age.",
+        "fields": {
+          "date_of_birth": "required"
+        }
+      }
+    }
+  },
+  "note": "This patient's profile has no date of birth and the body has none."
+}
