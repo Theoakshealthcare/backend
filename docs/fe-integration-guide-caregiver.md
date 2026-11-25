@@ -3598,8 +3598,8 @@ _capture `178-a-bank-account-change.json`_
   "verified": true,
   "payouts_blocked_until": null,
   "name_review_status": "pending",
-  "created_at": "2026-11-25T17:10:25.491984",
-  "updated_at": "2026-11-25T17:10:25.491984"
+  "created_at": "2026-11-25T17:13:31.151399",
+  "updated_at": "2026-11-25T17:13:31.151399"
 }
 ```
 
@@ -3624,8 +3624,8 @@ After approval (capture `973`) and after a rejection (capture `975`; this one al
   "verified": true,
   "payouts_blocked_until": null,
   "name_review_status": "approved",
-  "created_at": "2026-11-25T17:10:25.491984",
-  "updated_at": "2026-11-25T17:10:25.491984"
+  "created_at": "2026-11-25T17:13:31.151399",
+  "updated_at": "2026-11-25T17:13:31.151399"
 }
 ```
 
@@ -3639,10 +3639,10 @@ _capture `973-a-bank-get-approved.json`_
   "account_number": "0000000012",
   "account_name": "A**** S**** N****",
   "verified": true,
-  "payouts_blocked_until": "2026-11-26T17:10:25.634580",
+  "payouts_blocked_until": "2026-11-26T17:13:31.252269",
   "name_review_status": "rejected",
-  "created_at": "2026-11-25T17:10:25.491984",
-  "updated_at": "2026-11-25T17:10:25.634580"
+  "created_at": "2026-11-25T17:13:31.151399",
+  "updated_at": "2026-11-25T17:13:31.252269"
 }
 ```
 

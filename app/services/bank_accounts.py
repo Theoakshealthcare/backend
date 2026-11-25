@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.client_ip import client_ip
+from app.core.config import settings
 from app.db.models.caregiver import Caregiver, CaregiverBankAccount
 from app.db.models.payout import CaregiverBankEvent
 from app.services import admin_notify, earnings
@@ -166,9 +167,10 @@ def mask_name(name: Optional[str]) -> str:
 
 def account_review_token(account: CaregiverBankAccount) -> str:
     """Identifies the exact account a reviewer is looking at: it changes when the number, the bank or the holder name changes.
-    The queue returns it and a decision must send it back, so a decision never carries over to a different account."""
-    raw = f"{account.caregiver_id}|{account.account_number}|{account.bank_code}|{account.account_name}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+    It is an HMAC under the server secret (a plain hash of a 10 digit number could be brute-forced back to the full number by someone
+    who only sees the masked one). The queue returns it and a decision must send it back, so a decision never carries over to a different account."""
+    raw = f"bank-review|{account.caregiver_id}|{account.account_number}|{account.bank_code}|{account.account_name}"
+    return hmac.new(settings.SECRET_KEY.encode(), raw.encode(), hashlib.sha256).hexdigest()[:32]
 
 
 @dataclass(frozen=True)

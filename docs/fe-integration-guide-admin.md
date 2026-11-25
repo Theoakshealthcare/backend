@@ -2551,16 +2551,16 @@ The queue (capture `970`). **`caregiver_name` is the name on the Oakly profile a
 {
   "items": [
     {
-      "caregiver_id": "9457c29a-e54d-43b9-b18f-a8d715c61e18",
+      "caregiver_id": "ebe8699f-8d9e-49d3-87be-2ad3a582333c",
       "caregiver_name": "Placeholder Tosin",
       "account_name": "SAMPLE OTHERPERSON",
       "bank_name": "Placeholder Bank",
       "account_number": "******0011",
       "status": "pending",
       "balance_kobo": 0,
-      "submitted_at": "2026-11-25T17:10:25.491984",
+      "submitted_at": "2026-11-25T17:13:31.151399",
       "decided_at": null,
-      "review_token": "ff1f29d3cbc6004970579d8665ce435c"
+      "review_token": "dd74b5247e20c65a93c39d8cdfe044cc"
     }
   ],
   "total": 1
@@ -2585,16 +2585,16 @@ Approval returns the item with `status` `approved` and `decided_at` set (capture
 <!-- capture: 972-finance-bank-review-approve.json response.body -->
 ```json
 {
-  "caregiver_id": "9457c29a-e54d-43b9-b18f-a8d715c61e18",
+  "caregiver_id": "ebe8699f-8d9e-49d3-87be-2ad3a582333c",
   "caregiver_name": "Placeholder Tosin",
   "account_name": "SAMPLE OTHERPERSON",
   "bank_name": "Placeholder Bank",
   "account_number": "******0011",
   "status": "approved",
   "balance_kobo": 0,
-  "submitted_at": "2026-11-25T17:10:25.491984",
-  "decided_at": "2026-11-25T17:10:25.566190",
-  "review_token": "ff1f29d3cbc6004970579d8665ce435c"
+  "submitted_at": "2026-11-25T17:13:31.151399",
+  "decided_at": "2026-11-25T17:13:31.216489",
+  "review_token": "dd74b5247e20c65a93c39d8cdfe044cc"
 }
 ```
 

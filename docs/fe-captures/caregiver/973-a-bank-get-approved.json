@@ -18,8 +18,8 @@
       "verified": true,
       "payouts_blocked_until": null,
       "name_review_status": "approved",
-      "created_at": "2026-11-25T17:10:25.491984",
-      "updated_at": "2026-11-25T17:10:25.491984"
+      "created_at": "2026-11-25T17:13:31.151399",
+      "updated_at": "2026-11-25T17:13:31.151399"
     }
   },
   "note": "After approval name_review_status is 'approved', the real holder name is shown, and payouts to the account resume."
