@@ -1,0 +1,72 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/caregiver/chats",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "booking_id": "4eae9476-392c-4bb0-9174-ad138725ea02",
+          "patient_name": "Placeholder Ada Okafor",
+          "patient_photo_url": null,
+          "service_type": "nurse",
+          "status": "in_progress",
+          "scheduled_date": "2026-11-26T08:06:02.135632",
+          "last_message": null,
+          "chat_open": true,
+          "chat_closes_at": null
+        },
+        {
+          "booking_id": "53ad3ac3-32a4-4a13-83d6-1784601f2d60",
+          "patient_name": "Placeholder Ada Okafor",
+          "patient_photo_url": null,
+          "service_type": "nurse",
+          "status": "cancelled",
+          "scheduled_date": "2026-11-26T08:06:02.129792",
+          "last_message": null,
+          "chat_open": false,
+          "chat_closes_at": null
+        },
+        {
+          "booking_id": "5e44e968-b928-481c-ae59-b068ae79a911",
+          "patient_name": "Placeholder Ada Okafor",
+          "patient_photo_url": null,
+          "service_type": "nurse",
+          "status": "completed",
+          "scheduled_date": "2026-11-23T22:06:02.124507",
+          "last_message": null,
+          "chat_open": false,
+          "chat_closes_at": "2026-11-25T02:06:02.124507"
+        },
+        {
+          "booking_id": "19687e3c-17eb-4830-890c-8fd205e3e371",
+          "patient_name": "Placeholder Ada Okafor",
+          "patient_photo_url": null,
+          "service_type": "nurse",
+          "status": "completed",
+          "scheduled_date": "2026-11-25T03:06:02.118941",
+          "last_message": null,
+          "chat_open": true,
+          "chat_closes_at": "2026-11-26T07:06:02.118941"
+        },
+        {
+          "booking_id": "44d57682-6409-44f1-b3a6-2ec29379f159",
+          "patient_name": "Placeholder Ada Okafor",
+          "patient_photo_url": null,
+          "service_type": "nurse",
+          "status": "completed",
+          "scheduled_date": "2026-11-25T02:06:02.106091",
+          "last_message": null,
+          "chat_open": true,
+          "chat_closes_at": "2026-11-26T06:06:02.106091"
+        }
+      ],
+      "next_before": null,
+      "next_before_id": null
+    }
+  }
+}

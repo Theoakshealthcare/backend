@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/booking/44d57682-6409-44f1-b3a6-2ec29379f159",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "id": "44d57682-6409-44f1-b3a6-2ec29379f159",
+      "status": "completed",
+      "chat_open": true,
+      "chat_closes_at": "2026-11-26T06:06:02.106091",
+      "notes_open": null,
+      "notes_closes_at": null,
+      "notes_readable_until": null
+    }
+  },
+  "note": "Only the chat/notes fields of the booking payload are kept (the rest is unchanged)."
+}

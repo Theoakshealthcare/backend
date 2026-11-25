@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/notes/19687e3c-17eb-4830-890c-8fd205e3e371/create",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "title": "Placeholder visit note",
+      "content": "Placeholder: all well."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "id": "7741739e-082b-466b-8909-a94e4c5c92b8",
+      "booking_id": "19687e3c-17eb-4830-890c-8fd205e3e371",
+      "caregiver_id": "c8809e21-7a51-4ef2-9054-2cbdff4d90ff",
+      "title": "Placeholder visit note",
+      "content": "Placeholder: all well.",
+      "audio_transcript": null,
+      "ai_summary": null,
+      "ai_keywords": null,
+      "ai_recommendations": null,
+      "created_at": "2026-11-25T08:06:02.672221"
+    }
+  }
+}

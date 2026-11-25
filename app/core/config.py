@@ -110,7 +110,14 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     PAYMENT_LINK_TTL_MINUTES: int = 30  # an unpaid booking is cancelled after this long
     ARRIVAL_EARLIEST_MINUTES_BEFORE: int = 60  # the caregiver's "I've arrived" is allowed from this long before the visit starts
-    LOCATION_FRESHNESS_MINUTES: int = 15  # a caregiver location older than this is not matched
+    LOCATION_FRESHNESS_MINUTES: int = 15  # a caregiver fix older than this counts as "stale" and ranks below a fresh one at the same distance
+    # An available, approved caregiver is matched on their last known fix for this long (the app only reports while it is open,
+    # so a pocketed phone must not silently stop the offers). Beyond it they are not matched and get a "location_stale" nudge.
+    AVAILABLE_LOCATION_MAX_HOURS: int = 6
+    LOCATION_NUDGE_MIN_GAP_HOURS: int = 24  # at most one "update your location" push per caregiver in this window
+    LOCATION_NUDGE_QUIET_START_HOUR: int = 21  # no nudge from this hour (HOME_TIMEZONE, 0-23) ...
+    LOCATION_NUDGE_QUIET_END_HOUR: int = 7  # ... until this hour
+    CHAT_OPEN_HOURS_AFTER_VISIT: int = 24  # a booking chat can still be written in this long after the visit was completed
     # A payment that lands after the unpaid-expiry cancel reinstates the booking only if the visit is
     # at least this far ahead; otherwise it is flagged for a refund.
     LATE_PAYMENT_REINSTATE_MIN_LEAD_MINUTES: int = 60

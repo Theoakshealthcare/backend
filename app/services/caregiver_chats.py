@@ -1,7 +1,10 @@
 """The caregiver's conversation list: one row per booking chat they may open, newest activity first.
 
 A caregiver may open a booking's chat only when the booking is theirs (``bookings.caregiver_id``, the exact check in
-``send_chat_message`` and ``get_chat_messages`` in ``app/api/v1/endpoints/booking.py``): no status condition. That is also the
+``send_chat_message`` and ``get_chat_messages`` in ``app/api/v1/endpoints/booking.py``): no status condition for *opening*
+and reading, so a closed chat is still listed with its history. Whether it can still be *written to* is ``chat_open`` /
+``chat_closes_at`` on each item (``app/services/visit_windows.py``: open while the booking is not over and for
+``CHAT_OPEN_HOURS_AFTER_VISIT`` after the visit was completed; a cancelled booking is read-only at once). That is also the
 rule under which a caregiver sees the patient's identity (``redact_offer`` hides it from everyone who merely holds an
 offer), so a conversation always shows the patient's full name; a booking that was only offered is not listed at all.
 
@@ -28,6 +31,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
 from app.db.models.user import User
 from app.services.caregiver_clients import UNKNOWN_CLIENT_NAME
+from app.services.visit_windows import chat_window
 
 PREVIEW_CHARS = 140
 DEFAULT_LIMIT = 20
@@ -41,8 +45,13 @@ def _preview(text: str) -> str:
     return text[: PREVIEW_CHARS - 1].rstrip() + "…"
 
 
+def _chat_state(row, now: datetime) -> Dict[str, Any]:
+    window = chat_window(row, now)  # the row carries the booking's status and end columns
+    return {"chat_open": window.open, "chat_closes_at": window.closes_at}
+
+
 def list_chats(db: Session, caregiver: Caregiver, user_id: UUID, before: Optional[datetime], before_id: Optional[UUID],
-               limit: int) -> Dict[str, Any]:
+               limit: int, now: Optional[datetime] = None) -> Dict[str, Any]:
     """Newest activity first (the last message's time, else the booking's creation time), keyset paged on (activity, booking id):
     pass the previous page's ``next_before`` and ``next_before_id`` back as ``before`` and ``before_id``."""
     last = (
@@ -58,10 +67,12 @@ def list_chats(db: Session, caregiver: Caregiver, user_id: UUID, before: Optiona
         .order_by(ChatMessage.booking_id, ChatMessage.created_at.desc().nullslast(), ChatMessage.id.desc())
         .subquery("last_message")
     )
+    now = now or datetime.utcnow()
     activity = func.coalesce(last.c.sent_at, Booking.created_at)
     query = (
         db.query(
-            Booking.id, Booking.service_type, Booking.status, Booking.scheduled_date, Patient.full_name,
+            Booking.id, Booking.service_type, Booking.status, Booking.scheduled_date, Booking.scheduled_end_date,
+            Booking.actual_end_time, Patient.full_name,
             User.profile_image_url.label("patient_photo_url"),
             last.c.body, last.c.sent_at, last.c.sender_id, activity.label("activity"),
         )
@@ -78,6 +89,7 @@ def list_chats(db: Session, caregiver: Caregiver, user_id: UUID, before: Optiona
     more, rows = len(rows) > limit, rows[:limit]
     items = [
         {
+            **_chat_state(r, now),
             "booking_id": r.id,
             "patient_name": r.full_name or UNKNOWN_CLIENT_NAME,
             "patient_photo_url": r.patient_photo_url or None,

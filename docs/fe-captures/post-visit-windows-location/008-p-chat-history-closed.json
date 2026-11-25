@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/chat/5e44e968-b928-481c-ae59-b068ae79a911/messages",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": [
+      {
+        "id": "1f82bb2d-c9e3-44fd-9391-feab3be5ac70",
+        "booking_id": "5e44e968-b928-481c-ae59-b068ae79a911",
+        "sender_id": "a2f69cfb-e5c3-42eb-9462-5aba69d01b8c",
+        "message": "Placeholder: see you next week.",
+        "message_type": "text",
+        "attachment_url": null,
+        "is_read": false,
+        "created_at": "2026-11-24T01:06:02.551508"
+      }
+    ]
+  }
+}

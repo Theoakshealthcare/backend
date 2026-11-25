@@ -24,6 +24,12 @@ class CaregiverChatOut(BaseModel):
     status: BookingStatus
     scheduled_date: datetime = Field(description="When the visit starts.")
     last_message: Optional[ChatLastMessage] = Field(None, description="Null while nobody has written yet.")
+    chat_open: bool = Field(description="Whether this chat can still be written to: true while the booking is not over and for 24 "
+                                        "hours after the visit was completed; false once closed or when the booking was cancelled "
+                                        "or declined. The history stays readable. Sending to a closed chat is 409 `chat_closed`.")
+    chat_closes_at: Optional[datetime] = Field(None, description="When the chat closes (UTC): the visit's end plus 24 hours, known once "
+                                                                 "the booking is completed. Null before that, and for a cancelled or "
+                                                                 "declined booking (already closed).")
 
 
 class CaregiverChatList(BaseModel):

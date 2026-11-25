@@ -112,14 +112,44 @@ def test_free_text_specialization_no_longer_matches(db):
     assert ids(find_candidates(db, paid_booking(db, service_type="doctor"), NOW)) == [cg.id]
 
 
-def test_stale_location_is_excluded(db):
-    make_candidate(db, age_minutes=settings.LOCATION_FRESHNESS_MINUTES + 1)
+MAX_AGE_MINUTES = settings.AVAILABLE_LOCATION_MAX_HOURS * 60
+
+
+def test_location_older_than_the_window_is_excluded(db):
+    make_candidate(db, age_minutes=MAX_AGE_MINUTES + 1)
     assert find_candidates(db, paid_booking(db), NOW) == []
 
 
-def test_location_at_the_freshness_limit_is_still_fresh(db):
-    cg = make_candidate(db, age_minutes=settings.LOCATION_FRESHNESS_MINUTES)
+def test_location_at_the_window_limit_is_still_matched(db):
+    cg = make_candidate(db, age_minutes=MAX_AGE_MINUTES)
     assert ids(find_candidates(db, paid_booking(db), NOW)) == [cg.id]
+
+
+def test_last_known_location_matches_for_hours_not_minutes(db):
+    ten_min = make_candidate(db, 0, age_minutes=10)
+    five_h = make_candidate(db, 1, age_minutes=5 * 60)
+    seven_h = make_candidate(db, 2, age_minutes=7 * 60)
+    assert set(ids(find_candidates(db, paid_booking(db), NOW))) == {ten_min.id, five_h.id}
+    assert seven_h.id not in ids(find_candidates(db, paid_booking(db), NOW))
+
+
+def test_stale_fix_does_not_outrank_a_fresh_one_at_the_same_distance(db):
+    stale = make_candidate(db, 0, age_minutes=5 * 60, lat_offset=0.01)
+    fresh_cg = make_candidate(db, 1, age_minutes=5, lat_offset=0.01)
+    assert ids(find_candidates(db, paid_booking(db), NOW)) == [fresh_cg.id, stale.id]
+
+
+def test_stale_but_closer_fix_is_still_matched(db):
+    near_stale = make_candidate(db, 0, age_minutes=5 * 60, lat_offset=0.002)
+    far_fresh = make_candidate(db, 1, age_minutes=5, lat_offset=0.15)
+    assert set(ids(find_candidates(db, paid_booking(db), NOW))) == {near_stale.id, far_fresh.id}
+
+
+def test_unapproved_and_suspended_stay_excluded_with_a_recent_fix(db):
+    make_candidate(db, 0, approved=False, age_minutes=30)
+    make_candidate(db, 1, suspended=True, age_minutes=30)
+    make_candidate(db, 2, available=False, age_minutes=30)
+    assert find_candidates(db, paid_booking(db), NOW) == []
 
 
 def test_unavailable_caregiver_is_excluded(db):
@@ -147,8 +177,8 @@ def test_stationary_caregiver_stays_matchable_when_pinging_identical_coordinates
     svc = LocationService(db)
     svc.update_caregiver_location(cg.id, LAT + 0.002, LON, is_available=True)  # opts in
     loc = db.query(CaregiverLocation).filter_by(caregiver_id=cg.id).one()
-    loc.updated_at = datetime.utcnow() - timedelta(minutes=settings.LOCATION_FRESHNESS_MINUTES + 5)
-    db.commit()  # time passes; the first fix is now stale
+    loc.updated_at = datetime.utcnow() - timedelta(minutes=MAX_AGE_MINUTES + 5)
+    db.commit()  # time passes; the first fix is now too old to match
     assert find_candidates(db, paid_booking(db), datetime.utcnow()) == []
 
     # same GPS fix, no availability flag: no column value changes, availability is kept
@@ -372,7 +402,7 @@ def test_candidates_who_went_stale_between_waves_are_not_notified(db):
     b = paid_booking(db)
     start_dispatch(db, b.id, NOW)
     loc = db.query(CaregiverLocation).filter_by(caregiver_id=late.id).one()
-    loc.updated_at = NOW - timedelta(minutes=60)
+    loc.updated_at = NOW - timedelta(minutes=MAX_AGE_MINUTES + 60)
     db.commit()
     dispatch_tick(db, minutes(10))
     assert fresh(db, b).dispatch_state == "unmatched"

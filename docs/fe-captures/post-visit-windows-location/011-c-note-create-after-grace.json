@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/notes/44d57682-6409-44f1-b3a6-2ec29379f159/create",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "title": "Placeholder visit note",
+      "content": "Placeholder: all well."
+    }
+  },
+  "response": {
+    "status_code": 409,
+    "body": {
+      "detail": {
+        "code": "visit_not_active",
+        "message": "Notes can be added during a visit and for a short time after it ends."
+      }
+    }
+  }
+}
