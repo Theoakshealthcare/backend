@@ -80,17 +80,20 @@ def run(args) -> None:
             json_body={"account_number": "0000000011", "bank_code": "058"},
             note=f"{FAKE} The save is accepted, but name_review_status is 'pending' and account_name is MASKED (the real name is not shown to "
                  "the caregiver until Finance approves the account). Payouts to it wait for Finance.")
-    adm.call("finance-bank-reviews", "GET", REVIEWS, token=finance,
+    queue = adm.call("finance-bank-reviews", "GET", REVIEWS, token=finance,
              note="Finance's queue (pending by default): both names side by side, the account number masked, and the caregiver's "
-                  "available balance. The wallet was seeded empty here, so balance_kobo is 0.")
+                  "available balance. The wallet was seeded empty here, so balance_kobo is 0. review_token names the exact account that "
+                  "is shown: a decision must send it back.")
+    token = queue.json()["items"][0]["review_token"]
     adm.call("finance-bank-review-stale", "POST", f"{REVIEWS}/{cid}/approve", token=finance, expect=409,
-             json_body={"reason": "Placeholder: checked the wrong account", "account_last4": "9999"},
-             note="account_last4 must be the last four digits of the account the reviewer looked at. Anything else is refused, so a "
-                  "decision never carries over to an account the caregiver saved afterwards.")
+             json_body={"reason": "Placeholder: checked the wrong account", "review_token": "0" * 32},
+             note="review_token must be the token the queue returned for the account the reviewer looked at (here a placeholder that "
+                  "matches no account). Anything else is refused, so a decision never carries over to an account the caregiver saved "
+                  "afterwards, even one with the same last four digits.")
     adm.call("finance-bank-review-approve", "POST", f"{REVIEWS}/{cid}/approve", token=finance,
-             json_body={"reason": "Placeholder: confirmed with the caregiver by phone", "account_last4": "0011"})
+             json_body={"reason": "Placeholder: confirmed with the caregiver by phone", "review_token": token})
     adm.call("finance-bank-review-again", "POST", f"{REVIEWS}/{cid}/approve", token=finance, expect=409,
-             json_body={"reason": "Placeholder: second click", "account_last4": "0011"},
+             json_body={"reason": "Placeholder: second click", "review_token": token},
              note="A decision on an account that is not pending is refused.")
     cg.call("a-bank-get-approved", "GET", f"{CG}/bank-account", token=ta,
             note="After approval name_review_status is 'approved', the real holder name is shown, and payouts to the account resume.")
@@ -98,8 +101,9 @@ def run(args) -> None:
             json_body={"account_number": "0000000012", "bank_code": "058"},
             note=f"{FAKE} Saving another flagged account replaces the first and starts a new review (pending again). A change of "
                  "account also starts the 24 hour pause (payouts_blocked_until).")
+    token2 = quiet.call("queue-second", "GET", REVIEWS, token=finance).json()["items"][0]["review_token"]
     adm.call("finance-bank-review-reject", "POST", f"{REVIEWS}/{cid}/reject", token=finance,
-             json_body={"reason": "Placeholder: the caregiver could not confirm this account", "account_last4": "0012"})
+             json_body={"reason": "Placeholder: the caregiver could not confirm this account", "review_token": token2})
     cg.call("a-bank-get-rejected", "GET", f"{CG}/bank-account", token=ta,
             note="After a rejection name_review_status is 'rejected' and the name stays masked: no payout is made to it. The caregiver must save a different account.")
     server.shutdown()

@@ -16,6 +16,8 @@ Paystack is called with no database lock held. The save takes the wallet lock fi
 payout creation uses (wallet, then the bank row it reads), so a payout is created either before the change or after it.
 """
 
+import hashlib
+import hmac
 import logging
 import re
 import threading
@@ -31,6 +33,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.client_ip import client_ip
+from app.core.config import settings
 from app.db.models.caregiver import Caregiver, CaregiverBankAccount
 from app.db.models.payout import CaregiverBankEvent
 from app.services import admin_notify, earnings
@@ -157,9 +160,17 @@ def account_name_matches_profile(profile_name: Optional[str], account_name: Opti
 
 
 def mask_name(name: Optional[str]) -> str:
-    """The first letter of each word and a star for every other letter: "V***** O********* A******". Shown to a caregiver in
-    place of a holder name that is not theirs."""
-    return " ".join(t[0].upper() + "*" * (len(t) - 1) for t in name_tokens(name))
+    """The first letter of each word and a fixed run of stars: "V**** O**** A****". The word lengths are not kept, so the mask
+    gives away as little as possible. Shown to a caregiver in place of a holder name that is not theirs."""
+    return " ".join(t[0].upper() + "****" for t in name_tokens(name))
+
+
+def account_review_token(account: CaregiverBankAccount) -> str:
+    """Identifies the exact account a reviewer is looking at: it changes when the number, the bank or the holder name changes.
+    It is an HMAC under the server secret (a plain hash of a 10 digit number could be brute-forced back to the full number by someone
+    who only sees the masked one). The queue returns it and a decision must send it back, so a decision never carries over to a different account."""
+    raw = f"bank-review|{account.caregiver_id}|{account.account_number}|{account.bank_code}|{account.account_name}"
+    return hmac.new(settings.SECRET_KEY.encode(), raw.encode(), hashlib.sha256).hexdigest()[:32]
 
 
 @dataclass(frozen=True)
@@ -288,10 +299,10 @@ def is_on_name_hold(account: Optional[CaregiverBankAccount]) -> bool:
 # --- Finance decides (admin) ---------------------------------------------------------------------------------------
 
 
-def review_name(db: Session, caregiver_id, *, approve: bool, admin_id, reason: str, account_last4: str,
+def review_name(db: Session, caregiver_id, *, approve: bool, admin_id, reason: str, review_token: str,
                 request: Optional[Request] = None, now: Optional[datetime] = None) -> CaregiverBankAccount:
-    """Approve or reject a held account. ``account_last4`` is the account the reviewer looked at: if the caregiver has saved
-    another account since, the decision is refused (409) rather than carried over. Writes an ``admin_audit_log`` row (masked
+    """Approve or reject a held account. ``review_token`` identifies the account the reviewer looked at: if the caregiver has saved
+    another account since (any change of number, bank or holder name), the decision is refused (409) rather than carried over. Writes an ``admin_audit_log`` row (masked
     numbers only). Commits."""
     now = now or datetime.utcnow()
     try:
@@ -301,7 +312,7 @@ def review_name(db: Session, caregiver_id, *, approve: bool, admin_id, reason: s
             raise ReviewNotFound()
         if account.name_review_status != REVIEW_PENDING:
             raise ReviewConflict("This account is not waiting for a name review")
-        if not account.account_number.endswith(account_last4):
+        if not hmac.compare_digest(account_review_token(account), review_token):
             raise ReviewConflict("The caregiver changed their account since you opened it. Refresh and look again.")
         before = _describe(account)
         account.name_review_status = REVIEW_APPROVED if approve else REVIEW_REJECTED

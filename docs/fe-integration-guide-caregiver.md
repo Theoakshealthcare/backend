@@ -3517,12 +3517,12 @@ Errors, all `{"detail": "<sentence>"}` and safe to show:
 
 _capture `970-a-bank-resolve-short-form.json` (the profile was "Placeholder Tosin")_
 
-When it does not hold, the answer is **still `200`**, but `needs_review` is `true` and **`account_name` is masked** (the first letter of each word, then stars). The real name is never in this response, so this endpoint is not a free account-number to name search:
+When it does not hold, the answer is **still `200`**, but `needs_review` is `true` and **`account_name` is masked** (the first letter of each word, then four stars, whatever the word's length). The real name is never in this response, so this endpoint is not a free account-number to name search:
 
 <!-- capture: 971-a-bank-resolve-needs-review.json response.body -->
 ```json
 {
-  "account_name": "S***** O**********",
+  "account_name": "S**** O****",
   "account_number": "0000000011",
   "bank_code": "058",
   "bank_name": "Placeholder Bank",
@@ -3594,12 +3594,12 @@ _capture `178-a-bank-account-change.json`_
   "bank_name": "Placeholder Bank",
   "bank_code": "058",
   "account_number": "0000000011",
-  "account_name": "S***** O**********",
+  "account_name": "S**** O****",
   "verified": true,
   "payouts_blocked_until": null,
   "name_review_status": "pending",
-  "created_at": "2026-11-25T13:29:55.421264",
-  "updated_at": "2026-11-25T13:29:55.421264"
+  "created_at": "2026-11-25T17:13:31.151399",
+  "updated_at": "2026-11-25T17:13:31.151399"
 }
 ```
 
@@ -3624,8 +3624,8 @@ After approval (capture `973`) and after a rejection (capture `975`; this one al
   "verified": true,
   "payouts_blocked_until": null,
   "name_review_status": "approved",
-  "created_at": "2026-11-25T13:29:55.421264",
-  "updated_at": "2026-11-25T13:29:55.421264"
+  "created_at": "2026-11-25T17:13:31.151399",
+  "updated_at": "2026-11-25T17:13:31.151399"
 }
 ```
 
@@ -3637,12 +3637,12 @@ _capture `973-a-bank-get-approved.json`_
   "bank_name": "Placeholder Bank",
   "bank_code": "058",
   "account_number": "0000000012",
-  "account_name": "A****** S******* N***",
+  "account_name": "A**** S**** N****",
   "verified": true,
-  "payouts_blocked_until": "2026-11-26T13:29:55.530111",
+  "payouts_blocked_until": "2026-11-26T17:13:31.252269",
   "name_review_status": "rejected",
-  "created_at": "2026-11-25T13:29:55.421264",
-  "updated_at": "2026-11-25T13:29:55.530111"
+  "created_at": "2026-11-25T17:13:31.151399",
+  "updated_at": "2026-11-25T17:13:31.252269"
 }
 ```
 

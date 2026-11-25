@@ -309,7 +309,7 @@ def test_account_name_matches_profile(profile, holder, expected):
     assert bank_accounts.account_name_matches_profile(profile, holder) is expected
 
 
-def test_mask_name_keeps_only_each_words_first_letter():
-    assert bank_accounts.mask_name("VICTOR OLUWATOSIN ADEBAYO") == "V" + "*" * 5 + " O" + "*" * 9 + " A" + "*" * 6
-    assert bank_accounts.mask_name("Åda O'Kafor-X") == "A** O K**** X"  # accents and punctuation fold like the matcher
+def test_mask_name_keeps_only_each_words_first_letter_and_not_its_length():
+    assert bank_accounts.mask_name("VICTOR OLUWATOSIN ADEBAYO") == "V**** O**** A****"
+    assert bank_accounts.mask_name("Åda O'Kafor-X") == "A**** O**** K**** X****"  # accents and punctuation fold like the matcher
     assert bank_accounts.mask_name("") == "" and bank_accounts.mask_name(None) == ""

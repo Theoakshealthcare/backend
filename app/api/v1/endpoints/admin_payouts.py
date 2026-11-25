@@ -169,7 +169,8 @@ def _review_out(acct: CaregiverBankAccount, caregiver_name: Optional[str], balan
     return BankReviewOut(
         caregiver_id=acct.caregiver_id, caregiver_name=caregiver_name, account_name=acct.account_name, bank_name=acct.bank_name,
         account_number=mask(acct.account_number) or "", status=acct.name_review_status, balance_kobo=int(balance or 0),
-        submitted_at=acct.updated_at or acct.created_at, decided_at=acct.name_review_at)
+        submitted_at=acct.updated_at or acct.created_at, decided_at=acct.name_review_at,
+        review_token=bank_accounts.account_review_token(acct))
 
 
 @router.get("/bank-reviews", response_model=BankReviewList)
@@ -192,7 +193,7 @@ def list_bank_reviews(
 def _decide_review(db: Session, caregiver_id: UUID, body: BankReviewDecisionIn, request: Request, admin: AdminUser, approve: bool):
     try:
         acct = bank_accounts.review_name(db, caregiver_id, approve=approve, admin_id=admin.id, reason=body.reason,
-                                         account_last4=body.account_last4, request=request)
+                                         review_token=body.review_token, request=request)
     except bank_accounts.ReviewNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Bank account not found")
     except bank_accounts.ReviewConflict as exc:
@@ -206,7 +207,7 @@ def _decide_review(db: Session, caregiver_id: UUID, body: BankReviewDecisionIn, 
 @router.post("/bank-reviews/{caregiver_id}/approve", response_model=BankReviewOut)
 def approve_bank_review(caregiver_id: UUID, body: BankReviewDecisionIn, request: Request, db: Session = Depends(get_db),
                         admin: AdminUser = Depends(require_permission("payouts.execute"))):
-    """Confirm the account is the caregiver's: payouts to it resume. ``account_last4`` must be the account the reviewer saw."""
+    """Confirm the account is the caregiver's: payouts to it resume. ``review_token`` must be the one the queue returned for the account the reviewer saw."""
     return _decide_review(db, caregiver_id, body, request, admin, True)
 
 
