@@ -536,7 +536,7 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
   - [x] Flags engine, glucose label (Random / Fasting / After meal), diabetes and kidney BP line, 112 message on critical; weight and sleep never flagged
   - [x] Hook for 1c: `stored_reading_is_out_of_range`
 - [ ] 1c alerts for out-of-range readings and missed tasks
-- [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price): 🟡 backend built on `feature/booking-reschedule`, migration `0034` (placeholder number), PR open, **not merged, needs the Opus money review** ([design](../plans/2026-11-25-booking-reschedule.md), [SOP](../sop/2026-11-25-booking-reschedule.md), [FE guide](../fe-integration-guide-patient-booking-reschedule.md))
+- [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price): 🟡 backend built on `feature/booking-reschedule`, migration `0034` (after 0033), PR #87 open, **not merged, needs the Opus money review** ([design](../plans/2026-11-25-booking-reschedule.md), [SOP](../sop/2026-11-25-booking-reschedule.md), [FE guide](../fe-integration-guide-patient-booking-reschedule.md))
   - [x] Rules: strictly more than 12 h away, 2 free per booking (the 3rd is refused), new time more than 12 h and at most 28 days from now; the three numbers are admin settings (`/admin/booking-policy`)
   - [x] Caregiver released (visit code, on-my-way, arrived, no-show marks cleared), told by in-app notice and push; stale offers closed; accept refuses a stale offer
   - [x] Re-match by the normal wave dispatch; nobody accepts leads to the existing admin unmatched queue

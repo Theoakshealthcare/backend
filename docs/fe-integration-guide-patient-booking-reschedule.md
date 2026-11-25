@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Backend work package** | branch `feature/booking-reschedule`, migration `0034_booking_reschedule` (placeholder number, the lead re-points it at merge); [design](plans/2026-11-25-booking-reschedule.md), [SOP](sop/2026-11-25-booking-reschedule.md) |
+| **Backend work package** | branch `feature/booking-reschedule`, migration `0034_booking_reschedule`; [design](plans/2026-11-25-booking-reschedule.md), [SOP](sop/2026-11-25-booking-reschedule.md) |
 | **Audience** | `apps/patient` (booking detail, the reschedule screen, the booking list), `apps/admin` (booking detail, policy settings), `apps/caregiver` (the "visit rescheduled" push) |
 | **Base URL** | local test harness; every path starts with `/api/v1` |
 | **Source of truth** | Every body below is **rendered from a capture** in [`docs/fe-captures/booking-reschedule/`](fe-captures/booking-reschedule/) written by `app/tests/test_capture_booking_reschedule.py` (the real app and a real Postgres; **Expo is a fake** that records the request the app makes to it; Paystack is not involved, the bookings are created already paid). Data is placeholder (names, ids, booking codes, the push token). Timestamps are **naive UTC** (no `Z`): read them as UTC; send the new time as ISO 8601 (a `Z` or an offset is accepted and converted). Re-render: `poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-patient-booking-reschedule.md docs/fe-captures/booking-reschedule` (`--check` fails when stale). |

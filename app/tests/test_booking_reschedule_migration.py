@@ -10,14 +10,14 @@ from sqlalchemy.orm import sessionmaker
 
 from app.tests.test_dropout_migration import _run, scratch  # noqa: F401  (scratch is a fixture)
 
-THIS, PREVIOUS = "0034_booking_reschedule", "0030_bank_name_review"
+THIS, PREVIOUS = "0034_booking_reschedule", "0033_fallguard_v2_results"
 
 
 def _cols(eng, table):
     return {c["name"]: c for c in inspect(eng).get_columns(table)}
 
 
-def test_0034_follows_0030_and_the_history_has_one_head():
+def test_0034_follows_0033_and_the_history_has_one_head():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
     assert scripts.get_revision(THIS).down_revision == PREVIOUS and len(scripts.get_heads()) == 1
 

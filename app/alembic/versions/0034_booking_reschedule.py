@@ -1,11 +1,11 @@
 """Booking reschedule: ``bookings.reschedule_count``, the ``booking_reschedules`` history, and three policy settings.
 
 Revision ID: 0034_booking_reschedule
-Revises: 0030_bank_name_review
+Revises: 0033_fallguard_v2_results
 Create Date: 2026-11-25
 
-Phase 2 (sign-off pack, part E). The number 0034 is a placeholder in a chain several open PRs extend: the lead re-points
-``down_revision`` at merge time (the open PRs hold 0031, 0033 and maybe 0035).
+Phase 2 (sign-off pack, part E). It follows 0033 (develop's head when this was rebased); if another migration lands first, re-point
+``down_revision`` so ``alembic heads`` stays single.
 
 * ``bookings.reschedule_count``: how many free reschedules the booker has used (0 on every existing booking).
 * ``booking_reschedules``: one row per applied reschedule (old and new time, the price quote at the new time, the difference
@@ -22,7 +22,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = '0034_booking_reschedule'
-down_revision: Union[str, None] = '0030_bank_name_review'
+down_revision: Union[str, None] = '0033_fallguard_v2_results'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
