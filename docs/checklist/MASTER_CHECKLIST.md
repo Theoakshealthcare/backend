@@ -523,6 +523,17 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] WP7 first live run on the VPS; exercise auto-rollback and manual rollback once; then production only after DEP-5 sign-off
 - [ ] Follow-ups: read the PR's first Semgrep and Trivy results; commit `.test_durations`; off-server backups and an alert; gitleaks in CI; feed three fixes back to the template repo (SOP follow-ups)
 
+## 19. Clinician review, Phase 2 sign-off and FallGuard v2.0 — 🔵 planned 2026-11-25, nothing built ([build map](../plans/2026-11-25-clinician-phase2-build-map.md))
+- [ ] Settle conflicts: wallet (owner refuses), drug reminders vs the medication notice, family details spec, who is alerted
+- [ ] Owner supplies `fallguard_scoring.py`, `test_fallguard_scoring.py`, `questionnaire_v2_0.json`
+- [ ] 1a care template text, caregiver documentation space, Elderly template for nurse or caregiver
+- [ ] 1b vitals flag engine and badges (thresholds supplied by the clinical lead)
+- [ ] 1c alerts for out-of-range readings and missed tasks
+- [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price)
+- [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
+- [ ] FallGuard v2.0: backend scoring and config, patient screens, caregiver module, admin console and go-live lock, hardening
+- [ ] Server enforcement of the caregiver name lock; 2 h grace for care-plan observations (owner to decide)
+
 ## Backlog / upcoming
 - [ ] **Founder decisions** for WhatsApp (PRD §16, D1–D11) and the Admin Console (PRD §14, A1–A10), including caregiver payout share, city pricing and the refund approval limit
 - [x] Push notifications for caregiver job offers (Expo). 2026-10-05, C3, [SOP](../sop/2026-10-05-caregiver-mobile-support.md). Patient-side pushes for app bookers: built 2026-11-07 (P8-BE, see section 3).
