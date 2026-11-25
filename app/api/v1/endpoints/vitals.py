@@ -12,6 +12,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.patient_vital import PatientVital
 from app.schemas.patient_vital import PatientVitalCreate, PatientVitalUpdate, PatientVitalResponse
 from app.services.patient_vital import PatientVitalService
+from app.services.care_alerts import on_vital_recorded
 from app.services.vital_flags import patient_context, vital_response
 from app.services.vital_rules import VitalRuleError, check_notes, check_reading
 from app.services.gemini import GeminiService, gemini_service
@@ -55,6 +56,7 @@ def create_vital(
     if not can_access_vitals(current_user, vital_data.patient_id, db):
         raise HTTPException(status_code=403, detail="Access denied")
     vital = service.create_vital(vital_data)
+    on_vital_recorded(vital.id)  # after the commit; never raises (care alerts, slice 1c)
     return vital_response(vital, patient_context(db, vital.patient_id))
 
 # --- List Vitals ---
@@ -98,6 +100,8 @@ def update_vital(
     except VitalRuleError as exc:
         raise HTTPException(status_code=422, detail=[{"type": "vital_invalid", "loc": ["body"], "msg": str(exc)}])
     updated = service.update_vital(vital_id, update_data)
+    if {"vital_type", "value", "unit"} & changes.keys():  # a note edit alone never re-judges the reading
+        on_vital_recorded(updated.id)
     return vital_response(updated, patient_context(db, updated.patient_id))
 
 # --- Delete Vital ---

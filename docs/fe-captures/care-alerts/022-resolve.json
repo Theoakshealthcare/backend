@@ -1,0 +1,56 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/care-alerts/<ALERT_ID>/resolve",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": {
+      "note": "Patient is at hospital (placeholder note)."
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "id": "db889960-2efb-4962-9a2b-5f768630b841",
+      "type": "vital_out_of_range",
+      "severity": "critical",
+      "status": "resolved",
+      "summary": "Heart rate reading is at a critical level.",
+      "created_at": "2026-11-25T18:51:38.926712",
+      "last_occurred_at": "2026-11-25T18:51:38.926712",
+      "occurrence_count": 1,
+      "patient": {
+        "full_name": "Ada Okafor",
+        "phone": "+2340000719201",
+        "masked": false
+      },
+      "care_recipient_name": null,
+      "booking_id": null,
+      "booking_code": null,
+      "vital_id": "d9c8f9b0-e737-41a9-8361-25a5e615bb68",
+      "family_notified_count": 1,
+      "family_notified_at": "2026-11-25T18:51:38.939631",
+      "admin_notified_at": "2026-11-25T18:51:38.941418",
+      "acknowledged_by": {
+        "id": "021ae30b-b641-4398-86a2-b5e5fe70cfb7",
+        "email": "super_admin@example.test"
+      },
+      "acknowledged_at": "2026-11-25T18:51:39.567269",
+      "resolved_by": {
+        "id": "021ae30b-b641-4398-86a2-b5e5fe70cfb7",
+        "email": "super_admin@example.test"
+      },
+      "resolved_at": "2026-11-25T18:51:39.582655",
+      "note": "Patient is at hospital (placeholder note).",
+      "detail": {
+        "vital_type": "heart_rate",
+        "status": "critical",
+        "reason": "Heart rate below 50 bpm. Contact the family and arrange an ambulance.",
+        "value": "45",
+        "unit": "bpm",
+        "tasks": null,
+        "days": null
+      },
+      "detail_masked": false
+    }
+  }
+}

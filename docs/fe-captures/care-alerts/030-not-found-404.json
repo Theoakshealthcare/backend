@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-alerts/<ALERT_ID>",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 404,
+    "body": {
+      "detail": "Care alert not found"
+    }
+  }
+}

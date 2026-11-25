@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-alerts?status=nonsense",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 422,
+    "body": {
+      "detail": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "query",
+            "status"
+          ],
+          "msg": "Input should be 'active', 'open', 'acknowledged', 'resolved' or 'all'",
+          "ctx": {
+            "expected": "'active', 'open', 'acknowledged', 'resolved' or 'all'"
+          }
+        }
+      ]
+    }
+  }
+}

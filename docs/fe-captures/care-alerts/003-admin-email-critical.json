@@ -1,0 +1,8 @@
+{
+  "note": "The e-mail every active admin holding support.inbox gets for a CRITICAL alert (and ADMIN_NOTIFY_EMAIL). It names nobody.",
+  "observed": {
+    "to": "<ADMIN_EMAIL>",
+    "subject": "Oaklycare - Critical care alert waiting",
+    "message_in_body": "A critical care alert is open in the admin console and needs a person to look at it now."
+  }
+}

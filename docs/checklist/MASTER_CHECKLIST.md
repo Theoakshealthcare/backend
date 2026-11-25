@@ -530,7 +530,14 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [x] 1b vitals flag engine and badges: server flags on every vitals response (no migration), badges in the caregiver and patient apps; 2026-11-25, `feature/vitals-flags` + monorepo `feature/vitals-flags-badges`, [SOP](../sop/2026-11-25-vitals-flags.md), [FE guide](../fe-integration-guide-vitals-flags.md). Open: seven clinician questions in the SOP; visual pass on a device pending
   - [x] Flags engine, glucose label (Random / Fasting / After meal), diabetes and kidney BP line, 112 message on critical; weight and sleep never flagged
   - [x] Hook for 1c: `stored_reading_is_out_of_range`
-- [ ] 1c alerts for out-of-range readings and missed tasks
+- [x] 1c care alerts, built 2026-11-25 (backend `feature/care-alerts`, migration `0035_care_alerts`, stacked on #84; console `feature/care-alerts-console`, stacked on monorepo #75; [SOP](../sop/2026-11-25-care-alerts.md), [FE guide](../fe-integration-guide-care-alerts.md), live-captured). Owner decision 2026-11-25: alerts go to the family contact and the admin queue. Open: five owner/clinician questions in the SOP (app-profile family members get no alerts; slot hours), real mail/push and the cron on a real worker not exercised
+  - [x] Alert record (type, severity, patient/booking/reading ref, status open/acknowledged/resolved, who and when) and occurrence ledger
+  - [x] Out-of-range reading hook (uses the 1b engine; critical = emergency) and missed-task sweep (task due in a completed visit, not ticked that day)
+  - [x] Debounce per patient + type + severity (warning 4 h, critical 30 min, task 12 h), idempotent by source
+  - [x] Family delivery: e-mail + push, only consenting (`share_with_family`), verified contacts; first name + one sentence + "call 112" for critical; best effort after commit
+  - [x] Admin API under `support.inbox` (list, detail, acknowledge, resolve with note), audited; critical e-mail through `admin_notify`
+  - [x] Console page (monorepo PR)
+  - [ ] Family screen in the apps and WhatsApp delivery (parked by the owner)
 - [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price)
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
 - [ ] FallGuard v2.0: backend scoring and config, patient screens, caregiver module, admin console and go-live lock, hardening

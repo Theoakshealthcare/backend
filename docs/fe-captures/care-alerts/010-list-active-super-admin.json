@@ -1,0 +1,138 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/care-alerts",
+    "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "db889960-2efb-4962-9a2b-5f768630b841",
+          "type": "vital_out_of_range",
+          "severity": "critical",
+          "status": "open",
+          "summary": "Heart rate reading is at a critical level.",
+          "created_at": "2026-11-25T18:51:38.926712",
+          "last_occurred_at": "2026-11-25T18:51:38.926712",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Ada Okafor",
+            "phone": "+2340000719201",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": null,
+          "booking_code": null,
+          "vital_id": "d9c8f9b0-e737-41a9-8361-25a5e615bb68",
+          "family_notified_count": 1,
+          "family_notified_at": "2026-11-25T18:51:38.939631",
+          "admin_notified_at": "2026-11-25T18:51:38.941418",
+          "acknowledged_by": null,
+          "acknowledged_at": null,
+          "resolved_by": null,
+          "resolved_at": null,
+          "note": null,
+          "detail": {
+            "vital_type": "heart_rate",
+            "status": "critical",
+            "reason": "Heart rate below 50 bpm. Contact the family and arrange an ambulance.",
+            "value": "45",
+            "unit": "bpm",
+            "tasks": null,
+            "days": null
+          },
+          "detail_masked": false
+        },
+        {
+          "id": "be2adec3-4438-4d4d-915d-137e47e692dc",
+          "type": "vital_out_of_range",
+          "severity": "warning",
+          "status": "open",
+          "summary": "Temperature reading is higher than the safe range.",
+          "created_at": "2026-11-25T18:51:38.902456",
+          "last_occurred_at": "2026-11-25T18:51:38.902456",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Bola Placeholder",
+            "phone": "+2340000719202",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": null,
+          "booking_code": null,
+          "vital_id": "551d981c-6a85-4be9-aab5-d97e00e385d7",
+          "family_notified_count": 0,
+          "family_notified_at": "2026-11-25T18:51:38.918764",
+          "admin_notified_at": null,
+          "acknowledged_by": null,
+          "acknowledged_at": null,
+          "resolved_by": null,
+          "resolved_at": null,
+          "note": null,
+          "detail": {
+            "vital_type": "temperature",
+            "status": "high",
+            "reason": "Temperature above 37.5 °C.",
+            "value": "38.5",
+            "unit": "°C",
+            "tasks": null,
+            "days": null
+          },
+          "detail_masked": false
+        },
+        {
+          "id": "ed3b977a-554e-4bd6-bc48-7b3d2072b314",
+          "type": "task_missed",
+          "severity": "warning",
+          "status": "open",
+          "summary": "1 care task not marked done by the end of the visit.",
+          "created_at": "2026-11-24T11:10:00",
+          "last_occurred_at": "2026-11-24T11:10:00",
+          "occurrence_count": 1,
+          "patient": {
+            "full_name": "Test Patient",
+            "phone": "+2348965350251",
+            "masked": false
+          },
+          "care_recipient_name": null,
+          "booking_id": "6780e9a1-6a47-47ae-b5f8-e4eec9105202",
+          "booking_code": "7226431C",
+          "vital_id": null,
+          "family_notified_count": 0,
+          "family_notified_at": null,
+          "admin_notified_at": null,
+          "acknowledged_by": null,
+          "acknowledged_at": null,
+          "resolved_by": null,
+          "resolved_at": null,
+          "note": null,
+          "detail": {
+            "vital_type": null,
+            "status": null,
+            "reason": null,
+            "value": null,
+            "unit": null,
+            "tasks": [
+              "Placeholder task one"
+            ],
+            "days": [
+              "2026-11-24"
+            ]
+          },
+          "detail_masked": false
+        }
+      ],
+      "total": 3,
+      "counts": {
+        "open": 3,
+        "acknowledged": 0,
+        "resolved": 0,
+        "critical_active": 1
+      }
+    }
+  },
+  "note": "Default: status=active (open + acknowledged). Critical first."
+}

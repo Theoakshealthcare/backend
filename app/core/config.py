@@ -117,6 +117,14 @@ class Settings(BaseSettings):
     LOCATION_NUDGE_MIN_GAP_HOURS: int = 24  # at most one "update your location" push per caregiver in this window
     LOCATION_NUDGE_QUIET_START_HOUR: int = 21  # no nudge from this hour (HOME_TIMEZONE, 0-23) ...
     LOCATION_NUDGE_QUIET_END_HOUR: int = 7  # ... until this hour
+    # Care alerts (slice 1c, app/services/care_alerts.py). One alert per patient + type + severity inside the window; a repeat only
+    # bumps the count. A reading recorded longer ago than the max age (a back-filled entry) raises no alert.
+    CARE_ALERT_VITAL_DEBOUNCE_MINUTES: int = 240
+    CARE_ALERT_CRITICAL_DEBOUNCE_MINUTES: int = 30
+    CARE_ALERT_TASK_DEBOUNCE_MINUTES: int = 720
+    CARE_ALERT_VITAL_MAX_AGE_MINUTES: int = 360
+    CARE_ALERT_SWEEP_LOOKBACK_HOURS: int = 6  # the missed-task sweep looks at visits that ended this recently
+    CARE_ALERT_MIN_SLOT_OVERLAP_MINUTES: int = 30  # a visit must overlap a task's time slot by this much for the task to be due in it
     CHAT_OPEN_HOURS_AFTER_VISIT: int = 24  # a booking chat can still be written in this long after the visit was completed
     # A payment that lands after the unpaid-expiry cancel reinstates the booking only if the visit is
     # at least this far ahead; otherwise it is flagged for a refund.

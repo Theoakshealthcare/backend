@@ -20,6 +20,8 @@ from app.channels.whatsapp.queue import body_key
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.booking_expiry import expire_unpaid_bookings
+from app.services import care_alert_delivery
+from app.services.care_alert_missed_tasks import sweep as care_alert_sweep
 from app.services.dispatch import dispatch_tick
 from app.services.dropout import tick as dropout_tick
 from app.services.earnings import release_due as release_due_earnings
@@ -115,6 +117,16 @@ async def refund_reconcile_job(ctx: dict) -> int:
     if settled:
         logger.info("refund_reconcile: acted on %d refund(s)", settled)
     return settled
+
+
+async def care_alert_sweep_job(ctx: dict) -> int:
+    """Judge visits that just ended: a care-plan task that was due and never ticked raises a care alert (once per visit), which is
+    then delivered to the family contact and the admin queue. Delivery is best effort and never fails the job."""
+    created = await asyncio.to_thread(_run_with_session, care_alert_sweep)
+    if created:
+        logger.info("care_alert_sweep: raised %d alert(s)", len(created))
+        await asyncio.to_thread(care_alert_delivery.deliver_all, created)
+    return len(created)
 
 
 async def whatsapp_events_job(ctx: dict) -> dict:
@@ -231,7 +243,7 @@ class WorkerSettings:
                  func(kyc_process_event, keep_result=0),
                  kyc_reconcile_job,
                  func(transcribe_voice_note_job, timeout=200, max_tries=60, keep_result=0),
-                 voice_note_sweep_job, location_nudge_job]
+                 voice_note_sweep_job, location_nudge_job, care_alert_sweep_job]
     # Every minute, on the minute. A cron run is unique per scheduled minute across workers, and
     # the jobs are idempotent and lock-safe on top of that.
     cron_jobs = [
@@ -249,6 +261,7 @@ class WorkerSettings:
         cron(whatsapp_events_job, second={0, 15, 30, 45}),  # the payment reminder and confirmations are time-sensitive
         cron(kyc_reconcile_job, minute={3, 13, 23, 33, 43, 53}, second=15),  # every 10 minutes (design 6)
         cron(voice_note_sweep_job, minute={1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56}, second=25),  # every 5 minutes
+        cron(care_alert_sweep_job, minute={2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57}, second=10),  # every 5 minutes; a visit is judged once
         cron(location_nudge_job, minute={4, 19, 34, 49}, second=35),  # every 15 minutes; a failed push is retried on the next run
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)

@@ -101,11 +101,11 @@ def _prepare(event: str, caregiver_id: Optional[UUID], user_id: Optional[UUID], 
     return [(to, subject, html) for to in recipients]
 
 
-def _recipients(db) -> list[str]:
-    """Active admins holding the approve permission, plus the optional extra address; lower-cased, no duplicates."""
+def _recipients(db, permission: str = APPROVE_PERMISSION) -> list[str]:
+    """Active admins holding ``permission`` (default: the approve permission), plus the optional extra address; lower-cased, no duplicates."""
     with_permission = (select(AdminUserRole.admin_user_id)
                        .join(AdminRolePermission, AdminRolePermission.role_id == AdminUserRole.role_id)
-                       .where(AdminRolePermission.permission == APPROVE_PERMISSION))
+                       .where(AdminRolePermission.permission == permission))
     emails = db.scalars(select(AdminUser.email).where(AdminUser.status == "active", AdminUser.id.in_(with_permission))).all()
     found = {e.strip().lower() for e in emails if e and e.strip()}
     extra = (settings.ADMIN_NOTIFY_EMAIL or "").strip().lower()
@@ -133,6 +133,29 @@ def _recently_uploaded(db, caregiver_id: UUID, document: CaregiverDocument) -> b
         CaregiverDocument.caregiver_id == caregiver_id, CaregiverDocument.id != document.id, earlier,
         CaregiverDocument.uploaded_at >= document.uploaded_at - DOCUMENT_DEBOUNCE).limit(1)).first()
     return other is not None
+
+
+CARE_ALERT_PERMISSION = "support.inbox"  # who works the care-alert queue; the same people are mailed about a critical alert
+
+
+def critical_care_alert_mails(db) -> list[tuple[str, str, str]]:
+    """(to, subject, html) for a CRITICAL care alert: every active admin holding ``support.inbox`` plus the optional extra address.
+    Minimal PII by design: the mail says that a critical alert is waiting and links to the queue; it names nobody and no reading."""
+    recipients = _recipients(db, CARE_ALERT_PERMISSION)
+    if not recipients:
+        return []
+    heading = "Critical care alert waiting"
+    html = email_service.render_template("admin_care_alert", {
+        "project_name": settings.PROJECT_NAME, "heading": heading,
+        "message": "A critical care alert is open in the admin console and needs a person to look at it now.",
+        "link": f"{settings.ADMIN_CONSOLE_URL.rstrip('/')}/care-alerts"})
+    subject = f"{settings.PROJECT_NAME} - {heading}"
+    return [(to, subject, html) for to in recipients]
+
+
+def send_all(mails: list[tuple[str, str, str]]) -> None:
+    """Send prepared mails one by one; a failure is logged and the rest still go. Never raises."""
+    _send_all(mails)
 
 
 def _send_all(mails: list[tuple[str, str, str]]) -> None:
