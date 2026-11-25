@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.schemas.patient_vital import VitalFlagOut
+
 
 class ClientEmergencyContact(BaseModel):
     name: Optional[str] = None
@@ -32,11 +34,13 @@ class ClientMedicalHistory(BaseModel):
 
 
 class ClientVital(BaseModel):
-    """The newest reading of one vital type. No status: the backend does not rate readings."""
+    """The newest reading of one vital type, with its clinician-approved flag (null for weight, sleep, unreadable values)."""
     vital_type: str
     value: str
     unit: Optional[str] = None
     recorded_at: datetime
+    flag: Optional[VitalFlagOut] = None
+    glucose_context: Optional[str] = None
 
 
 class CaregiverClientProfile(BaseModel):

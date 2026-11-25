@@ -229,8 +229,8 @@ def test_latest_vitals_are_the_newest_of_each_type_during_an_in_progress_visit(d
     vitals = _get(client, booking, caregiver).json()["latest_vitals"]
     assert {v["vital_type"]: (v["value"], v["unit"]) for v in vitals} == {
         "heart_rate": ("84", "bpm"), "blood_pressure": ("138/85", "mmHg")}
-    assert all(set(v) == {"vital_type", "value", "unit", "recorded_at"} for v in vitals)
-    assert "status" not in vitals[0]  # no clinical rating: thresholds are not signed off
+    assert all(set(v) == {"vital_type", "value", "unit", "recorded_at", "flag", "glucose_context"} for v in vitals)
+    assert {v["vital_type"]: v["flag"]["status"] for v in vitals} == {"heart_rate": "normal", "blood_pressure": "normal"}
 
 
 def test_latest_vitals_is_an_empty_list_when_none_were_recorded_and_null_when_not_available(db, client):

@@ -1,0 +1,33 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/vitals/",
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "patient_id": "<PATIENT_ID>",
+      "recorded_by_user_id": "<USER_ID>",
+      "vital_type": "sleep_duration",
+      "value": "5",
+      "unit": "hrs",
+      "source": "manual",
+      "notes": "22:30-03:30"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "vital_type": "sleep_duration",
+      "value": "5",
+      "unit": "hrs",
+      "source": "manual",
+      "recorded_at": "2026-11-25T17:25:09.319093",
+      "notes": "22:30-03:30",
+      "id": "4ef2c658-11e5-43d6-838d-c67962fcab2a",
+      "patient_id": "59e25e8c-81cc-4055-afd3-1aae1dfa4364",
+      "recorded_by_user_id": "0ccb19bc-b91e-4ea7-aa91-fe21d55eee12",
+      "flag": null,
+      "glucose_context": null
+    }
+  },
+  "note": "Sleep (and weight) are never flagged: flag is null, not absent."
+}
