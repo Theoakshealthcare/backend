@@ -12,6 +12,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.patient_vital import PatientVital
 from app.schemas.patient_vital import PatientVitalCreate, PatientVitalUpdate, PatientVitalResponse
 from app.services.patient_vital import PatientVitalService
+from app.services.vital_flags import patient_context, vital_response
 from app.services.vital_rules import VitalRuleError, check_notes, check_reading
 from app.services.gemini import GeminiService, gemini_service
 from app.services.patient_caregiver_access import PatientCaregiverAccessService
@@ -53,7 +54,8 @@ def create_vital(
 ):
     if not can_access_vitals(current_user, vital_data.patient_id, db):
         raise HTTPException(status_code=403, detail="Access denied")
-    return service.create_vital(vital_data)
+    vital = service.create_vital(vital_data)
+    return vital_response(vital, patient_context(db, vital.patient_id))
 
 # --- List Vitals ---
 @router.get("/{patient_id}", response_model=List[PatientVitalResponse])
@@ -67,7 +69,8 @@ def list_vitals(
 ):
     if not can_access_vitals(current_user, patient_id, db):
         raise HTTPException(status_code=403, detail="Access denied")
-    return service.get_vitals(patient_id, start, end)
+    context = patient_context(db, patient_id)  # once per list, not per reading
+    return [vital_response(v, context) for v in service.get_vitals(patient_id, start, end)]
 
 # --- Update Vital ---
 @router.put("/{vital_id}", response_model=PatientVitalResponse)
@@ -94,7 +97,8 @@ def update_vital(
         check_notes(changes.get("notes"))
     except VitalRuleError as exc:
         raise HTTPException(status_code=422, detail=[{"type": "vital_invalid", "loc": ["body"], "msg": str(exc)}])
-    return service.update_vital(vital_id, update_data)
+    updated = service.update_vital(vital_id, update_data)
+    return vital_response(updated, patient_context(db, updated.patient_id))
 
 # --- Delete Vital ---
 @router.delete("/{vital_id}", response_model=dict)

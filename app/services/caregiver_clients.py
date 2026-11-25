@@ -17,6 +17,7 @@ from app.db.models.care import CareRecipient
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient, PatientMedicalRecord
 from app.db.models.patient_vital import PatientVital
+from app.services.vital_flags import patient_context, vital_response
 from app.services.vitals_access import caregiver_can_access_vitals
 
 LIVE_STATUSES = (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS)
@@ -76,8 +77,13 @@ def _latest_vitals(db: Session, patient_id: UUID) -> List[Dict[str, Any]]:
         .all()
     )
     rows.sort(key=lambda v: v.recorded_at, reverse=True)
-    return [{"vital_type": v.vital_type, "value": v.value, "unit": v.unit, "recorded_at": v.recorded_at}
-            for v in rows]
+    context = patient_context(db, patient_id)
+    keep = ("vital_type", "value", "unit", "recorded_at", "flag", "glucose_context")
+    out = []
+    for v in rows:
+        full = vital_response(v, context)
+        out.append({k: full[k] for k in keep})
+    return out
 
 
 def build_client_profile(db: Session, caregiver: Caregiver, booking_id: UUID) -> Dict[str, Any]:
