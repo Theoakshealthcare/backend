@@ -532,7 +532,17 @@ Owner decisions 2026-11-08: a service with no price stays hidden; every service 
 - [ ] 1a care template text, caregiver documentation space, Elderly template for nurse or caregiver
 - [ ] 1b vitals flag engine and badges (thresholds supplied by the clinical lead)
 - [ ] 1c alerts for out-of-range readings and missed tasks
-- [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price)
+- [ ] Reschedule (free more than 12 h before, 2 free, 28 days, re-match, dynamic price): 🟡 backend built on `feature/booking-reschedule`, migration `0034` (placeholder number), PR open, **not merged, needs the Opus money review** ([design](../plans/2026-11-25-booking-reschedule.md), [SOP](../sop/2026-11-25-booking-reschedule.md), [FE guide](../fe-integration-guide-patient-booking-reschedule.md))
+  - [x] Rules: strictly more than 12 h away, 2 free per booking (the 3rd is refused), new time more than 12 h and at most 28 days from now; the three numbers are admin settings (`/admin/booking-policy`)
+  - [x] Caregiver released (visit code, on-my-way, arrived, no-show marks cleared), told by in-app notice and push; stale offers closed; accept refuses a stale offer
+  - [x] Re-match by the normal wave dispatch; nobody accepts leads to the existing admin unmatched queue
+  - [x] Price recomputed at the live settings: the booking keeps what was paid, a lower price is recorded as `credit_due`, a higher one is refused (`price_increase_needs_support`); no money moves
+  - [x] Idempotent (`request_id`, or the same target time), race tests for double submit and reschedule against a caregiver accept
+  - [x] Admin booking detail shows the history; FE guide with live captures (`docs/fe-captures/booking-reschedule/`)
+  - [ ] Patient app screens (hide the option when `can_reschedule` is false), admin console fields and history
+  - [ ] Admin-made manual reschedule (beyond 28 days, past the limit, price increase) with a patient notice event
+  - [ ] Automatic refund of the `credit_due` difference once the visit is completed or cancelled (needs a decision on the caregiver take-back)
+  - [ ] Owner decisions: what a price increase should do (absorb, top-up payment, cancel and rebook); whether a booking under 12 h away with no caregiver may move
 - [ ] Medications: caregiver edit with supervisor step, admin screen, AI interaction check
 - [ ] FallGuard v2.0: backend scoring and config, patient screens, caregiver module, admin console and go-live lock, hardening
 - [ ] Server enforcement of the caregiver name lock; 2 h grace for care-plan observations (owner to decide)

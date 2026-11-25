@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/343c6556-40d4-45dd-84c4-06ece92e8013/reschedule-terms",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "343c6556-40d4-45dd-84c4-06ece92e8013",
+      "booking_code": "C4CEF37F",
+      "can_reschedule": false,
+      "reason": "reschedule_window_closed",
+      "message": "A visit can only be rescheduled more than 12 hours before it starts. You can cancel instead (the cancellation fee may apply).",
+      "current_scheduled_date": "2026-11-26T00:55:12.301231",
+      "free_hours": 12,
+      "reschedules_used": 0,
+      "reschedules_allowed": 2,
+      "reschedules_left": 2,
+      "earliest_new_time": "2026-11-26T06:55:12.304078",
+      "latest_new_time": "2026-12-23T18:55:12.304078",
+      "caregiver_assigned": false,
+      "price": null,
+      "new_time_ok": null,
+      "new_time_reason": null,
+      "new_time_message": null,
+      "as_of": "2026-11-25T18:55:12.304078"
+    }
+  }
+}

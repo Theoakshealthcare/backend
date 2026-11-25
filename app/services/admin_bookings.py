@@ -34,6 +34,7 @@ from app.db.models.booking import (
     BookingDispatchWave,
     BookingNote,
     BookingNotification,
+    BookingReschedule,
     BookingStatus,
     PaymentStatus,
 )
@@ -50,6 +51,7 @@ from app.schemas.admin_booking import (
     BookingListItem,
     CancelAppliedOut,
     CancelIn,
+    RescheduleOut,
     CancelTermsNowOut,
     CancelTermsOut,
     CancelTiersOut,
@@ -491,6 +493,14 @@ class AdminBookingService:
             note_count=note_count,
             timeline=timeline,
             available_actions=self.available_actions(admin, b, now),
+            reschedule_count=int(b.reschedule_count or 0),
+            reschedules=[RescheduleOut(
+                created_at=r.created_at, old_scheduled_date=r.old_scheduled_date, new_scheduled_date=r.new_scheduled_date,
+                old_total_kobo=r.old_total_kobo, new_total_kobo=r.new_total_kobo,
+                price_difference_kobo=r.price_difference_kobo, price_handling=r.price_handling,
+                caregiver_released=r.released_caregiver_id is not None)
+                for r in self.db.query(BookingReschedule).filter(BookingReschedule.booking_id == b.id)
+                .order_by(BookingReschedule.created_at).all()],
         )
 
     def _cancel_terms(self, b: Booking, now: datetime) -> CancelTermsOut:

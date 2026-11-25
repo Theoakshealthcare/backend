@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/booking/3368a64e-b533-4812-9aa5-c08e10d09b74/reschedule-terms",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "booking_id": "3368a64e-b533-4812-9aa5-c08e10d09b74",
+      "booking_code": "836FDBB7",
+      "can_reschedule": false,
+      "reason": "price_increase_needs_support",
+      "message": "The price for this visit is now higher than what you paid, so we cannot move it in the app without charging you. Please contact support and we will arrange it with you.",
+      "current_scheduled_date": "2026-11-27T20:55:12.340923",
+      "free_hours": 12,
+      "reschedules_used": 0,
+      "reschedules_allowed": 2,
+      "reschedules_left": 2,
+      "earliest_new_time": "2026-11-26T06:55:12.343997",
+      "latest_new_time": "2026-12-23T18:55:12.343997",
+      "caregiver_assigned": false,
+      "price": {
+        "paid_amount": 33000.0,
+        "paid_amount_kobo": 3300000,
+        "new_amount": 44000.0,
+        "new_amount_kobo": 4400000,
+        "difference_amount": 11000.0,
+        "difference_kobo": 1100000,
+        "handling": "none",
+        "credit_amount": 0.0,
+        "credit_kobo": 0
+      },
+      "new_time_ok": null,
+      "new_time_reason": null,
+      "new_time_message": null,
+      "as_of": "2026-11-25T18:55:12.343997"
+    }
+  }
+}

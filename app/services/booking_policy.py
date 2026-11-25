@@ -47,6 +47,9 @@ class PolicyValues:
     payout_min_naira: int
     finance_refund_limit_naira: int
     short_visit_min_percent: int
+    reschedule_free_hours: int
+    reschedule_max_free: int
+    reschedule_max_days_ahead: int
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -56,7 +59,9 @@ FIELDS = tuple(f.name for f in fields(PolicyValues))
 MAX_HOURS = 168          # a week
 MAX_MINUTES = 10_080     # a week
 MAX_NAIRA = 100_000_000
-HOUR_FIELDS = ("cancel_free_hours", "cancel_late_hours", "earning_hold_hours")
+HOUR_FIELDS = ("cancel_free_hours", "cancel_late_hours", "earning_hold_hours", "reschedule_free_hours")
+MAX_RESCHEDULES = 20
+MAX_DAYS_AHEAD = 365
 PERCENT_FIELDS = ("cancel_fee_percent", "cancel_late_fee_percent", "caregiver_late_fee_share_percent",
                   "caregiver_visit_share_percent", "short_visit_min_percent")
 NAIRA_FIELDS = ("payout_min_naira", "finance_refund_limit_naira")
@@ -84,6 +89,10 @@ def validate(values: Dict[str, Any]) -> None:
             raise PolicyInvalid(f"{name} cannot be more than {MAX_NAIRA} naira")
         if name in MINUTE_FIELDS and value > MAX_MINUTES:
             raise PolicyInvalid(f"{name} cannot be more than {MAX_MINUTES} minutes")
+        if name == "reschedule_max_free" and value > MAX_RESCHEDULES:
+            raise PolicyInvalid(f"{name} cannot be more than {MAX_RESCHEDULES}")
+        if name == "reschedule_max_days_ahead" and not 1 <= value <= MAX_DAYS_AHEAD:
+            raise PolicyInvalid(f"{name} must be between 1 and {MAX_DAYS_AHEAD} days")
     if values["cancel_late_hours"] >= values["cancel_free_hours"]:
         raise PolicyInvalid("The late-cancellation window (cancel_late_hours) must be shorter than the free-cancellation "
                             "window (cancel_free_hours)")

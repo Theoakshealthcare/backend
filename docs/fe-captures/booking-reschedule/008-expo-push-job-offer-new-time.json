@@ -1,0 +1,31 @@
+{
+  "note": "The re-offer to caregivers for the new time (existing job_offer push; scheduled_at is the NEW time).",
+  "observed": [
+    {
+      "to": "ExponentPushToken[placeholder-caregiver]",
+      "title": "New visit request",
+      "body": "Nurse visit in Lagos, Sat 28 Nov, 19:55",
+      "data": {
+        "type": "job_offer",
+        "booking_id": "6930a4b9-2596-485b-bdb1-caeaa2340db0",
+        "area": "Lagos",
+        "scheduled_at": "2026-11-28T18:55:11.919579Z"
+      },
+      "sound": "default",
+      "priority": "high"
+    },
+    {
+      "to": "ExponentPushToken[placeholder-caregiver]",
+      "title": "New visit request",
+      "body": "Nurse visit in Lagos, Sun 29 Nov, 19:55",
+      "data": {
+        "type": "job_offer",
+        "booking_id": "7fe94933-7b94-4be2-9b4f-b6277fea3374",
+        "area": "Lagos",
+        "scheduled_at": "2026-11-29T18:55:11.919579Z"
+      },
+      "sound": "default",
+      "priority": "high"
+    }
+  ]
+}

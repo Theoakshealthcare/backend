@@ -11,6 +11,7 @@ POLICY_FIELDS = (
     "dropout_redispatch_min_lead_minutes", "dropout_decision_lead_minutes", "onmyway_compensation_window_minutes",
     "caregiver_late_fee_share_percent", "caregiver_visit_share_percent", "earning_hold_hours", "payout_cadence",
     "payout_min_naira", "finance_refund_limit_naira", "short_visit_min_percent",
+    "reschedule_free_hours", "reschedule_max_free", "reschedule_max_days_ahead",
 )
 
 
@@ -29,6 +30,9 @@ class BookingPolicyOut(BaseModel):
     payout_min_naira: int = Field(description="Smallest available balance a scheduled payout pays out, in naira (not read yet)")
     finance_refund_limit_naira: int = Field(description="Largest refund Finance may approve without a Super Admin, in naira (not read yet)")
     short_visit_min_percent: int = Field(description="A completed visit with under this percent of the booked time on site is credited already held for Finance review (50 = under half). Copied onto each booking when it is created")
+    reschedule_free_hours: int = Field(description="A patient may reschedule free of charge only when the visit is MORE than this many hours away; the new time must also be more than this far from now (the app hides the option otherwise)")
+    reschedule_max_free: int = Field(description="Free reschedules per booking; the next one is refused with a contact-support message")
+    reschedule_max_days_ahead: int = Field(description="The new time may be at most this many days from now; further needs support to adjust manually")
     updated_at: Optional[datetime] = None
     updated_by: Optional[UUID] = None
 
@@ -52,6 +56,9 @@ class BookingPolicyPatch(BaseModel):
     payout_min_naira: Optional[int] = Field(default=None, strict=True)
     finance_refund_limit_naira: Optional[int] = Field(default=None, strict=True)
     short_visit_min_percent: Optional[int] = Field(default=None, strict=True)
+    reschedule_free_hours: Optional[int] = Field(default=None, strict=True)
+    reschedule_max_free: Optional[int] = Field(default=None, strict=True)
+    reschedule_max_days_ahead: Optional[int] = Field(default=None, strict=True)
 
     @field_validator("reason")
     @classmethod

@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/booking/41e9d554-ad67-4b03-8c6d-4ce7050c56a7/reschedule",
+    "query": null,
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": {
+      "new_scheduled_date": "2026-11-27T20:55:12.308784Z"
+    }
+  },
+  "response": {
+    "status_code": 422,
+    "body": {
+      "detail": {
+        "code": "same_time",
+        "message": "That is the time the visit already has. Please choose a different time."
+      }
+    }
+  }
+}
