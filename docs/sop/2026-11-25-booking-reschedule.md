@@ -22,7 +22,10 @@
 | Decision | Why / alternative rejected |
 |---|---|
 | **The booking keeps the price it was paid at; nothing moves as money.** | Read from the code: one Paystack reference per booking, refunds go back to it, and a partial refund while the visit is still to come makes `payment_status = partially_refunded`, which breaks accept, dispatch and cancel (all need `paid`). Staff `request_refund` already refuses a live booking for the same reason. Rejected: reprice the booking and queue a refund row (breaks the paid state), a top-up pay link (needs multi-transaction refunds), cancel and rebook (new id and code, the family pays twice). |
-| **Lower price: recorded as `credit_due`** on the reschedule row and shown to the family and in the admin detail; Finance refunds it with the existing staff refund once the visit is completed or cancelled. | Safe and honest; manual for now (see Follow-ups). |
+| **Lower price: recorded as `credit_due`** on the reschedule row and shown to the family and in the admin detail. **The amount owed is the latest row's credit only**, never a sum (each row is priced against the amount originally paid: 10,000, then a quote of 8,000, then 10,000 means 0 owed; 8,000 then 9,000 means 1,000). Follow-up fix after the Opus review. | Safe and honest. `reschedule_credit_due_kobo` on the admin detail is the one amount; older rows carry `superseded: true`. |
+| **At completion the owed amount is queued for Finance**: a `pending_approval` system refund (reason code `other`, a note, suggested amount = the credit, capped by `refundable_kobo`) and `booking.refund_required` with reason `reschedule_price_difference`. Both completion paths (the caregiver's `complete`, an admin `correct-status`) call `booking_reschedule.queue_credit_refund`. A cancel needs nothing extra. | The promise to the family ("refunded after the visit") cannot be forgotten. No migration: the refund reason codes have a CHECK constraint, so the existing `other` is used and the reason lives in the note and the free-text booking column. Nothing is paid without a person approving; the approver chooses whether to take anything back from the caregiver (default none). |
+| **A dispatch run restarts at a reschedule**: `dispatch._send_wave` and `_advance` count only the waves sent at or after the booking's latest reschedule (`dispatch._waves_of_run`); the next wave number still counts all waves. Admin and drop-out re-dispatches are unchanged. | Before, waves for the OLD time put everyone already asked into the skip list and made `_advance` think someone had been asked, so a rescheduled booking could go `unmatched` within one tick. |
+| **A decline stays final across a reschedule**: the reschedule wave passes `exclude_declined=True`, and plain waves skip decliners too. An admin re-dispatch that names previously notified caregivers may still re-offer (unchanged, per the 2026-11-07 note). | The 2026-11-07 owner rule; the first version reset declines to unanswered. |
 | **Higher price: refused** (`price_increase_needs_support`), the terms endpoint already says so, support adjusts. | No silent charge and no second payment path. Rejected: absorb it (silent revenue loss, ignores the owner's "dynamic"). |
 | The pricing engine has no time input, so "dynamic at the new time" means the live settings. | `compute_price` takes base fee, multiplier, surge on or off, discount. `get_booking_demand_surge_multiplier` exists but nothing calls it. A difference only appears when an admin changed pricing or switched surge on after the booking was paid. |
 | The assigned caregiver is released and **re-offered like anyone else** (the new wave includes them). Not a drop-out: no `caregiver_dropouts` row, no penalty. | The system has no availability calendar, so it cannot know if they can do the new time. Rejected: keep the assignment and ask them to confirm (a new state and timer). |
@@ -48,7 +51,7 @@ Earnings are only credited at `complete` and for a kept late-cancel fee, so a re
 
 - Deploy: run `0034` (adds a column with default 0, three policy columns with defaults 12, 2, 28, one table). No existing booking changes.
 - Settings: `PATCH /admin/booking-policy` (`settings.write`), applied to every booking at once (no per-booking snapshot).
-- Finance: bookings with `price_handling = credit_due` are in `GET /admin/bookings/{id}` (`reschedules`). There is no list of them yet.
+- Finance: the amount owed is `reschedule_credit_due_kobo` in `GET /admin/bookings/{id}`; once the visit is completed it is a pending refund in the normal refund queue (`GET /admin/refunds?booking_id=`), with `refund_required_reason = reschedule_price_difference` on the booking.
 - Roll back: `alembic downgrade 0033_fallguard_v2_results` drops the table, the count and the settings; rescheduled bookings keep their new times. An app that ignores the new fields keeps working.
 
 ## Open questions (for the owner; nothing was guessed silently)
@@ -60,11 +63,11 @@ Earnings are only credited at `complete` and for a kept late-cancel fee, so a re
 5. **Window and the cancel setting are separate** (`reschedule_free_hours` vs `cancel_free_hours`), both 12. The PDF wants them to agree; if an admin changes one, they diverge. Should the reschedule window simply follow the cancel window?
 6. **Matching ignores availability** (existing behaviour: it offers to caregivers online now, whatever the visit date), so a visit 20 days out is offered today. Fine for now, worth a look before heavy use.
 7. **28 days from now** (the lead's brief) vs the PDF's earlier suggestion "from the original date".
-8. The `credit_due` refund is manual. Automating it needs a decision on whether the caregiver's earning is reduced (the refund's take-back is proportional to the refund amount).
+8. The `credit_due` refund is queued at completion but approved by a person. Should the caregiver's earning be reduced by their share of it? Today the approver's take-back choice defaults to none (the caregiver earns on the price paid).
 
 ## Follow-ups
 
 - Patient app (reschedule screen, hide the option) and admin console (settings, history) in the monorepo.
 - Admin-made manual reschedule with a patient notification event and an audit row.
-- Open the `credit_due` refund automatically at completion or cancellation.
+- (Done in the follow-up) the `credit_due` refund is queued at completion; the cancel case needs nothing. Still open: whether the approver should take a share back from the caregiver (the owner's call).
 - Opus review before merge: the price rule, the lock order and the stale-offer guard (see the PR description).

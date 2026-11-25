@@ -4,10 +4,10 @@
     {
       "to": "ExponentPushToken[placeholder-caregiver]",
       "title": "Visit rescheduled",
-      "body": "Booking 3EDF7E79 was rescheduled and is no longer assigned to you.",
+      "body": "Booking D991EC1C was rescheduled and is no longer assigned to you.",
       "data": {
         "type": "booking_rescheduled",
-        "booking_id": "7fe94933-7b94-4be2-9b4f-b6277fea3374"
+        "booking_id": "4732e516-669f-4ec8-a71b-3f04b9bc138a"
       },
       "sound": "default",
       "priority": "high"

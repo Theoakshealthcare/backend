@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "path": "/api/v1/admin/bookings/e57d6569-4426-4e47-b8e1-1e3d3541f0e1",
+    "path": "/api/v1/admin/bookings/366cc55a-d869-4872-a998-b8225e80958e",
     "query": null,
     "auth": "Bearer <ADMIN_ACCESS_TOKEN_JWT>",
     "body": null
@@ -9,18 +9,20 @@
   "response": {
     "status_code": 200,
     "body": {
-      "scheduled_date": "2026-11-28T18:55:11.919579",
+      "scheduled_date": "2026-11-28T22:23:13.085780",
       "reschedule_count": 1,
+      "reschedule_credit_due_kobo": 600000,
       "reschedules": [
         {
-          "created_at": "2026-11-25T18:55:12.331937",
-          "old_scheduled_date": "2026-11-27T20:55:12.320224",
-          "new_scheduled_date": "2026-11-28T18:55:11.919579",
+          "created_at": "2026-11-25T22:23:13.518555",
+          "old_scheduled_date": "2026-11-28T00:23:13.507455",
+          "new_scheduled_date": "2026-11-28T22:23:13.085780",
           "old_total_kobo": 5000000,
           "new_total_kobo": 4400000,
           "price_difference_kobo": -600000,
           "price_handling": "credit_due",
-          "caregiver_released": false
+          "caregiver_released": false,
+          "superseded": false
         }
       ]
     }

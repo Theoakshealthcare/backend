@@ -112,6 +112,46 @@ def quote_for(db: Session, booking: Booking) -> Quote:
     return Quote(paid_kobo=int(booking.total_amount_kobo), new_kobo=price.total_kobo)
 
 
+# --- what Finance owes after a lower price ---------------------------------------------------------------------------------
+def latest_reschedule(db: Session, booking_id: uuid.UUID) -> Optional[BookingReschedule]:
+    return (db.query(BookingReschedule).filter(BookingReschedule.booking_id == booking_id)
+            .order_by(BookingReschedule.created_at.desc(), BookingReschedule.id.desc()).first())
+
+
+def credit_owed_kobo(db: Session, booking_id: uuid.UUID) -> int:
+    """What the family is owed back for the price difference: the **latest** reschedule's credit only. Every row is priced
+    against the amount originally paid, so the rows are not cumulative (paid 10,000, quote 8,000, then quote 10,000: owed 0,
+    not 2,000; 8,000 then 9,000: owed 1,000, not 3,000). The latest quote is the one the family agreed to last."""
+    row = latest_reschedule(db, booking_id)
+    return max(0, -int(row.price_difference_kobo)) if row is not None and row.price_handling == HANDLING_CREDIT_DUE else 0
+
+
+REASON_PRICE_DIFFERENCE = "reschedule_price_difference"   # ``bookings.refund_required_reason`` (free text); the refund row's code is ``other``
+
+
+def queue_credit_refund(db: Session, booking: Booking) -> Optional[Any]:
+    """The visit is completed: put the promised "difference refunded after the visit" in the refund queue, so it cannot be
+    forgotten. A ``pending_approval`` refund for a person to approve (nothing is paid by itself), suggested amount = the latest
+    credit, never more than ``refundable_kobo``; ``booking.refund_required`` marks it. Runs in the caller's transaction under
+    the booking lock. A booking cancelled instead needs nothing here: its refund is paid minus the fee, so the difference is
+    already inside it. Returns the refund row, or None when nothing is owed or a refund is already open."""
+    from app.services import refunds   # local: refunds imports booking_cancellation, which imports this module's neighbours
+
+    owed = credit_owed_kobo(db, booking.id)
+    if owed <= 0 or booking.payment_status not in (PaymentStatus.PAID, PaymentStatus.PARTIALLY_REFUNDED):
+        return None
+    refund = refunds.open_system_refund(db, booking, "other", owed)
+    if refund is None:
+        return None
+    row = latest_reschedule(db, booking.id)
+    refund.note = (f"Reschedule price difference: paid {kobo_to_naira(row.old_total_kobo)}, price at the new time "
+                   f"{kobo_to_naira(row.new_total_kobo)}. The family was told this would be refunded after the visit.")
+    booking.refund_required = True
+    booking.refund_required_reason = REASON_PRICE_DIFFERENCE
+    booking.refund_amount_kobo = refund.suggested_amount_kobo
+    return refund
+
+
 # --- the rules --------------------------------------------------------------------------------------------------------------
 def _problem(booking: Booking, policy: booking_policy.PolicyValues, now: datetime) -> Optional[Tuple[int, str, str]]:
     """Why the BOOKING cannot be rescheduled right now, as ``(http status, code, message)``, or None."""
@@ -244,11 +284,12 @@ def _find_replay(db: Session, booking: Booking, new: datetime, request_id: Optio
     if request_id:
         row = db.query(BookingReschedule).filter(BookingReschedule.booking_id == booking.id,
                                                  BookingReschedule.request_id == request_id).first()
-        if row is None:
-            return None
-        if row.new_scheduled_date != new:
-            raise _error(409, "request_id_reused", "That request id was already used for a different time.")
-        return row
+        if row is not None:
+            if row.new_scheduled_date != new:
+                raise _error(409, "request_id_reused", "That request id was already used for a different time.")
+            return row
+        # An unknown id is not "new" when another tap (sent without an id, or with another one) already moved the visit to
+        # this very time: fall through to the same-target check below, so a double tap from two devices is a replay.
     if new != booking.scheduled_date:
         return None
     latest = (db.query(BookingReschedule).filter(BookingReschedule.booking_id == booking.id)
@@ -345,7 +386,7 @@ def _apply(db: Session, booking: Booking, user: User, new: datetime, quote: Quot
             BookingDispatchWave.booking_id == booking.id).scalar() or 0
         try:
             with db.begin_nested():
-                dispatch.send_wave(db, booking, latest + 1, now, offers, renotify=True)
+                dispatch.send_wave(db, booking, latest + 1, now, offers, renotify=True, exclude_declined=True)
         except Exception:
             offers = []
             logger.exception("booking %s rescheduled but the first wave failed; dispatch_tick will send it",

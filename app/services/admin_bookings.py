@@ -42,6 +42,7 @@ from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient, PatientTransaction
 from app.db.models.user import User
 from app.db.models.whatsapp_booking import BookingEvent
+from app.services import booking_reschedule
 from app.schemas.admin_booking import (
     AddressOut,
     AssignIn,
@@ -494,14 +495,19 @@ class AdminBookingService:
             timeline=timeline,
             available_actions=self.available_actions(admin, b, now),
             reschedule_count=int(b.reschedule_count or 0),
-            reschedules=[RescheduleOut(
-                created_at=r.created_at, old_scheduled_date=r.old_scheduled_date, new_scheduled_date=r.new_scheduled_date,
-                old_total_kobo=r.old_total_kobo, new_total_kobo=r.new_total_kobo,
-                price_difference_kobo=r.price_difference_kobo, price_handling=r.price_handling,
-                caregiver_released=r.released_caregiver_id is not None)
-                for r in self.db.query(BookingReschedule).filter(BookingReschedule.booking_id == b.id)
-                .order_by(BookingReschedule.created_at).all()],
+            reschedule_credit_due_kobo=booking_reschedule.credit_owed_kobo(self.db, b.id),
+            reschedules=self._reschedules(b),
         )
+
+    def _reschedules(self, b: Booking) -> List[RescheduleOut]:
+        rows = (self.db.query(BookingReschedule).filter(BookingReschedule.booking_id == b.id)
+                .order_by(BookingReschedule.created_at, BookingReschedule.id).all())
+        return [RescheduleOut(
+            created_at=r.created_at, old_scheduled_date=r.old_scheduled_date, new_scheduled_date=r.new_scheduled_date,
+            old_total_kobo=r.old_total_kobo, new_total_kobo=r.new_total_kobo,
+            price_difference_kobo=r.price_difference_kobo, price_handling=r.price_handling,
+            caregiver_released=r.released_caregiver_id is not None, superseded=i < len(rows) - 1)
+            for i, r in enumerate(rows)]
 
     def _cancel_terms(self, b: Booking, now: datetime) -> CancelTermsOut:
         """The booker's cancel terms on this booking: the snapshot stored on it, the tiers in force, what applies now and
@@ -919,6 +925,7 @@ class AdminBookingService:
             booking.status = target
             if target == BookingStatus.COMPLETED:
                 earnings.credit_visit(self.db, booking, now)  # AD-FR-25: the normal completion side effect
+                booking_reschedule.queue_credit_refund(self.db, booking)  # a lower price after a reschedule: owed back
             self.audit.record(
                 admin_user_id=admin.id, action="booking.correct_status", entity_type="booking",
                 entity_id=booking.id, before=before, after=_snapshot(booking), reason=body.reason, request=request)

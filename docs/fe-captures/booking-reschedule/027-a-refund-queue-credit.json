@@ -1,0 +1,49 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/refunds",
+    "query": {
+      "booking_id": "<BOOKING_ID>"
+    },
+    "auth": "Bearer <ACCESS_TOKEN_JWT>",
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "items": [
+        {
+          "id": "c5620e35-2ab8-4628-ad96-8f7f6b426764",
+          "booking_id": "366cc55a-d869-4872-a998-b8225e80958e",
+          "booking_code": "369FA3EF",
+          "status": "pending_approval",
+          "reason_code": "other",
+          "origin": "system",
+          "suggested_amount_naira": 6000.0,
+          "amount_naira": null,
+          "destination": null,
+          "take_back_from_caregiver": false,
+          "take_back_naira": 0.0,
+          "failure_reason": null,
+          "note": "Reschedule price difference: paid 50000.00, price at the new time 44000.00. The family was told this would be refunded after the visit.",
+          "rejected_reason": null,
+          "requested_by": null,
+          "approved_by": null,
+          "review_flagged_at": null,
+          "review_reason": null,
+          "created_at": "2026-11-25T22:23:13.899837",
+          "approved_at": null,
+          "processed_at": null,
+          "max_approvable_naira": 50000.0,
+          "available_actions": [
+            "approve",
+            "reject"
+          ]
+        }
+      ],
+      "total": 1,
+      "limit": 50,
+      "offset": 0
+    }
+  }
+}

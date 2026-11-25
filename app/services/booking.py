@@ -709,6 +709,8 @@ class BookingService:
                     booking.actual_end_time = datetime.utcnow()
                     earnings.credit_visit(self.db, booking, booking.actual_end_time,
                                           check_short_visit=True)  # same transaction, under the lock
+                    from app.services import booking_reschedule  # local: it imports this module
+                    booking_reschedule.queue_credit_refund(self.db, booking)  # a lower price after a reschedule: owed back
                     NotificationService(self.db).visit_completed(booking)
                 elif action == "cancel":
                     if booking.status not in (BookingStatus.ACCEPTED, BookingStatus.EN_ROUTE, BookingStatus.IN_PROGRESS):

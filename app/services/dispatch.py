@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -33,6 +34,7 @@ from app.db.models.booking import (
     Booking,
     BookingDispatchWave,
     BookingNotification,
+    BookingReschedule,
     BookingStatus,
     PaymentStatus,
 )
@@ -54,6 +56,19 @@ def find_candidates(db: Session, booking: Booking, now: Optional[datetime] = Non
     """Everyone eligible for the booking right now, best match first. ``radius_km`` widens the search
     (an admin re-dispatch); the default is MATCH_RADIUS_KM."""
     return BookingService(db).smart_caregiver_matching(booking, now=now, radius_km=radius_km)
+
+
+def _run_start(db: Session, booking: Booking) -> Optional[datetime]:
+    """When the current dispatch run began for the purposes of "who has already been offered this?": the last reschedule
+    (waves sent for the OLD time say nothing about who can do the NEW one), else None = every wave counts. Other
+    re-dispatches (admin, drop-out) keep counting everything, as before."""
+    return db.query(func.max(BookingReschedule.created_at)).filter(BookingReschedule.booking_id == booking.id).scalar()
+
+
+def _waves_of_run(db: Session, booking: Booking):
+    query = db.query(BookingDispatchWave).filter(BookingDispatchWave.booking_id == booking.id)
+    since = _run_start(db, booking)
+    return query.filter(BookingDispatchWave.sent_at >= since) if since is not None else query
 
 
 def _lock(db: Session, booking_id: uuid.UUID, skip_locked: bool = False) -> Optional[Booking]:
@@ -87,22 +102,24 @@ def _mark_unmatched(db: Session, booking: Booking, reason: str, wave_count: int)
 
 def _send_wave(db: Session, booking: Booking, wave_no: int, now: datetime,
                offers: Optional[List[Dict[str, Any]]] = None, *,
-               radius_km: Optional[float] = None, renotify: bool = False) -> bool:
+               radius_km: Optional[float] = None, renotify: bool = False, exclude_declined: bool = False) -> bool:
     """Notify the next batch of candidates. False when there is nobody left to notify.
 
     ``radius_km`` and ``renotify`` are for an admin re-dispatch: a wider search, and offering again to
     caregivers an earlier wave already notified (their old notification is reset instead of duplicated).
+    A caregiver who DECLINED this booking is never offered it again by a plain wave, and not by a ``renotify`` wave either
+    when ``exclude_declined`` is set (a reschedule: the decline-is-final rule of 2026-11-07 still holds).
 
     When ``offers`` is given, the pushes this wave owes are appended to it. They are only sent once
     the caller's transaction is done (see _push_offers), never from inside it.
     """
     already = set() if renotify else {
-        cid
-        for (ids,) in db.query(BookingDispatchWave.notified_caregiver_ids).filter(
-            BookingDispatchWave.booking_id == booking.id
-        )
-        for cid in ids
+        cid for wave in _waves_of_run(db, booking) for cid in (wave.notified_caregiver_ids or [])
     }
+    if exclude_declined or not renotify:
+        already |= {row[0] for row in db.query(BookingNotification.caregiver_id).filter(
+            BookingNotification.booking_id == booking.id, BookingNotification.notification_type == "new_booking",
+            BookingNotification.response == "declined")}
     # Never offer a visit back to a caregiver who dropped out of it (whatever the wave, and for an admin re-dispatch too).
     dropped = {row[0] for row in db.query(CaregiverDropout.caregiver_id).filter(CaregiverDropout.booking_id == booking.id)}
     chosen = [c for c in find_candidates(db, booking, now, radius_km)
@@ -185,13 +202,11 @@ def _advance(db: Session, booking: Booking, now: datetime,
     if not _is_open(booking):
         return False
 
-    latest = (
-        db.query(BookingDispatchWave)
-        .filter(BookingDispatchWave.booking_id == booking.id)
-        .order_by(BookingDispatchWave.wave_no.desc())
-        .first()
-    )
+    # The waves of the current run decide "is a wave still open" and "has anyone been asked yet"; the number of the next wave
+    # still counts every wave (the pair (booking, wave_no) is unique). After a reschedule the run starts at the reschedule.
+    latest = _waves_of_run(db, booking).order_by(BookingDispatchWave.wave_no.desc()).first()
     wave_count = latest.wave_no if latest else 0
+    highest = db.query(func.max(BookingDispatchWave.wave_no)).filter(BookingDispatchWave.booking_id == booking.id).scalar() or 0
 
     started = booking.dispatch_started_at or now
     # A booking being re-dispatched after a drop-out (or whose family chose "Keep waiting") is looked after until the
@@ -204,7 +219,7 @@ def _advance(db: Session, booking: Booking, now: datetime,
     if latest is not None and latest.expires_at > now:
         return False  # the current wave is still open
 
-    if not _send_wave(db, booking, wave_count + 1, now, offers):
+    if not _send_wave(db, booking, highest + 1, now, offers):
         if wave_count == 0 or waiting:
             return False  # nobody online yet: stay dispatching, retry next tick (a waiting family: until the visit time)
         _mark_unmatched(db, booking, "no candidates left", wave_count)

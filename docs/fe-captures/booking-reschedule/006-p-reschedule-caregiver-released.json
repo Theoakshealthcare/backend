@@ -1,24 +1,24 @@
 {
   "request": {
     "method": "POST",
-    "path": "/api/v1/booking/7fe94933-7b94-4be2-9b4f-b6277fea3374/reschedule",
+    "path": "/api/v1/booking/4732e516-669f-4ec8-a71b-3f04b9bc138a/reschedule",
     "query": null,
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": {
-      "new_scheduled_date": "2026-11-29T18:55:11.919579Z",
+      "new_scheduled_date": "2026-11-29T22:23:13.085780Z",
       "request_id": "22222222-2222-4222-8222-222222222222"
     }
   },
   "response": {
     "status_code": 200,
     "body": {
-      "booking_id": "7fe94933-7b94-4be2-9b4f-b6277fea3374",
-      "booking_code": "3EDF7E79",
+      "booking_id": "4732e516-669f-4ec8-a71b-3f04b9bc138a",
+      "booking_code": "D991EC1C",
       "status": "pending",
       "already_rescheduled": false,
-      "previous_scheduled_date": "2026-11-27T00:55:12.175531",
-      "scheduled_date": "2026-11-29T18:55:11.919579",
-      "scheduled_end_date": "2026-11-29T22:55:11.919579",
+      "previous_scheduled_date": "2026-11-27T04:23:13.350469",
+      "scheduled_date": "2026-11-29T22:23:13.085780",
+      "scheduled_end_date": "2026-11-30T02:23:13.085780",
       "reschedules_used": 1,
       "reschedules_left": 1,
       "caregiver_released": true,
