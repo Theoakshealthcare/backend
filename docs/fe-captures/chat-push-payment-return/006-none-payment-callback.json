@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/payment/callback",
+    "query": {
+      "trxref": "PLACEHOLDER-REF-123",
+      "reference": "PLACEHOLDER-REF-123"
+    },
+    "auth": null,
+    "body": null
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-security-policy": "default-src 'none'; style-src 'sha256-RGKw5P/KLNRFbBXkE04XwJlAggHxMseW1JPMBuPfZXI='; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"robots\" content=\"noindex\">\n<meta name=\"color-scheme\" content=\"light dark\">\n<title>Confirming your payment - Oakly</title>\n<style>\n*{box-sizing:border-box}\nbody{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;\nbackground:#f4f9f9;color:#12303a;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif;\n-webkit-text-size-adjust:100%}\nmain{width:100%;max-width:420px;background:#fff;border-radius:20px;padding:36px 28px;text-align:center;\nbox-shadow:0 6px 24px rgba(22,130,131,.12)}\n.mark{width:64px;height:64px;margin:0 auto 20px;border-radius:50%;background:#168283;color:#fff;font-size:32px;\nline-height:64px;font-weight:700}\nh1{margin:0 0 12px;font-size:22px;line-height:1.3;color:#168283}\np{margin:0 0 12px;font-size:16px;line-height:1.5}\na.button{display:block;margin-top:24px;padding:16px 20px;border-radius:14px;background:#168283;color:#fff;\nfont-size:17px;font-weight:600;text-decoration:none}\na.button:active{opacity:.85}\n@media (prefers-color-scheme:dark){body{background:#0d1b1e;color:#e6f1f2}main{background:#14282c;box-shadow:none}}\n</style>\n</head>\n<body>\n<main>\n<div class=\"mark\" aria-hidden=\"true\">&#10003;</div>\n<h1>We're confirming your payment</h1>\n<p>This only takes a few moments. You can close this page and return to the Oakly app, where your booking will update.</p>\n<a class=\"button\" href=\"oaklypatient://payment-complete\">Return to the app</a>\n</main>\n</body>\n</html>\n"
+  },
+  "note": "What Paystack's redirect lands on. The query is ignored: the reference is not in the page."
+}

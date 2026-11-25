@@ -3,7 +3,7 @@ from typing import Any, List, Optional, Union
 from uuid import UUID
 
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, Body, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketDisconnected
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -32,6 +32,7 @@ from app.services.booking import (
 )
 from app.services import booking_payment_link, earnings, patient_booking_cancel
 from app.services import service_catalog
+from app.services.chat_push import push_new_message
 from app.services.booking_payment import SettleOutcome, settle_booking_payment
 from app.services.location import LocationService
 from app.services.websocket_manager import websocket_manager
@@ -1396,6 +1397,7 @@ def get_websocket_stats(current_admin: AdminUser = Depends(require_permission("d
 def send_chat_message(
     booking_id: UUID,
     message_data: ChatMessageCreate,
+    background: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> Any:
@@ -1405,6 +1407,10 @@ def send_chat_message(
     **Access Control:**
     - Only patients and caregivers involved in the booking can send messages
     
+    **Push:** once the message is saved, the other person in the chat gets a push (best effort: the title is the
+    sender's first name, a patient's first name and last initial; the body is the text cut to 100 characters; `data` is
+    `{type: "chat_message", booking_id}`). The sender never gets one.
+
     **Authentication:** Requires user authentication token.
     """
     # Verify user has access to this booking
@@ -1438,7 +1444,9 @@ def send_chat_message(
     message = booking_service.send_chat_message(
         booking_id, current_user.id, message_data.message
     )
-    
+    # After the response, on its own session; never fails the send (the message is already saved).
+    background.add_task(push_new_message, booking_id, current_user.id, current_user.user_type, message_data.message)
+
     return message
 
 

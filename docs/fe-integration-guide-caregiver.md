@@ -2725,46 +2725,50 @@ Response `200` (`Cache-Control: no-store`):
 {
   "items": [
     {
-      "booking_id": "a281bfb0-9193-4271-bc7d-5cab8d4bbbb5",
+      "booking_id": "90647929-05e7-4319-b610-24417f6fe62f",
       "patient_name": "Placeholder Cara",
+      "patient_photo_url": null,
       "service_type": "nurse",
       "status": "accepted",
-      "scheduled_date": "2026-11-25T14:02:39.995603",
+      "scheduled_date": "2026-11-25T23:26:18.158157",
       "last_message": null
     },
     {
-      "booking_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3",
+      "booking_id": "8ba771ac-0033-4bba-92fe-25ad17c7556f",
       "patient_name": "Placeholder Ben Okoro",
+      "patient_photo_url": null,
       "service_type": "companion",
       "status": "accepted",
-      "scheduled_date": "2026-11-25T14:02:39.990316",
+      "scheduled_date": "2026-11-25T23:26:18.133850",
       "last_message": {
         "text": "Placeholder: a very long message a very long message a very long message a very long message a very long message a very long message a very…",
-        "sent_at": "2026-11-24T13:50:40.023820",
+        "sent_at": "2026-11-24T23:14:18.354219",
         "from_me": false
       }
     },
     {
-      "booking_id": "94fa0fee-29e7-4ae3-8cf3-4f07899dc8b5",
+      "booking_id": "54e74bdf-c783-4c6d-9116-6b6738b330a7",
       "patient_name": "Placeholder Ada",
+      "patient_photo_url": "https://res.cloudinary.com/placeholder/image/upload/v1/patients/placeholder-ada.jpg",
       "service_type": "nurse",
       "status": "in_progress",
-      "scheduled_date": "2026-11-25T14:02:39.978584",
+      "scheduled_date": "2026-11-25T23:26:18.084549",
       "last_message": {
         "text": "Placeholder: yes, five minutes away.",
-        "sent_at": "2026-11-24T13:37:40.017349",
+        "sent_at": "2026-11-24T23:01:18.285213",
         "from_me": true
       }
     },
     {
-      "booking_id": "3bb49d39-39fe-4e93-808f-35b835790670",
+      "booking_id": "364682af-8fb4-42c0-aab9-06fd112791cb",
       "patient_name": "Placeholder Dan",
+      "patient_photo_url": null,
       "service_type": "nurse",
       "status": "completed",
-      "scheduled_date": "2026-11-25T14:02:39.999670",
+      "scheduled_date": "2026-11-25T23:26:18.184076",
       "last_message": {
         "text": "Placeholder: all done, take care.",
-        "sent_at": "2026-11-24T04:02:40.029124",
+        "sent_at": "2026-11-24T13:26:18.378940",
         "from_me": true
       }
     }
@@ -2778,6 +2782,7 @@ _capture `251-a-chats-list.json`_
 - **Order:** newest activity first. Activity is the time of the last message, or, for a conversation nobody has written in, the time the booking was created. So a newly assigned booking with no message yet sits near the top, above older conversations.
 - `last_message` is `null` until someone writes. Otherwise `text` is at most **140 characters**: a longer message is cut and ends with `…` (the `…` counts in the 140). It is a preview: open the chat route for the whole message. `from_me` is `true` when the signed-in caregiver sent it.
 - `scheduled_date` is when the visit starts (UTC, no `Z`, like every other timestamp in this API). `status` is the booking status (section 7).
+- `patient_photo_url` (new 2026-11-25) is the patient's profile photo as an **absolute URL**, or `null` when they have not uploaded one: draw the letter avatar on `null`. It is the same photo the booking payload gives the assigned caregiver as `patient_details.profile_image_url`; the field name differs (`patient_photo_url` here, `profile_image_url` there). A new capture (`003-c-chats-list-patient-photo.json` in [`fe-captures/chat-push-payment-return/`](fe-captures/chat-push-payment-return/)) shows the same field from the chat-push run.
 - **There is no `unread_count`.** The chat does not record who has read what (the `is_read` column exists but nothing ever sets it), so any unread badge would be wrong. Do not draw one until the backend adds read tracking.
 - There is no address, phone number or other patient detail here, and no avatar URL: build the avatar from the initials of `patient_name`.
 
@@ -2788,28 +2793,30 @@ Paging (`limit=2`, then the cursor passed back):
 {
   "items": [
     {
-      "booking_id": "a281bfb0-9193-4271-bc7d-5cab8d4bbbb5",
+      "booking_id": "90647929-05e7-4319-b610-24417f6fe62f",
       "patient_name": "Placeholder Cara",
+      "patient_photo_url": null,
       "service_type": "nurse",
       "status": "accepted",
-      "scheduled_date": "2026-11-25T14:02:39.995603",
+      "scheduled_date": "2026-11-25T23:26:18.158157",
       "last_message": null
     },
     {
-      "booking_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3",
+      "booking_id": "8ba771ac-0033-4bba-92fe-25ad17c7556f",
       "patient_name": "Placeholder Ben Okoro",
+      "patient_photo_url": null,
       "service_type": "companion",
       "status": "accepted",
-      "scheduled_date": "2026-11-25T14:02:39.990316",
+      "scheduled_date": "2026-11-25T23:26:18.133850",
       "last_message": {
         "text": "Placeholder: a very long message a very long message a very long message a very long message a very long message a very long message a very…",
-        "sent_at": "2026-11-24T13:50:40.023820",
+        "sent_at": "2026-11-24T23:14:18.354219",
         "from_me": false
       }
     }
   ],
-  "next_before": "2026-11-24T13:50:40.023820",
-  "next_before_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3"
+  "next_before": "2026-11-24T23:14:18.354219",
+  "next_before_id": "8ba771ac-0033-4bba-92fe-25ad17c7556f"
 }
 ```
 _capture `252-a-chats-page-1.json`_
@@ -2819,26 +2826,28 @@ _capture `252-a-chats-page-1.json`_
 {
   "items": [
     {
-      "booking_id": "94fa0fee-29e7-4ae3-8cf3-4f07899dc8b5",
+      "booking_id": "54e74bdf-c783-4c6d-9116-6b6738b330a7",
       "patient_name": "Placeholder Ada",
+      "patient_photo_url": "https://res.cloudinary.com/placeholder/image/upload/v1/patients/placeholder-ada.jpg",
       "service_type": "nurse",
       "status": "in_progress",
-      "scheduled_date": "2026-11-25T14:02:39.978584",
+      "scheduled_date": "2026-11-25T23:26:18.084549",
       "last_message": {
         "text": "Placeholder: yes, five minutes away.",
-        "sent_at": "2026-11-24T13:37:40.017349",
+        "sent_at": "2026-11-24T23:01:18.285213",
         "from_me": true
       }
     },
     {
-      "booking_id": "3bb49d39-39fe-4e93-808f-35b835790670",
+      "booking_id": "364682af-8fb4-42c0-aab9-06fd112791cb",
       "patient_name": "Placeholder Dan",
+      "patient_photo_url": null,
       "service_type": "nurse",
       "status": "completed",
-      "scheduled_date": "2026-11-25T14:02:39.999670",
+      "scheduled_date": "2026-11-25T23:26:18.184076",
       "last_message": {
         "text": "Placeholder: all done, take care.",
-        "sent_at": "2026-11-24T04:02:40.029124",
+        "sent_at": "2026-11-24T13:26:18.378940",
         "from_me": true
       }
     }

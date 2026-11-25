@@ -22,7 +22,7 @@ The stack: **api** (FastAPI behind gunicorn), **worker** (ARQ: dispatch, payouts
 | 10 | **First price list** | `base_fee` (naira per hour), `platform_fee_percent`, optional per-service multipliers. **I will not invent prices.** | section 9 |
 | 11 | **Super Admin** | the email for the first admin, and an authenticator app on your phone | section 9 |
 | 12 | **Admin console on staging?** | Not part of this kit. Without it, caregivers can be approved only through API calls. Say whether to deploy `apps/admin` (Vercel or the same VPS) next. | later |
-| 13 | **`FRONTEND_URL`** | after paying, Paystack sends the browser to `<FRONTEND_URL>/bookings/<id>/payment-complete`. No page exists there; a 404 is cosmetic (the webhook marks the booking paid). Pick a domain you own. | section 7 |
+| 13 | **`FRONTEND_URL`** | the website's address (links in e-mails). It is no longer where Paystack sends the browser after paying: that is `PAYMENT_CALLBACK_URL`, which should be `<API origin>/api/v1/payment/callback` (the API serves a "confirming your payment, return to the app" page there; leave `PAYMENT_CALLBACK_URL` empty to derive it from `KYC_WIDGET_PUBLIC_BASE_URL`). Pick a domain you own. | section 7 |
 
 Never paste a key into chat, a ticket or git: you put them into the env file on your own laptop and encrypt it (section 5.2).
 

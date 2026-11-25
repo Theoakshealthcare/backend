@@ -9,6 +9,9 @@ Two queries' worth of work in one statement: the newest message of every convers
 subquery joined to the bookings, so a page costs one round trip however many conversations it holds. Only the newest message
 is read, and only its first characters; addresses, phone numbers and the rest of the thread never leave the database here.
 
+The patient's photo is the same ``users.profile_image_url`` the booking payload already gives the assigned caregiver as
+``patient_details.profile_image_url`` (an absolute Cloudinary URL); null when the patient has none.
+
 Read state: ``chat_messages.is_read`` exists but nothing ever sets it (no route or service writes it), so an unread count
 would be wrong. It is left out on purpose until read tracking exists.
 """
@@ -23,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.db.models.booking import Booking, ChatMessage
 from app.db.models.caregiver import Caregiver
 from app.db.models.patient import Patient
+from app.db.models.user import User
 from app.services.caregiver_clients import UNKNOWN_CLIENT_NAME
 
 PREVIEW_CHARS = 140
@@ -58,9 +62,11 @@ def list_chats(db: Session, caregiver: Caregiver, user_id: UUID, before: Optiona
     query = (
         db.query(
             Booking.id, Booking.service_type, Booking.status, Booking.scheduled_date, Patient.full_name,
+            User.profile_image_url.label("patient_photo_url"),
             last.c.body, last.c.sent_at, last.c.sender_id, activity.label("activity"),
         )
         .outerjoin(Patient, Patient.id == Booking.patient_id)
+        .outerjoin(User, User.id == Patient.user_id)
         .outerjoin(last, last.c.booking_id == Booking.id)
         .filter(Booking.caregiver_id == caregiver.id)
     )
@@ -74,6 +80,7 @@ def list_chats(db: Session, caregiver: Caregiver, user_id: UUID, before: Optiona
         {
             "booking_id": r.id,
             "patient_name": r.full_name or UNKNOWN_CLIENT_NAME,
+            "patient_photo_url": r.patient_photo_url or None,
             "service_type": r.service_type,
             "status": r.status,
             "scheduled_date": r.scheduled_date,

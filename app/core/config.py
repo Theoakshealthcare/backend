@@ -8,6 +8,9 @@ from pydantic import AnyHttpUrl, EmailStr, model_validator, validator
 from pydantic_settings import BaseSettings, NoDecode
 
 
+# Last resort for PAYMENT_CALLBACK_URL when neither it nor KYC_WIDGET_PUBLIC_BASE_URL is set (local development).
+PAYMENT_CALLBACK_FALLBACK = "https://www.oaklycare.com/payment/callback"
+
 # Deep-link schemes the hosted KYC widget page may send the caregiver back to (KD2). The app's own scheme only in production; Expo's
 # development schemes elsewhere. Never a web scheme.
 KYC_RETURN_SCHEMES = ("oaklycarecaregivermobile", "oaklycaregiver")
@@ -94,7 +97,10 @@ class Settings(BaseSettings):
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
     PAYSTACK_BASE_URL: str = "https://api.paystack.co"  # the local end-to-end script points this at a fake
-    PAYMENT_CALLBACK_URL: str = "https://www.oaklycare.com/payment/callback"
+    # Where Paystack sends the in-app browser after paying: the API's own GET /payment/callback page (a static "confirming your
+    # payment, return to the app" page). Leave empty to derive it from KYC_WIDGET_PUBLIC_BASE_URL (the API's public origin);
+    # with neither set it falls back to PAYMENT_CALLBACK_FALLBACK (the website, which has no such page: local development only).
+    PAYMENT_CALLBACK_URL: str = ""
     # v1: the patient app hides the Oakly wallet, so credit put there would be stranded. Off, a Super Admin cannot choose
     # the wallet destination for a refund (approve with destination "wallet", or switch a failed refund to the wallet):
     # 409 wallet_refunds_disabled. Refunds go to the original payment method. Turn on once the wallet is visible to users.
@@ -301,6 +307,15 @@ class Settings(BaseSettings):
         if (not sep or scheme not in allowed or not rest or len(link) > 200 or "@" in rest.split("/", 1)[0]
                 or any(c.isspace() or ord(c) < 32 or c in "\"'<>\\`" for c in link)):
             raise ValueError("KYC_RETURN_URL must be <scheme>://<path> with a scheme from " + ", ".join(allowed))
+        return self
+
+    @model_validator(mode="after")
+    def _derive_payment_callback_url(self):
+        # An explicit PAYMENT_CALLBACK_URL always wins. Empty, it is this API's own return page on its public origin, the same
+        # origin the KYC widget page is served from, so one setting names the API's public address.
+        if not self.PAYMENT_CALLBACK_URL.strip():
+            base = self.KYC_WIDGET_PUBLIC_BASE_URL.strip().rstrip("/")
+            self.PAYMENT_CALLBACK_URL = f"{base}{self.API_V1_STR}/payment/callback" if base else PAYMENT_CALLBACK_FALLBACK
         return self
 
     @model_validator(mode="after")

@@ -67,7 +67,7 @@ def _callback_url(booking: Booking) -> str:
     """Where Paystack sends the person after paying: the same URL the booking's own channel used when it was created."""
     if booking.channel == "whatsapp":
         return f"{app_settings.WHATSAPP_PAYMENT_RETURN_URL}?ref={booking.booking_code}"
-    return f"{app_settings.FRONTEND_URL}/bookings/{booking.id}/payment-complete"
+    return app_settings.PAYMENT_CALLBACK_URL
 
 
 def _paid_error(booking: Booking) -> PatientCancelError:

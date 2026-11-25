@@ -8,7 +8,7 @@ from app.db.models.booking import BookingNotification, BookingStatus, ChatMessag
 from app.tests.factories import auth_headers, make_booking, make_caregiver, make_patient, refresh_headers
 
 URL = "/api/v1/caregiver/chats"
-ROW_KEYS = {"booking_id", "patient_name", "service_type", "status", "scheduled_date", "last_message"}
+ROW_KEYS = {"booking_id", "patient_name", "patient_photo_url", "service_type", "status", "scheduled_date", "last_message"}
 MESSAGE_KEYS = {"text", "sent_at", "from_me"}
 NOW = datetime(2026, 11, 20, 12, 0, 0)
 
@@ -73,6 +73,27 @@ def test_row_shape_with_and_without_a_message(db, client):
     assert first["scheduled_date"] == talked.scheduled_date.isoformat()
     assert second["last_message"] is None
     assert body["next_before"] is None and body["next_before_id"] is None
+
+
+def test_patient_photo_url_is_the_patients_profile_image_or_null(db, client):
+    cg = make_caregiver(db)
+    with_photo = make_patient(db, full_name="Has Photo")
+    with_photo.user.profile_image_url = "https://res.cloudinary.com/placeholder/image/upload/ada.jpg"
+    no_photo = make_patient(db, full_name="No Photo")
+    db.commit()
+    a = visit(db, with_photo, cg, age_minutes=10)
+    b = visit(db, no_photo, cg, age_minutes=20)
+    items = {i["booking_id"]: i for i in get(client, cg.user)["items"]}
+    assert items[str(a.id)]["patient_photo_url"] == "https://res.cloudinary.com/placeholder/image/upload/ada.jpg"
+    assert "patient_photo_url" in items[str(b.id)] and items[str(b.id)]["patient_photo_url"] is None
+
+
+def test_a_blank_profile_image_is_null_not_an_empty_string(db, client):
+    cg, patient = make_caregiver(db), make_patient(db)
+    patient.user.profile_image_url = ""
+    db.commit()
+    visit(db, patient, cg)
+    assert get(client, cg.user)["items"][0]["patient_photo_url"] is None
 
 
 def test_from_me_is_false_for_the_patients_message(db, client):

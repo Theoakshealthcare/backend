@@ -130,6 +130,7 @@ jobs:
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-password-reset.md docs/fe-captures/password-reset --check
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-patient-fallguard.md docs/fe-captures/patient-fallguard --check
           poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-caregiver-ai-notes.md docs/fe-captures/caregiver-ai-notes --check
+          poetry run python -m scripts.render_fe_guide docs/fe-integration-guide-chat-push-payment-return.md docs/fe-captures/chat-push-payment-return --check
 
   test:
     name: Tests (shard ${{ matrix.group }}/4)

@@ -4,8 +4,8 @@
     "path": "/api/v1/caregiver/chats",
     "query": {
       "limit": 2,
-      "before": "2026-11-24T13:50:40.023820",
-      "before_id": "c535d19f-96ea-4396-8c8e-5bcda62b00b3"
+      "before": "2026-11-24T23:14:18.354219",
+      "before_id": "8ba771ac-0033-4bba-92fe-25ad17c7556f"
     },
     "auth": "Bearer <ACCESS_TOKEN_JWT>",
     "body": null
@@ -19,26 +19,28 @@
     "body": {
       "items": [
         {
-          "booking_id": "94fa0fee-29e7-4ae3-8cf3-4f07899dc8b5",
+          "booking_id": "54e74bdf-c783-4c6d-9116-6b6738b330a7",
           "patient_name": "Placeholder Ada",
+          "patient_photo_url": "https://res.cloudinary.com/placeholder/image/upload/v1/patients/placeholder-ada.jpg",
           "service_type": "nurse",
           "status": "in_progress",
-          "scheduled_date": "2026-11-25T14:02:39.978584",
+          "scheduled_date": "2026-11-25T23:26:18.084549",
           "last_message": {
             "text": "Placeholder: yes, five minutes away.",
-            "sent_at": "2026-11-24T13:37:40.017349",
+            "sent_at": "2026-11-24T23:01:18.285213",
             "from_me": true
           }
         },
         {
-          "booking_id": "3bb49d39-39fe-4e93-808f-35b835790670",
+          "booking_id": "364682af-8fb4-42c0-aab9-06fd112791cb",
           "patient_name": "Placeholder Dan",
+          "patient_photo_url": null,
           "service_type": "nurse",
           "status": "completed",
-          "scheduled_date": "2026-11-25T14:02:39.999670",
+          "scheduled_date": "2026-11-25T23:26:18.184076",
           "last_message": {
             "text": "Placeholder: all done, take care.",
-            "sent_at": "2026-11-24T04:02:40.029124",
+            "sent_at": "2026-11-24T13:26:18.378940",
             "from_me": true
           }
         }
